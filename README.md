@@ -1,327 +1,186 @@
 # Media Engine
 
-> A modern TypeScript framework for searching, aggregating and normalizing metadata about movies, TV series and anime from multiple providers.
+Media Engine is an open source TypeScript engine for searching, aggregating, normalizing, and merging media metadata from multiple sources through one API.
 
----
+It is not a website. It is a reusable engine that can be used from Node.js applications, APIs, bots, CLI tools, and client applications through an API or SDK.
 
-## 🚧 Project Status
+## Project Status
 
-> **Early Design Phase**
+Current phase: **Project Design**.
 
-Media Engine is currently in the architecture and design stage.
+The project follows a documentation-first workflow. Production code starts only after the architecture, public API, data model, provider contract, roadmap, task backlog, and execution rules are reviewed and approved.
 
-The project is being developed using a **Documentation First** approach.  
-Before writing production code, the architecture, domain model, APIs and development standards are fully designed and documented.
+Current active task:
 
----
-
-# What is Media Engine?
-
-Media Engine is an open-source framework that provides a unified interface for working with media data from multiple providers.
-
-Instead of integrating different APIs, parsers and websites separately, developers work with a single abstraction layer.
-
-Media Engine automatically:
-
-- searches media across multiple providers
-- resolves different IDs (IMDb, TMDB, Kinopoisk, Shikimori, etc.)
-- normalizes responses
-- merges metadata
-- discovers available video players
-- provides a single strongly typed API
-
-The developer does not need to know where the data comes from.
-
----
-
-# Why does this project exist?
-
-Today there is no complete TypeScript solution that combines:
-
-- metadata providers
-- search providers
-- player providers
-- ID resolvers
-- normalization
-- plugin architecture
-
-Most existing libraries solve only one problem.
-
-Media Engine aims to become a universal foundation for media applications.
-
----
-
-# Main Goals
-
-The project aims to provide:
-
-- Unified media model
-- Plugin-based architecture
-- High performance
-- Strong TypeScript typing
-- Extensibility
-- Clean Architecture
-- Provider abstraction
-- Excellent documentation
-- Open Source development
-
----
-
-# Non Goals
-
-Media Engine is **NOT**:
-
-- a streaming service
-- a movie website
-- a React application
-- a frontend framework
-- a media player
-- a torrent client
-- a download manager
-
-Media Engine is an engine that other applications can build upon.
-
----
-
-# Planned Features
-
-## Metadata
-
-- Movies
-- TV Shows
-- Anime
-- Seasons
-- Episodes
-- Actors
-- Studios
-- Genres
-- Images
-- Ratings
-- Videos
-
----
-
-## Search
-
-Search by:
-
-- Title
-- IMDb ID
-- TMDB ID
-- Kinopoisk ID
-- Shikimori ID
-- AniList ID
-
----
-
-## Providers
-
-Planned provider support:
-
-### Metadata
-
-- TMDB
-- Kinopoisk.dev
-- IMDb
-- AniList
-- Shikimori
-
-### Players
-
-- Kodik
-- Collaps
-- VideoCDN
-- Lumex
-- Alloha
-
-### Images
-
-- TMDB
-- FanArt
-
----
-
-# High-Level Architecture
-
-```text
-                Applications
-
-       React      Next.js      CLI
-            │         │         │
-            └─────────┴─────────┘
-                      │
-               Media Engine API
-                      │
-              Search Engine
-                      │
-          Metadata / Player Engine
-                      │
-      Provider Plugin System
-                      │
- TMDB  IMDb  KP  Kodik  Collaps ...
+```txt
+TASK-000: Approve Project Design Documents
 ```
 
----
+## Core Idea
 
-# Core Principles
+Developers should work with Media Engine, not with every provider separately.
 
-- Documentation First
-- Clean Architecture
-- SOLID
-- DRY
-- KISS
-- Strong TypeScript Types
-- Provider Pattern
-- Plugin Architecture
-- Testability
-- Extensibility
+Instead of manually integrating TMDB, IMDb, Kinopoisk, Shikimori, Kodik, Collaps, VideoCDN, and other services, a developer calls one typed API:
 
----
+```ts
+const media = new MediaEngine({
+  providers: [
+    tmdbProvider({ apiKey: process.env.TMDB_API_KEY }),
+    shikimoriProvider(),
+  ],
+});
 
-# Repository Structure
-
-```text
-docs/
-apps/
-packages/
-examples/
-tools/
+const result = await media.search({
+  title: "Interstellar",
+});
 ```
 
-(Currently only documentation exists.)
+Search by external IDs is also part of the intended public API:
 
----
-
-# Documentation
-
-Documentation is organized into several sections.
-
-```
-docs/
-
-00-overview/
-
-01-architecture/
-
-02-domain/
-
-03-providers/
-
-04-api/
-
-05-development/
-
-06-roadmap/
-
-07-testing/
-
-08-deployment/
-
-adr/
+```ts
+const result = await media.search({
+  imdb: "tt0816692",
+});
 ```
 
----
+Media Engine is responsible for:
 
-# Development Roadmap
+- selecting useful providers;
+- calling providers safely;
+- resolving external IDs;
+- normalizing provider responses;
+- merging duplicated results;
+- returning one strongly typed response.
 
-The project is developed in several phases.
+## Products
 
-## Phase 0
+The project will produce three main products.
 
-Architecture
+### 1. Media Engine Core
 
-Documentation
+Package:
 
-Software Design Document
+```bash
+npm install @media-engine/core
+```
 
-ADR
+Responsibilities:
 
----
+- public TypeScript API;
+- media data model;
+- provider contracts;
+- provider registry;
+- search and details orchestration;
+- merge strategy;
+- error model;
+- cache interfaces;
+- test utilities.
 
-## Phase 1
+Core must stay framework-independent. It must not depend on NestJS, React, Express, or concrete providers.
 
-Workspace
+### 2. Media Engine API
 
-Core
+Path:
 
-Shared packages
+```txt
+apps/api
+```
 
-Developer tooling
+Technology: NestJS.
 
----
+Responsibilities:
 
-## Phase 2
+- REST endpoints;
+- DTO validation;
+- provider configuration from environment variables;
+- Swagger/OpenAPI;
+- health checks;
+- API-level cache and rate limiting.
 
-Domain Model
+### 3. Example React App
 
-Provider Contracts
+Path:
 
-Plugin System
+```txt
+apps/example
+```
 
----
+Purpose: demonstrate how to use Media Engine through the API or SDK.
 
-## Phase 3
+The example app must not contain provider API keys or import provider packages directly.
 
-Metadata Providers
+## Planned Repository Structure
 
-TMDB
+```txt
+media-engine/
+  packages/
+    core/
+    providers/
+    plugins/
+    sdk/
+  apps/
+    api/
+    example/
+  docs/
+```
 
-Kinopoisk
+Only documentation exists at the current phase.
 
-IMDb
+## Version Roadmap
 
-AniList
+```txt
+Phase 0  -> Project Design
+v0.1     -> Core Foundation
+v0.2     -> Metadata Providers
+v0.3     -> NestJS API
+v0.4     -> React Example App
+v0.5     -> Streaming Provider Architecture
+v0.6     -> SDK and Client Contracts
+v1.0     -> Stable Release
+```
 
-Shikimori
+## Documentation
 
----
+Current design documents:
 
-## Phase 4
+```txt
+docs/00-project-charter.md
+docs/01-product-scope.md
+docs/02-architecture.md
+docs/03-public-api.md
+docs/04-data-model.md
+docs/05-provider-system.md
+docs/06-merge-strategy.md
+docs/07-repository-structure.md
+docs/08-roadmap.md
+docs/09-task-backlog.md
+docs/10-execution-rules.md
+```
 
-Player Providers
+## Development Rules
 
-Kodik
+- Documentation comes before code.
+- Work follows the task backlog in order.
+- Only one task is active at a time.
+- Public API changes must be reflected in `docs/03-public-api.md`.
+- Data model changes must be reflected in `docs/04-data-model.md`.
+- Provider contract changes must be reflected in `docs/05-provider-system.md`.
+- Merge logic changes must be reflected in `docs/06-merge-strategy.md`.
+- Core must not import concrete providers.
+- Real providers, API, UI, streaming, and SDK are delayed until their planned phases.
 
-Collaps
+## Non Goals
 
-VideoCDN
+Media Engine is not:
 
-Lumex
+- a streaming service;
+- a movie website;
+- a frontend framework;
+- a media player;
+- a torrent client;
+- a download manager;
+- a database-first application.
 
----
-
-## Phase 5
-
-NestJS API
-
-REST
-
-Swagger
-
-Caching
-
-Queues
-
----
-
-## Phase 6
-
-React Example Application
-
----
-
-# Contributing
-
-The project is currently in active design.
-
-Contributions will be accepted after the first public release.
-
----
-
-# License
+## License
 
 MIT
-
----
-
-Made with ❤️ using TypeScript.
