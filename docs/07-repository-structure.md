@@ -207,4 +207,3 @@ Packages build to `dist/` and publish compiled JS, `.d.ts`, README, and package 
 Before `v1.0`, public API may change if docs are updated.
 
 After `v1.0`, use semver.
-

@@ -8,10 +8,13 @@
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "build": "pnpm -r build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
   },
   "devDependencies": {
+    "prettier": "^3.8.5",
     "typescript": "^5.8.0"
   }
 }
