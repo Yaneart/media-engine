@@ -202,26 +202,3 @@ export interface AnimeDetails extends BaseMediaDetails {
 
 // Union of all detailed media models for discriminated narrowing.
 export type MediaDetails = MovieDetails | SeriesDetails | AnimeDetails;
-
-export interface Episode {
-  id?: string;
-  seasonNumber?: number;
-  episodeNumber: number;
-  absoluteNumber?: number;
-  title?: string;
-  description?: string;
-  releaseDate?: string;
-  runtimeMinutes?: number;
-  still?: Image;
-}
-
-export interface Season {
-  id?: string;
-  number: number;
-  title?: string;
-  description?: string;
-  poster?: Image;
-  episodes?: Episode[];
-  episodesCount?: number;
-  releaseDate?: string;
-}
