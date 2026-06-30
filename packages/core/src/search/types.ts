@@ -2,6 +2,7 @@ import type { ExternalIds, MediaItem, MediaType, ProviderSource } from "../media
 import type { ResponseMeta } from "../response/index.js";
 
 // Public query shape for media search.
+// Публичная форма запроса для поиска медиа.
 export interface SearchQuery {
   title?: string;
   type?: MediaType;
@@ -18,6 +19,7 @@ export interface SearchQuery {
 }
 
 // One merged search result with score and source attribution.
+// Один объединенный результат поиска с оценкой и атрибуцией источников.
 export interface MediaSearchResult {
   item: MediaItem;
   score: number;
@@ -25,6 +27,7 @@ export interface MediaSearchResult {
 }
 
 // Search response returned by MediaEngine.search.
+// Ответ поиска, который возвращает MediaEngine.search.
 export interface SearchResponse {
   query: SearchQuery;
   results: MediaSearchResult[];

@@ -2,6 +2,7 @@ import type { ExternalIds, MediaDetails, MediaType } from "../media/index.js";
 import type { ResponseMeta } from "../response/index.js";
 
 // Public query shape for media details lookup.
+// Публичная форма запроса для получения деталей медиа.
 export interface DetailsQuery {
   id?: string;
   ids?: ExternalIds;
@@ -16,6 +17,7 @@ export interface DetailsQuery {
 }
 
 // Details response returned by MediaEngine.getDetails.
+// Ответ с деталями, который возвращает MediaEngine.getDetails.
 export interface DetailsResponse {
   query: DetailsQuery;
   details: MediaDetails | null;

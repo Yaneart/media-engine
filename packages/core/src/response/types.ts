@@ -1,4 +1,5 @@
 // Public provider failure summary included in response metadata.
+// Публичное описание ошибки провайдера в метаданных ответа.
 export interface ProviderFailure {
   provider: string;
   code: string;
@@ -6,6 +7,7 @@ export interface ProviderFailure {
 }
 
 // Provider execution summary for one engine request.
+// Сводка выполнения провайдеров для одного запроса движка.
 export interface ProviderExecutionMeta {
   requested: string[];
   successful: string[];
@@ -13,6 +15,7 @@ export interface ProviderExecutionMeta {
 }
 
 // Non-fatal engine warning returned with a response.
+// Некритичное предупреждение движка, возвращаемое вместе с ответом.
 export interface EngineWarning {
   code: string;
   message: string;
@@ -20,6 +23,7 @@ export interface EngineWarning {
 }
 
 // Shared metadata returned with search and details responses.
+// Общие метаданные, возвращаемые с ответами поиска и деталей.
 export interface ResponseMeta {
   providers: ProviderExecutionMeta;
   cached: boolean;

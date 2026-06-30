@@ -1,7 +1,9 @@
 // Main media category used for filtering and type narrowing.
+// Основная категория медиа для фильтрации и сужения типов.
 export type MediaType = "movie" | "series" | "anime";
 
 // External IDs used to match the same media across providers.
+// Внешние ID для сопоставления одного медиа между провайдерами.
 export interface ExternalIds {
   imdb?: string;
   tmdb?: string;
@@ -13,9 +15,11 @@ export interface ExternalIds {
 }
 
 // Purpose of an image in the media model.
+// Назначение изображения в медиа-модели.
 export type ImageType = "poster" | "backdrop" | "logo" | "still" | "profile";
 
 // Image metadata shared by posters, backdrops, stills, logos, and photos.
+// Общие метаданные изображения для постеров, фонов, кадров, логотипов и фото.
 export interface Image {
   url: string;
   type?: ImageType;
@@ -26,6 +30,7 @@ export interface Image {
 }
 
 // Source that produced a rating value.
+// Источник, который предоставил значение рейтинга.
 export type RatingSource =
   | "imdb"
   | "tmdb"
@@ -36,6 +41,7 @@ export type RatingSource =
   | "internal";
 
 // Rating value from one source with its scale and optional vote count.
+// Значение рейтинга из одного источника со шкалой и опциональным числом голосов.
 export interface Rating {
   source: RatingSource;
   value: number;
@@ -44,6 +50,7 @@ export interface Rating {
 }
 
 // Genre label, optionally tied to a provider-specific ID.
+// Название жанра с опциональным ID конкретного провайдера.
 export interface Genre {
   id?: string;
   name: string;
@@ -51,6 +58,7 @@ export interface Genre {
 }
 
 // External IDs used to match the same person across providers.
+// Внешние ID для сопоставления одного человека между провайдерами.
 export interface PersonExternalIds {
   imdb?: string;
   tmdb?: string;
@@ -59,6 +67,7 @@ export interface PersonExternalIds {
 }
 
 // Person entity independent from a specific media role.
+// Сущность человека независимо от его роли в конкретном медиа.
 export interface Person {
   id?: string;
   name: string;
@@ -68,6 +77,7 @@ export interface Person {
 }
 
 // Role a person can have in a media item.
+// Роль, которую человек может иметь в медиа.
 export type PersonRole =
   | "actor"
   | "director"
@@ -78,6 +88,7 @@ export type PersonRole =
   | "unknown";
 
 // Relationship between a person and a specific media item.
+// Связь между человеком и конкретным медиа.
 export interface MediaPerson {
   person: Person;
   roles: PersonRole[];
@@ -86,6 +97,7 @@ export interface MediaPerson {
 }
 
 // Single episode metadata for series and anime.
+// Метаданные одного эпизода для сериалов и аниме.
 export interface Episode {
   id?: string;
   seasonNumber?: number;
@@ -99,6 +111,7 @@ export interface Episode {
 }
 
 // Season metadata with optional nested episodes.
+// Метаданные сезона с опциональными вложенными эпизодами.
 export interface Season {
   id?: string;
   number: number;
@@ -111,6 +124,7 @@ export interface Season {
 }
 
 // Lifecycle status of a media item.
+// Статус жизненного цикла медиа.
 export type MediaStatus =
   | "announced"
   | "in_production"
@@ -121,12 +135,14 @@ export type MediaStatus =
   | "unknown";
 
 // Money amount used for movie budget and revenue.
+// Денежная сумма для бюджета и сборов фильма.
 export interface Money {
   amount: number;
   currency: string;
 }
 
 // Collection or franchise metadata for related movies.
+// Метаданные коллекции или франшизы для связанных фильмов.
 export interface CollectionInfo {
   id?: string;
   title: string;
@@ -135,6 +151,7 @@ export interface CollectionInfo {
 }
 
 // Provider attribution for merged media data.
+// Атрибуция провайдера для объединенных медиа-данных.
 export interface ProviderSource {
   provider: string;
   ids?: ExternalIds;
@@ -142,6 +159,7 @@ export interface ProviderSource {
 }
 
 // Compact media model used in search results.
+// Компактная медиа-модель для результатов поиска.
 export interface MediaItem {
   id: string;
   type: MediaType;
@@ -160,6 +178,7 @@ export interface MediaItem {
 }
 
 // Shared detailed fields used by movie, series, and anime details.
+// Общие подробные поля для деталей фильма, сериала и аниме.
 export interface BaseMediaDetails extends MediaItem {
   status?: MediaStatus;
   runtimeMinutes?: number;
@@ -171,6 +190,7 @@ export interface BaseMediaDetails extends MediaItem {
 }
 
 // Detailed movie model with movie-specific financial and collection data.
+// Подробная модель фильма с финансовыми данными и коллекцией.
 export interface MovieDetails extends BaseMediaDetails {
   type: "movie";
   budget?: Money;
@@ -179,6 +199,7 @@ export interface MovieDetails extends BaseMediaDetails {
 }
 
 // Detailed series model with season and episode counters.
+// Подробная модель сериала со счетчиками сезонов и эпизодов.
 export interface SeriesDetails extends BaseMediaDetails {
   type: "series";
   seasons?: Season[];
@@ -187,9 +208,11 @@ export interface SeriesDetails extends BaseMediaDetails {
 }
 
 // Anime release format used by anime-specific providers.
+// Формат релиза аниме для аниме-специфичных провайдеров.
 export type AnimeKind = "tv" | "movie" | "ova" | "ona" | "special" | "music" | "unknown";
 
 // Detailed anime model with anime-specific episode and release fields.
+// Подробная модель аниме с полями эпизодов и релиза.
 export interface AnimeDetails extends BaseMediaDetails {
   type: "anime";
   animeKind?: AnimeKind;
@@ -201,4 +224,5 @@ export interface AnimeDetails extends BaseMediaDetails {
 }
 
 // Union of all detailed media models for discriminated narrowing.
+// Объединение всех подробных медиа-моделей для дискриминирующего сужения.
 export type MediaDetails = MovieDetails | SeriesDetails | AnimeDetails;
