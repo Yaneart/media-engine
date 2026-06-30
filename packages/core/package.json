@@ -19,6 +19,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"No tests yet for @media-engine/core\""
+    "test": "pnpm build && node --test dist/providers/registry.test.js"
   }
 }
