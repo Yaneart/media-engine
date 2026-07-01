@@ -192,16 +192,10 @@ Engine errors are predictable. Provider errors are collected in response metadat
 Base error codes:
 
 ```ts
-type ErrorCode =
-  | "INVALID_QUERY"
-  | "NO_PROVIDER_AVAILABLE"
-  | "PROVIDER_ERROR"
-  | "PROVIDER_TIMEOUT"
-  | "PROVIDER_UNAUTHORIZED"
-  | "PROVIDER_RATE_LIMITED"
-  | "PROVIDER_UNAVAILABLE"
-  | "UNKNOWN_ERROR";
+type ErrorCode = "INVALID_QUERY" | "PROVIDER_ERROR" | "UNKNOWN_ERROR";
 ```
+
+Provider-specific failures use `ProviderErrorCode` and are exposed through `meta.providers.failed`.
 
 ## Cache
 

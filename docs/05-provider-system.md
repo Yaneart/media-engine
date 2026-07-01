@@ -9,10 +9,10 @@ Core knows only the provider contract. It does not know TMDB, Shikimori, Kinopoi
 ## Provider Kinds
 
 ```ts
-type ProviderKind = "metadata" | "streaming";
+type ProviderKind = "metadata";
 ```
 
-Early versions implement only metadata providers. Streaming providers are designed later.
+Early versions implement only metadata providers. Streaming providers are designed later and are not part of the v0.1 core contract.
 
 ## MediaProvider
 
@@ -215,7 +215,6 @@ Core must include testing utilities:
 - success provider;
 - failing provider;
 - timeout provider;
-- empty-result provider;
 - fixtures for movie, series, and anime.
 
 ## Streaming Provider Placeholder

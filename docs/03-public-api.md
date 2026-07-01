@@ -229,7 +229,8 @@ Custom merge strategies may be passed through `MediaEngineOptions`, but the defa
 ```ts
 interface ProviderFailure {
   provider: string;
-  code: ErrorCode;
+  code: string;
+  retryable: boolean;
   message: string;
 }
 ```
@@ -253,6 +254,19 @@ Provider failures should usually be represented in `meta.providers.failed` if at
 ```ts
 class MediaEngineError extends Error {
   code: ErrorCode;
+  cause?: unknown;
+}
+```
+
+```ts
+type ErrorCode = "INVALID_QUERY" | "PROVIDER_ERROR" | "UNKNOWN_ERROR";
+```
+
+```ts
+class ProviderError extends Error {
+  provider: string;
+  code: ProviderErrorCode;
+  retryable: boolean;
   cause?: unknown;
 }
 ```

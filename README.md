@@ -6,14 +6,14 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **Project Design**.
+Current phase: **v0.1 Core Foundation**.
 
-The project follows a documentation-first workflow. Production code starts only after the architecture, public API, data model, provider contract, roadmap, task backlog, and execution rules are reviewed and approved.
+The project follows a documentation-first workflow. The core foundation is implemented before real providers, API, UI, streaming, and SDK work.
 
 Current active task:
 
 ```txt
-TASK-000: Approve Project Design Documents
+TASK-015: v0.1 Audit
 ```
 
 ## Core Idea
@@ -124,7 +124,7 @@ media-engine/
   docs/
 ```
 
-Only documentation exists at the current phase.
+The v0.1 core package exists under `packages/core`.
 
 ## Version Roadmap
 
