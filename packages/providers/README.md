@@ -16,4 +16,15 @@ src/
   index.ts
 ```
 
-No API keys, environment reads, HTTP clients, or real provider implementations are included in `TASK-020`.
+No API keys, environment reads, or real provider implementations are included yet.
+
+## Shared Utilities
+
+`src/shared` contains provider-side helpers used by future concrete providers:
+
+- `fetchJson`;
+- `parseJsonResponse`;
+- `mapProviderHttpError`;
+- `mapHttpStatusToProviderErrorCode`.
+
+These helpers map HTTP, JSON parsing, network, and timeout failures into `ProviderError` from `@media-engine/core`.
