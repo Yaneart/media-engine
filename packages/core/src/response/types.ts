@@ -3,6 +3,7 @@
 export interface ProviderFailure {
   provider: string;
   code: string;
+  retryable: boolean;
   message: string;
 }
 
