@@ -143,6 +143,9 @@ Deliverables:
 - streaming data model;
 - `StreamingProvider` contract;
 - `getAvailability`;
+- `getStreams` or equivalent stream/player lookup method;
+- normalized player options for UI selection;
+- translations, subtitles, qualities, and episode mapping;
 - mock streaming provider;
 - one experimental provider;
 - tests and docs.
@@ -151,6 +154,7 @@ Gate:
 
 - metadata search does not depend on streaming;
 - availability works separately;
+- UI can receive multiple player options such as Kodik and alternatives for one episode;
 - docs explain separation.
 
 ## v0.6: SDK

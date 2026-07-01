@@ -140,13 +140,34 @@ Includes:
 
 - `StreamingProvider` contract;
 - availability model;
+- stream/player result model;
 - translations;
 - episode sources;
 - player sources;
+- player selection data for UI;
 - one experimental streaming provider;
 - docs and tests.
 
 Streaming providers are separate from metadata providers.
+
+Target user experience: an application can open a media details page, choose an episode, show a video window, and let the user choose between available players/providers such as Kodik and later alternatives. Media Engine should return normalized player/stream options; the frontend owns rendering the iframe/video UI.
+
+Example future flow:
+
+```txt
+search title -> get details -> choose episode -> get stream options -> UI selects player
+```
+
+Example future player grouping:
+
+```txt
+Kodik
+  AniDUB / 720p
+  Subtitles / 1080p
+
+Other provider
+  Voice / 720p
+```
 
 ## v0.6: SDK
 

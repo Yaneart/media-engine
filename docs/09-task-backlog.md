@@ -572,15 +572,15 @@ Show poster, title, year, ratings, genres, IDs, and details.
 
 ### TASK-050: Design Streaming Data Model
 
-Describe availability, translations, episode sources, and player sources.
+Describe availability, streams, translations, subtitles, qualities, episode sources, player sources, and UI player-selection needs.
 
 ### TASK-051: Add StreamingProvider Contract
 
-Add streaming provider contract after metadata architecture is stable.
+Add streaming provider contract after metadata architecture is stable. It must support returning multiple normalized player/stream options for the same media or episode.
 
 ### TASK-052: Add Experimental Streaming Provider
 
-Validate streaming architecture with one source.
+Validate streaming architecture with one source, such as Kodik if it can be used through an allowed API/embed flow. The result should prove the future UI can show a video window with a player selector.
 
 ## v0.6 SDK
 

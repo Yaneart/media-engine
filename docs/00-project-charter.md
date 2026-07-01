@@ -86,6 +86,8 @@ Later streaming providers:
 - VideoCDN;
 - Lumex.
 
+Future streaming goal: Media Engine should not make users design video lookup from scratch. After metadata is stable, the engine should provide a separate streaming layer that returns normalized stream/player options for a media item or episode. Applications should be able to show a video window with a player selector, for example Kodik and later alternative players, while the frontend remains responsible for rendering iframe/video UI.
+
 ### Media Engine API
 
 `apps/api` is a NestJS REST API over `@media-engine/core`.
