@@ -182,6 +182,7 @@ export interface MergeContext {
   language?: string;
   providerPriority?: string[];
   debug?: boolean;
+  warnings?: EngineWarning[];
 }
 ```
 

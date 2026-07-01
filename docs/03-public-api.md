@@ -224,6 +224,8 @@ interface MergeStrategy {
 
 Custom merge strategies may be passed through `MediaEngineOptions`, but the default strategy is enough for v0.1.
 
+`MergeContext.warnings` is an optional mutable warning collector. The default strategy pushes ID and field conflict warnings there so the engine can later expose them through `ResponseMeta.warnings`.
+
 ```ts
 interface ProviderFailure {
   provider: string;
