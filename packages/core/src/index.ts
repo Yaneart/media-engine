@@ -7,4 +7,5 @@ export type * from "./response/index.js";
 export type * from "./providers/index.js";
 export * from "./merge/index.js";
 export * from "./cache/index.js";
+export * from "./engine/index.js";
 export * from "./errors/index.js";
