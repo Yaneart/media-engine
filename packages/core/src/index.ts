@@ -9,3 +9,4 @@ export * from "./merge/index.js";
 export * from "./cache/index.js";
 export * from "./engine/index.js";
 export * from "./errors/index.js";
+export * from "./testing/index.js";
