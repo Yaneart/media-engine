@@ -284,6 +284,204 @@ test("search cache integration keeps response shape", async () => {
   assert.deepEqual(second.results, first.results);
 });
 
+test("getDetails rejects empty queries predictably", async () => {
+  const engine = new MediaEngine();
+
+  await assert.rejects(() => engine.getDetails({}), {
+    name: "MediaEngineError",
+    code: "INVALID_QUERY",
+    message: "Details query must include id or external ids.",
+  });
+});
+
+test("getDetails normalizes top-level external id shortcuts into ids", async () => {
+  let receivedIds: unknown;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async getDetails(query): Promise<ProviderDetailsResult | null> {
+          receivedIds = query.ids;
+          return {
+            provider: "test-provider",
+            details: {
+              id: "imdb-tt0816692",
+              type: "movie",
+              title: "Interstellar",
+              ids: { imdb: "tt0816692" },
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.deepEqual(receivedIds, { imdb: "tt0816692" });
+  assert.deepEqual(response.query.ids, { imdb: "tt0816692" });
+  assert.equal(response.details?.title, "Interstellar");
+});
+
+test("getDetails skips providers without getDetails", async () => {
+  const searchOnlyProvider = createProvider({
+    name: "search-only-provider",
+    getDetails: undefined,
+  });
+  const detailsProvider = createProvider({
+    name: "details-provider",
+    async getDetails(): Promise<ProviderDetailsResult | null> {
+      return {
+        provider: "details-provider",
+        details: {
+          id: "movie-1",
+          type: "movie",
+          title: "Interstellar",
+        },
+      };
+    },
+  });
+  const engine = new MediaEngine({
+    providers: [searchOnlyProvider, detailsProvider],
+  });
+
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.deepEqual(response.meta.providers.requested, ["details-provider"]);
+  assert.deepEqual(response.meta.providers.successful, ["details-provider"]);
+  assert.equal(response.details?.title, "Interstellar");
+});
+
+test("getDetails tolerates one provider failure when another provider succeeds", async () => {
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "failing-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          throw new ProviderError({
+            provider: "failing-provider",
+            code: "PROVIDER_RATE_LIMITED",
+            retryable: true,
+            message: "Rate limited.",
+          });
+        },
+      }),
+      createProvider({
+        name: "successful-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          return {
+            provider: "successful-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Interstellar",
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.equal(response.details?.title, "Interstellar");
+  assert.deepEqual(response.meta.providers.requested, ["failing-provider", "successful-provider"]);
+  assert.deepEqual(response.meta.providers.successful, ["successful-provider"]);
+  assert.deepEqual(response.meta.providers.failed, [
+    {
+      provider: "failing-provider",
+      code: "PROVIDER_RATE_LIMITED",
+      retryable: true,
+      message: "Rate limited.",
+    },
+  ]);
+});
+
+test("getDetails throws predictably when all selected providers fail", async () => {
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "failing-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          throw new Error("Details failed.");
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(
+    () => engine.getDetails({ imdb: "tt0816692" }),
+    (error) => {
+      assert.equal(error instanceof MediaEngineError, true);
+      assert.equal((error as MediaEngineError).code, "PROVIDER_ERROR");
+      assert.equal((error as MediaEngineError).message, "All details providers failed.");
+      assert.deepEqual((error as Error & { cause?: unknown }).cause, {
+        failed: [
+          {
+            provider: "failing-provider",
+            code: "PROVIDER_ERROR",
+            retryable: false,
+            message: "Details failed.",
+          },
+        ],
+      });
+      return true;
+    },
+  );
+});
+
+test("getDetails returns null details when providers return no details", async () => {
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "empty-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          return null;
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.equal(response.details, null);
+  assert.deepEqual(response.meta.providers.requested, ["empty-provider"]);
+  assert.deepEqual(response.meta.providers.successful, ["empty-provider"]);
+  assert.deepEqual(response.meta.providers.failed, []);
+});
+
+test("getDetails cache integration keeps response shape", async () => {
+  let calls = 0;
+  const cache = new MemoryCache();
+  const engine = new MediaEngine({
+    cache,
+    providers: [
+      createProvider({
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          calls += 1;
+          return {
+            provider: "test-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Interstellar",
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.getDetails({ imdb: "tt0816692" });
+  const second = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.equal(calls, 1);
+  assert.equal(first.meta.cached, false);
+  assert.equal(second.meta.cached, true);
+  assert.deepEqual(Object.keys(first).sort(), ["details", "meta", "query"]);
+  assert.deepEqual(Object.keys(second).sort(), ["details", "meta", "query"]);
+  assert.deepEqual(second.details, first.details);
+});
+
 function createProvider(
   overrides: Partial<MediaProvider> & { apiKey?: string } = {},
 ): MediaProvider & { apiKey?: string } {

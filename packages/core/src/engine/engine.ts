@@ -1,16 +1,22 @@
 import type { Cache } from "../cache/index.js";
+import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError, ProviderError, toProviderFailure } from "../errors/index.js";
 import type { ExternalIds } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type MediaProvider, type ProviderInfo } from "../providers/index.js";
-import type { ProviderSearchQuery, ProviderSearchResult } from "../providers/index.js";
+import type {
+  ProviderDetailsQuery,
+  ProviderDetailsResult,
+  ProviderSearchQuery,
+  ProviderSearchResult,
+} from "../providers/index.js";
 import type { EngineWarning, ProviderFailure, ResponseMeta } from "../response/index.js";
 import type { SearchQuery, SearchResponse } from "../search/index.js";
 import type { MediaEngineOptions } from "./types.js";
 
-// Top-level public external ID shortcuts supported by search queries.
-// Верхнеуровневые публичные сокращения внешних ID, поддерживаемые search query.
-const SEARCH_ID_SHORTCUTS = [
+// Top-level public external ID shortcuts supported by engine queries.
+// Верхнеуровневые публичные сокращения внешних ID, поддерживаемые query движка.
+const EXTERNAL_ID_SHORTCUTS = [
   "imdb",
   "tmdb",
   "kinopoisk",
@@ -123,6 +129,87 @@ export class MediaEngine {
     return response;
   }
 
+  // Loads media details through selected providers and merges normalized results.
+  // Загружает детали медиа через выбранных провайдеров и объединяет нормализованные результаты.
+  async getDetails(query: DetailsQuery): Promise<DetailsResponse> {
+    const startedAt = Date.now();
+    const normalizedQuery = normalizeDetailsQuery(query);
+    validateDetailsQuery(normalizedQuery);
+
+    const cacheKey = createDetailsCacheKey(normalizedQuery);
+    const cached = await this.cache?.get<DetailsResponse>(cacheKey);
+
+    if (cached) {
+      return {
+        ...cached,
+        query: normalizedQuery,
+        meta: {
+          ...cached.meta,
+          cached: true,
+          tookMs: elapsedSince(startedAt),
+        },
+      };
+    }
+
+    const providers = this.registry.selectDetailsProviders(normalizedQuery);
+    const requested = providers.map((provider) => provider.name);
+    const successful: string[] = [];
+    const failed: ProviderFailure[] = [];
+    const warnings: EngineWarning[] = [];
+    const providerResults: ProviderDetailsResult[] = [];
+
+    for (const provider of providers) {
+      try {
+        const result = await callProviderDetails(provider, normalizedQuery, {
+          debug: this.debug,
+          language: normalizedQuery.language,
+          timeoutMs: this.timeoutMs,
+        });
+
+        successful.push(provider.name);
+
+        if (result) {
+          providerResults.push(result);
+        }
+      } catch (error) {
+        failed.push(toProviderFailure(provider.name, error));
+      }
+    }
+
+    if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
+      throw new MediaEngineError({
+        code: "PROVIDER_ERROR",
+        message: "All details providers failed.",
+        cause: { failed },
+      });
+    }
+
+    const details = this.mergeStrategy.mergeDetails(providerResults, {
+      query: normalizedQuery,
+      language: normalizedQuery.language,
+      debug: this.debug,
+      warnings,
+    });
+
+    const response: DetailsResponse = {
+      query: normalizedQuery,
+      details,
+      meta: createResponseMeta({
+        requested,
+        successful,
+        failed,
+        warnings,
+        cached: false,
+        tookMs: elapsedSince(startedAt),
+        debug: this.debug,
+      }),
+    };
+
+    await this.cache?.set(cacheKey, response);
+
+    return response;
+  }
+
   // Gives future engine methods access to the registered providers.
   // Дает будущим методам движка доступ к зарегистрированным провайдерам.
   protected get providerRegistry(): ProviderRegistry {
@@ -154,9 +241,9 @@ export class MediaEngine {
   }
 }
 
-// Context passed to a single provider search call.
-// Контекст, передаваемый в один вызов поиска провайдера.
-interface SearchCallContext {
+// Context passed to a single provider call.
+// Контекст, передаваемый в один вызов провайдера.
+interface ProviderCallContext {
   debug: boolean;
   language?: string;
   timeoutMs?: number;
@@ -179,7 +266,7 @@ interface ResponseMetaInput {
 function normalizeSearchQuery(query: SearchQuery): SearchQuery {
   const ids: ExternalIds = { ...(query.ids ?? {}) };
 
-  for (const key of SEARCH_ID_SHORTCUTS) {
+  for (const key of EXTERNAL_ID_SHORTCUTS) {
     const value = query[key];
 
     if (value) {
@@ -190,6 +277,25 @@ function normalizeSearchQuery(query: SearchQuery): SearchQuery {
   return {
     ...query,
     title: query.title?.trim(),
+    ids: hasExternalIds(ids) ? ids : undefined,
+  };
+}
+
+// Normalizes top-level external ID shortcuts into a details ids object.
+// Нормализует верхнеуровневые сокращения внешних ID в объект ids для details.
+function normalizeDetailsQuery(query: DetailsQuery): DetailsQuery {
+  const ids: ExternalIds = { ...(query.ids ?? {}) };
+
+  for (const key of EXTERNAL_ID_SHORTCUTS) {
+    const value = query[key];
+
+    if (value) {
+      ids[key] = value;
+    }
+  }
+
+  return {
+    ...query,
     ids: hasExternalIds(ids) ? ids : undefined,
   };
 }
@@ -214,33 +320,79 @@ function validateSearchQuery(query: SearchQuery): void {
   });
 }
 
+// Validates that a details query has at least one supported lookup input.
+// Проверяет, что details query содержит хотя бы один поддерживаемый вход для поиска.
+function validateDetailsQuery(query: DetailsQuery): void {
+  if (query.id?.trim() || hasExternalIds(query.ids)) {
+    return;
+  }
+
+  throw new MediaEngineError({
+    code: "INVALID_QUERY",
+    message: "Details query must include id or external ids.",
+  });
+}
+
 // Calls one provider search method with timeout and abort signal support.
 // Вызывает search одного провайдера с поддержкой timeout и abort signal.
 async function callProviderSearch(
   provider: MediaProvider,
   query: ProviderSearchQuery,
-  context: SearchCallContext,
+  context: ProviderCallContext,
 ): Promise<ProviderSearchResult[]> {
-  const controller = new AbortController();
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    const searchPromise = provider.search(query, {
+  return withProviderTimeout(provider.name, context, (controller) =>
+    provider.search(query, {
       signal: controller.signal,
       timeoutMs: context.timeoutMs,
       debug: context.debug,
       language: context.language,
-    });
+    }),
+  );
+}
+
+// Calls one provider details method with timeout and abort signal support.
+// Вызывает getDetails одного провайдера с поддержкой timeout и abort signal.
+async function callProviderDetails(
+  provider: MediaProvider,
+  query: ProviderDetailsQuery,
+  context: ProviderCallContext,
+): Promise<ProviderDetailsResult | null> {
+  if (!provider.getDetails) {
+    return null;
+  }
+
+  return withProviderTimeout(provider.name, context, (controller) =>
+    provider.getDetails!(query, {
+      signal: controller.signal,
+      timeoutMs: context.timeoutMs,
+      debug: context.debug,
+      language: context.language,
+    }),
+  );
+}
+
+// Wraps a provider promise with configured timeout behavior.
+// Оборачивает promise провайдера настроенным timeout-поведением.
+async function withProviderTimeout<T>(
+  providerName: string,
+  context: ProviderCallContext,
+  run: (controller: AbortController) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    const providerPromise = run(controller);
 
     if (context.timeoutMs === undefined) {
-      return await searchPromise;
+      return await providerPromise;
     }
 
-    const timeoutPromise = new Promise<ProviderSearchResult[]>((_, reject) => {
+    const timeoutPromise = new Promise<T>((_, reject) => {
       const timeoutError = new ProviderError({
-        provider: provider.name,
+        provider: providerName,
         code: "PROVIDER_TIMEOUT",
-        message: `Provider "${provider.name}" timed out.`,
+        message: `Provider "${providerName}" timed out.`,
         retryable: true,
       });
 
@@ -256,7 +408,7 @@ async function callProviderSearch(
       }, context.timeoutMs);
     });
 
-    return await Promise.race([searchPromise, timeoutPromise]);
+    return await Promise.race([providerPromise, timeoutPromise]);
   } finally {
     if (timeout) {
       clearTimeout(timeout);
@@ -284,6 +436,12 @@ function createResponseMeta(input: ResponseMetaInput): ResponseMeta {
 // Создает стабильный cache key для нормализованного search query.
 function createSearchCacheKey(query: SearchQuery): string {
   return `search:${JSON.stringify(sortObject(query))}`;
+}
+
+// Creates a stable cache key for a normalized details query.
+// Создает стабильный cache key для нормализованного details query.
+function createDetailsCacheKey(query: DetailsQuery): string {
+  return `details:${JSON.stringify(sortObject(query))}`;
 }
 
 // Checks whether an external ID object contains at least one ID.
