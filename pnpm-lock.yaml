@@ -20,6 +20,12 @@ importers:
 
   packages/core: {}
 
+  packages/providers:
+    dependencies:
+      '@media-engine/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@types/node@26.0.1':
