@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation and firs
 Current active task:
 
 ```txt
-TASK-030: Initialize NestJS API App
+TASK-031: Add MediaEngine Module Configuration
 ```
 
 ## Core Idea
