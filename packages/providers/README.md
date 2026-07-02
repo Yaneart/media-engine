@@ -45,6 +45,33 @@ Supported data:
 
 `apiKey` is sent as a TMDB bearer token. Tests use mock `fetch` implementations and do not call the real TMDB API.
 
+## Shikimori Provider
+
+`shikimoriProvider` creates a metadata provider for anime.
+
+```ts
+import { MediaEngine } from "@media-engine/core";
+import { shikimoriProvider } from "@media-engine/providers";
+
+const engine = new MediaEngine({
+  providers: [
+    shikimoriProvider({
+      userAgent: "MyApp/1.0.0",
+    }),
+  ],
+});
+```
+
+Supported data:
+
+- title search for anime;
+- Shikimori ID lookup;
+- anime details;
+- posters, screenshots, ratings, genres, persons, episodes, and alternative titles;
+- Shikimori and MyAnimeList external IDs in normalized results.
+
+The provider does not store API keys or read environment variables. Tests use mock `fetch` implementations and do not call the real Shikimori API.
+
 ## Shared Utilities
 
 `src/shared` contains provider-side helpers used by future concrete providers:

@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/shared/http.test.js dist/tmdb/index.test.js"
+    "test": "pnpm build && node --test dist/shared/http.test.js dist/tmdb/index.test.js dist/shikimori/index.test.js"
   },
   "dependencies": {
     "@media-engine/core": "workspace:*"
