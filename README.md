@@ -6,14 +6,14 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **v0.1 Core Foundation**.
+Current phase: **v0.2 Metadata Providers**.
 
-The project follows a documentation-first workflow. The core foundation is implemented before real providers, API, UI, streaming, and SDK work.
+The project follows a documentation-first workflow. The core foundation and first metadata providers are implemented before API, UI, streaming, and SDK work.
 
 Current active task:
 
 ```txt
-TASK-015: v0.1 Audit
+TASK-024: v0.2 Audit
 ```
 
 ## Core Idea
@@ -25,7 +25,7 @@ Instead of manually integrating TMDB, IMDb, Kinopoisk, Shikimori, Kodik, Collaps
 ```ts
 const media = new MediaEngine({
   providers: [
-    tmdbProvider({ apiKey: process.env.TMDB_API_KEY }),
+    tmdbProvider({ apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "" }),
     shikimoriProvider(),
   ],
 });

@@ -518,6 +518,14 @@ Add Shikimori anime search/details, mappers, and tests with mock HTTP.
 
 Verify provider package and confirm core still does not import concrete providers.
 
+Done when:
+
+- providers package exports shared utilities, TMDB, and Shikimori;
+- TMDB and Shikimori tests pass with mock HTTP;
+- root checks pass;
+- documentation reflects the current v0.2 provider state;
+- core has no imports from `@media-engine/providers`.
+
 ### TASK-025: Plan Additional Metadata Providers
 
 Goal: plan IMDb, Kinopoisk, and AniList after TMDB/Shikimori prove the provider contract.

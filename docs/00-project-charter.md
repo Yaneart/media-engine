@@ -11,7 +11,7 @@ Target usage:
 ```ts
 const media = new MediaEngine({
   providers: [
-    tmdbProvider({ apiKey: process.env.TMDB_API_KEY }),
+    tmdbProvider({ apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "" }),
     shikimoriProvider(),
   ],
 });

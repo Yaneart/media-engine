@@ -23,7 +23,7 @@ import { shikimoriProvider, tmdbProvider } from "@media-engine/providers";
 const media = new MediaEngine({
   providers: [
     tmdbProvider({
-      apiKey: process.env.TMDB_API_KEY,
+      apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "",
       language: "ru-RU",
     }),
     shikimoriProvider(),

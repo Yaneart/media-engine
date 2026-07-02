@@ -53,7 +53,7 @@ Example:
 
 ```ts
 const provider = tmdbProvider({
-  apiKey: process.env.TMDB_API_KEY,
+  apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "",
   language: "ru-RU",
 });
 ```

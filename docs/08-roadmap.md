@@ -89,6 +89,12 @@ Gate:
 - provider tests pass without live API;
 - core does not import concrete providers.
 
+Audit status:
+
+- `@media-engine/providers` exists with shared HTTP utilities, TMDB, and Shikimori;
+- provider tests use mock `fetch` implementations and do not call live APIs;
+- `@media-engine/core` still depends only on provider contracts, not concrete provider packages.
+
 ## v0.3: NestJS API
 
 Goal: expose Media Engine over HTTP.
