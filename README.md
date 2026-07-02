@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation and firs
 Current active task:
 
 ```txt
-TASK-041: Add Search UI
+TASK-042: Add Results and Details UI
 ```
 
 ## Core Idea

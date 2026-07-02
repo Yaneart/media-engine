@@ -596,6 +596,10 @@ Add input, API call, loading, error, and empty states.
 
 Show poster, title, year, ratings, genres, IDs, and details.
 
+### TASK-043: Add Docker Compose for API and Example App
+
+Add local Docker Compose development setup for running the NestJS API and React example app together with one command.
+
 ## v0.5 Streaming Architecture
 
 ### TASK-050: Design Streaming Data Model
