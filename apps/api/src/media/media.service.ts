@@ -6,8 +6,11 @@ import {
 } from '@nestjs/common';
 import {
   MediaEngineError,
+  type DetailsQuery,
+  type DetailsResponse,
   type MediaEngine,
   type MediaType,
+  type ProviderInfo,
   type SearchQuery,
   type SearchResponse,
 } from '@media-engine/core';
@@ -16,6 +19,13 @@ import { MEDIA_ENGINE } from '../media-engine';
 // EN: Raw query shape received from HTTP before API-level normalization.
 // RU: Сырая форма query из HTTP до нормализации на уровне API.
 export type MediaSearchHttpQuery = Record<
+  string,
+  string | string[] | undefined
+>;
+
+// EN: Raw details query shape received from HTTP before API-level normalization.
+// RU: Сырая форма details query из HTTP до нормализации на уровне API.
+export type MediaDetailsHttpQuery = Record<
   string,
   string | string[] | undefined
 >;
@@ -33,9 +43,9 @@ const EXTERNAL_ID_KEYS = [
 ] as const satisfies readonly (keyof SearchQuery)[];
 
 @Injectable()
-// EN: Application service that adapts HTTP search requests to the core engine.
-// RU: Сервис приложения, который адаптирует HTTP search запросы к core engine.
-export class MediaSearchService {
+// EN: Application service that adapts HTTP media requests to the core engine.
+// RU: Сервис приложения, который адаптирует HTTP media запросы к core engine.
+export class MediaService {
   constructor(
     @Inject(MEDIA_ENGINE)
     private readonly mediaEngine: MediaEngine,
@@ -60,6 +70,33 @@ export class MediaSearchService {
 
       throw error;
     }
+  }
+
+  // EN: Convert HTTP query parameters into a core DetailsQuery and load details.
+  // RU: Преобразует HTTP query параметры в core DetailsQuery и загружает детали.
+  async getDetails(query: MediaDetailsHttpQuery): Promise<DetailsResponse> {
+    try {
+      return await this.mediaEngine.getDetails(toDetailsQuery(query));
+    } catch (error) {
+      if (error instanceof MediaEngineError && error.code === 'INVALID_QUERY') {
+        throw new BadRequestException(error.message);
+      }
+
+      if (
+        error instanceof MediaEngineError &&
+        error.code === 'PROVIDER_ERROR'
+      ) {
+        throw new ServiceUnavailableException(error.message);
+      }
+
+      throw error;
+    }
+  }
+
+  // EN: Return safe provider metadata from the configured core engine.
+  // RU: Возвращает безопасные метаданные провайдеров из настроенного core engine.
+  getProviders(): ProviderInfo[] {
+    return this.mediaEngine.getProviders();
   }
 }
 
@@ -102,6 +139,37 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
   }
 
   return searchQuery;
+}
+
+// EN: Build the public core details query from supported GET /media/details parameters.
+// RU: Собирает публичный core details query из поддерживаемых параметров GET /media/details.
+export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
+  const detailsQuery: DetailsQuery = {};
+  const id = readString(query.id);
+  const language = readString(query.language);
+  const type = readMediaType(query.type);
+
+  if (id !== undefined) {
+    detailsQuery.id = id;
+  }
+
+  if (language !== undefined) {
+    detailsQuery.language = language;
+  }
+
+  if (type !== undefined) {
+    detailsQuery.type = type;
+  }
+
+  for (const key of EXTERNAL_ID_KEYS) {
+    const value = readString(query[key] ?? query[`ids.${key}`]);
+
+    if (value !== undefined) {
+      detailsQuery[key] = value;
+    }
+  }
+
+  return detailsQuery;
 }
 
 // EN: Read the first string query value and treat blanks as absent.

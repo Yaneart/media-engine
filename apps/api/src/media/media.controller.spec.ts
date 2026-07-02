@@ -1,18 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import type { App } from 'supertest/types';
 import {
+  type DetailsResponse,
   MediaEngineError,
   sampleMovie,
   type MediaEngine,
+  type ProviderInfo,
   type SearchResponse,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
 import { MediaModule } from './media.module';
 
 describe('MediaController', () => {
-  let app: INestApplication;
-  let mediaEngine: jest.Mocked<Pick<MediaEngine, 'search'>>;
+  let app: INestApplication<App>;
+  let mediaEngine: jest.Mocked<
+    Pick<MediaEngine, 'search' | 'getDetails' | 'getProviders'>
+  >;
 
   const searchResponse: SearchResponse = {
     query: {
@@ -41,9 +46,48 @@ describe('MediaController', () => {
     },
   };
 
+  const detailsResponse: DetailsResponse = {
+    query: {
+      imdb: 'tt0816692',
+      type: 'movie',
+      language: 'ru',
+    },
+    details: sampleMovie,
+    meta: {
+      providers: {
+        requested: ['mock'],
+        successful: ['mock'],
+        failed: [],
+      },
+      cached: false,
+      tookMs: 1,
+    },
+  };
+
+  const providersResponse: ProviderInfo[] = [
+    {
+      name: 'mock',
+      version: '1.0.0',
+      kind: 'metadata',
+      capabilities: {
+        mediaTypes: ['movie'],
+        search: {
+          byTitle: true,
+          byExternalIds: ['imdb'],
+        },
+        details: {
+          byExternalIds: ['imdb'],
+        },
+        features: ['ratings'],
+      },
+    },
+  ];
+
   beforeEach(async () => {
     mediaEngine = {
       search: jest.fn().mockResolvedValue(searchResponse),
+      getDetails: jest.fn().mockResolvedValue(detailsResponse),
+      getProviders: jest.fn().mockReturnValue(providersResponse),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -133,5 +177,82 @@ describe('MediaController', () => {
       .get('/media/search')
       .query({ title: 'Interstellar' })
       .expect(503);
+  });
+
+  it('maps GET /media/details query parameters to MediaEngine.getDetails', async () => {
+    await request(app.getHttpServer())
+      .get('/media/details')
+      .query({
+        imdb: ' tt0816692 ',
+        type: 'movie',
+        language: 'ru',
+      })
+      .expect(200)
+      .expect(detailsResponse);
+
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith({
+      imdb: 'tt0816692',
+      type: 'movie',
+      language: 'ru',
+    });
+  });
+
+  it('supports ids.* external ID parameters for details lookup', async () => {
+    await request(app.getHttpServer())
+      .get('/media/details')
+      .query({
+        'ids.tmdb': '157336',
+      })
+      .expect(200);
+
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith({
+      tmdb: '157336',
+    });
+  });
+
+  it('returns 400 for invalid details media type', async () => {
+    await request(app.getHttpServer())
+      .get('/media/details')
+      .query({
+        imdb: 'tt0816692',
+        type: 'book',
+      })
+      .expect(400);
+
+    expect(mediaEngine.getDetails).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid core details queries', async () => {
+    mediaEngine.getDetails.mockRejectedValueOnce(
+      new MediaEngineError({
+        code: 'INVALID_QUERY',
+        message: 'Details query must include id or external ids.',
+      }),
+    );
+
+    await request(app.getHttpServer()).get('/media/details').expect(400);
+  });
+
+  it('returns 503 when all selected details providers fail', async () => {
+    mediaEngine.getDetails.mockRejectedValueOnce(
+      new MediaEngineError({
+        code: 'PROVIDER_ERROR',
+        message: 'All details providers failed.',
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/media/details')
+      .query({ imdb: 'tt0816692' })
+      .expect(503);
+  });
+
+  it('returns safe provider metadata from GET /providers', async () => {
+    await request(app.getHttpServer())
+      .get('/providers')
+      .expect(200)
+      .expect(providersResponse);
+
+    expect(mediaEngine.getProviders).toHaveBeenCalledWith();
   });
 });
