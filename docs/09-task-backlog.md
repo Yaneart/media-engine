@@ -540,6 +540,26 @@ Not allowed:
 
 - implement these providers before the plan is accepted.
 
+Plan:
+
+- AniList should be the first additional provider candidate because it has a public GraphQL API and maps naturally to the existing anime model.
+- IMDb should be treated as a licensed metadata integration or non-commercial dataset integration. Do not scrape IMDb pages.
+- Kinopoisk should be implemented only after choosing an allowed documented API source and recording its terms/risks.
+- Additional metadata providers are useful, but they are not required before `TASK-030`.
+
+Acceptance criteria:
+
+- provider docs describe source rules and intended capabilities for IMDb, Kinopoisk, and AniList;
+- roadmap states whether additional providers block v0.3;
+- backlog records that implementation is not allowed until a provider-specific task is approved.
+
+Future provider-specific tasks should be created only after this plan is accepted:
+
+- research and choose an AniList GraphQL query set;
+- research IMDb licensed API or non-commercial dataset approach;
+- research an allowed Kinopoisk-compatible API;
+- implement each provider with mock HTTP/GraphQL tests before any live API integration.
+
 ## v0.3 NestJS API
 
 ### TASK-030: Initialize NestJS API App

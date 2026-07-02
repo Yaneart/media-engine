@@ -180,6 +180,82 @@ The engine selects providers by capabilities:
 
 Public query shortcuts such as `imdb`, `tmdb`, `kinopoisk`, `shikimori`, `myAnimeList`, and `aniList` are normalized into `ids` before provider selection. Providers should receive `ProviderSearchQuery` and `ProviderDetailsQuery` with normalized `ids`.
 
+## Planned Metadata Providers
+
+TMDB and Shikimori prove the first provider contract. Additional metadata providers should be added only after their data source, usage terms, and mapping strategy are clear.
+
+### IMDb
+
+Planned role: authoritative movie and series identity, ratings, title basics, alternative titles, people, and episode data.
+
+Preferred source options:
+
+- licensed IMDb API through AWS Data Exchange for production/commercial usage;
+- IMDb non-commercial datasets only for local, personal, or non-commercial experiments where the license allows it.
+
+Provider shape:
+
+- provider name: `imdb`;
+- media types: `movie`, `series`;
+- search: title search only if the selected IMDb source supports it;
+- details: IMDb ID lookup;
+- external IDs: `imdb`;
+- features: ratings, genres, persons, seasons, episodes, alternative titles when available.
+
+Implementation notes:
+
+- do not scrape IMDb pages;
+- do not treat non-commercial TSV datasets as a production API;
+- if using bulk datasets, add a separate indexing/cache plan before implementation.
+
+### Kinopoisk
+
+Planned role: Russian-language metadata, ratings, localized titles, countries, posters, persons, and IDs for movies and series.
+
+Source rule:
+
+- use only an allowed, documented, and licensed Kinopoisk-compatible API;
+- do not scrape kinopoisk.ru pages;
+- if the chosen API is unofficial, document its usage terms and risk before implementation.
+
+Provider shape:
+
+- provider name: `kinopoisk`;
+- media types: `movie`, `series`;
+- search: title and Kinopoisk ID lookup if supported;
+- details: Kinopoisk ID lookup;
+- external IDs: `kinopoisk`, plus `imdb` or `tmdb` when the source provides them;
+- features: posters, ratings, genres, persons, seasons, alternative titles when available.
+
+Implementation notes:
+
+- keep API token configuration outside core;
+- normalize Russian and original titles without overwriting stronger IDs from other providers;
+- treat provider availability and rate limits as first-class failure modes.
+
+### AniList
+
+Planned role: anime metadata that complements Shikimori with AniList IDs, formats, studios, characters, staff, tags, ratings, and airing data.
+
+Preferred source:
+
+- AniList GraphQL API.
+
+Provider shape:
+
+- provider name: `anilist`;
+- media types: `anime`;
+- search: title and AniList ID lookup;
+- details: AniList ID lookup;
+- external IDs: `aniList`, plus `myAnimeList` when available;
+- features: posters, backdrops, ratings, genres, persons, episodes, alternative titles.
+
+Implementation notes:
+
+- use a small fixed GraphQL query set rather than arbitrary user-provided GraphQL;
+- keep query cost and rate limiting visible in tests;
+- map AniList media format into `AnimeKind` conservatively.
+
 ## Provider Errors
 
 ```ts

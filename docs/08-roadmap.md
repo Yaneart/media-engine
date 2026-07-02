@@ -95,6 +95,13 @@ Audit status:
 - provider tests use mock `fetch` implementations and do not call live APIs;
 - `@media-engine/core` still depends only on provider contracts, not concrete provider packages.
 
+Post-v0.2 provider expansion:
+
+- AniList is the next safest metadata provider to implement because it has a public GraphQL API and complements Shikimori for anime IDs and airing data;
+- IMDb should be planned as a licensed API or non-commercial dataset integration, not as scraping;
+- Kinopoisk requires an approved documented API source before implementation;
+- additional providers are not required before starting v0.3 API work.
+
 ## v0.3: NestJS API
 
 Goal: expose Media Engine over HTTP.
