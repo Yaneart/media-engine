@@ -5,7 +5,6 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
-  MediaEngineError,
   type DetailsQuery,
   type DetailsResponse,
   type MediaEngine,
@@ -57,14 +56,11 @@ export class MediaService {
     try {
       return await this.mediaEngine.search(toSearchQuery(query));
     } catch (error) {
-      if (error instanceof MediaEngineError && error.code === 'INVALID_QUERY') {
+      if (isMediaEngineError(error, 'INVALID_QUERY')) {
         throw new BadRequestException(error.message);
       }
 
-      if (
-        error instanceof MediaEngineError &&
-        error.code === 'PROVIDER_ERROR'
-      ) {
+      if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
         throw new ServiceUnavailableException(error.message);
       }
 
@@ -78,14 +74,11 @@ export class MediaService {
     try {
       return await this.mediaEngine.getDetails(toDetailsQuery(query));
     } catch (error) {
-      if (error instanceof MediaEngineError && error.code === 'INVALID_QUERY') {
+      if (isMediaEngineError(error, 'INVALID_QUERY')) {
         throw new BadRequestException(error.message);
       }
 
-      if (
-        error instanceof MediaEngineError &&
-        error.code === 'PROVIDER_ERROR'
-      ) {
+      if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
         throw new ServiceUnavailableException(error.message);
       }
 
@@ -218,4 +211,23 @@ function readMediaType(
   }
 
   throw new BadRequestException('type must be movie, series, or anime.');
+}
+
+// EN: Detect core engine errors without requiring the ESM-only core package at runtime.
+// RU: Определяет ошибки core engine без runtime require ESM-only core package.
+function isMediaEngineError(
+  error: unknown,
+  code: 'INVALID_QUERY' | 'PROVIDER_ERROR',
+): error is { message: string } {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const value = error as Record<string, unknown>;
+
+  return (
+    value.name === 'MediaEngineError' &&
+    value.code === code &&
+    typeof value.message === 'string'
+  );
 }

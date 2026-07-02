@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation and firs
 Current active task:
 
 ```txt
-TASK-040: Initialize React Example App
+TASK-041: Add Search UI
 ```
 
 ## Core Idea

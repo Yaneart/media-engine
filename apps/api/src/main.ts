@@ -7,6 +7,9 @@ const DEFAULT_HOST = '127.0.0.1';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+  app.enableCors({
+    origin: ['http://127.0.0.1:5173', 'http://localhost:5173'],
+  });
   setupOpenApi(app);
 
   // EN: Keep local defaults explicit while still allowing deployment overrides.
