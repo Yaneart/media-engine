@@ -2,11 +2,11 @@
 
 Provider package for Media Engine.
 
-This package will contain concrete metadata provider factories such as TMDB and Shikimori. It is intentionally empty at initialization time; real provider implementations are added by later backlog tasks.
+This package contains concrete metadata provider factories such as TMDB and Shikimori.
 
 The package depends on `@media-engine/core` for provider contracts and normalized media types. Core must not import this package.
 
-Planned structure:
+Current structure:
 
 ```txt
 src/
@@ -16,7 +16,34 @@ src/
   index.ts
 ```
 
-No API keys, environment reads, or real provider implementations are included yet.
+No API keys or environment reads are stored in this package. Applications pass provider secrets from the outside.
+
+## TMDB Provider
+
+`tmdbProvider` creates a metadata provider for movies and series.
+
+```ts
+import { MediaEngine } from "@media-engine/core";
+import { tmdbProvider } from "@media-engine/providers";
+
+const engine = new MediaEngine({
+  providers: [
+    tmdbProvider({
+      apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "",
+      language: "ru-RU",
+    }),
+  ],
+});
+```
+
+Supported data:
+
+- title search for movies and series;
+- IMDb and TMDB external ID lookup;
+- movie and series details;
+- posters, backdrops, ratings, genres, persons, seasons, and alternative titles.
+
+`apiKey` is sent as a TMDB bearer token. Tests use mock `fetch` implementations and do not call the real TMDB API.
 
 ## Shared Utilities
 
