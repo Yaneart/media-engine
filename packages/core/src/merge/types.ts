@@ -7,11 +7,7 @@ import type { MediaSearchResult, SearchQuery } from "../search/index.js";
 // Match quality assigned by the merge strategy.
 // Качество совпадения, которое назначает стратегия объединения.
 export type MatchStrength =
-  | "exact_id"
-  | "exact_title_year_type"
-  | "normalized_title_year_type"
-  | "weak"
-  | "none";
+  "exact_id" | "exact_title_year_type" | "normalized_title_year_type" | "weak" | "none";
 
 // Context that tunes merge behavior for one engine operation.
 // Контекст, который настраивает объединение для одной операции движка.

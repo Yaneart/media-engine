@@ -184,7 +184,7 @@ test("search throws predictably when all selected providers fail", async () => {
 
   await assert.rejects(
     () => engine.search({ title: "Interstellar" }),
-    (error) => {
+    (error: unknown) => {
       assert.equal(error instanceof MediaEngineError, true);
       assert.equal((error as MediaEngineError).code, "PROVIDER_ERROR");
       assert.equal((error as MediaEngineError).message, "All search providers failed.");
@@ -233,7 +233,7 @@ test("search applies timeout to providers that do not finish", async () => {
 
   await assert.rejects(
     () => engine.search({ title: "Interstellar" }),
-    (error) => {
+    (error: unknown) => {
       assert.equal(error instanceof MediaEngineError, true);
       assert.equal((error as MediaEngineError).code, "PROVIDER_ERROR");
       assert.deepEqual((error as Error & { cause?: { failed: unknown[] } }).cause?.failed, [
@@ -410,7 +410,7 @@ test("getDetails throws predictably when all selected providers fail", async () 
 
   await assert.rejects(
     () => engine.getDetails({ imdb: "tt0816692" }),
-    (error) => {
+    (error: unknown) => {
       assert.equal(error instanceof MediaEngineError, true);
       assert.equal((error as MediaEngineError).code, "PROVIDER_ERROR");
       assert.equal((error as MediaEngineError).message, "All details providers failed.");

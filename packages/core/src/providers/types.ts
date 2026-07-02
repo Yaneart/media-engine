@@ -13,13 +13,7 @@ export type ProviderKind = "metadata";
 // External ID source names supported by provider capabilities.
 // Имена источников внешних ID, поддерживаемые возможностями провайдера.
 export type ExternalIdSource =
-  | "imdb"
-  | "tmdb"
-  | "kinopoisk"
-  | "shikimori"
-  | "myAnimeList"
-  | "aniList"
-  | "worldArt";
+  "imdb" | "tmdb" | "kinopoisk" | "shikimori" | "myAnimeList" | "aniList" | "worldArt";
 
 // Optional data features that a provider can return.
 // Опциональные возможности данных, которые может возвращать провайдер.

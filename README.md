@@ -6,14 +6,14 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **v0.2 Metadata Providers**.
+Current phase: **v0.3 NestJS API**.
 
 The project follows a documentation-first workflow. The core foundation and first metadata providers are implemented before API, UI, streaming, and SDK work.
 
 Current active task:
 
 ```txt
-TASK-024: v0.2 Audit
+TASK-030: Initialize NestJS API App
 ```
 
 ## Core Idea

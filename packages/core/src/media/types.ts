@@ -32,13 +32,7 @@ export interface Image {
 // Source that produced a rating value.
 // Источник, который предоставил значение рейтинга.
 export type RatingSource =
-  | "imdb"
-  | "tmdb"
-  | "kinopoisk"
-  | "shikimori"
-  | "myAnimeList"
-  | "aniList"
-  | "internal";
+  "imdb" | "tmdb" | "kinopoisk" | "shikimori" | "myAnimeList" | "aniList" | "internal";
 
 // Rating value from one source with its scale and optional vote count.
 // Значение рейтинга из одного источника со шкалой и опциональным числом голосов.
@@ -79,13 +73,7 @@ export interface Person {
 // Role a person can have in a media item.
 // Роль, которую человек может иметь в медиа.
 export type PersonRole =
-  | "actor"
-  | "director"
-  | "writer"
-  | "producer"
-  | "composer"
-  | "voice_actor"
-  | "unknown";
+  "actor" | "director" | "writer" | "producer" | "composer" | "voice_actor" | "unknown";
 
 // Relationship between a person and a specific media item.
 // Связь между человеком и конкретным медиа.
@@ -126,13 +114,7 @@ export interface Season {
 // Lifecycle status of a media item.
 // Статус жизненного цикла медиа.
 export type MediaStatus =
-  | "announced"
-  | "in_production"
-  | "ongoing"
-  | "released"
-  | "ended"
-  | "canceled"
-  | "unknown";
+  "announced" | "in_production" | "ongoing" | "released" | "ended" | "canceled" | "unknown";
 
 // Money amount used for movie budget and revenue.
 // Денежная сумма для бюджета и сборов фильма.

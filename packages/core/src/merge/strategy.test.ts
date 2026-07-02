@@ -290,7 +290,7 @@ test("keeps details persons seasons and episodes from primary provider", () => {
 
   assert.equal(details?.type, "series");
 
-  if (details?.type !== "series") {
+  if (details === null || details.type !== "series") {
     assert.fail("Expected series details.");
   }
 
@@ -319,7 +319,7 @@ test("keeps anime episodes from primary provider", () => {
 
   assert.equal(details?.type, "anime");
 
-  if (details?.type !== "anime") {
+  if (details === null || details.type !== "anime") {
     assert.fail("Expected anime details.");
   }
 
