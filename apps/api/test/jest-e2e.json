@@ -3,6 +3,10 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "moduleNameMapper": {
+    "^@media-engine/core$": "<rootDir>/../../../packages/core/dist/index.js",
+    "^@media-engine/providers$": "<rootDir>/../../../packages/providers/dist/index.js"
+  },
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }

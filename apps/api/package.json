@@ -18,7 +18,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@media-engine/core": "workspace:*",
@@ -62,6 +62,10 @@
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
+    "moduleNameMapper": {
+      "^@media-engine/core$": "<rootDir>/../../../packages/core/dist/index.js",
+      "^@media-engine/providers$": "<rootDir>/../../../packages/providers/dist/index.js"
+    },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
