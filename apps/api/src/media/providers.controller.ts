@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MediaService } from './media.service';
 
+@ApiTags('providers')
 @Controller('providers')
 // EN: Public provider metadata controller for REST clients.
 // RU: Публичный controller метаданных провайдеров для REST-клиентов.
@@ -9,6 +11,8 @@ export class ProvidersController {
 
   // EN: Return safe provider capabilities without secrets or internals.
   // RU: Возвращает безопасные capabilities провайдеров без секретов и внутренностей.
+  @ApiOperation({ summary: 'List configured metadata providers.' })
+  @ApiOkResponse({ description: 'Safe provider metadata and capabilities.' })
   @Get()
   getProviders() {
     return this.mediaService.getProviders();

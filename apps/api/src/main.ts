@@ -1,11 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { setupOpenApi } from './openapi';
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '127.0.0.1';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+  setupOpenApi(app);
 
   // EN: Keep local defaults explicit while still allowing deployment overrides.
   // RU: Держим локальные значения явными, но оставляем переопределение для деплоя.
