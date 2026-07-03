@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation and firs
 Current active task:
 
 ```txt
-TASK-062: Add SDK Error Handling and Tests
+TASK-063: Integrate SDK into Example App
 ```
 
 ## Core Idea

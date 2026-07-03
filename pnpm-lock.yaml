@@ -117,6 +117,9 @@ importers:
 
   apps/example:
     dependencies:
+      '@media-engine/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       react:
         specifier: ^19.2.7
         version: 19.2.7

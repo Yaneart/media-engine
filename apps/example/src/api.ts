@@ -1,3 +1,6 @@
+import { MediaEngineClient } from "@media-engine/sdk";
+import type { MediaEngineDetailsResponse, MediaEngineSearchResponse } from "@media-engine/sdk";
+
 const DEFAULT_API_URL = "http://127.0.0.1:3000";
 
 // EN: Query shape accepted by the example app search form.
@@ -7,209 +10,49 @@ export interface SearchFormQuery {
   type: "" | "movie" | "series" | "anime";
 }
 
-export type MediaType = "movie" | "series" | "anime";
+export type SearchResponse = MediaEngineSearchResponse;
+export type DetailsResponse = MediaEngineDetailsResponse;
+export type SearchResult = SearchResponse["results"][number];
+export type MediaSummary = SearchResult["item"];
+export type MediaDetails = NonNullable<DetailsResponse["details"]>;
+export type ExternalIds = NonNullable<MediaSummary["ids"]>;
 
-export interface ExternalIds {
-  imdb?: string;
-  tmdb?: string;
-  kinopoisk?: string;
-  shikimori?: string;
-  myAnimeList?: string;
-  aniList?: string;
-  worldArt?: string;
-}
+// EN: Shared SDK client used by the example app browser requests.
+// RU: Общий SDK client для browser requests в example app.
+const mediaEngineClient = new MediaEngineClient({
+  baseUrl: getApiBaseUrl(),
+});
 
-export interface ImageInfo {
-  url: string;
-  type?: string;
-  width?: number;
-  height?: number;
-  language?: string;
-  source?: string;
-}
-
-export interface GenreInfo {
-  id?: string;
-  name: string;
-  source?: string;
-}
-
-export interface RatingInfo {
-  source: string;
-  value: number;
-  max: number;
-  votes?: number;
-}
-
-export interface ProviderSourceInfo {
-  provider: string;
-  ids?: ExternalIds;
-  url?: string;
-}
-
-export interface MediaSummary {
-  id: string;
-  type: MediaType;
-  title: string;
-  originalTitle?: string;
-  alternativeTitles?: string[];
-  year?: number;
-  releaseDate?: string;
-  description?: string;
-  shortDescription?: string;
-  poster?: ImageInfo;
-  backdrop?: ImageInfo;
-  genres?: GenreInfo[];
-  ratings?: RatingInfo[];
-  ids?: ExternalIds;
-}
-
-export interface MediaDetails extends MediaSummary {
-  status?: string;
-  runtimeMinutes?: number;
-  countries?: string[];
-  languages?: string[];
-  images?: ImageInfo[];
-  persons?: Array<{
-    roles: string[];
-    characterName?: string;
-    person: {
-      name: string;
-      originalName?: string;
-      photo?: ImageInfo;
-    };
-  }>;
-  sourceProviders?: ProviderSourceInfo[];
-  seasonsCount?: number;
-  episodesCount?: number;
-  animeKind?: string;
-  airedOn?: string;
-  releasedOn?: string;
-  ageRating?: string;
-}
-
-export interface SearchResponse {
-  results: SearchResult[];
-  meta: {
-    cached?: boolean;
-    tookMs: number;
-    providers: {
-      requested: string[];
-      successful: string[];
-      failed: ProviderFailure[];
-    };
-  };
-}
-
-export interface SearchResult {
-  item: MediaSummary;
-  score: number;
-  sources: ProviderSourceInfo[];
-}
-
-export interface DetailsResponse {
-  details: MediaDetails | null;
-  meta: SearchResponse["meta"];
-}
-
-export interface ProviderFailure {
-  provider: string;
-  code: string;
-  message: string;
-  retryable?: boolean;
-}
-
-// EN: Calls the NestJS API search endpoint used by the example app.
-// RU: Вызывает search endpoint NestJS API, который использует example app.
-export async function searchMedia(
-  query: SearchFormQuery,
-  signal?: AbortSignal,
-): Promise<SearchResponse> {
-  const url = new URL("/media/search", getApiBaseUrl());
-
-  url.searchParams.set("title", query.title);
-  url.searchParams.set("limit", "10");
-
-  if (query.type) {
-    url.searchParams.set("type", query.type);
-  }
-
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
+// EN: Search media through the public SDK instead of hand-written fetch helpers.
+// RU: Ищет media через публичный SDK вместо вручную написанных fetch helpers.
+export function searchMedia(query: SearchFormQuery, signal?: AbortSignal): Promise<SearchResponse> {
+  return mediaEngineClient.search(
+    {
+      title: query.title,
+      type: query.type || undefined,
+      limit: 10,
     },
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
-  return (await response.json()) as SearchResponse;
+    { signal },
+  );
 }
 
-// EN: Calls the NestJS API details endpoint for the selected search result.
-// RU: Вызывает details endpoint NestJS API для выбранного результата поиска.
-export async function getMediaDetails(
+// EN: Load details for the selected result through the public SDK.
+// RU: Загружает детали выбранного результата через публичный SDK.
+export function getMediaDetails(
   item: MediaSummary,
   signal?: AbortSignal,
 ): Promise<DetailsResponse> {
-  const url = new URL("/media/details", getApiBaseUrl());
-
-  url.searchParams.set("type", item.type);
-
-  if (item.ids) {
-    for (const [key, value] of Object.entries(item.ids)) {
-      if (value) {
-        url.searchParams.set(key, value);
-      }
-    }
-  } else {
-    url.searchParams.set("id", item.id);
-  }
-
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
+  return mediaEngineClient.getDetails(
+    {
+      type: item.type,
+      ids: item.ids,
     },
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
-  return (await response.json()) as DetailsResponse;
+    { signal },
+  );
 }
 
 function getApiBaseUrl(): string {
   const configuredUrl = import.meta.env.VITE_MEDIA_ENGINE_API_URL;
 
   return configuredUrl?.trim() || DEFAULT_API_URL;
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-  const fallback = `Search request failed with HTTP ${response.status}.`;
-
-  try {
-    const body: unknown = await response.json();
-
-    if (isErrorResponse(body)) {
-      return body.message;
-    }
-  } catch {
-    return fallback;
-  }
-
-  return fallback;
-}
-
-function isErrorResponse(value: unknown): value is { message: string } {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const response = value as Record<string, unknown>;
-
-  return typeof response.message === "string";
 }

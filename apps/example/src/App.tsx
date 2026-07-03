@@ -5,6 +5,7 @@ import { getMediaDetails, searchMedia } from "./api";
 import type {
   DetailsResponse,
   ExternalIds,
+  MediaDetails,
   MediaSummary,
   SearchFormQuery,
   SearchResponse,
@@ -343,7 +344,7 @@ function DetailsPanel({ state }: { state: DetailsState }) {
           <DetailValue label="Rating" value={formatRating(details.ratings)} />
           <DetailValue label="Runtime" value={formatRuntime(details.runtimeMinutes)} />
           <DetailValue label="Status" value={details.status} />
-          <DetailValue label="Episodes" value={formatCount(details.episodesCount)} />
+          <DetailValue label="Episodes" value={formatCount(getEpisodesCount(details))} />
         </div>
 
         <section className="detail-section">
@@ -443,6 +444,12 @@ function formatRuntime(runtimeMinutes: number | undefined): string | undefined {
 
 function formatCount(value: number | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
+}
+
+// EN: Read episode counters only from media detail variants that can expose them.
+// RU: Читает счетчики эпизодов только из вариантов media details, где они возможны.
+function getEpisodesCount(details: MediaDetails): number | undefined {
+  return "episodesCount" in details ? details.episodesCount : undefined;
 }
 
 export default App;
