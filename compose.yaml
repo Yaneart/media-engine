@@ -1,0 +1,31 @@
+name: media-engine-dev
+
+x-node-dev-service: &node-dev-service
+  image: node:24-bookworm-slim
+  user: "${UID:-1000}:${GID:-1000}"
+  working_dir: /workspace
+  volumes:
+    - .:/workspace
+
+services:
+  api:
+    <<: *node-dev-service
+    ports:
+      - "3000:3000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      TMDB_API_READ_ACCESS_TOKEN: ${TMDB_API_READ_ACCESS_TOKEN:-}
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+    command: npm --prefix apps/api run start:dev
+
+  example:
+    <<: *node-dev-service
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_MEDIA_ENGINE_API_URL: http://127.0.0.1:3000
+    command: npm --prefix apps/example run dev -- --host 0.0.0.0

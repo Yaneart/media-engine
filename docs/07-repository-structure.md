@@ -51,11 +51,13 @@ Expected root scripts:
 {
   "build": "pnpm -r build",
   "test": "pnpm -r test",
-  "lint": "pnpm -r lint",
   "typecheck": "pnpm -r typecheck",
   "format": "prettier --write .",
-  "dev:api": "pnpm --filter @media-engine/api dev",
-  "dev:example": "pnpm --filter @media-engine/example dev"
+  "format:check": "prettier --check .",
+  "dev:api": "pnpm --filter @media-engine/api start:dev",
+  "dev:example": "pnpm --filter @media-engine/example dev",
+  "dev:compose": "docker compose up",
+  "dev:compose:down": "docker compose down"
 }
 ```
 

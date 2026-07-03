@@ -9,6 +9,8 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev:api": "pnpm --filter @media-engine/api start:dev",
+    "dev:compose": "docker compose up",
+    "dev:compose:down": "docker compose down",
     "dev:example": "pnpm --filter @media-engine/example dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

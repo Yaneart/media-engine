@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation and firs
 Current active task:
 
 ```txt
-TASK-042: Add Results and Details UI
+TASK-043: Add Docker Compose for API and Example App
 ```
 
 ## Core Idea
@@ -108,6 +108,28 @@ apps/example
 Purpose: demonstrate how to use Media Engine through the API or SDK.
 
 The example app must not contain provider API keys or import provider packages directly.
+
+## Local Docker Compose
+
+Run the API and React example app together for local development:
+
+```bash
+pnpm dev:compose
+```
+
+The command uses the local workspace dependencies mounted into the Node containers, so run `pnpm install` on the host first when dependencies are missing.
+
+The dev stand exposes:
+
+- API: `http://127.0.0.1:3000`
+- Swagger UI: `http://127.0.0.1:3000/docs`
+- React example: `http://127.0.0.1:5173`
+
+Stop the containers:
+
+```bash
+pnpm dev:compose:down
+```
 
 ## Planned Repository Structure
 
