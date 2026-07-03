@@ -154,6 +154,12 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/sdk:
+    dependencies:
+      '@media-engine/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@angular-devkit/core@19.2.24':

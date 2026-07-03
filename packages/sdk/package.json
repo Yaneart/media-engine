@@ -1,0 +1,27 @@
+{
+  "name": "@media-engine/sdk",
+  "version": "0.0.0",
+  "description": "Typed HTTP SDK for Media Engine API clients.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build"
+  },
+  "dependencies": {
+    "@media-engine/core": "workspace:*"
+  }
+}

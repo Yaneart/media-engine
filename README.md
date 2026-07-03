@@ -6,14 +6,14 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **v0.5 Streaming Provider Architecture**.
+Current phase: **v0.6 SDK**.
 
 The project follows a documentation-first workflow. The core foundation and first metadata providers are implemented before API, UI, streaming, and SDK work.
 
 Current active task:
 
 ```txt
-TASK-050: Design Streaming Data Model
+TASK-060: Initialize SDK Package
 ```
 
 ## Core Idea
