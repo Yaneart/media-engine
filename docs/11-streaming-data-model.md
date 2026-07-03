@@ -336,6 +336,21 @@ A streaming provider should:
 - report provider failures through the engine error model;
 - avoid exposing secrets or account-bound data.
 
+## Experimental Streaming Provider
+
+`@media-engine/providers` includes `experimentalStreamingProvider` to validate the streaming contract before a real source is approved.
+
+It is configured by the application with already allowed player targets. It does not scrape websites, does not call Kodik or another real streaming API, and does not read secrets or environment variables.
+
+Use cases:
+
+- proving that one media item or episode can return multiple player options;
+- wiring a future UI player selector by provider, translation, subtitles, and quality;
+- testing `StreamQuery.providers` filtering;
+- testing movie-level and episode-level availability shapes.
+
+This provider is not a production streaming source. A real source such as Kodik must be implemented as a separate provider only after its API or embed usage rules are documented and allowed.
+
 ## Not In This Task
 
 `TASK-050` does not implement:
