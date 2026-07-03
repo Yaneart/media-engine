@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation and firs
 Current active task:
 
 ```txt
-TASK-060: Initialize SDK Package
+TASK-061: Add SDK Search and Details Methods
 ```
 
 ## Core Idea
