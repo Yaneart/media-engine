@@ -6,14 +6,14 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **v0.4 React Example App**.
+Current phase: **v0.5 Streaming Provider Architecture**.
 
 The project follows a documentation-first workflow. The core foundation and first metadata providers are implemented before API, UI, streaming, and SDK work.
 
 Current active task:
 
 ```txt
-TASK-043: Add Docker Compose for API and Example App
+TASK-050: Design Streaming Data Model
 ```
 
 ## Core Idea
@@ -177,6 +177,7 @@ docs/07-repository-structure.md
 docs/08-roadmap.md
 docs/09-task-backlog.md
 docs/10-execution-rules.md
+docs/11-streaming-data-model.md
 ```
 
 ## Development Rules

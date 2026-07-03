@@ -313,4 +313,6 @@ export interface StreamingProvider {
 
 The future streaming contract should support a UI flow where one media item or episode can return multiple player options. For example, a Kodik provider and later alternative providers can return normalized embed/HLS/MP4 options with provider name, player label, translation, subtitles, quality, episode number, and required headers when allowed.
 
+The streaming data model is described in `docs/11-streaming-data-model.md`.
+
 This is not part of v0.1 implementation.

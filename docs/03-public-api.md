@@ -277,8 +277,11 @@ Possible later methods:
 
 ```ts
 media.getAvailability(query);
+media.getStreams(query);
 media.getSimilar(query);
 media.getExternalIds(query);
 ```
 
 They are intentionally excluded from early versions.
+
+Streaming availability will use the separate model in `docs/11-streaming-data-model.md`. It must not change the shape of metadata search or details responses.

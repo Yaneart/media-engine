@@ -302,3 +302,9 @@ export interface ProviderSource {
 - Provider raw responses are not part of the public model.
 - Metadata and streaming availability are not mixed in early versions.
 - Missing provider data is represented with optional fields.
+
+## Streaming Data
+
+Streaming availability uses a separate model described in `docs/11-streaming-data-model.md`.
+
+The metadata model answers what a media item is. The streaming model answers which player or stream options are available for an already selected media item or episode.
