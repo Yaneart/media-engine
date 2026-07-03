@@ -340,7 +340,6 @@ A streaming provider should:
 
 `TASK-050` does not implement:
 
-- TypeScript source files;
 - `StreamingProvider` runtime contract;
 - engine `getAvailability` method;
 - NestJS API endpoints;

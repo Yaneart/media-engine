@@ -293,9 +293,11 @@ Core must include testing utilities:
 - timeout provider;
 - fixtures for movie, series, and anime.
 
-## Streaming Provider Placeholder
+## Streaming Provider Contract
 
-Future contract:
+Streaming providers are separate from metadata providers and use the model in `docs/11-streaming-data-model.md`.
+
+Core exposes the type-only contract under `packages/core/src/streaming`.
 
 ```ts
 export interface StreamingProvider {
@@ -313,6 +315,4 @@ export interface StreamingProvider {
 
 The future streaming contract should support a UI flow where one media item or episode can return multiple player options. For example, a Kodik provider and later alternative providers can return normalized embed/HLS/MP4 options with provider name, player label, translation, subtitles, quality, episode number, and required headers when allowed.
 
-The streaming data model is described in `docs/11-streaming-data-model.md`.
-
-This is not part of v0.1 implementation.
+This contract is part of v0.5 design. It does not make metadata providers depend on streaming providers.
