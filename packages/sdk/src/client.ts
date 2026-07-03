@@ -30,6 +30,22 @@ export interface MediaEngineHealthResponse {
   service: "media-engine-api";
 }
 
+// EN: Error thrown by the SDK for failed API responses or invalid payloads.
+// RU: Ошибка, которую SDK бросает для неуспешных API responses или неверных payload.
+export class MediaEngineApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  // EN: Preserve HTTP status and parsed response body for application-level handling.
+  // RU: Сохраняем HTTP status и распарсенное тело ответа для обработки на уровне приложения.
+  constructor(message: string, options: { status: number; body?: unknown }) {
+    super(message);
+    this.name = "MediaEngineApiError";
+    this.status = options.status;
+    this.body = options.body;
+  }
+}
+
 const EXTERNAL_ID_KEYS = [
   "imdb",
   "tmdb",
@@ -130,11 +146,7 @@ export class MediaEngineClient {
       headers: options?.headers,
     });
 
-    if (!response.ok) {
-      throw new Error(`Media Engine API request failed with HTTP ${response.status}.`);
-    }
-
-    return (await response.json()) as T;
+    return parseJsonResponse<T>(response);
   }
 }
 
@@ -170,4 +182,66 @@ function appendParam(url: URL, key: string, value: number | string | undefined):
   if (serialized.length > 0) {
     url.searchParams.set(key, serialized);
   }
+}
+
+// EN: Parse JSON responses and normalize HTTP or payload failures into typed SDK errors.
+// RU: Парсит JSON responses и нормализует HTTP или payload failures в typed SDK errors.
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  const body = await readJsonBody(response);
+
+  if (!response.ok) {
+    throw new MediaEngineApiError(readErrorMessage(response, body), {
+      status: response.status,
+      body,
+    });
+  }
+
+  if (body === undefined) {
+    throw new MediaEngineApiError("Media Engine API returned an empty response body.", {
+      status: response.status,
+    });
+  }
+
+  return body as T;
+}
+
+// EN: Read JSON when possible without hiding malformed payloads.
+// RU: Читает JSON когда возможно, не скрывая поврежденные payload.
+async function readJsonBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+
+  if (text.trim().length === 0) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new MediaEngineApiError("Media Engine API returned invalid JSON.", {
+      status: response.status,
+      body: text,
+    });
+  }
+}
+
+// EN: Prefer structured API error messages when the server provides them.
+// RU: Предпочитаем структурированные API error messages, если server их возвращает.
+function readErrorMessage(response: Response, body: unknown): string {
+  if (isErrorBody(body)) {
+    return body.message;
+  }
+
+  return `Media Engine API request failed with HTTP ${response.status}.`;
+}
+
+// EN: Detect the common NestJS error response shape.
+// RU: Определяет распространенную форму NestJS error response.
+function isErrorBody(body: unknown): body is { message: string } {
+  if (!body || typeof body !== "object") {
+    return false;
+  }
+
+  const value = body as Record<string, unknown>;
+
+  return typeof value.message === "string";
 }

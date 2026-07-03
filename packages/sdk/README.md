@@ -34,4 +34,4 @@ const health = await client.getHealth();
 - `getProviders()` calls `GET /providers`.
 - `getHealth()` calls `GET /health`.
 
-Typed SDK errors and detailed response parsing are added in `TASK-062`.
+Failed HTTP responses and invalid JSON payloads throw `MediaEngineApiError`.
