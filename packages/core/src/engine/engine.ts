@@ -79,11 +79,15 @@ export class MediaEngine {
 
     for (const provider of providers) {
       try {
-        const results = await callProviderSearch(provider, normalizedQuery, {
-          debug: this.debug,
-          language: normalizedQuery.language,
-          timeoutMs: this.timeoutMs,
-        });
+        const results = await callProviderSearch(
+          provider,
+          createProviderSearchQuery(normalizedQuery),
+          {
+            debug: this.debug,
+            language: normalizedQuery.language,
+            timeoutMs: this.timeoutMs,
+          },
+        );
 
         successful.push(provider.name);
         providerResults.push(...results);
@@ -331,6 +335,19 @@ function validateDetailsQuery(query: DetailsQuery): void {
     code: "INVALID_QUERY",
     message: "Details query must include id or external ids.",
   });
+}
+
+// Gives providers enough candidates so the engine can rank before applying the public limit.
+// Дает провайдерам достаточно кандидатов, чтобы движок ранжировал до применения публичного limit.
+function createProviderSearchQuery(query: SearchQuery): ProviderSearchQuery {
+  if (query.limit === undefined || query.limit === 0) {
+    return query;
+  }
+
+  return {
+    ...query,
+    limit: Math.max(query.limit * 5, 10),
+  };
 }
 
 // Calls one provider search method with timeout and abort signal support.

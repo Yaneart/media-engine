@@ -178,6 +178,61 @@ test("uses provider priority before title when equal scores come from different 
   );
 });
 
+test("ranks popular relevant series first for broad any-title search", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("kinobd", {
+        id: "kinobd-game-of-thrones",
+        type: "series",
+        title: "Игра престолов",
+        originalTitle: "Game of Thrones",
+        year: 2011,
+        ids: { imdb: "tt0944947", kinopoisk: "464963" },
+        ratings: [
+          { source: "kinopoisk", value: 9, max: 10, votes: 1000000 },
+          { source: "imdb", value: 9.2, max: 10, votes: 2400000 },
+        ],
+        confidence: 0.97,
+      }),
+      providerResult("cinemeta", {
+        id: "cinemeta-series-tt0944947",
+        type: "series",
+        title: "Game of Thrones",
+        year: 2011,
+        ids: { imdb: "tt0944947" },
+        ratings: [{ source: "imdb", value: 9.2, max: 10, votes: 2400000 }],
+        confidence: 0.95,
+      }),
+      providerResult("kinobd", {
+        id: "kinobd-game-of-death",
+        type: "movie",
+        title: "Game of Death",
+        year: 1978,
+        ids: { imdb: "tt0077594", kinopoisk: "24795" },
+        ratings: [{ source: "imdb", value: 5.9, max: 10, votes: 40000 }],
+        confidence: 0.9,
+      }),
+      providerResult("shikimori", {
+        id: "shikimori-game",
+        type: "anime",
+        title: "No Game No Life",
+        year: 2014,
+        ids: { shikimori: "19815" },
+        ratings: [{ source: "shikimori", value: 8.1, max: 10, votes: 500000 }],
+        confidence: 1,
+      }),
+    ],
+    { query: { title: "game of" } },
+  );
+
+  assert.equal(results[0]?.item.title, "Игра престолов");
+  assert.equal(results[0]?.item.type, "series");
+  assert.deepEqual(
+    results[0]?.sources.map((source) => source.provider),
+    ["kinobd", "cinemeta"],
+  );
+});
+
 test("does not merge normalized title matches when strong IDs conflict", () => {
   const results = strategy.mergeSearchResults(
     [
@@ -321,6 +376,39 @@ test("keeps details persons seasons and episodes from primary provider", () => {
 
   assert.equal(details.persons?.[0]?.person.name, "Primary Actor");
   assert.equal(details.seasons?.[0]?.title, "Primary Season");
+});
+
+test("fills series status and counters from secondary details provider", () => {
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("kinobd", {
+        id: "kinobd-got",
+        type: "series",
+        title: "Игра престолов",
+        ids: { kinopoisk: "464963", imdb: "tt0944947" },
+      }),
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-got",
+        type: "series",
+        title: "Game of Thrones",
+        ids: { imdb: "tt0944947", tmdb: "1399" },
+        status: "ended",
+        episodesCount: 73,
+        seasonsCount: 8,
+      }),
+    ],
+    {},
+  );
+
+  assert.equal(details?.type, "series");
+
+  if (!details || details.type !== "series") {
+    assert.fail("Expected series details.");
+  }
+
+  assert.equal(details.status, "ended");
+  assert.equal(details.episodesCount, 73);
+  assert.equal(details.seasonsCount, 8);
 });
 
 test("keeps anime episodes from primary provider", () => {

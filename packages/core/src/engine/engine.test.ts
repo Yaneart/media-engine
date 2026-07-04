@@ -123,6 +123,45 @@ test("search normalizes top-level external id shortcuts into ids", async () => {
   assert.equal(response.results.length, 1);
 });
 
+test("search widens provider limit before applying public response limit", async () => {
+  let receivedLimit: number | undefined;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async search(query): Promise<ProviderSearchResult[]> {
+          receivedLimit = query.limit;
+          return [
+            {
+              provider: "test-provider",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Weak Result",
+              },
+              confidence: 0.2,
+            },
+            {
+              provider: "test-provider",
+              item: {
+                id: "movie-2",
+                type: "movie",
+                title: "Interstellar",
+              },
+              confidence: 0.9,
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "Interstellar", limit: 1 });
+
+  assert.equal(receivedLimit, 10);
+  assert.equal(response.results.length, 1);
+  assert.equal(response.results[0]?.item.title, "Interstellar");
+});
+
 test("search tolerates one provider failure when another provider succeeds", async () => {
   const engine = new MediaEngine({
     providers: [

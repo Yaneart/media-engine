@@ -183,6 +183,7 @@ docs/10-execution-rules.md
 docs/11-streaming-data-model.md
 docs/12-public-api-audit.md
 docs/13-release-preparation.md
+docs/14-parser-release-hardening.md
 ```
 
 ## Development Rules

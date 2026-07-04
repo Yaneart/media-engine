@@ -67,6 +67,24 @@ pnpm typecheck
 pnpm test
 ```
 
+## Provider Smoke Checks
+
+Run live provider smoke checks before packing or publishing:
+
+```bash
+pnpm smoke:providers
+```
+
+This command builds the packages and runs the golden parser queries from `docs/14-parser-release-hardening.md` against live providers.
+
+For release-blocking behavior:
+
+```bash
+pnpm smoke:providers -- --strict
+```
+
+Strict mode exits non-zero when required parser expectations fail. Keep this check separate from `pnpm release:check` because live third-party providers can be rate-limited or temporarily unavailable.
+
 ## Pack Checks
 
 After a successful release gate, verify npm package contents without publishing:
@@ -110,6 +128,7 @@ Before publishing:
 - choose and update the release version;
 - update `CHANGELOG.md`;
 - run `pnpm release:check`;
+- run `pnpm smoke:providers`;
 - run pack checks;
 - review package tarball contents;
 - commit release preparation manually;

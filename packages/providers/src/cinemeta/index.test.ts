@@ -39,6 +39,85 @@ test("cinemetaProvider searches movies by title", async () => {
   assert.equal(requests[0]?.path, "/catalog/movie/top/search=Interstellar.json");
 });
 
+test("cinemetaProvider enriches sparse search results with meta ratings", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/catalog/series/top/search=game%20of.json": {
+        metas: [
+          {
+            id: "tt0944947",
+            imdb_id: "tt0944947",
+            type: "series",
+            name: "Game of Thrones",
+            releaseInfo: "2011-2019",
+          },
+        ],
+      },
+      "/meta/series/tt0944947.json": {
+        meta: {
+          id: "tt0944947",
+          imdb_id: "tt0944947",
+          type: "series",
+          name: "Game of Thrones",
+          releaseInfo: "2011-2019",
+          description: "Nine noble families fight for control over Westeros.",
+          imdbRating: "9.2",
+          genre: ["Action", "Adventure", "Drama"],
+        },
+      },
+    }),
+  });
+
+  const results = await provider.search({ title: "game of", type: "series" }, {});
+
+  assert.equal(results[0]?.item.title, "Game of Thrones");
+  assert.equal(results[0]?.item.ratings?.[0]?.source, "imdb");
+  assert.equal(results[0]?.item.ratings?.[0]?.value, 9.2);
+  assert.deepEqual(
+    requests.map((request) => request.path),
+    ["/catalog/series/top/search=game%20of.json", "/meta/series/tt0944947.json"],
+  );
+});
+
+test("cinemetaProvider applies search limit per media type for any search", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/catalog/movie/top/search=game%20of.json": {
+        metas: [
+          {
+            id: "tt15397918",
+            imdb_id: "tt15397918",
+            type: "movie",
+            name: "Game of Love",
+            releaseInfo: "2022",
+            imdbRating: "3.3",
+          },
+        ],
+      },
+      "/catalog/series/top/search=game%20of.json": {
+        metas: [
+          {
+            id: "tt0944947",
+            imdb_id: "tt0944947",
+            type: "series",
+            name: "Game of Thrones",
+            releaseInfo: "2011-2019",
+            imdbRating: "9.2",
+          },
+        ],
+      },
+    }),
+  });
+
+  const results = await provider.search({ title: "game of", limit: 1 }, {});
+
+  assert.deepEqual(results.map((result) => result.item.title).sort(), [
+    "Game of Love",
+    "Game of Thrones",
+  ]);
+});
+
 test("cinemetaProvider loads movie details by IMDb ID", async () => {
   const provider = createProvider({
     fetch: createMockFetch([], {
@@ -61,6 +140,42 @@ test("cinemetaProvider loads movie details by IMDb ID", async () => {
   assert.equal(result?.details.title, "Interstellar");
   assert.equal(result?.details.runtimeMinutes, 169);
   assert.equal(result?.details.persons?.[0]?.roles[0], "director");
+});
+
+test("cinemetaProvider maps series status and episode counters", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/meta/series/tt0944947.json": {
+        meta: {
+          id: "tt0944947",
+          imdb_id: "tt0944947",
+          type: "series",
+          name: "Game of Thrones",
+          releaseInfo: "2011-2019",
+          imdbRating: "9.2",
+          status: "Ended",
+          videos: [
+            { season: 0, number: 1 },
+            { season: 1, number: 1 },
+            { season: 1, number: 2 },
+            { season: 2, number: 1 },
+          ],
+        },
+      },
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { imdb: "tt0944947" }, type: "series" }, {});
+
+  assert.equal(result?.details.type, "series");
+
+  if (!result || result.details.type !== "series") {
+    assert.fail("Expected series details.");
+  }
+
+  assert.equal(result.details.status, "ended");
+  assert.equal(result.details.episodesCount, 3);
+  assert.equal(result.details.seasonsCount, 2);
 });
 
 function createProvider(options: Partial<CinemetaProviderOptions>) {

@@ -277,6 +277,7 @@ function mergeDetailsEntries(entries: DetailsEntry[], context: MergeContext): Me
     title,
     originalTitle: firstDefinedDetails(entries, (entry) => entry.result.details.originalTitle),
     alternativeTitles: mergeDetailsAlternativeTitles(entries, title),
+    status: firstDefinedDetails(entries, (entry) => entry.result.details.status),
     year: selectDetailsYear(entries, context),
     releaseDate: selectDetailsReleaseDate(entries),
     description: selectDetailsDescription(entries),
@@ -297,9 +298,26 @@ function mergeDetailsEntries(entries: DetailsEntry[], context: MergeContext): Me
     case "movie":
       return common;
     case "series":
-      return common;
+      return {
+        ...common,
+        type: "series",
+        seasons: primary.seasons,
+        episodesCount: firstDefinedDetails(entries, (entry) =>
+          entry.result.details.type === "series" ? entry.result.details.episodesCount : undefined,
+        ),
+        seasonsCount: firstDefinedDetails(entries, (entry) =>
+          entry.result.details.type === "series" ? entry.result.details.seasonsCount : undefined,
+        ),
+      };
     case "anime":
-      return common;
+      return {
+        ...common,
+        type: "anime",
+        episodes: primary.episodes,
+        episodesCount: firstDefinedDetails(entries, (entry) =>
+          entry.result.details.type === "anime" ? entry.result.details.episodesCount : undefined,
+        ),
+      };
   }
 }
 
@@ -813,15 +831,43 @@ function warnDetailsTypeConflicts(entries: DetailsEntry[], context: MergeContext
   }
 }
 
-// Calculates a public score from match strength and query ID matches.
-// Вычисляет публичную оценку по силе совпадения и ID из запроса.
+// Calculates a public score from match strength, query relevance, and popularity signals.
+// Вычисляет публичную оценку по силе совпадения, релевантности запросу и популярности.
 function scoreGroup(group: SearchGroup, entries: SearchEntry[], context: MergeContext): number {
-  const queryIds = "ids" in (context.query ?? {}) ? (context.query as SearchQuery).ids : undefined;
+  const query = context.query as SearchQuery | undefined;
+  const queryIds = "ids" in (query ?? {}) ? query?.ids : undefined;
+  const queryTitle = "title" in (query ?? {}) ? query?.title : undefined;
 
   if (queryIds && entries.some((entry) => hasSharedStrongId(queryIds, entry.result.item.ids))) {
     return 1;
   }
 
+  if (!queryTitle?.trim()) {
+    return baseGroupScore(group, entries);
+  }
+
+  const baseScore = baseTextSearchScore(group, entries);
+  const titleScore = titleRelevanceScore(entries, queryTitle);
+  const popularityScore = ratingVotesScore(entries);
+  const ratingScore = normalizedRatingScore(entries);
+  const idScore = externalIdCompletenessScore(entries);
+  const sourceScore = sourceCoverageScore(entries);
+  const authorityScore = sourceAuthorityScore(entries);
+
+  return boundedTextScore(
+    baseScore +
+      titleScore * 0.2 +
+      popularityScore * 0.15 +
+      ratingScore * 0.05 +
+      idScore * 0.01 +
+      sourceScore * 0.02 +
+      authorityScore * 0.6,
+  );
+}
+
+// Keeps legacy scores for non-title searches where no relevance ranking is possible.
+// Сохраняет прежние оценки для поиска без title, где нельзя посчитать релевантность.
+function baseGroupScore(group: SearchGroup, entries: SearchEntry[]): number {
   switch (group.matchStrength) {
     case "exact_id":
       return 1;
@@ -834,6 +880,168 @@ function scoreGroup(group: SearchGroup, entries: SearchEntry[], context: MergeCo
     case "none":
       return clampScore(entries[0]?.result.confidence ?? 0.5);
   }
+}
+
+// Starts text-search scoring below 1 so popularity and relevance can break exact-ID ties.
+// Начинает оценку текстового поиска ниже 1, чтобы популярность и релевантность разбивали tie по ID.
+function baseTextSearchScore(group: SearchGroup, entries: SearchEntry[]): number {
+  switch (group.matchStrength) {
+    case "exact_id":
+      return 0.35 + bestProviderConfidence(entries) * 0.18;
+    case "exact_title_year_type":
+      return 0.58;
+    case "normalized_title_year_type":
+      return 0.52;
+    case "weak":
+      return 0.25;
+    case "none":
+      return bestProviderConfidence(entries) * 0.45;
+  }
+}
+
+// Uses the strongest provider confidence inside a merged group.
+// Использует самый сильный confidence провайдера внутри объединенной группы.
+function bestProviderConfidence(entries: SearchEntry[]): number {
+  return Math.max(...entries.map((entry) => clampScore(entry.result.confidence ?? 0.5)));
+}
+
+// Scores how well result titles match the user's text query.
+// Оценивает, насколько названия результатов совпадают с текстовым запросом пользователя.
+function titleRelevanceScore(entries: SearchEntry[], queryTitle: string): number {
+  const normalizedQuery = normalizeTitle(queryTitle);
+
+  if (!normalizedQuery) {
+    return 0;
+  }
+
+  return Math.max(
+    ...entries.flatMap((entry) =>
+      titleCandidates(entry.result.item).map((title) =>
+        scoreNormalizedTitle(normalizeTitle(title), normalizedQuery),
+      ),
+    ),
+  );
+}
+
+// Returns all useful titles that may match the query.
+// Возвращает все полезные названия, которые могут совпасть с запросом.
+function titleCandidates(item: MediaItem): string[] {
+  return [item.title, item.originalTitle, ...(item.alternativeTitles ?? [])].filter(
+    (title): title is string => Boolean(title?.trim()),
+  );
+}
+
+// Scores one normalized title against one normalized query.
+// Оценивает одно нормализованное название против одного нормализованного запроса.
+function scoreNormalizedTitle(title: string, query: string): number {
+  if (!title) {
+    return 0;
+  }
+
+  if (title === query) {
+    return 1;
+  }
+
+  if (title.startsWith(`${query} `)) {
+    return 0.92;
+  }
+
+  if (title.includes(` ${query} `) || title.endsWith(` ${query}`)) {
+    return 0.75;
+  }
+
+  const queryTokens = query.split(" ").filter(Boolean);
+
+  if (queryTokens.length > 0 && queryTokens.every((token) => title.includes(token))) {
+    return 0.55;
+  }
+
+  return 0;
+}
+
+// Scores popularity from the largest available vote count.
+// Оценивает популярность по самому большому доступному числу голосов.
+function ratingVotesScore(entries: SearchEntry[]): number {
+  const maxVotes = Math.max(
+    0,
+    ...entries.flatMap(
+      (entry) => entry.result.item.ratings?.map((rating) => rating.votes ?? 0) ?? [],
+    ),
+  );
+
+  return Math.min(1, Math.log10(maxVotes + 1) / 7);
+}
+
+// Scores normalized rating values across providers.
+// Оценивает нормализованные значения рейтингов от провайдеров.
+function normalizedRatingScore(entries: SearchEntry[]): number {
+  const values = entries.flatMap(
+    (entry) =>
+      entry.result.item.ratings
+        ?.map((rating) => rating.value / rating.max)
+        .filter((value) => Number.isFinite(value)) ?? [],
+  );
+
+  return values.length === 0 ? 0 : Math.max(...values.map((value) => clampScore(value)));
+}
+
+// Rewards results that carry strong external IDs for better follow-up details lookup.
+// Поощряет результаты с сильными внешними ID для более надежной загрузки деталей.
+function externalIdCompletenessScore(entries: SearchEntry[]): number {
+  const idCount = Math.max(
+    0,
+    ...entries.map(
+      (entry) => STRONG_ID_KEYS.filter((key) => Boolean(entry.result.item.ids?.[key])).length,
+    ),
+  );
+
+  return Math.min(1, idCount / 3);
+}
+
+// Rewards results confirmed by multiple providers.
+// Поощряет результаты, подтвержденные несколькими провайдерами.
+function sourceCoverageScore(entries: SearchEntry[]): number {
+  return Math.min(1, new Set(entries.map((entry) => entry.result.provider)).size / 3);
+}
+
+// Adds a small authority signal for sources that usually imply broader popularity.
+// Добавляет небольшой сигнал авторитетности для источников, которые обычно отражают популярность.
+function sourceAuthorityScore(entries: SearchEntry[]): number {
+  const providers = [...new Set(entries.map((entry) => entry.result.provider))];
+
+  return (
+    providers.reduce((total, provider) => total + providerAuthority(provider), 0) /
+    Math.max(1, providers.length)
+  );
+}
+
+// Scores provider authority for broad text search ranking.
+// Оценивает авторитетность провайдера для ранжирования широкого текстового поиска.
+function providerAuthority(provider: string): number {
+  switch (provider) {
+    case "wikidata":
+      return 1;
+    case "tmdb":
+      return 0.95;
+    case "cinemeta":
+      return 0.7;
+    case "kinobd":
+      return 0.45;
+    case "imdb":
+      return 0.65;
+    case "kinopoisk":
+      return 0.6;
+    case "shikimori":
+      return 0.5;
+    default:
+      return 0.3;
+  }
+}
+
+// Keeps text-search scores comparable without flattening many strong matches to exactly 1.
+// Сохраняет сравнимость text-search score без схлопывания сильных совпадений ровно в 1.
+function boundedTextScore(score: number): number {
+  return 0.5 + clampScore(score / (score + 1)) * 0.5;
 }
 
 // Restricts a score value to the public 0..1 range.

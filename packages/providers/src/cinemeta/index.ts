@@ -4,6 +4,7 @@ import type {
   Image,
   MediaDetails,
   MediaItem,
+  MediaStatus,
   MovieDetails,
   ProviderContext,
   ProviderDetailsQuery,
@@ -20,6 +21,7 @@ import { fetchJson, type ProviderFetch } from "../shared/index.js";
 const PROVIDER_NAME = "cinemeta";
 const DEFAULT_BASE_URL = "https://v3-cinemeta.strem.io";
 const DEFAULT_SEARCH_LIMIT = 10;
+const DEFAULT_ENRICH_SEARCH_LIMIT = 5;
 
 // Options used to create a Cinemeta metadata provider.
 // Опции для создания metadata-провайдера Cinemeta.
@@ -28,6 +30,7 @@ export interface CinemetaProviderOptions {
   fetch?: ProviderFetch;
   version?: string;
   searchLimit?: number;
+  enrichSearchLimit?: number;
 }
 
 // Creates a no-token movie and series provider backed by the public Cinemeta addon API.
@@ -65,6 +68,7 @@ interface CinemetaConfig {
   baseUrl: string;
   fetch?: ProviderFetch;
   searchLimit: number;
+  enrichSearchLimit: number;
 }
 
 interface CinemetaCatalogResponse {
@@ -97,6 +101,14 @@ interface CinemetaMetaDetails extends CinemetaMetaSummary {
   director?: string[];
   writer?: string[];
   cast?: string[];
+  status?: string;
+  videos?: CinemetaVideo[];
+}
+
+interface CinemetaVideo {
+  season?: number;
+  number?: number;
+  episode?: number;
 }
 
 // Builds provider config from public options.
@@ -106,6 +118,7 @@ function createCinemetaConfig(options: CinemetaProviderOptions): CinemetaConfig 
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
     searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
+    enrichSearchLimit: options.enrichSearchLimit ?? DEFAULT_ENRICH_SEARCH_LIMIT,
   };
 }
 
@@ -134,10 +147,7 @@ async function searchCinemeta(
     types.map(async (type) => searchCatalogType(config, type, query, context)),
   );
 
-  return results
-    .flat()
-    .sort((left, right) => (right.confidence ?? 0) - (left.confidence ?? 0))
-    .slice(0, query.limit ?? config.searchLimit);
+  return results.flat().sort((left, right) => (right.confidence ?? 0) - (left.confidence ?? 0));
 }
 
 // Loads Cinemeta details by IMDb ID.
@@ -178,12 +188,47 @@ async function searchCatalogType(
     )}.json`,
   );
   const response = await requestJson<CinemetaCatalogResponse>(config, url, context);
-
-  return (response.metas ?? [])
+  const items = (response.metas ?? [])
     .map((meta) => mapMetaToItem(meta, type))
     .filter((item): item is MediaItem => item !== undefined)
     .filter((item) => query.year === undefined || item.year === query.year)
-    .map((item) => createSearchResult(item, context.debug));
+    .slice(0, query.limit ?? config.searchLimit);
+  const enrichedItems = await enrichSearchItems(config, type, items, context);
+
+  return enrichedItems.map((item) => createSearchResult(item, context.debug));
+}
+
+// Enriches top search candidates with meta details when catalog search is sparse.
+// Обогащает верхние search-кандидаты meta-деталями, когда catalog search возвращает мало данных.
+async function enrichSearchItems(
+  config: CinemetaConfig,
+  type: "movie" | "series",
+  items: MediaItem[],
+  context: ProviderContext,
+): Promise<MediaItem[]> {
+  const enriched = await Promise.all(
+    items.map(async (item, index) => {
+      if (index >= config.enrichSearchLimit || !item.ids?.imdb || hasSearchQuality(item)) {
+        return item;
+      }
+
+      try {
+        const details = await getDetailsByImdbId(config, item.ids.imdb, type, context);
+
+        return details ? detailsToItem(details) : item;
+      } catch {
+        return item;
+      }
+    }),
+  );
+
+  return enriched;
+}
+
+// Checks whether a catalog item already has enough data for ranking and display.
+// Проверяет, достаточно ли данных catalog item для ранжирования и отображения.
+function hasSearchQuality(item: MediaItem): boolean {
+  return Boolean(item.ratings?.length && item.description && item.genres?.length);
 }
 
 // Loads one Cinemeta meta document.
@@ -253,7 +298,13 @@ function metaToDetails(meta: CinemetaMetaDetails, type: "movie" | "series"): Med
   };
 
   return type === "series"
-    ? ({ ...detailsBase, type: "series" } satisfies SeriesDetails)
+    ? ({
+        ...detailsBase,
+        type: "series",
+        status: mapStatus(meta.status),
+        episodesCount: countSeriesEpisodes(meta.videos),
+        seasonsCount: countSeriesSeasons(meta.videos),
+      } satisfies SeriesDetails)
     : ({ ...detailsBase, type: "movie" } satisfies MovieDetails);
 }
 
@@ -275,21 +326,24 @@ function detailsToSearchResult(
   details: MediaDetails,
   debug: boolean | undefined,
 ): ProviderSearchResult {
-  return createSearchResult(
-    {
-      id: details.id,
-      type: details.type,
-      title: details.title,
-      year: details.year,
-      description: details.description,
-      poster: details.poster,
-      backdrop: details.backdrop,
-      genres: details.genres,
-      ratings: details.ratings,
-      ids: details.ids,
-    },
-    debug,
-  );
+  return createSearchResult(detailsToItem(details), debug);
+}
+
+// Converts details into the compact search item shape.
+// Преобразует details в компактную форму search item.
+function detailsToItem(details: MediaDetails): MediaItem {
+  return {
+    id: details.id,
+    type: details.type,
+    title: details.title,
+    year: details.year,
+    description: details.description,
+    poster: details.poster,
+    backdrop: details.backdrop,
+    genres: details.genres,
+    ratings: details.ratings,
+    ids: details.ids,
+  };
 }
 
 // Creates normalized external IDs from Cinemeta IDs.
@@ -414,6 +468,54 @@ function parseList(value: string | undefined): string[] | undefined {
     ?.split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
+}
+
+// Maps Cinemeta lifecycle status into the core status vocabulary.
+// Мапит lifecycle status Cinemeta в словарь status из core.
+function mapStatus(status: string | undefined): MediaStatus | undefined {
+  switch (status?.toLowerCase()) {
+    case "ended":
+      return "ended";
+    case "returning series":
+    case "in production":
+      return "ongoing";
+    case "canceled":
+    case "cancelled":
+      return "canceled";
+    default:
+      return undefined;
+  }
+}
+
+// Counts regular series episodes while ignoring specials from season 0.
+// Считает обычные эпизоды сериала, игнорируя specials из season 0.
+function countSeriesEpisodes(videos: CinemetaVideo[] | undefined): number | undefined {
+  const count = videos?.filter((video) => isRegularEpisode(video)).length ?? 0;
+
+  return count > 0 ? count : undefined;
+}
+
+// Counts seasons that contain regular episodes.
+// Считает сезоны, в которых есть обычные эпизоды.
+function countSeriesSeasons(videos: CinemetaVideo[] | undefined): number | undefined {
+  const seasons = new Set(
+    videos
+      ?.filter((video) => isRegularEpisode(video))
+      .map((video) => video.season)
+      .filter((season): season is number => typeof season === "number" && season > 0),
+  );
+
+  return seasons.size > 0 ? seasons.size : undefined;
+}
+
+// Checks whether a Cinemeta video is a regular numbered episode.
+// Проверяет, является ли Cinemeta video обычным номерным эпизодом.
+function isRegularEpisode(video: CinemetaVideo): boolean {
+  return (
+    typeof video.season === "number" &&
+    video.season > 0 &&
+    (typeof video.number === "number" || typeof video.episode === "number")
+  );
 }
 
 // Removes trailing slashes so URL paths are built consistently.
