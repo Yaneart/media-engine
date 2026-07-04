@@ -12,7 +12,7 @@ Core knows only the provider contract. It does not know TMDB, Shikimori, Kinopoi
 type ProviderKind = "metadata";
 ```
 
-Early versions implement only metadata providers. Streaming providers are designed later and are not part of the v0.1 core contract.
+Metadata providers use `ProviderKind`. Streaming providers are separate and use the dedicated `StreamingProvider` contract documented later in this file.
 
 ## MediaProvider
 
@@ -307,7 +307,7 @@ export interface StreamingProvider {
   capabilities: StreamingProviderCapabilities;
 
   getAvailability(
-    query: AvailabilityQuery,
+    query: StreamQuery,
     context: ProviderContext
   ): Promise<MediaAvailability | null>;
 }
@@ -315,4 +315,4 @@ export interface StreamingProvider {
 
 The future streaming contract should support a UI flow where one media item or episode can return multiple player options. For example, a Kodik provider and later alternative providers can return normalized embed/HLS/MP4 options with provider name, player label, translation, subtitles, quality, episode number, and required headers when allowed.
 
-This contract is part of v0.5 design. It does not make metadata providers depend on streaming providers.
+This contract is part of the v0.5 streaming architecture. It does not make metadata providers depend on streaming providers.

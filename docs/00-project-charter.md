@@ -98,9 +98,9 @@ It owns:
 - DTO validation;
 - OpenAPI/Swagger;
 - provider configuration from environment;
-- server cache;
-- rate limiting;
 - health checks.
+
+Server cache and rate limiting are future API hardening work.
 
 ### Example React App
 

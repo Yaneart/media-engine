@@ -2,6 +2,8 @@
 
 React example app for Media Engine.
 
+The app demonstrates browser usage through `@media-engine/sdk`. It calls the NestJS API and does not import provider packages or store provider API keys in the browser.
+
 ## Scripts
 
 ```bash

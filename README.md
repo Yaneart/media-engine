@@ -6,14 +6,14 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **v0.6 SDK**.
+Current phase: **v1.0 Stabilization**.
 
-The project follows a documentation-first workflow. The core foundation and first metadata providers are implemented before API, UI, streaming, and SDK work.
+The project follows a documentation-first workflow. The core foundation, first metadata providers, REST API, React example, streaming architecture draft, and SDK are implemented before final stabilization.
 
 Current active task:
 
 ```txt
-TASK-100: Public API Audit
+TASK-101: Documentation Audit
 ```
 
 ## Core Idea
@@ -54,7 +54,7 @@ Media Engine is responsible for:
 
 ## Products
 
-The project will produce three main products.
+The project contains three main products.
 
 ### 1. Media Engine Core
 
@@ -95,7 +95,8 @@ Responsibilities:
 - provider configuration from environment variables;
 - Swagger/OpenAPI;
 - health checks;
-- API-level cache and rate limiting.
+
+API-level cache and rate limiting are future hardening work, not part of the current release baseline.
 
 ### 3. Example React App
 
@@ -131,7 +132,7 @@ Stop the containers:
 pnpm dev:compose:down
 ```
 
-## Planned Repository Structure
+## Repository Structure
 
 ```txt
 media-engine/
@@ -146,7 +147,7 @@ media-engine/
   docs/
 ```
 
-The v0.1 core package exists under `packages/core`.
+The current monorepo includes `packages/core`, `packages/providers`, `packages/sdk`, `apps/api`, and `apps/example`. `packages/plugins` remains reserved for future plugin contracts.
 
 ## Version Roadmap
 
@@ -191,7 +192,7 @@ docs/12-public-api-audit.md
 - Provider contract changes must be reflected in `docs/05-provider-system.md`.
 - Merge logic changes must be reflected in `docs/06-merge-strategy.md`.
 - Core must not import concrete providers.
-- Real providers, API, UI, streaming, and SDK are delayed until their planned phases.
+- Completed phases should remain documented before follow-up changes are added.
 
 ## Non Goals
 

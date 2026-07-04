@@ -104,8 +104,9 @@ Includes:
 - providers endpoint;
 - health endpoint;
 - DTO validation;
-- Swagger/OpenAPI;
-- basic rate limiting and server cache.
+- Swagger/OpenAPI.
+
+API-level cache and rate limiting are future hardening work and are not part of the current REST API baseline.
 
 Initial endpoints:
 
@@ -178,8 +179,10 @@ Includes:
 - `@media-engine/sdk`;
 - typed `MediaEngineClient`;
 - search/details methods;
+- providers and health methods;
 - API error handling;
-- browser and Node.js compatibility.
+- browser and Node.js compatibility;
+- example app integration.
 
 ## v1.0: Stable Release
 

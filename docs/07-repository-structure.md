@@ -141,6 +141,7 @@ Suggested structure:
 ```txt
 packages/providers/
   src/
+    experimental-streaming/
     tmdb/
     shikimori/
     shared/
@@ -155,15 +156,19 @@ packages/providers/
 
 Reserved for future plugin contracts and optional extensions.
 
-Not required for v0.1.
+Not implemented in the current release baseline.
 
 ## `packages/sdk`
 
 Package: `@media-engine/sdk`
 
-Reserved for typed API client.
+Owns:
 
-Not required for v0.1.
+- typed REST API client;
+- request serialization;
+- response parsing;
+- SDK error model;
+- framework-independent browser and Node.js usage.
 
 ## `apps/api`
 

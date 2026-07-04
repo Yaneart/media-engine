@@ -104,6 +104,7 @@ Suggested structure:
 
 ```txt
 packages/providers/src/
+  experimental-streaming/
   tmdb/
   shikimori/
   shared/
@@ -120,9 +121,9 @@ Responsibilities:
 - DTO validation;
 - provider configuration;
 - Swagger/OpenAPI;
-- rate limiting;
-- server cache;
 - health checks.
+
+Rate limiting and server cache are future API hardening work.
 
 API must not implement merge logic or provider-specific clients.
 
