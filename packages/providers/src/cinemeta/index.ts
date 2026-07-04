@@ -22,6 +22,8 @@ const PROVIDER_NAME = "cinemeta";
 const DEFAULT_BASE_URL = "https://v3-cinemeta.strem.io";
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_ENRICH_SEARCH_LIMIT = 5;
+const DEFAULT_IMAGE_LIMIT = 10;
+const DEFAULT_PERSON_LIMIT = 30;
 
 // Options used to create a Cinemeta metadata provider.
 // Опции для создания metadata-провайдера Cinemeta.
@@ -31,6 +33,8 @@ export interface CinemetaProviderOptions {
   version?: string;
   searchLimit?: number;
   enrichSearchLimit?: number;
+  imageLimit?: number;
+  personLimit?: number;
 }
 
 // Creates a no-token movie and series provider backed by the public Cinemeta addon API.
@@ -69,6 +73,8 @@ interface CinemetaConfig {
   fetch?: ProviderFetch;
   searchLimit: number;
   enrichSearchLimit: number;
+  imageLimit: number;
+  personLimit: number;
 }
 
 interface CinemetaCatalogResponse {
@@ -119,6 +125,8 @@ function createCinemetaConfig(options: CinemetaProviderOptions): CinemetaConfig 
     fetch: options.fetch,
     searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
     enrichSearchLimit: options.enrichSearchLimit ?? DEFAULT_ENRICH_SEARCH_LIMIT,
+    imageLimit: options.imageLimit ?? DEFAULT_IMAGE_LIMIT,
+    personLimit: options.personLimit ?? DEFAULT_PERSON_LIMIT,
   };
 }
 
@@ -246,7 +254,7 @@ async function getDetailsByImdbId(
     const response = await requestJson<CinemetaMetaResponse>(config, url, context);
 
     if (response.meta) {
-      return metaToDetails(response.meta, currentType);
+      return metaToDetails(config, response.meta, currentType);
     }
   }
 
@@ -281,7 +289,11 @@ function mapMetaToItem(meta: CinemetaMetaSummary, type: "movie" | "series"): Med
 
 // Converts Cinemeta meta details into movie or series details.
 // Преобразует Cinemeta meta details в movie или series details.
-function metaToDetails(meta: CinemetaMetaDetails, type: "movie" | "series"): MediaDetails | null {
+function metaToDetails(
+  config: CinemetaConfig,
+  meta: CinemetaMetaDetails,
+  type: "movie" | "series",
+): MediaDetails | null {
   const item = mapMetaToItem(meta, type);
 
   if (!item) {
@@ -292,8 +304,10 @@ function metaToDetails(meta: CinemetaMetaDetails, type: "movie" | "series"): Med
     ...item,
     runtimeMinutes: parseRuntime(meta.runtime),
     countries: parseList(meta.country),
-    images: [item.poster, item.backdrop].filter((image): image is Image => Boolean(image)),
-    persons: mapPersons(meta),
+    images: [item.poster, item.backdrop]
+      .filter((image): image is Image => Boolean(image))
+      .slice(0, config.imageLimit),
+    persons: mapPersons(meta, config.personLimit),
     sourceProviders: [createProviderSource(type, item.ids)],
   };
 
@@ -395,7 +409,7 @@ function mapRating(value: string | undefined): Rating[] | undefined {
 
 // Maps simple people arrays into normalized persons.
 // Мапит простые people arrays в normalized persons.
-function mapPersons(meta: CinemetaMetaDetails): MediaDetails["persons"] {
+function mapPersons(meta: CinemetaMetaDetails, limit: number): MediaDetails["persons"] {
   const directors = (meta.director ?? []).map((name) => ({
     person: { name },
     roles: ["director" as const],
@@ -410,7 +424,9 @@ function mapPersons(meta: CinemetaMetaDetails): MediaDetails["persons"] {
     order,
   }));
 
-  return [...directors, ...writers, ...actors];
+  const persons = [...directors, ...writers, ...actors].slice(0, limit);
+
+  return persons.length ? persons : undefined;
 }
 
 function createImage(url: string | undefined, type: Image["type"]): Image | undefined {

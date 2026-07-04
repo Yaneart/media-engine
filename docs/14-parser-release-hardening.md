@@ -65,6 +65,8 @@ Strict mode exits non-zero when a required expectation fails.
 - Cinemeta series details map `status`, `episodesCount`, and `seasonsCount`.
 - Details merge fills status and counters from secondary providers when primary details lack them.
 - `MediaEngine.search` widens provider search limits internally before applying the public response limit.
+- Provider HTTP calls retry retryable failures with a short backoff and still expose final failures through `ProviderFailure`.
+- KinoBD and Cinemeta details now limit heavy `images` and `persons` arrays through provider options.
 
 ## Release Notes
 

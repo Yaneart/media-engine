@@ -76,6 +76,43 @@ test("kinobdProvider loads details by Kinopoisk ID", async () => {
   );
 });
 
+test("kinobdProvider limits heavy details arrays", async () => {
+  const provider = createProvider({
+    imageLimit: 2,
+    personLimit: 1,
+    fetch: createMockFetch([], {
+      "/api/films/search/kp_id": {
+        data: [
+          {
+            ...interstellarMovie(),
+            persons: [
+              {
+                id: 1,
+                name_russian: "Первый актер",
+                profession: { profession_id: "actor" },
+              },
+              {
+                id: 2,
+                name_russian: "Второй актер",
+                profession: { profession_id: "actor" },
+              },
+            ],
+            images: [
+              { type: "kadr", src: "https://example.test/still-1.jpg" },
+              { type: "kadr", src: "https://example.test/still-2.jpg" },
+            ],
+          },
+        ],
+      },
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { kinopoisk: "258687" }, type: "movie" }, {});
+
+  assert.equal(result?.details.persons?.length, 1);
+  assert.equal(result?.details.images?.length, 2);
+});
+
 function createProvider(options: Partial<KinoBdProviderOptions>) {
   return kinobdProvider({
     baseUrl: "https://kinobd.test",

@@ -23,6 +23,8 @@ import { fetchJson, type ProviderFetch } from "../shared/index.js";
 const PROVIDER_NAME = "kinobd";
 const DEFAULT_BASE_URL = "https://kinobd.net";
 const DEFAULT_SEARCH_LIMIT = 10;
+const DEFAULT_IMAGE_LIMIT = 20;
+const DEFAULT_PERSON_LIMIT = 30;
 
 // Options used to create a no-token KinoBD metadata provider.
 // Опции для создания no-token metadata-провайдера KinoBD.
@@ -31,6 +33,8 @@ export interface KinoBdProviderOptions {
   fetch?: ProviderFetch;
   version?: string;
   searchLimit?: number;
+  imageLimit?: number;
+  personLimit?: number;
 }
 
 // Creates a movie and series provider backed by the public KinoBD API used by ReYohoho.
@@ -68,6 +72,8 @@ interface KinoBdConfig {
   baseUrl: string;
   fetch?: ProviderFetch;
   searchLimit: number;
+  imageLimit: number;
+  personLimit: number;
 }
 
 interface KinoBdSearchResponse {
@@ -139,6 +145,8 @@ function createKinoBdConfig(options: KinoBdProviderOptions): KinoBdConfig {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
     searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
+    imageLimit: options.imageLimit ?? DEFAULT_IMAGE_LIMIT,
+    personLimit: options.personLimit ?? DEFAULT_PERSON_LIMIT,
   };
 }
 
@@ -184,7 +192,7 @@ async function getKinoBdDetails(
   }
 
   const [title] = await loadKinoBdTitles(config, query, context, true);
-  const details = title ? mapTitleToDetails(title) : null;
+  const details = title ? mapTitleToDetails(config, title) : null;
 
   return details
     ? {
@@ -284,7 +292,7 @@ function mapTitleToItem(title: KinoBdTitle): MediaItem | undefined {
 
 // Converts a KinoBD record into detailed movie or series metadata.
 // Преобразует KinoBD record в detailed metadata фильма или сериала.
-function mapTitleToDetails(title: KinoBdTitle): MediaDetails | null {
+function mapTitleToDetails(config: KinoBdConfig, title: KinoBdTitle): MediaDetails | null {
   const item = mapTitleToItem(title);
 
   if (!item) {
@@ -295,8 +303,8 @@ function mapTitleToDetails(title: KinoBdTitle): MediaDetails | null {
     ...item,
     runtimeMinutes: parseNumber(title.time_minutes),
     countries: mapCountries(title),
-    images: mapImages(title),
-    persons: mapPersons(title.persons),
+    images: mapImages(title, config.imageLimit),
+    persons: mapPersons(title.persons, config.personLimit),
     sourceProviders: [createProviderSource(item.ids)],
   };
 
@@ -462,11 +470,13 @@ function mapCountries(title: KinoBdTitle): string[] | undefined {
 
 // Maps KinoBD image records and poster fallbacks into normalized images.
 // Мапит KinoBD image records и poster fallbacks в normalized images.
-function mapImages(title: KinoBdTitle): Image[] | undefined {
+function mapImages(title: KinoBdTitle, limit: number): Image[] | undefined {
   const images = [
     createImage(title.big_poster, "poster"),
     ...(title.images ?? []).map(mapKinoBdImage),
-  ].filter((image): image is Image => Boolean(image));
+  ]
+    .filter((image): image is Image => Boolean(image))
+    .slice(0, limit);
 
   return images.length ? images : undefined;
 }
@@ -489,7 +499,7 @@ function mapKinoBdImage(image: KinoBdImage): Image | undefined {
 
 // Maps KinoBD persons and profession IDs into normalized media persons.
 // Мапит KinoBD persons и profession IDs в normalized media persons.
-function mapPersons(persons: KinoBdPerson[] | undefined): MediaPerson[] | undefined {
+function mapPersons(persons: KinoBdPerson[] | undefined, limit: number): MediaPerson[] | undefined {
   const mapped = persons
     ?.map((person, order): MediaPerson | undefined => {
       const name = person.name_russian ?? person.name_english;
@@ -510,7 +520,8 @@ function mapPersons(persons: KinoBdPerson[] | undefined): MediaPerson[] | undefi
           }
         : undefined;
     })
-    .filter((person): person is MediaPerson => Boolean(person));
+    .filter((person): person is MediaPerson => Boolean(person))
+    .slice(0, limit);
 
   return mapped?.length ? mapped : undefined;
 }

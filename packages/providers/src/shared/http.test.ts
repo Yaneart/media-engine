@@ -50,6 +50,79 @@ test("fetchJson maps HTTP status failures to provider errors", async () => {
   );
 });
 
+test("fetchJson retries retryable provider failures", async () => {
+  let calls = 0;
+
+  const result = await fetchJson<{ ok: true }>({
+    provider: "test-provider",
+    url: "https://example.test/movie",
+    maxRetries: 1,
+    retryDelayMs: 0,
+    fetch: async () => {
+      calls += 1;
+
+      return calls === 1
+        ? new Response("temporarily unavailable", { status: 503 })
+        : Response.json({ ok: true });
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.deepEqual(result, { ok: true });
+});
+
+test("fetchJson does not retry non-retryable provider failures", async () => {
+  let calls = 0;
+
+  await assert.rejects(
+    () =>
+      fetchJson({
+        provider: "test-provider",
+        url: "https://example.test/movie",
+        maxRetries: 2,
+        retryDelayMs: 0,
+        fetch: async () => {
+          calls += 1;
+
+          return new Response("not found", { status: 404 });
+        },
+      }),
+    {
+      name: "ProviderError",
+      code: "PROVIDER_ERROR",
+      retryable: false,
+    },
+  );
+
+  assert.equal(calls, 1);
+});
+
+test("fetchJson returns the last retryable provider failure after retries", async () => {
+  let calls = 0;
+
+  await assert.rejects(
+    () =>
+      fetchJson({
+        provider: "test-provider",
+        url: "https://example.test/movie",
+        maxRetries: 2,
+        retryDelayMs: 0,
+        fetch: async () => {
+          calls += 1;
+
+          return new Response("rate limited", { status: 429 });
+        },
+      }),
+    {
+      name: "ProviderError",
+      code: "PROVIDER_RATE_LIMITED",
+      retryable: true,
+    },
+  );
+
+  assert.equal(calls, 3);
+});
+
 test("fetchJson maps network failures to provider unavailable", async () => {
   await assert.rejects(
     () =>

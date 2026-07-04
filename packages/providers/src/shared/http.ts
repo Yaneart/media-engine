@@ -13,11 +13,41 @@ export interface FetchJsonOptions {
   init?: RequestInit;
   context?: ProviderContext;
   fetch?: ProviderFetch;
+  maxRetries?: number;
+  retryDelayMs?: number;
 }
 
 // Reads JSON through fetch and maps failures to ProviderError.
 // Читает JSON через fetch и преобразует сбои в ProviderError.
 export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
+  const maxRetries = options.maxRetries ?? 1;
+  const retryDelayMs = options.retryDelayMs ?? 150;
+  let attempt = 0;
+  let lastError: ProviderError | undefined;
+
+  while (attempt <= maxRetries) {
+    try {
+      return await fetchJsonAttempt<T>(options);
+    } catch (error) {
+      const providerError = mapProviderHttpError(options.provider, error);
+
+      lastError = providerError;
+
+      if (!providerError.retryable || attempt >= maxRetries) {
+        throw providerError;
+      }
+
+      await delay(getRetryDelayMs(retryDelayMs, attempt));
+      attempt += 1;
+    }
+  }
+
+  throw lastError;
+}
+
+// Runs one JSON HTTP attempt with a fresh timeout signal.
+// Выполняет одну попытку JSON HTTP с новым timeout signal.
+async function fetchJsonAttempt<T>(options: FetchJsonOptions): Promise<T> {
   const fetchImpl = options.fetch ?? fetch;
   const timeout = createProviderTimeout(options.provider, options.context);
   const signal = mergeAbortSignals(options.context?.signal, timeout.controller.signal);
@@ -33,8 +63,6 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
     }
 
     return await parseJsonResponse<T>(options.provider, response);
-  } catch (error) {
-    throw mapProviderHttpError(options.provider, error);
   } finally {
     timeout.clear();
   }
@@ -212,4 +240,22 @@ function isAbortError(error: unknown): boolean {
     (error instanceof DOMException && error.name === "AbortError") ||
     (error instanceof Error && error.name === "AbortError")
   );
+}
+
+// Calculates a small linear backoff for provider retries.
+// Считает небольшой линейный backoff для provider retry.
+function getRetryDelayMs(baseDelayMs: number, attempt: number): number {
+  return Math.max(0, baseDelayMs * (attempt + 1));
+}
+
+// Waits before the next provider retry.
+// Ждет перед следующей provider retry.
+function delay(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

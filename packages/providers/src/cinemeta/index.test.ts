@@ -142,6 +142,28 @@ test("cinemetaProvider loads movie details by IMDb ID", async () => {
   assert.equal(result?.details.persons?.[0]?.roles[0], "director");
 });
 
+test("cinemetaProvider limits heavy details arrays", async () => {
+  const provider = createProvider({
+    imageLimit: 1,
+    personLimit: 2,
+    fetch: createMockFetch([], {
+      "/meta/movie/tt0816692.json": {
+        meta: {
+          ...interstellarMeta(),
+          director: ["Christopher Nolan"],
+          writer: ["Jonathan Nolan"],
+          cast: ["Matthew McConaughey", "Anne Hathaway"],
+        },
+      },
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { imdb: "tt0816692" }, type: "movie" }, {});
+
+  assert.equal(result?.details.images?.length, 1);
+  assert.equal(result?.details.persons?.length, 2);
+});
+
 test("cinemetaProvider maps series status and episode counters", async () => {
   const provider = createProvider({
     fetch: createMockFetch([], {

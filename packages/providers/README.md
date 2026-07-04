@@ -41,7 +41,8 @@ Supported data:
 - title search for movies and series;
 - IMDb and Kinopoisk ID lookup;
 - movie and series details;
-- posters, Kinopoisk ratings, IMDb ratings, genres, countries, and persons when available.
+- posters, Kinopoisk ratings, IMDb ratings, genres, countries, and persons when available;
+- configurable `imageLimit` and `personLimit` for details payloads.
 
 KinoBD is the first no-token movie and series provider for the local API stand because it returns practical Russian metadata, Kinopoisk IDs, IMDb IDs, ratings, and posters without requiring a user token.
 
@@ -63,7 +64,8 @@ Supported data:
 - title search for movies and series;
 - IMDb ID lookup;
 - movie and series details;
-- posters, backdrops, IMDb ratings, genres, cast, writers, and directors when available.
+- posters, backdrops, IMDb ratings, genres, cast, writers, and directors when available;
+- configurable `imageLimit`, `personLimit`, and `enrichSearchLimit`.
 
 Cinemeta is the secondary no-token movie and series provider for the local API stand. TMDB can still be added for richer dedicated metadata when a token is configured.
 
@@ -231,4 +233,4 @@ Use this provider only for experiments, tests, and UI wiring. A real provider su
 - `mapProviderHttpError`;
 - `mapHttpStatusToProviderErrorCode`.
 
-These helpers map HTTP, JSON parsing, network, and timeout failures into `ProviderError` from `@media-engine/core`.
+These helpers map HTTP, JSON parsing, network, timeout, and rate-limit failures into `ProviderError` from `@media-engine/core`. `fetchJson` retries retryable provider failures with a short backoff by default.
