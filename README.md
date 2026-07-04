@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation and firs
 Current active task:
 
 ```txt
-TASK-063: Integrate SDK into Example App
+TASK-100: Public API Audit
 ```
 
 ## Core Idea
@@ -178,6 +178,7 @@ docs/08-roadmap.md
 docs/09-task-backlog.md
 docs/10-execution-rules.md
 docs/11-streaming-data-model.md
+docs/12-public-api-audit.md
 ```
 
 ## Development Rules
