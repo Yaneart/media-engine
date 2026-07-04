@@ -71,3 +71,5 @@ Strict mode exits non-zero when a required expectation fails.
 ## Release Notes
 
 Do not claim perfect parser coverage. The first release should describe live metadata providers as best-effort integrations and recommend adding TMDB credentials or local IMDb datasets when stronger metadata guarantees are needed.
+
+The broader parser-plus-player roadmap is tracked in `docs/15-next-implementation-plan.md`.
