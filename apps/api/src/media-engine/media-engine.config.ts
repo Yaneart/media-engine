@@ -10,9 +10,19 @@ export interface MediaEngineEnv {
 export async function createConfiguredProviders(
   env: MediaEngineEnv = process.env,
 ): Promise<MediaProvider[]> {
-  const { shikimoriProvider, tmdbProvider } =
-    await import('@media-engine/providers');
-  const providers: MediaProvider[] = [shikimoriProvider()];
+  const {
+    cinemetaProvider,
+    kinobdProvider,
+    shikimoriProvider,
+    tmdbProvider,
+    wikidataProvider,
+  } = await import('@media-engine/providers');
+  const providers: MediaProvider[] = [
+    kinobdProvider(),
+    cinemetaProvider(),
+    shikimoriProvider(),
+    wikidataProvider(),
+  ];
   const tmdbApiKey = readOptionalEnv(
     env.TMDB_API_READ_ACCESS_TOKEN ?? env.TMDB_API_KEY,
   );

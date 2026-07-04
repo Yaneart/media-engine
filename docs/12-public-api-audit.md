@@ -20,7 +20,13 @@ Supported:
 
 ```ts
 import { MediaEngine } from "@media-engine/core";
-import { shikimoriProvider, tmdbProvider } from "@media-engine/providers";
+import {
+  cinemetaProvider,
+  kinobdProvider,
+  shikimoriProvider,
+  tmdbProvider,
+  wikidataProvider,
+} from "@media-engine/providers";
 import { MediaEngineClient } from "@media-engine/sdk";
 ```
 
@@ -75,7 +81,11 @@ The engine must stay framework-independent. It must not depend on NestJS, React,
 The stable metadata provider factories are:
 
 - `tmdbProvider`;
-- `shikimoriProvider`.
+- `shikimoriProvider`;
+- `wikidataProvider`;
+- `kinobdProvider`;
+- `cinemetaProvider`;
+- `imdbDatasetProvider`.
 
 The provider package also exports shared HTTP helpers for provider implementation work:
 

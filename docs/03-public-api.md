@@ -18,15 +18,24 @@ const result = await media.search({
 
 ```ts
 import { MediaEngine } from "@media-engine/core";
-import { shikimoriProvider, tmdbProvider } from "@media-engine/providers";
+import {
+  cinemetaProvider,
+  kinobdProvider,
+  shikimoriProvider,
+  tmdbProvider,
+  wikidataProvider,
+} from "@media-engine/providers";
 
 const media = new MediaEngine({
   providers: [
+    kinobdProvider(),
+    cinemetaProvider(),
     tmdbProvider({
       apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "",
       language: "ru-RU",
     }),
     shikimoriProvider(),
+    wikidataProvider(),
   ],
 });
 ```

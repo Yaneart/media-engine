@@ -25,8 +25,10 @@ Instead of manually integrating TMDB, IMDb, Kinopoisk, Shikimori, Kodik, Collaps
 ```ts
 const media = new MediaEngine({
   providers: [
-    tmdbProvider({ apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "" }),
+    kinobdProvider(),
+    cinemetaProvider(),
     shikimoriProvider(),
+    wikidataProvider(),
   ],
 });
 

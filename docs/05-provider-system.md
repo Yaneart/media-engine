@@ -52,10 +52,7 @@ export type ProviderFactory<TOptions> = (options: TOptions) => MediaProvider;
 Example:
 
 ```ts
-const provider = tmdbProvider({
-  apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "",
-  language: "ru-RU",
-});
+const provider = kinobdProvider();
 ```
 
 ## ProviderCapabilities
@@ -182,9 +179,58 @@ Public query shortcuts such as `imdb`, `tmdb`, `kinopoisk`, `shikimori`, `myAnim
 
 ## Planned Metadata Providers
 
-TMDB and Shikimori prove the first provider contract. Additional metadata providers should be added only after their data source, usage terms, and mapping strategy are clear.
+TMDB, Shikimori, Wikidata, and local IMDb datasets prove the first provider contract. Additional metadata providers should be added only after their data source, usage terms, and mapping strategy are clear.
 
-### IMDb
+### Wikidata
+
+Role: no-token baseline metadata for movies and series, especially when TMDB credentials are not configured.
+
+Source:
+
+- Wikidata public APIs and Wikidata Query Service;
+- Wikidata data is CC0, but clients should follow Wikimedia API etiquette, including a useful User-Agent and conservative request volume.
+
+Provider shape:
+
+- provider name: `wikidata`;
+- media types: `movie`, `series`;
+- search: title and IMDb ID lookup;
+- details: IMDb ID lookup;
+- external IDs: `imdb` when present;
+- features: posters when a Commons image is available.
+
+Implementation notes:
+
+- do not scrape imdb.com or kinopoisk.ru pages;
+- keep Wikidata as a baseline fallback, not a replacement for richer dedicated providers;
+- prefer TMDB over Wikidata during merge when both return the same title through strong IDs.
+
+### IMDb Dataset
+
+Role: local parser-backed movie and series metadata from official IMDb non-commercial TSV datasets.
+
+Source:
+
+- official IMDb non-commercial datasets;
+- no live imdb.com scraping;
+- no unofficial IMDb API calls.
+
+Provider shape:
+
+- provider name: `imdb-dataset`;
+- media types: `movie`, `series`;
+- search: title and IMDb ID lookup;
+- details: IMDb ID lookup;
+- external IDs: `imdb`;
+- features: ratings and genres when the corresponding TSV data is loaded.
+
+Implementation notes:
+
+- applications must download datasets and verify license compliance themselves;
+- keep dataset loading explicit because the files are large;
+- use this provider for local/non-commercial parsing, not as a production IMDb API replacement.
+
+### IMDb API
 
 Planned role: authoritative movie and series identity, ratings, title basics, alternative titles, people, and episode data.
 

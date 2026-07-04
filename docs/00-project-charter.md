@@ -11,8 +11,10 @@ Target usage:
 ```ts
 const media = new MediaEngine({
   providers: [
-    tmdbProvider({ apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "" }),
+    kinobdProvider(),
+    cinemetaProvider(),
     shikimoriProvider(),
+    wikidataProvider(),
   ],
 });
 
@@ -69,8 +71,11 @@ It must not depend on NestJS, React, Express, or concrete providers.
 
 Initial metadata providers:
 
+- KinoBD;
+- Cinemeta;
 - TMDB;
-- Shikimori.
+- Shikimori;
+- Wikidata.
 
 Later metadata providers:
 

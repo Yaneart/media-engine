@@ -520,8 +520,8 @@ Verify provider package and confirm core still does not import concrete provider
 
 Done when:
 
-- providers package exports shared utilities, TMDB, and Shikimori;
-- TMDB and Shikimori tests pass with mock HTTP;
+- providers package exports shared utilities, TMDB, Shikimori, Wikidata, and IMDb dataset parsing;
+- TMDB, Shikimori, Wikidata, and IMDb dataset tests pass with mock HTTP/local fixtures;
 - root checks pass;
 - documentation reflects the current v0.2 provider state;
 - core has no imports from `@media-engine/providers`.

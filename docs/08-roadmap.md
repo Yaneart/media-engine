@@ -78,6 +78,8 @@ Deliverables:
 - shared provider HTTP utilities;
 - TMDB provider;
 - Shikimori provider;
+- Wikidata provider;
+- IMDb dataset provider;
 - mappers;
 - provider error mapping;
 - mock HTTP tests.
@@ -91,7 +93,7 @@ Gate:
 
 Audit status:
 
-- `@media-engine/providers` exists with shared HTTP utilities, TMDB, and Shikimori;
+- `@media-engine/providers` exists with shared HTTP utilities, TMDB, Shikimori, Wikidata, and local IMDb dataset parsing;
 - provider tests use mock `fetch` implementations and do not call live APIs;
 - `@media-engine/core` still depends only on provider contracts, not concrete provider packages.
 

@@ -153,6 +153,31 @@ test("keeps deterministic output order for equal scores", () => {
   );
 });
 
+test("uses provider priority before title when equal scores come from different providers", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("shikimori", {
+        id: "shikimori-game",
+        type: "anime",
+        title: "Anime Game",
+        confidence: 1,
+      }),
+      providerResult("kinobd", {
+        id: "kinobd-game",
+        type: "movie",
+        title: "Game Movie",
+        confidence: 1,
+      }),
+    ],
+    {},
+  );
+
+  assert.deepEqual(
+    results.map((result) => result.sources[0]?.provider),
+    ["kinobd", "shikimori"],
+  );
+});
+
 test("does not merge normalized title matches when strong IDs conflict", () => {
   const results = strategy.mergeSearchResults(
     [

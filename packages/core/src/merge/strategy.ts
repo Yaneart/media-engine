@@ -61,10 +61,21 @@ const EXTERNAL_ID_KEYS = [
 
 // Default provider priority for movies and series.
 // Приоритет провайдеров по умолчанию для фильмов и сериалов.
-const DEFAULT_PRIORITY = ["tmdb", "imdb", "kinopoisk", "shikimori"];
+const DEFAULT_PRIORITY = ["tmdb", "kinobd", "cinemeta", "imdb", "wikidata", "kinopoisk"];
 // Default provider priority for anime results.
 // Приоритет провайдеров по умолчанию для аниме.
-const ANIME_PRIORITY = ["shikimori", "tmdb", "imdb", "kinopoisk"];
+const ANIME_PRIORITY = ["shikimori", "tmdb", "kinobd", "cinemeta", "imdb", "wikidata", "kinopoisk"];
+// Search-level tie-break priority used when results from different media types have equal scores.
+// Search-level priority для tie-break, когда результаты разных media types имеют одинаковый score.
+const SEARCH_RESULT_PRIORITY = [
+  "tmdb",
+  "kinobd",
+  "cinemeta",
+  "imdb",
+  "wikidata",
+  "kinopoisk",
+  "shikimori",
+];
 
 // Built-in merge strategy used by core when no custom strategy is provided.
 // Встроенная стратегия объединения, используемая core без пользовательской стратегии.
@@ -89,6 +100,13 @@ export class DefaultMergeStrategy implements MergeStrategy {
           return scoreDiff;
         }
 
+        const providerDiff =
+          searchResultProviderRank(left.result) - searchResultProviderRank(right.result);
+
+        if (providerDiff !== 0) {
+          return providerDiff;
+        }
+
         const titleDiff = left.result.item.title.localeCompare(right.result.item.title);
 
         if (titleDiff !== 0) {
@@ -111,6 +129,12 @@ export class DefaultMergeStrategy implements MergeStrategy {
 
     return mergeDetailsEntries(sortedEntries, context);
   }
+}
+
+// Calculates rank for a merged search result using its primary source provider.
+// Вычисляет rank для merged search result по его основному source provider.
+function searchResultProviderRank(result: MediaSearchResult): number {
+  return providerRank(result.sources[0]?.provider ?? "", SEARCH_RESULT_PRIORITY);
 }
 
 // Groups search results by exact IDs first, then by normalized title/year/type.

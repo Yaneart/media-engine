@@ -78,6 +78,7 @@ Includes:
 - `@media-engine/providers`;
 - TMDB provider;
 - Shikimori provider;
+- Wikidata provider;
 - shared HTTP utilities;
 - provider-specific config;
 - mappers from external responses to core model;
@@ -85,9 +86,9 @@ Includes:
 - mock HTTP tests;
 - provider documentation.
 
-TMDB is first for movies and series. Shikimori is first for anime.
+TMDB is the rich source for movies and series when credentials are configured. Wikidata is the no-token baseline source for movies and series. Shikimori is first for anime.
 
-IMDb, Kinopoisk, and AniList are important planned metadata sources, but they are not required to prove the first provider architecture. Add them after TMDB and Shikimori are stable.
+IMDb, Kinopoisk, and AniList are important planned metadata sources, but they are not required to prove the first provider architecture. Add them after TMDB, Shikimori, and Wikidata are stable.
 
 ## v0.3: NestJS API
 

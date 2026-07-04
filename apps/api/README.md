@@ -38,6 +38,14 @@ The default local API URL is:
 http://127.0.0.1:3000
 ```
 
+Movie and series search works without secrets through Wikidata. For richer movie and series metadata, set a TMDB token in the repository root `.env` file:
+
+```txt
+TMDB_API_READ_ACCESS_TOKEN=your_tmdb_read_access_token
+```
+
+The API loads the nearest `.env` file on local startup without overriding already exported environment variables.
+
 Swagger UI is available at:
 
 ```txt

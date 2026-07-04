@@ -8,7 +8,10 @@ describe('MediaEngine configuration', () => {
     const engine = await createMediaEngine({});
 
     expect(engine.getProviders().map((provider) => provider.name)).toEqual([
+      'kinobd',
+      'cinemeta',
       'shikimori',
+      'wikidata',
     ]);
   });
 
@@ -18,7 +21,10 @@ describe('MediaEngine configuration', () => {
     });
 
     expect(providers.map((provider) => provider.name)).toEqual([
+      'kinobd',
+      'cinemeta',
       'shikimori',
+      'wikidata',
       'tmdb',
     ]);
   });
@@ -29,7 +35,10 @@ describe('MediaEngine configuration', () => {
     });
 
     expect(providers.map((provider) => provider.name)).toEqual([
+      'kinobd',
+      'cinemeta',
       'shikimori',
+      'wikidata',
       'tmdb',
     ]);
   });
