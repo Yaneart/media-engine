@@ -177,8 +177,8 @@ The current public surface is coherent enough to proceed to documentation audit.
 
 No runtime API change is required for `TASK-100`. The main release risk is that streaming types and the experimental streaming provider are still architecture-validation APIs, not stable v1.0 contracts.
 
-Next task:
+Follow-up release task:
 
 ```txt
-TASK-101: Documentation Audit
+TASK-102: Release Preparation
 ```

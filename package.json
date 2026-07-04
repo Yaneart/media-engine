@@ -14,6 +14,7 @@
     "dev:example": "pnpm --filter @media-engine/example dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "release:check": "pnpm format:check && pnpm build && pnpm typecheck && pnpm test",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
   },

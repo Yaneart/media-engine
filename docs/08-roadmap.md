@@ -205,6 +205,8 @@ Deliverables:
 - license;
 - release workflow.
 
+Release preparation is documented in `docs/13-release-preparation.md`.
+
 ## Phase Dependencies
 
 ```txt

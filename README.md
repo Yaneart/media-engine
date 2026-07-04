@@ -13,7 +13,7 @@ The project follows a documentation-first workflow. The core foundation, first m
 Current active task:
 
 ```txt
-TASK-101: Documentation Audit
+TASK-102: Release Preparation
 ```
 
 ## Core Idea
@@ -180,6 +180,7 @@ docs/09-task-backlog.md
 docs/10-execution-rules.md
 docs/11-streaming-data-model.md
 docs/12-public-api-audit.md
+docs/13-release-preparation.md
 ```
 
 ## Development Rules

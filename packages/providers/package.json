@@ -3,7 +3,26 @@
   "version": "0.0.0",
   "description": "Provider implementations for Media Engine.",
   "license": "MIT",
+  "homepage": "https://github.com/Yaneart/media-engine#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com:Yaneart/media-engine.git",
+    "directory": "packages/providers"
+  },
+  "bugs": {
+    "url": "https://github.com/Yaneart/media-engine/issues"
+  },
+  "keywords": [
+    "media",
+    "metadata",
+    "movies",
+    "series",
+    "anime",
+    "tmdb",
+    "shikimori"
+  ],
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -14,8 +33,14 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.js.map",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
