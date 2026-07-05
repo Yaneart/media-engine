@@ -23,7 +23,8 @@
     "imdb",
     "tmdb",
     "shikimori",
-    "wikidata"
+    "wikidata",
+    "kodik"
   ],
   "type": "module",
   "sideEffects": false,
@@ -48,7 +49,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/shared/http.test.js dist/kinobd/index.test.js dist/cinemeta/index.test.js dist/tmdb/index.test.js dist/shikimori/index.test.js dist/wikidata/index.test.js dist/imdb-dataset/index.test.js dist/experimental-streaming/index.test.js"
+    "test": "pnpm build && node --test dist/shared/http.test.js dist/kinobd/index.test.js dist/cinemeta/index.test.js dist/tmdb/index.test.js dist/shikimori/index.test.js dist/wikidata/index.test.js dist/imdb-dataset/index.test.js dist/experimental-streaming/index.test.js dist/kodik/index.test.js"
   },
   "dependencies": {
     "@media-engine/core": "workspace:*"

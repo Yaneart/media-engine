@@ -10,13 +10,15 @@ The API owns HTTP routing, DTO/query parsing, provider configuration, health che
 GET /
 GET /health
 GET /providers
+GET /providers/streaming
 GET /media/search
 GET /media/details
+GET /media/availability
 GET /docs
 GET /docs-json
 ```
 
-`/media/search` and `/media/details` map query parameters to `SearchQuery` and `DetailsQuery` from `@media-engine/core`.
+`/media/search`, `/media/details`, and `/media/availability` map query parameters to `SearchQuery`, `DetailsQuery`, and `StreamQuery` from `@media-engine/core`.
 
 ## Local Development
 
@@ -42,6 +44,12 @@ Movie and series search works without secrets through Wikidata. For richer movie
 
 ```txt
 TMDB_API_READ_ACCESS_TOKEN=your_tmdb_read_access_token
+```
+
+Streaming availability is disabled by default. To enable Kodik player options, set a Kodik API token:
+
+```txt
+KODIK_TOKEN=your_kodik_token
 ```
 
 The API loads the nearest `.env` file on local startup without overriding already exported environment variables.

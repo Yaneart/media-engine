@@ -6,3 +6,4 @@ export * from "./shikimori/index.js";
 export * from "./wikidata/index.js";
 export * from "./imdb-dataset/index.js";
 export * from "./experimental-streaming/index.js";
+export * from "./kodik/index.js";

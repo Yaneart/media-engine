@@ -1,5 +1,6 @@
 import {
   createConfiguredProviders,
+  createConfiguredStreamingProviders,
   createMediaEngine,
 } from './media-engine.config';
 
@@ -13,6 +14,7 @@ describe('MediaEngine configuration', () => {
       'shikimori',
       'wikidata',
     ]);
+    expect(engine.getStreamingProviders()).toEqual([]);
   });
 
   it('adds TMDB when a read access token is configured', async () => {
@@ -41,5 +43,14 @@ describe('MediaEngine configuration', () => {
       'wikidata',
       'tmdb',
     ]);
+  });
+
+  it('adds Kodik streaming provider when a token is configured', async () => {
+    const providers = await createConfiguredStreamingProviders({
+      KODIK_TOKEN: ' kodik-token ',
+    });
+
+    expect(providers.map((provider) => provider.name)).toEqual(['kodik']);
+    expect(providers[0]?.kind).toBe('streaming');
   });
 });

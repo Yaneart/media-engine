@@ -2,7 +2,7 @@
 
 Provider package for Media Engine.
 
-This package contains concrete metadata provider factories such as KinoBD, Cinemeta, TMDB, Shikimori, Wikidata, and local IMDb datasets, plus experimental streaming provider factories used to validate streaming architecture.
+This package contains concrete metadata provider factories such as KinoBD, Cinemeta, TMDB, Shikimori, Wikidata, and local IMDb datasets, plus streaming provider factories such as Kodik and the local experimental provider.
 
 The package depends on `@media-engine/core` for provider contracts and normalized media types. Core must not import this package.
 
@@ -18,6 +18,7 @@ src/
   wikidata/
   imdb-dataset/
   experimental-streaming/
+  kodik/
   index.ts
 ```
 
@@ -223,6 +224,40 @@ Supported behavior:
 - provider filtering through `StreamQuery.providers`.
 
 Use this provider only for experiments, tests, and UI wiring. A real provider such as Kodik should be implemented separately only after its API/embed usage rules are documented and allowed.
+
+## Kodik Streaming Provider
+
+`kodikProvider` creates a token-based streaming provider for normalized player options. It uses the configured Kodik API token from the application and returns embed player URLs as `StreamOption` values. It does not scrape player pages, does not extract direct video files, and does not expose secrets in provider metadata.
+
+```ts
+import { MediaEngine } from "@media-engine/core";
+import { kodikProvider, shikimoriProvider } from "@media-engine/providers";
+
+const engine = new MediaEngine({
+  providers: [shikimoriProvider()],
+  streamingProviders: [
+    kodikProvider({
+      token: process.env.KODIK_TOKEN ?? "",
+    }),
+  ],
+});
+
+const availability = await engine.getAvailability({
+  type: "anime",
+  shikimori: "20",
+  absoluteEpisodeNumber: 1,
+});
+```
+
+Supported behavior:
+
+- anime, movie, and series availability lookup;
+- title, IMDb ID, Kinopoisk ID, and Shikimori ID lookup;
+- episode mapping from Kodik season/episode maps;
+- normalized translation, quality, provider attribution, and embed access URLs;
+- configurable API base URL, fetch implementation, result limit, and Kodik type filters.
+
+Before shipping an app with Kodik enabled, verify your Kodik API token terms and allowed embed usage for your product.
 
 ## Shared Utilities
 
