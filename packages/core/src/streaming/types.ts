@@ -6,6 +6,12 @@ import type { ExternalIdSource, ProviderContext } from "../providers/index.js";
 export interface StreamQuery {
   type: MediaType;
   ids?: ExternalIds;
+  imdb?: string;
+  tmdb?: string;
+  kinopoisk?: string;
+  shikimori?: string;
+  myAnimeList?: string;
+  aniList?: string;
   title?: string;
   year?: number;
   seasonNumber?: number;

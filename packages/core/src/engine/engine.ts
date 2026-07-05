@@ -12,6 +12,14 @@ import type {
 } from "../providers/index.js";
 import type { EngineWarning, ProviderFailure, ResponseMeta } from "../response/index.js";
 import type { SearchQuery, SearchResponse } from "../search/index.js";
+import type {
+  MediaAvailability,
+  StreamEpisodeAvailability,
+  StreamQuery,
+  StreamingProvider,
+  StreamingProviderInfo,
+  StreamingProviderSource,
+} from "../streaming/index.js";
 import type { MediaEngineOptions } from "./types.js";
 
 // Top-level public external ID shortcuts supported by engine queries.
@@ -29,6 +37,7 @@ const EXTERNAL_ID_SHORTCUTS = [
 // Главная точка входа для использования Media Engine core.
 export class MediaEngine {
   private readonly registry: ProviderRegistry;
+  private readonly streamingProviders: StreamingProvider[];
   private readonly cache?: Cache;
   private readonly mergeStrategy: MergeStrategy;
   private readonly timeoutMs?: number;
@@ -36,6 +45,7 @@ export class MediaEngine {
 
   constructor(options: MediaEngineOptions = {}) {
     this.registry = new ProviderRegistry(options.providers ?? []);
+    this.streamingProviders = validateStreamingProviders(options.streamingProviders ?? []);
     this.cache = options.cache;
     this.mergeStrategy = options.mergeStrategy ?? new DefaultMergeStrategy();
     this.timeoutMs = options.timeoutMs;
@@ -46,6 +56,17 @@ export class MediaEngine {
   // Возвращает безопасные метаданные зарегистрированных провайдеров без внутренних данных.
   getProviders(): ProviderInfo[] {
     return this.registry.getProviders();
+  }
+
+  // Returns safe registered streaming provider metadata without provider internals.
+  // Возвращает безопасные метаданные streaming-провайдеров без внутренних данных.
+  getStreamingProviders(): StreamingProviderInfo[] {
+    return this.streamingProviders.map((provider) => ({
+      name: provider.name,
+      version: provider.version,
+      kind: provider.kind,
+      capabilities: provider.capabilities,
+    }));
   }
 
   // Searches media through selected providers and merges normalized results.
@@ -214,6 +235,57 @@ export class MediaEngine {
     return response;
   }
 
+  // Loads normalized player and stream availability through streaming providers.
+  // Загружает нормализованную доступность player и stream через streaming-провайдеры.
+  async getAvailability(query: StreamQuery): Promise<MediaAvailability> {
+    const normalizedQuery = normalizeStreamQuery(query);
+    validateStreamQuery(normalizedQuery);
+
+    const cacheKey = createAvailabilityCacheKey(normalizedQuery);
+    const cached = await this.cache?.get<MediaAvailability>(cacheKey);
+
+    if (cached) {
+      return {
+        ...cached,
+        query: normalizedQuery,
+      };
+    }
+
+    const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
+    const failed: ProviderFailure[] = [];
+    const providerResults: MediaAvailability[] = [];
+
+    for (const provider of providers) {
+      try {
+        const result = await callProviderAvailability(provider, normalizedQuery, {
+          debug: this.debug,
+          language: normalizedQuery.language,
+          timeoutMs: this.timeoutMs,
+        });
+
+        if (result) {
+          providerResults.push(result);
+        }
+      } catch (error) {
+        failed.push(toProviderFailure(provider.name, error));
+      }
+    }
+
+    if (providers.length > 0 && providerResults.length === 0 && failed.length > 0) {
+      throw new MediaEngineError({
+        code: "PROVIDER_ERROR",
+        message: "All streaming providers failed.",
+        cause: { failed },
+      });
+    }
+
+    const availability = mergeAvailabilityResults(normalizedQuery, providerResults);
+
+    await this.cache?.set(cacheKey, availability);
+
+    return availability;
+  }
+
   // Gives future engine methods access to the registered providers.
   // Дает будущим методам движка доступ к зарегистрированным провайдерам.
   protected get providerRegistry(): ProviderRegistry {
@@ -243,6 +315,22 @@ export class MediaEngine {
   protected get engineDebug(): boolean {
     return this.debug;
   }
+}
+
+// Validates streaming providers and rejects duplicate public names.
+// Проверяет streaming-провайдеры и отклоняет дубли публичных имен.
+function validateStreamingProviders(providers: StreamingProvider[]): StreamingProvider[] {
+  const names = new Set<string>();
+
+  for (const provider of providers) {
+    if (names.has(provider.name)) {
+      throw new Error(`Streaming provider "${provider.name}" is already registered.`);
+    }
+
+    names.add(provider.name);
+  }
+
+  return [...providers];
 }
 
 // Context passed to a single provider call.
@@ -304,6 +392,32 @@ function normalizeDetailsQuery(query: DetailsQuery): DetailsQuery {
   };
 }
 
+// Normalizes top-level external ID shortcuts into a streaming ids object.
+// Нормализует верхнеуровневые сокращения внешних ID в объект ids для streaming.
+function normalizeStreamQuery(query: StreamQuery): StreamQuery {
+  const queryWithShortcuts = query as StreamQuery &
+    Partial<Record<(typeof EXTERNAL_ID_SHORTCUTS)[number], string>>;
+  const ids: ExternalIds = { ...(query.ids ?? {}) };
+  const providers = query.providers?.map((provider) => provider.trim()).filter(Boolean);
+  const language = query.language?.trim();
+
+  for (const key of EXTERNAL_ID_SHORTCUTS) {
+    const value = queryWithShortcuts[key];
+
+    if (value) {
+      ids[key] = value;
+    }
+  }
+
+  return {
+    ...query,
+    title: query.title?.trim(),
+    ...(hasExternalIds(ids) ? { ids } : {}),
+    ...(providers && providers.length > 0 ? { providers } : {}),
+    ...(language ? { language } : {}),
+  };
+}
+
 // Validates that a search query has at least one supported lookup input.
 // Проверяет, что search query содержит хотя бы один поддерживаемый вход для поиска.
 function validateSearchQuery(query: SearchQuery): void {
@@ -334,6 +448,63 @@ function validateDetailsQuery(query: DetailsQuery): void {
   throw new MediaEngineError({
     code: "INVALID_QUERY",
     message: "Details query must include id or external ids.",
+  });
+}
+
+// Validates that a streaming query can identify a media item or episode.
+// Проверяет, что streaming query может определить медиа или эпизод.
+function validateStreamQuery(query: StreamQuery): void {
+  if (!query.type) {
+    throw new MediaEngineError({
+      code: "INVALID_QUERY",
+      message: "Stream query type is required.",
+    });
+  }
+
+  if (
+    [query.year, query.seasonNumber, query.episodeNumber, query.absoluteEpisodeNumber].some(
+      (value) => value !== undefined && (!Number.isInteger(value) || value < 0),
+    )
+  ) {
+    throw new MediaEngineError({
+      code: "INVALID_QUERY",
+      message: "Stream query numeric fields must be non-negative integers.",
+    });
+  }
+
+  if (query.title || hasExternalIds(query.ids)) {
+    return;
+  }
+
+  throw new MediaEngineError({
+    code: "INVALID_QUERY",
+    message: "Stream query must include title or external ids.",
+  });
+}
+
+// Selects streaming providers that can answer the normalized stream query.
+// Выбирает streaming-провайдеры, которые могут ответить на нормализованный stream query.
+function selectStreamingProviders(
+  providers: StreamingProvider[],
+  query: StreamQuery,
+): StreamingProvider[] {
+  return providers.filter((provider) => {
+    if (query.providers && !query.providers.includes(provider.name)) {
+      return false;
+    }
+
+    if (!provider.capabilities.mediaTypes.includes(query.type)) {
+      return false;
+    }
+
+    if (hasEpisodeQuery(query) && !provider.capabilities.lookup.byEpisode) {
+      return false;
+    }
+
+    return (
+      Boolean(query.title && provider.capabilities.lookup.byTitle) ||
+      hasSupportedExternalId(query.ids, provider.capabilities.lookup.byExternalIds)
+    );
   });
 }
 
@@ -386,6 +557,77 @@ async function callProviderDetails(
       language: context.language,
     }),
   );
+}
+
+// Calls one streaming provider with timeout and abort signal support.
+// Вызывает один streaming-провайдер с поддержкой timeout и abort signal.
+async function callProviderAvailability(
+  provider: StreamingProvider,
+  query: StreamQuery,
+  context: ProviderCallContext,
+): Promise<MediaAvailability | null> {
+  return withProviderTimeout(provider.name, context, (controller) =>
+    provider.getAvailability(query, {
+      signal: controller.signal,
+      timeoutMs: context.timeoutMs,
+      debug: context.debug,
+      language: context.language,
+    }),
+  );
+}
+
+// Merges availability results without hiding provider attribution.
+// Объединяет availability-результаты, не скрывая атрибуцию провайдеров.
+function mergeAvailabilityResults(
+  query: StreamQuery,
+  results: MediaAvailability[],
+): MediaAvailability {
+  return {
+    query,
+    item: results.find((result) => result.item)?.item,
+    episodes: mergeEpisodeAvailability(results),
+    options: uniqueBy(
+      results.flatMap((result) => result.options),
+      (option) => `${option.provider}:${option.id}`,
+    ),
+    sourceProviders: uniqueBy(
+      results.flatMap((result) => result.sourceProviders),
+      (source) => createStreamingSourceKey(source),
+    ),
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+// Merges episode-level availability blocks by episode identity.
+// Объединяет episode-level availability блоки по идентичности эпизода.
+function mergeEpisodeAvailability(
+  results: MediaAvailability[],
+): StreamEpisodeAvailability[] | undefined {
+  const episodesByKey = new Map<string, StreamEpisodeAvailability>();
+
+  for (const episode of results.flatMap((result) => result.episodes ?? [])) {
+    const key = createEpisodeKey(episode);
+    const existing = episodesByKey.get(key);
+
+    if (!existing) {
+      episodesByKey.set(key, {
+        seasonNumber: episode.seasonNumber,
+        episodeNumber: episode.episodeNumber,
+        absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
+        title: episode.title,
+        options: uniqueBy(episode.options, (option) => `${option.provider}:${option.id}`),
+      });
+      continue;
+    }
+
+    existing.options = uniqueBy(
+      [...existing.options, ...episode.options],
+      (option) => `${option.provider}:${option.id}`,
+    );
+    existing.title ??= episode.title;
+  }
+
+  return episodesByKey.size > 0 ? [...episodesByKey.values()] : undefined;
 }
 
 // Wraps a provider promise with configured timeout behavior.
@@ -461,10 +703,71 @@ function createDetailsCacheKey(query: DetailsQuery): string {
   return `details:${JSON.stringify(sortObject(query))}`;
 }
 
+// Creates a stable cache key for a normalized streaming query.
+// Создает стабильный cache key для нормализованного streaming query.
+function createAvailabilityCacheKey(query: StreamQuery): string {
+  return `availability:${JSON.stringify(sortObject(query))}`;
+}
+
 // Checks whether an external ID object contains at least one ID.
 // Проверяет, содержит ли объект внешних ID хотя бы один ID.
 function hasExternalIds(ids: ExternalIds | undefined): boolean {
   return Boolean(ids && Object.values(ids).some((value) => Boolean(value)));
+}
+
+// Checks whether query ids overlap provider-supported external ID sources.
+// Проверяет, пересекаются ли query ids с поддерживаемыми провайдером источниками ID.
+function hasSupportedExternalId(
+  ids: ExternalIds | undefined,
+  supportedSources: readonly string[],
+): boolean {
+  return Boolean(
+    ids && supportedSources.some((source) => Boolean(ids[source as keyof ExternalIds])),
+  );
+}
+
+// Checks whether query targets a concrete episode.
+// Проверяет, нацелен ли query на конкретный эпизод.
+function hasEpisodeQuery(query: StreamQuery): boolean {
+  return (
+    query.seasonNumber !== undefined ||
+    query.episodeNumber !== undefined ||
+    query.absoluteEpisodeNumber !== undefined
+  );
+}
+
+// Creates a stable identity for an episode availability block.
+// Создает стабильную идентичность для блока доступности эпизода.
+function createEpisodeKey(episode: StreamEpisodeAvailability): string {
+  return [
+    episode.seasonNumber ?? "",
+    episode.episodeNumber ?? "",
+    episode.absoluteEpisodeNumber ?? "",
+  ].join(":");
+}
+
+// Creates a stable identity for provider source attribution.
+// Создает стабильную идентичность для атрибуции источника провайдера.
+function createStreamingSourceKey(source: StreamingProviderSource): string {
+  return `${source.provider}:${source.url ?? ""}:${JSON.stringify(sortObject(source.ids ?? {}))}`;
+}
+
+// Keeps the first value for each derived key.
+// Оставляет первое значение для каждого вычисленного ключа.
+function uniqueBy<T>(values: T[], getKey: (value: T) => string): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+
+  for (const value of values) {
+    const key = getKey(value);
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(value);
+    }
+  }
+
+  return unique;
 }
 
 // Returns elapsed milliseconds since a start timestamp.

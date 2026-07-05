@@ -11,6 +11,7 @@ import type {
   ProviderSearchResult,
 } from "../providers/index.js";
 import type { MediaSearchResult } from "../search/index.js";
+import type { MediaAvailability, StreamQuery, StreamingProvider } from "../streaming/index.js";
 import { MediaEngine } from "./engine.js";
 
 test("constructs with no providers", () => {
@@ -61,6 +62,19 @@ test("passes providers through the registry duplicate-name validation", () => {
   );
 });
 
+test("passes streaming providers through duplicate-name validation", () => {
+  assert.throws(
+    () =>
+      new MediaEngine({
+        streamingProviders: [
+          createStreamingProvider({ name: "kodik" }),
+          createStreamingProvider({ name: "kodik" }),
+        ],
+      }),
+    /already registered/,
+  );
+});
+
 test("accepts custom cache merge strategy timeout and debug options", () => {
   const cache = new MemoryCache();
   const mergeStrategy: MergeStrategy = {
@@ -81,6 +95,36 @@ test("accepts custom cache merge strategy timeout and debug options", () => {
         debug: true,
       }),
   );
+});
+
+test("returns safe streaming provider info", () => {
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        name: "streaming-secret-provider",
+        version: "1.0.0",
+        secret: "hidden",
+      }),
+    ],
+  });
+
+  assert.deepEqual(engine.getStreamingProviders(), [
+    {
+      name: "streaming-secret-provider",
+      version: "1.0.0",
+      kind: "streaming",
+      capabilities: {
+        mediaTypes: ["anime"],
+        lookup: {
+          byTitle: true,
+          byExternalIds: ["shikimori"],
+          byEpisode: true,
+        },
+        features: ["embed", "translations", "qualities", "episode_mapping"],
+      },
+    },
+  ]);
+  assert.equal("secret" in engine.getStreamingProviders()[0]!, false);
 });
 
 test("search rejects empty queries predictably", async () => {
@@ -521,6 +565,227 @@ test("getDetails cache integration keeps response shape", async () => {
   assert.deepEqual(second.details, first.details);
 });
 
+test("getAvailability rejects empty identity predictably", async () => {
+  const engine = new MediaEngine();
+
+  await assert.rejects(() => engine.getAvailability({ type: "anime" }), {
+    name: "MediaEngineError",
+    code: "INVALID_QUERY",
+    message: "Stream query must include title or external ids.",
+  });
+});
+
+test("getAvailability normalizes top-level external id shortcuts into ids", async () => {
+  let receivedIds: unknown;
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(query): Promise<MediaAvailability | null> {
+          receivedIds = query.ids;
+          return createAvailability(query, "shortcut-provider");
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    shikimori: "20",
+    absoluteEpisodeNumber: 1,
+  });
+
+  assert.deepEqual(receivedIds, { shikimori: "20" });
+  assert.deepEqual(availability.query.ids, { shikimori: "20" });
+  assert.equal(availability.options.length, 1);
+});
+
+test("getAvailability returns empty availability when no streaming providers are available", async () => {
+  const engine = new MediaEngine();
+  const availability = await engine.getAvailability({ type: "anime", title: "Naruto" });
+
+  assert.deepEqual(availability.query, { type: "anime", title: "Naruto" });
+  assert.deepEqual(availability.options, []);
+  assert.deepEqual(availability.sourceProviders, []);
+  assert.equal(typeof availability.checkedAt, "string");
+});
+
+test("getAvailability merges multiple streaming provider results", async () => {
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({ name: "kodik" }),
+      createStreamingProvider({ name: "mirror" }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    title: "Naruto",
+    absoluteEpisodeNumber: 1,
+  });
+
+  assert.deepEqual(
+    availability.options.map((option) => option.provider),
+    ["kodik", "mirror"],
+  );
+  assert.deepEqual(
+    availability.episodes?.[0]?.options.map((option) => option.provider),
+    ["kodik", "mirror"],
+  );
+  assert.deepEqual(
+    availability.sourceProviders.map((source) => source.provider),
+    ["kodik", "mirror"],
+  );
+});
+
+test("getAvailability respects requested streaming provider filter", async () => {
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({ name: "kodik" }),
+      createStreamingProvider({ name: "mirror" }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    title: "Naruto",
+    providers: ["mirror"],
+  });
+
+  assert.deepEqual(
+    availability.options.map((option) => option.provider),
+    ["mirror"],
+  );
+});
+
+test("getAvailability tolerates one provider failure when another provider succeeds", async () => {
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        name: "failing-stream",
+        async getAvailability(): Promise<MediaAvailability | null> {
+          throw new ProviderError({
+            provider: "failing-stream",
+            code: "PROVIDER_UNAVAILABLE",
+            retryable: true,
+            message: "Streaming provider is unavailable.",
+          });
+        },
+      }),
+      createStreamingProvider({ name: "successful-stream" }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({ type: "anime", title: "Naruto" });
+
+  assert.deepEqual(
+    availability.options.map((option) => option.provider),
+    ["successful-stream"],
+  );
+});
+
+test("getAvailability throws predictably when all selected streaming providers fail", async () => {
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        name: "failing-stream",
+        async getAvailability(): Promise<MediaAvailability | null> {
+          throw new Error("Streaming failed.");
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(
+    () => engine.getAvailability({ type: "anime", title: "Naruto" }),
+    (error: unknown) => {
+      assert.equal(error instanceof MediaEngineError, true);
+      assert.equal((error as MediaEngineError).code, "PROVIDER_ERROR");
+      assert.equal((error as MediaEngineError).message, "All streaming providers failed.");
+      assert.deepEqual((error as Error & { cause?: unknown }).cause, {
+        failed: [
+          {
+            provider: "failing-stream",
+            code: "PROVIDER_ERROR",
+            retryable: false,
+            message: "Streaming failed.",
+          },
+        ],
+      });
+      return true;
+    },
+  );
+});
+
+test("getAvailability applies timeout to streaming providers that do not finish", async () => {
+  const engine = new MediaEngine({
+    timeoutMs: 1,
+    streamingProviders: [
+      createStreamingProvider({
+        name: "slow-stream",
+        async getAvailability(): Promise<MediaAvailability | null> {
+          await new Promise(() => undefined);
+          return null;
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(
+    () => engine.getAvailability({ type: "anime", title: "Naruto" }),
+    (error: unknown) => {
+      assert.equal(error instanceof MediaEngineError, true);
+      assert.equal((error as MediaEngineError).code, "PROVIDER_ERROR");
+      assert.deepEqual((error as Error & { cause?: { failed: unknown[] } }).cause?.failed, [
+        {
+          provider: "slow-stream",
+          code: "PROVIDER_TIMEOUT",
+          retryable: true,
+          message: 'Provider "slow-stream" timed out.',
+        },
+      ]);
+      return true;
+    },
+  );
+});
+
+test("getAvailability cache integration keeps response shape", async () => {
+  let calls = 0;
+  const cache = new MemoryCache();
+  const engine = new MediaEngine({
+    cache,
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(query): Promise<MediaAvailability | null> {
+          calls += 1;
+          return createAvailability(query, "test-stream");
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.getAvailability({ type: "anime", title: "Naruto" });
+  const second = await engine.getAvailability({ type: "anime", title: "Naruto" });
+
+  assert.equal(calls, 1);
+  assert.deepEqual(Object.keys(first).sort(), [
+    "checkedAt",
+    "episodes",
+    "item",
+    "options",
+    "query",
+    "sourceProviders",
+  ]);
+  assert.deepEqual(Object.keys(second).sort(), [
+    "checkedAt",
+    "episodes",
+    "item",
+    "options",
+    "query",
+    "sourceProviders",
+  ]);
+  assert.deepEqual(second.options, first.options);
+});
+
 function createProvider(
   overrides: Partial<MediaProvider> & { apiKey?: string } = {},
 ): MediaProvider & { apiKey?: string } {
@@ -544,5 +809,102 @@ function createProvider(
       return null;
     },
     ...overrides,
+  };
+}
+
+function createStreamingProvider(
+  overrides: Partial<StreamingProvider> & { secret?: string } = {},
+): StreamingProvider & { secret?: string } {
+  return {
+    name: "test-streaming-provider",
+    kind: "streaming",
+    capabilities: {
+      mediaTypes: ["anime"],
+      lookup: {
+        byTitle: true,
+        byExternalIds: ["shikimori"],
+        byEpisode: true,
+      },
+      features: ["embed", "translations", "qualities", "episode_mapping"],
+    },
+    async getAvailability(query): Promise<MediaAvailability | null> {
+      return createAvailability(query, overrides.name ?? "test-streaming-provider");
+    },
+    ...overrides,
+  };
+}
+
+function createAvailability(query: StreamQuery, provider: string): MediaAvailability {
+  return {
+    query,
+    item: {
+      type: "anime",
+      title: query.title ?? "Naruto",
+      ids: query.ids,
+    },
+    episodes: [
+      {
+        absoluteEpisodeNumber: query.absoluteEpisodeNumber,
+        options: [
+          {
+            id: `${provider}:episode-1:embed`,
+            provider,
+            player: {
+              kind: "embed",
+              label: "Embedded Player",
+            },
+            translation: {
+              title: "Russian dub",
+              type: "dub",
+              language: "ru",
+            },
+            quality: {
+              label: "720p",
+              height: 720,
+            },
+            episode: {
+              absoluteEpisodeNumber: query.absoluteEpisodeNumber,
+            },
+            access: {
+              url: `https://example.test/${provider}/episode-1`,
+            },
+            availability: "available",
+          },
+        ],
+      },
+    ],
+    options: [
+      {
+        id: `${provider}:episode-1:embed`,
+        provider,
+        player: {
+          kind: "embed",
+          label: "Embedded Player",
+        },
+        translation: {
+          title: "Russian dub",
+          type: "dub",
+          language: "ru",
+        },
+        quality: {
+          label: "720p",
+          height: 720,
+        },
+        episode: {
+          absoluteEpisodeNumber: query.absoluteEpisodeNumber,
+        },
+        access: {
+          url: `https://example.test/${provider}/episode-1`,
+        },
+        availability: "available",
+      },
+    ],
+    sourceProviders: [
+      {
+        provider,
+        ids: query.ids,
+      },
+    ],
+    checkedAt: "2026-07-05T00:00:00.000Z",
   };
 }
