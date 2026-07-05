@@ -130,6 +130,70 @@ Important rule:
 
 Do not add a provider by scraping or bypassing rules. Each real streaming provider must have documented allowed usage.
 
+### Phase 4 Direction Update: KinoBD/ReYohoho-Style Streaming First
+
+After reviewing ReYohoho and ani-cli references, the next practical provider should be a no-token KinoBD/ReYohoho-style streaming provider, not a mandatory Kodik-token provider.
+
+Why:
+
+- ReYohoho does not expose a public Kodik token in the frontend.
+- ReYohoho frontend points to its own backend through `VITE_APP_API_URL=https://api4.rhserv.vu`.
+- ReYohoho gets players through KinoBD/ReYohoho-style endpoints such as `/api/player/search`, `/playerdata`, and `/cache_shiki`.
+- In ReYohoho, `kodik` is one of several requested player provider names inside a `player` parameter, not a standalone client-side Kodik token.
+- ani-cli does not use Kodik token either. It scrapes AllAnime GraphQL/embed data and extracts playable links. That approach is useful as a technical reference, but it is not the right default for an npm package that should avoid brittle scraping.
+
+Reviewed sources:
+
+- ReYohoho frontend environment config:
+  `https://github.com/dav2010ID/reyohoho/blob/main/.env`
+- ReYohoho KinoBD/player integration:
+  `https://github.com/dav2010ID/reyohoho/blob/main/src/api/movies.kinobd.js`
+- ReYohoho Shikimori/anime player backend calls:
+  `https://github.com/dav2010ID/reyohoho/blob/main/src/api/movies.rhserv.js`
+- ReYohoho player source UI flow:
+  `https://github.com/dav2010ID/reyohoho/blob/main/src/composables/usePlayerSources.js`
+- ReYohoho Desktop config and shell behavior:
+  `https://github.com/reyohoho/reyohoho-desktop/blob/master/prebuilts/config.json`
+  `https://github.com/reyohoho/reyohoho-desktop/blob/master/src/main.ts`
+- ani-cli source:
+  `https://github.com/pystardust/ani-cli/blob/master/ani-cli`
+
+Implementation target:
+
+1. Add `kinobdStreamingProvider` in `@media-engine/providers`.
+2. Make it no-token by default.
+3. Use KinoBD/ReYohoho-style endpoints:
+   - `/api/player/search` to find player candidates;
+   - `/playerdata` to request provider player iframe data;
+   - optionally `/cache_shiki` or a compatible configured endpoint for Shikimori anime players if source rules are acceptable.
+4. Request a provider list that includes `kodik`, but keep it configurable.
+5. Normalize returned provider player maps into `MediaAvailability`:
+   - provider name;
+   - translation label;
+   - quality;
+   - iframe/embed URL;
+   - source attribution;
+   - episode references when available.
+6. Keep direct Kodik API provider optional:
+   - `kodikProvider({ token })` can remain for users with an official Kodik token;
+   - it should not be required for the default out-of-box flow.
+
+Provider requirements:
+
+- no hardcoded private credentials;
+- no account cookies;
+- no direct video extraction by default;
+- embed/external URLs only unless a source explicitly allows HLS/MP4 exposure;
+- mocked tests for all HTTP response shapes;
+- live smoke only after network access and source availability are confirmed.
+
+Done when:
+
+- A new project can configure Media Engine with metadata providers and no-token `kinobdStreamingProvider`.
+- `engine.getAvailability({ type: "anime", shikimori: "20", absoluteEpisodeNumber: 1 })` can return player options when the upstream source has them.
+- API `/media/availability` works without requiring the user to obtain a Kodik token.
+- Example app can show returned player options and open an embed/external player.
+
 Candidate providers:
 
 1. Kodik.
