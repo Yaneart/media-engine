@@ -17,4 +17,15 @@ export class ProvidersController {
   getProviders() {
     return this.mediaService.getProviders();
   }
+
+  // EN: Return safe streaming provider capabilities without secrets or internals.
+  // RU: Возвращает безопасные capabilities streaming-провайдеров без секретов и внутренностей.
+  @ApiOperation({ summary: 'List configured streaming providers.' })
+  @ApiOkResponse({
+    description: 'Safe streaming provider metadata and capabilities.',
+  })
+  @Get('streaming')
+  getStreamingProviders() {
+    return this.mediaService.getStreamingProviders();
+  }
 }

@@ -1,8 +1,11 @@
 import type { DetailsResponse } from "@media-engine/core";
 import type { DetailsQuery } from "@media-engine/core";
+import type { MediaAvailability } from "@media-engine/core";
 import type { ProviderInfo } from "@media-engine/core";
 import type { SearchResponse } from "@media-engine/core";
 import type { SearchQuery } from "@media-engine/core";
+import type { StreamQuery } from "@media-engine/core";
+import type { StreamingProviderInfo } from "@media-engine/core";
 
 // EN: Fetch-compatible function accepted by the SDK for browser, Node, and tests.
 // RU: Fetch-compatible функция, которую SDK принимает для browser, Node и tests.
@@ -89,10 +92,25 @@ export class MediaEngineClient {
     return this.requestJson<DetailsResponse>("/media/details", query, options);
   }
 
+  // EN: Load normalized player and stream availability through GET /media/availability.
+  // RU: Загружает нормализованную доступность player и stream через GET /media/availability.
+  getAvailability(
+    query: StreamQuery,
+    options?: MediaEngineRequestOptions,
+  ): Promise<MediaAvailability> {
+    return this.requestJson<MediaAvailability>("/media/availability", query, options);
+  }
+
   // EN: List safe provider metadata through GET /providers.
   // RU: Получает безопасные provider metadata через GET /providers.
   getProviders(options?: MediaEngineRequestOptions): Promise<ProviderInfo[]> {
     return this.requestJson<ProviderInfo[]>("/providers", undefined, options);
+  }
+
+  // EN: List safe streaming provider metadata through GET /providers/streaming.
+  // RU: Получает безопасные metadata streaming-провайдеров через GET /providers/streaming.
+  getStreamingProviders(options?: MediaEngineRequestOptions): Promise<StreamingProviderInfo[]> {
+    return this.requestJson<StreamingProviderInfo[]>("/providers/streaming", undefined, options);
   }
 
   // EN: Check API readiness through GET /health.
@@ -131,7 +149,7 @@ export class MediaEngineClient {
   // RU: Выполняет GET request и парсит JSON response как ожидаемый SDK type.
   private async requestJson<T>(
     path: string,
-    query?: SearchQuery | DetailsQuery,
+    query?: SearchQuery | DetailsQuery | StreamQuery,
     options?: MediaEngineRequestOptions,
   ): Promise<T> {
     const url = this.createUrl(path);
@@ -152,17 +170,27 @@ export class MediaEngineClient {
 
 export type MediaEngineSearchResponse = SearchResponse;
 export type MediaEngineDetailsResponse = DetailsResponse;
+export type MediaEngineAvailabilityResponse = MediaAvailability;
 export type MediaEngineProviderInfo = ProviderInfo;
+export type MediaEngineStreamingProviderInfo = StreamingProviderInfo;
 
-// EN: Append core search/details query fields to API URL search params.
-// RU: Добавляет поля core search/details query в API URL search params.
-function appendQuery(url: URL, query: SearchQuery | DetailsQuery): void {
+// EN: Append core search/details/streaming query fields to API URL search params.
+// RU: Добавляет поля core search/details/streaming query в API URL search params.
+function appendQuery(url: URL, query: SearchQuery | DetailsQuery | StreamQuery): void {
   appendParam(url, "title", "title" in query ? query.title : undefined);
   appendParam(url, "type", query.type);
   appendParam(url, "year", "year" in query ? query.year : undefined);
   appendParam(url, "limit", "limit" in query ? query.limit : undefined);
   appendParam(url, "language", query.language);
   appendParam(url, "id", "id" in query ? query.id : undefined);
+  appendParam(url, "seasonNumber", "seasonNumber" in query ? query.seasonNumber : undefined);
+  appendParam(url, "episodeNumber", "episodeNumber" in query ? query.episodeNumber : undefined);
+  appendParam(
+    url,
+    "absoluteEpisodeNumber",
+    "absoluteEpisodeNumber" in query ? query.absoluteEpisodeNumber : undefined,
+  );
+  appendArrayParam(url, "providers", "providers" in query ? query.providers : undefined);
 
   for (const key of EXTERNAL_ID_KEYS) {
     appendParam(url, key, query[key]);
@@ -181,6 +209,22 @@ function appendParam(url: URL, key: string, value: number | string | undefined):
 
   if (serialized.length > 0) {
     url.searchParams.set(key, serialized);
+  }
+}
+
+// EN: Append repeated query parameters for list values.
+// RU: Добавляет повторяющиеся query параметры для списочных значений.
+function appendArrayParam(url: URL, key: string, values: readonly string[] | undefined): void {
+  if (!values) {
+    return;
+  }
+
+  for (const value of values) {
+    const serialized = value.trim();
+
+    if (serialized.length > 0) {
+      url.searchParams.append(key, serialized);
+    }
   }
 }
 

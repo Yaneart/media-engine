@@ -7,11 +7,14 @@ import {
 import {
   type DetailsQuery,
   type DetailsResponse,
+  type MediaAvailability,
   type MediaEngine,
   type MediaType,
   type ProviderInfo,
   type SearchQuery,
   type SearchResponse,
+  type StreamQuery,
+  type StreamingProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
 
@@ -25,6 +28,13 @@ export type MediaSearchHttpQuery = Record<
 // EN: Raw details query shape received from HTTP before API-level normalization.
 // RU: Сырая форма details query из HTTP до нормализации на уровне API.
 export type MediaDetailsHttpQuery = Record<
+  string,
+  string | string[] | undefined
+>;
+
+// EN: Raw streaming availability query shape received from HTTP before normalization.
+// RU: Сырая форма streaming availability query из HTTP до нормализации.
+export type MediaAvailabilityHttpQuery = Record<
   string,
   string | string[] | undefined
 >;
@@ -86,10 +96,36 @@ export class MediaService {
     }
   }
 
+  // EN: Convert HTTP query parameters into a core StreamQuery and load player options.
+  // RU: Преобразует HTTP query параметры в core StreamQuery и загружает player-варианты.
+  async getAvailability(
+    query: MediaAvailabilityHttpQuery,
+  ): Promise<MediaAvailability> {
+    try {
+      return await this.mediaEngine.getAvailability(toStreamQuery(query));
+    } catch (error) {
+      if (isMediaEngineError(error, 'INVALID_QUERY')) {
+        throw new BadRequestException(error.message);
+      }
+
+      if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
+        throw new ServiceUnavailableException(error.message);
+      }
+
+      throw error;
+    }
+  }
+
   // EN: Return safe provider metadata from the configured core engine.
   // RU: Возвращает безопасные метаданные провайдеров из настроенного core engine.
   getProviders(): ProviderInfo[] {
     return this.mediaEngine.getProviders();
+  }
+
+  // EN: Return safe streaming provider metadata from the configured core engine.
+  // RU: Возвращает безопасные метаданные streaming-провайдеров из настроенного core engine.
+  getStreamingProviders(): StreamingProviderInfo[] {
+    return this.mediaEngine.getStreamingProviders();
   }
 }
 
@@ -165,6 +201,65 @@ export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
   return detailsQuery;
 }
 
+// EN: Build the public core streaming query from GET /media/availability parameters.
+// RU: Собирает публичный core streaming query из параметров GET /media/availability.
+export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
+  const streamQuery: Partial<StreamQuery> = {};
+  const title = readString(query.title);
+  const language = readString(query.language);
+  const type = readMediaType(query.type);
+  const year = readInteger(query.year, 'year');
+  const seasonNumber = readInteger(query.seasonNumber, 'seasonNumber');
+  const episodeNumber = readInteger(query.episodeNumber, 'episodeNumber');
+  const absoluteEpisodeNumber = readInteger(
+    query.absoluteEpisodeNumber,
+    'absoluteEpisodeNumber',
+  );
+  const providers = readStringList(query.providers);
+
+  if (title !== undefined) {
+    streamQuery.title = title;
+  }
+
+  if (language !== undefined) {
+    streamQuery.language = language;
+  }
+
+  if (type !== undefined) {
+    streamQuery.type = type;
+  }
+
+  if (year !== undefined) {
+    streamQuery.year = year;
+  }
+
+  if (seasonNumber !== undefined) {
+    streamQuery.seasonNumber = seasonNumber;
+  }
+
+  if (episodeNumber !== undefined) {
+    streamQuery.episodeNumber = episodeNumber;
+  }
+
+  if (absoluteEpisodeNumber !== undefined) {
+    streamQuery.absoluteEpisodeNumber = absoluteEpisodeNumber;
+  }
+
+  if (providers.length > 0) {
+    streamQuery.providers = providers;
+  }
+
+  for (const key of EXTERNAL_ID_KEYS) {
+    const value = readString(query[key] ?? query[`ids.${key}`]);
+
+    if (value !== undefined) {
+      streamQuery[key] = value;
+    }
+  }
+
+  return streamQuery as StreamQuery;
+}
+
 // EN: Read the first string query value and treat blanks as absent.
 // RU: Читает первое строковое query значение и считает пустые строки отсутствующими.
 function readString(value: string | string[] | undefined): string | undefined {
@@ -193,6 +288,21 @@ function readInteger(
   }
 
   return parsed;
+}
+
+// EN: Read repeated or comma-separated string query values.
+// RU: Читает повторяющиеся или разделенные запятыми строковые query значения.
+function readStringList(value: string | string[] | undefined): string[] {
+  const values = Array.isArray(value)
+    ? value
+    : value === undefined
+      ? []
+      : [value];
+
+  return values
+    .flatMap((entry) => entry.split(','))
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 // EN: Accept only the media type values supported by the public core model.

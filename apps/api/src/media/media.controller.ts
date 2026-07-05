@@ -9,6 +9,7 @@ import {
 } from '@nestjs/swagger';
 import { MediaService } from './media.service';
 import type {
+  MediaAvailabilityHttpQuery,
   MediaDetailsHttpQuery,
   MediaSearchHttpQuery,
 } from './media.service';
@@ -84,5 +85,46 @@ export class MediaController {
   @Get('details')
   getDetails(@Query() query: MediaDetailsHttpQuery) {
     return this.mediaService.getDetails(query);
+  }
+
+  // EN: Expose normalized player and stream availability for one media item or episode.
+  // RU: Открываем нормализованную доступность player и stream для медиа или эпизода.
+  @ApiOperation({
+    summary: 'Get available player options for one media item or episode.',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: true,
+    enum: ['movie', 'series', 'anime'],
+  })
+  @ApiQuery({ name: 'title', required: false, type: String })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiQuery({ name: 'seasonNumber', required: false, type: Number })
+  @ApiQuery({ name: 'episodeNumber', required: false, type: Number })
+  @ApiQuery({ name: 'absoluteEpisodeNumber', required: false, type: Number })
+  @ApiQuery({ name: 'providers', required: false, type: String })
+  @ApiQuery({ name: 'language', required: false, type: String })
+  @ApiQuery({ name: 'imdb', required: false, type: String })
+  @ApiQuery({ name: 'tmdb', required: false, type: String })
+  @ApiQuery({ name: 'kinopoisk', required: false, type: String })
+  @ApiQuery({ name: 'shikimori', required: false, type: String })
+  @ApiQuery({ name: 'myAnimeList', required: false, type: String })
+  @ApiQuery({ name: 'aniList', required: false, type: String })
+  @ApiQuery({ name: 'ids.imdb', required: false, type: String })
+  @ApiQuery({ name: 'ids.tmdb', required: false, type: String })
+  @ApiQuery({ name: 'ids.kinopoisk', required: false, type: String })
+  @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
+  @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
+  @ApiQuery({ name: 'ids.aniList', required: false, type: String })
+  @ApiOkResponse({ description: 'Normalized player availability response.' })
+  @ApiBadRequestResponse({
+    description: 'Invalid streaming availability query.',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'All selected streaming providers failed.',
+  })
+  @Get('availability')
+  getAvailability(@Query() query: MediaAvailabilityHttpQuery) {
+    return this.mediaService.getAvailability(query);
   }
 }

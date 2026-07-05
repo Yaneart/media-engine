@@ -96,6 +96,48 @@ test("getDetails serializes details query params", async () => {
   assert.equal(mock.calls[0]?.searchParams.get("type"), "movie");
 });
 
+test("getAvailability serializes streaming query params", async () => {
+  const body = {
+    query: {
+      type: "anime",
+      title: "Naruto",
+      shikimori: "20",
+      absoluteEpisodeNumber: 1,
+      providers: ["experimental-streaming", "mirror"],
+      language: "ru",
+    },
+    options: [],
+    sourceProviders: [],
+    checkedAt: "2026-07-05T00:00:00.000Z",
+  };
+  const mock = createMockFetch(Response.json(body));
+  const client = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: mock.fetch,
+  });
+
+  const result = await client.getAvailability({
+    type: "anime",
+    title: " Naruto ",
+    shikimori: "20",
+    absoluteEpisodeNumber: 1,
+    providers: ["experimental-streaming", "mirror"],
+    language: "ru",
+  });
+
+  assert.deepEqual(result, body);
+  assert.equal(mock.calls[0]?.pathname, "/media/availability");
+  assert.equal(mock.calls[0]?.searchParams.get("title"), "Naruto");
+  assert.equal(mock.calls[0]?.searchParams.get("type"), "anime");
+  assert.equal(mock.calls[0]?.searchParams.get("shikimori"), "20");
+  assert.equal(mock.calls[0]?.searchParams.get("absoluteEpisodeNumber"), "1");
+  assert.deepEqual(mock.calls[0]?.searchParams.getAll("providers"), [
+    "experimental-streaming",
+    "mirror",
+  ]);
+  assert.equal(mock.calls[0]?.searchParams.get("language"), "ru");
+});
+
 test("getProviders and getHealth parse typed responses", async () => {
   const providersMock = createMockFetch(Response.json([]));
   const providersClient = new MediaEngineClient({
@@ -105,6 +147,15 @@ test("getProviders and getHealth parse typed responses", async () => {
 
   assert.deepEqual(await providersClient.getProviders(), []);
   assert.equal(providersMock.calls[0]?.pathname, "/providers");
+
+  const streamingProvidersMock = createMockFetch(Response.json([]));
+  const streamingProvidersClient = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: streamingProvidersMock.fetch,
+  });
+
+  assert.deepEqual(await streamingProvidersClient.getStreamingProviders(), []);
+  assert.equal(streamingProvidersMock.calls[0]?.pathname, "/providers/streaming");
 
   const health = {
     status: "ok",

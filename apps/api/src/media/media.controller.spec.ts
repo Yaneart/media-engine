@@ -4,11 +4,13 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import {
   type DetailsResponse,
+  type MediaAvailability,
   MediaEngineError,
   sampleMovie,
   type MediaEngine,
   type ProviderInfo,
   type SearchResponse,
+  type StreamingProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
 import { MediaModule } from './media.module';
@@ -16,7 +18,14 @@ import { MediaModule } from './media.module';
 describe('MediaController', () => {
   let app: INestApplication<App>;
   let mediaEngine: jest.Mocked<
-    Pick<MediaEngine, 'search' | 'getDetails' | 'getProviders'>
+    Pick<
+      MediaEngine,
+      | 'search'
+      | 'getDetails'
+      | 'getAvailability'
+      | 'getProviders'
+      | 'getStreamingProviders'
+    >
   >;
 
   const searchResponse: SearchResponse = {
@@ -83,11 +92,59 @@ describe('MediaController', () => {
     },
   ];
 
+  const availabilityResponse: MediaAvailability = {
+    query: {
+      type: 'anime',
+      title: 'Naruto',
+      shikimori: '20',
+      absoluteEpisodeNumber: 1,
+      providers: ['experimental-streaming'],
+      language: 'ru',
+    },
+    item: {
+      type: 'anime',
+      title: 'Naruto',
+      ids: {
+        shikimori: '20',
+      },
+    },
+    episodes: [
+      {
+        absoluteEpisodeNumber: 1,
+        options: [],
+      },
+    ],
+    options: [],
+    sourceProviders: [],
+    checkedAt: '2026-07-05T00:00:00.000Z',
+  };
+
+  const streamingProvidersResponse: StreamingProviderInfo[] = [
+    {
+      name: 'experimental-streaming',
+      version: '0.0.0',
+      kind: 'streaming',
+      capabilities: {
+        mediaTypes: ['anime'],
+        lookup: {
+          byTitle: true,
+          byExternalIds: ['shikimori'],
+          byEpisode: true,
+        },
+        features: ['embed', 'translations', 'episode_mapping'],
+      },
+    },
+  ];
+
   beforeEach(async () => {
     mediaEngine = {
       search: jest.fn().mockResolvedValue(searchResponse),
       getDetails: jest.fn().mockResolvedValue(detailsResponse),
+      getAvailability: jest.fn().mockResolvedValue(availabilityResponse),
       getProviders: jest.fn().mockReturnValue(providersResponse),
+      getStreamingProviders: jest
+        .fn()
+        .mockReturnValue(streamingProvidersResponse),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -247,6 +304,86 @@ describe('MediaController', () => {
       .expect(503);
   });
 
+  it('maps GET /media/availability query parameters to MediaEngine.getAvailability', async () => {
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({
+        title: ' Naruto ',
+        type: 'anime',
+        shikimori: ' 20 ',
+        absoluteEpisodeNumber: '1',
+        providers: 'experimental-streaming,mirror',
+        language: 'ru',
+      })
+      .expect(200)
+      .expect(availabilityResponse);
+
+    expect(mediaEngine.getAvailability).toHaveBeenCalledWith({
+      title: 'Naruto',
+      type: 'anime',
+      shikimori: '20',
+      absoluteEpisodeNumber: 1,
+      providers: ['experimental-streaming', 'mirror'],
+      language: 'ru',
+    });
+  });
+
+  it('supports ids.* external ID parameters for availability lookup', async () => {
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({
+        type: 'anime',
+        'ids.shikimori': '20',
+      })
+      .expect(200);
+
+    expect(mediaEngine.getAvailability).toHaveBeenCalledWith({
+      type: 'anime',
+      shikimori: '20',
+    });
+  });
+
+  it('returns 400 for invalid availability numeric parameters', async () => {
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({
+        title: 'Naruto',
+        type: 'anime',
+        absoluteEpisodeNumber: 'first',
+      })
+      .expect(400);
+
+    expect(mediaEngine.getAvailability).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid core availability queries', async () => {
+    mediaEngine.getAvailability.mockRejectedValueOnce(
+      new MediaEngineError({
+        code: 'INVALID_QUERY',
+        message: 'Stream query must include title or external ids.',
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({ type: 'anime' })
+      .expect(400);
+  });
+
+  it('returns 503 when all selected streaming providers fail', async () => {
+    mediaEngine.getAvailability.mockRejectedValueOnce(
+      new MediaEngineError({
+        code: 'PROVIDER_ERROR',
+        message: 'All streaming providers failed.',
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({ title: 'Naruto', type: 'anime' })
+      .expect(503);
+  });
+
   it('returns safe provider metadata from GET /providers', async () => {
     await request(app.getHttpServer())
       .get('/providers')
@@ -254,5 +391,14 @@ describe('MediaController', () => {
       .expect(providersResponse);
 
     expect(mediaEngine.getProviders).toHaveBeenCalledWith();
+  });
+
+  it('returns safe streaming provider metadata from GET /providers/streaming', async () => {
+    await request(app.getHttpServer())
+      .get('/providers/streaming')
+      .expect(200)
+      .expect(streamingProvidersResponse);
+
+    expect(mediaEngine.getStreamingProviders).toHaveBeenCalledWith();
   });
 });
