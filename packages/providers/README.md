@@ -19,6 +19,7 @@ src/
   imdb-dataset/
   experimental-streaming/
   kodik/
+  kinobd-streaming/
   index.ts
 ```
 
@@ -224,6 +225,36 @@ Supported behavior:
 - provider filtering through `StreamQuery.providers`.
 
 Use this provider only for experiments, tests, and UI wiring. A real provider such as Kodik should be implemented separately only after its API/embed usage rules are documented and allowed.
+
+## KinoBD Streaming Provider
+
+`kinobdStreamingProvider` creates a no-token streaming provider for ReYohoho-style iframe player availability. It calls KinoBD-style player endpoints and returns normalized `StreamOption` values with embed URLs, provider labels, translations, and quality labels.
+
+```ts
+import { MediaEngine } from "@media-engine/core";
+import { kinobdStreamingProvider } from "@media-engine/providers";
+
+const engine = new MediaEngine({
+  streamingProviders: [kinobdStreamingProvider()],
+});
+
+const availability = await engine.getAvailability({
+  type: "movie",
+  ids: {
+    kinopoisk: "258687",
+  },
+});
+```
+
+Supported behavior:
+
+- movie and series lookup through `/api/player/search` and `/playerdata`;
+- anime lookup through `/cache_shiki` when a Shikimori ID is available;
+- player aggregation for KinoBD/ReYohoho providers such as Kodik, Alloha, Vibix, VideoCDN, HDVB, and related iframe sources;
+- normalized embed player options with translation and quality metadata;
+- provider filtering through `StreamQuery.providers`.
+
+This provider does not use a Kodik API token and does not extract direct video files. It returns player/embed URLs for the application UI to render.
 
 ## Kodik Streaming Provider
 

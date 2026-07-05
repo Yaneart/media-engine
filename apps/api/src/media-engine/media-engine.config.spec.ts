@@ -14,7 +14,9 @@ describe('MediaEngine configuration', () => {
       'shikimori',
       'wikidata',
     ]);
-    expect(engine.getStreamingProviders()).toEqual([]);
+    expect(
+      engine.getStreamingProviders().map((provider) => provider.name),
+    ).toEqual(['kinobd-streaming']);
   });
 
   it('adds TMDB when a read access token is configured', async () => {
@@ -45,12 +47,25 @@ describe('MediaEngine configuration', () => {
     ]);
   });
 
+  it('creates no-token streaming providers by default', async () => {
+    const providers = await createConfiguredStreamingProviders({});
+
+    expect(providers.map((provider) => provider.name)).toEqual([
+      'kinobd-streaming',
+    ]);
+    expect(providers[0]?.kind).toBe('streaming');
+  });
+
   it('adds Kodik streaming provider when a token is configured', async () => {
     const providers = await createConfiguredStreamingProviders({
       KODIK_TOKEN: ' kodik-token ',
     });
 
-    expect(providers.map((provider) => provider.name)).toEqual(['kodik']);
+    expect(providers.map((provider) => provider.name)).toEqual([
+      'kinobd-streaming',
+      'kodik',
+    ]);
     expect(providers[0]?.kind).toBe('streaming');
+    expect(providers[1]?.kind).toBe('streaming');
   });
 });

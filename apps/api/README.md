@@ -40,13 +40,15 @@ The default local API URL is:
 http://127.0.0.1:3000
 ```
 
-Movie and series search works without secrets through Wikidata. For richer movie and series metadata, set a TMDB token in the repository root `.env` file:
+Movie and series search works without secrets through KinoBD, Cinemeta, Shikimori, and Wikidata. For richer movie and series metadata, set a TMDB token in the repository root `.env` file:
 
 ```txt
 TMDB_API_READ_ACCESS_TOKEN=your_tmdb_read_access_token
 ```
 
-Streaming availability is disabled by default. To enable Kodik player options, set a Kodik API token:
+Streaming availability works without secrets through the default KinoBD/ReYohoho-style streaming provider. It returns normalized embed player options from KinoBD-style `/api/player/search`, `/playerdata`, and `/cache_shiki` endpoints when a source is available.
+
+To add the direct Kodik API provider as an extra source, set a Kodik API token:
 
 ```txt
 KODIK_TOKEN=your_kodik_token

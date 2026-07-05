@@ -1,0 +1,591 @@
+import type {
+  ExternalIds,
+  MediaAvailability,
+  MediaType,
+  ProviderContext,
+  StreamOption,
+  StreamingProvider,
+  StreamingProviderCapabilities,
+} from "@media-engine/core";
+import { fetchJson, type ProviderFetch } from "../shared/index.js";
+
+const PROVIDER_NAME = "kinobd-streaming";
+const DEFAULT_BASE_URL = "https://kinobd.net";
+const DEFAULT_SEARCH_LIMIT = 10;
+const DEFAULT_PLAYER_PROVIDERS = [
+  "collaps",
+  "vibix",
+  "alloha",
+  "kodik",
+  "kinotochka",
+  "flixcdn",
+  "ashdi",
+  "turbo",
+  "videocdn",
+  "bazon",
+  "ustore",
+  "pleer",
+  "videospider",
+  "iframe",
+  "moonwalk",
+  "hdvb",
+  "cdnmovies",
+  "lookbase",
+  "kholobok",
+  "videoapi",
+  "voidboost",
+  "trailer_local",
+  "videoseed",
+  "youtube",
+  "ext",
+  "trailer",
+].join(",");
+
+// Options used to create the no-token KinoBD/ReYohoho-style streaming provider.
+// Опции для создания no-token KinoBD/ReYohoho-style streaming-провайдера.
+export interface KinoBdStreamingProviderOptions {
+  name?: string;
+  version?: string;
+  baseUrl?: string;
+  fetch?: ProviderFetch;
+  searchLimit?: number;
+  playerProviders?: string;
+  fast?: number;
+}
+
+// Creates a no-token streaming provider that asks KinoBD-style endpoints for iframe players.
+// Создает no-token streaming-провайдер, который запрашивает iframe-плееры через KinoBD-style endpoints.
+export function kinobdStreamingProvider(
+  options: KinoBdStreamingProviderOptions = {},
+): StreamingProvider {
+  const config = createConfig(options);
+
+  return {
+    name: config.name,
+    version: options.version,
+    kind: "streaming",
+    capabilities: createCapabilities(),
+    async getAvailability(query, context) {
+      return getKinoBdAvailability(config, query, context);
+    },
+  };
+}
+
+// Internal normalized provider configuration.
+// Внутренняя нормализованная конфигурация provider.
+interface KinoBdStreamingConfig {
+  name: string;
+  baseUrl: string;
+  fetch?: ProviderFetch;
+  searchLimit: number;
+  playerProviders: string;
+  fast: number;
+}
+
+// Search response returned by KinoBD-style player lookup.
+// Search response, который возвращает KinoBD-style player lookup.
+interface PlayerSearchResponse {
+  data?: PlayerCandidate[];
+}
+
+// Candidate item used to request concrete provider players through /playerdata.
+// Candidate item для запроса конкретных provider players через /playerdata.
+interface PlayerCandidate {
+  id?: string | number | null;
+  inid?: string | number | null;
+  kp_id?: string | number | null;
+  kinopoisk_id?: string | number | null;
+  imdb_id?: string | null;
+  title?: string | null;
+  name_russian?: string | null;
+  name_original?: string | null;
+  year?: string | number | null;
+  iframe?: string | null;
+}
+
+// Map of provider names to iframe player payloads.
+// Map имен provider к payload iframe-плееров.
+type PlayerDataResponse = Record<string, PlayerPayload>;
+
+// Minimal player payload shape used by ReYohoho/KinoBD-style backends.
+// Минимальная форма player payload, которую используют ReYohoho/KinoBD-style backends.
+interface PlayerPayload {
+  name?: string | null;
+  translate?: string | null;
+  iframe?: string | null;
+  quality?: string | null;
+  warning?: boolean | null;
+  source?: string | null;
+}
+
+// Builds provider config with ReYohoho-compatible defaults.
+// Собирает provider config с ReYohoho-compatible defaults.
+function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingConfig {
+  const searchLimit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT;
+  const fast = options.fast ?? 1;
+
+  if (!Number.isInteger(searchLimit) || searchLimit <= 0) {
+    throw new TypeError("KinoBD streaming searchLimit must be a positive integer.");
+  }
+
+  if (!Number.isInteger(fast) || fast < 0) {
+    throw new TypeError("KinoBD streaming fast must be a non-negative integer.");
+  }
+
+  return {
+    name: normalizeProviderName(options.name ?? PROVIDER_NAME),
+    baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
+    fetch: options.fetch,
+    searchLimit,
+    playerProviders: options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
+    fast,
+  };
+}
+
+// Builds safe capabilities for the public engine/API.
+// Собирает безопасные capabilities для публичного engine/API.
+function createCapabilities(): StreamingProviderCapabilities {
+  return {
+    mediaTypes: ["movie", "series", "anime"],
+    lookup: {
+      byTitle: true,
+      byExternalIds: ["kinopoisk", "shikimori"],
+      byEpisode: true,
+    },
+    features: ["embed", "translations", "qualities", "episode_mapping"],
+  };
+}
+
+// Resolves availability through movie/series or anime player endpoints.
+// Получает availability через movie/series или anime player endpoints.
+async function getKinoBdAvailability(
+  config: KinoBdStreamingConfig,
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+): Promise<MediaAvailability | null> {
+  if (query.providers && !query.providers.includes(config.name)) {
+    return null;
+  }
+
+  if (query.type === "anime" && query.ids?.shikimori) {
+    return getShikimoriAvailability(config, query, context);
+  }
+
+  if (query.type === "anime") {
+    return createEmptyAvailability(query);
+  }
+
+  return getMovieOrSeriesAvailability(config, query, context);
+}
+
+// Resolves movie or series players through /api/player/search and /playerdata.
+// Получает movie или series players через /api/player/search и /playerdata.
+async function getMovieOrSeriesAvailability(
+  config: KinoBdStreamingConfig,
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+): Promise<MediaAvailability> {
+  const candidates = await searchPlayerCandidates(config, query, context);
+  const selected = candidates[0];
+
+  if (!selected) {
+    return createEmptyAvailability(query);
+  }
+
+  const playerData = await loadPlayerData(config, selected, context);
+  const options = mapPlayerMapToOptions(config.name, playerData, selected, query);
+
+  return {
+    query,
+    item: {
+      type: query.type,
+      title: selected.title ?? selected.name_russian ?? query.title,
+      originalTitle: selected.name_original ?? undefined,
+      year: parseOptionalInteger(selected.year) ?? query.year,
+      ids: collectCandidateIds(selected) ?? query.ids,
+    },
+    options,
+    sourceProviders: [
+      {
+        provider: config.name,
+        ids: collectCandidateIds(selected) ?? query.ids,
+      },
+    ],
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+// Resolves anime players through /cache_shiki-compatible backend endpoint.
+// Получает anime players через /cache_shiki-compatible backend endpoint.
+async function getShikimoriAvailability(
+  config: KinoBdStreamingConfig,
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+): Promise<MediaAvailability> {
+  const url = new URL("/cache_shiki", `${config.baseUrl}/`);
+  const body = new URLSearchParams({
+    shikimori: query.ids!.shikimori!,
+    type: "anime",
+  });
+  const playerData = await fetchJson<PlayerDataResponse>({
+    provider: config.name,
+    url,
+    context,
+    fetch: config.fetch,
+    init: {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body,
+    },
+  });
+  const options = mapPlayerMapToOptions(config.name, playerData, undefined, query);
+
+  return {
+    query,
+    item: {
+      type: "anime",
+      title: query.title,
+      year: query.year,
+      ids: query.ids,
+    },
+    episodes: hasEpisodeQuery(query)
+      ? [
+          {
+            seasonNumber: query.seasonNumber,
+            episodeNumber: query.episodeNumber,
+            absoluteEpisodeNumber: query.absoluteEpisodeNumber,
+            options,
+          },
+        ]
+      : undefined,
+    options,
+    sourceProviders: [
+      {
+        provider: config.name,
+        ids: query.ids,
+      },
+    ],
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+// Searches KinoBD player candidates by Kinopoisk ID or title.
+// Ищет KinoBD player candidates по Kinopoisk ID или title.
+async function searchPlayerCandidates(
+  config: KinoBdStreamingConfig,
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+): Promise<PlayerCandidate[]> {
+  const search = createCandidateSearch(query);
+
+  if (!search) {
+    return [];
+  }
+
+  const url = new URL("/api/player/search", `${config.baseUrl}/`);
+
+  url.searchParams.set("q", search.value);
+  url.searchParams.set("type", search.type);
+  url.searchParams.set("page", "1");
+
+  const response = await fetchJson<PlayerSearchResponse>({
+    provider: config.name,
+    url,
+    context,
+    fetch: config.fetch,
+    init: {
+      headers: {
+        accept: "application/json",
+      },
+    },
+  });
+
+  return (response.data ?? []).slice(0, config.searchLimit);
+}
+
+// Creates the best supported player search input from a stream query.
+// Создает лучший поддерживаемый input поиска player из stream query.
+function createCandidateSearch(
+  query: MediaAvailability["query"],
+): { type: "kp_id" | "title"; value: string } | undefined {
+  if (query.ids?.kinopoisk) {
+    return {
+      type: "kp_id",
+      value: query.ids.kinopoisk,
+    };
+  }
+
+  if (query.title) {
+    return {
+      type: "title",
+      value: query.title,
+    };
+  }
+
+  return undefined;
+}
+
+// Loads provider iframe data for a selected candidate.
+// Загружает provider iframe data для выбранного candidate.
+async function loadPlayerData(
+  config: KinoBdStreamingConfig,
+  candidate: PlayerCandidate,
+  context: ProviderContext,
+): Promise<PlayerDataResponse> {
+  const inid = candidate.inid ?? candidate.id;
+
+  if (inid === undefined || inid === null) {
+    return {};
+  }
+
+  const url = new URL("/playerdata", `${config.baseUrl}/`);
+
+  url.search = `cache${String(inid)}`;
+
+  const body = new URLSearchParams({
+    fast: String(config.fast),
+    inid: String(inid),
+    player: config.playerProviders,
+  });
+  const headers: Record<string, string> = {
+    "content-type": "application/x-www-form-urlencoded",
+  };
+  const iframe = extractIframeUrl(candidate.iframe, config.baseUrl);
+
+  if (iframe) {
+    headers["x-re"] = iframe;
+  }
+
+  return fetchJson<PlayerDataResponse>({
+    provider: config.name,
+    url,
+    context,
+    fetch: config.fetch,
+    init: {
+      method: "POST",
+      headers,
+      body,
+    },
+  });
+}
+
+// Maps a provider player map into normalized stream options.
+// Мапит provider player map в нормализованные stream options.
+function mapPlayerMapToOptions(
+  providerName: string,
+  playerMap: PlayerDataResponse,
+  candidate: PlayerCandidate | undefined,
+  query: MediaAvailability["query"],
+): StreamOption[] {
+  return Object.entries(playerMap)
+    .map(([providerKey, payload]) =>
+      mapPayloadToOption(providerName, providerKey, payload, candidate, query),
+    )
+    .filter((option): option is StreamOption => Boolean(option));
+}
+
+// Maps one player payload into one stream option.
+// Мапит один player payload в один stream option.
+function mapPayloadToOption(
+  providerName: string,
+  providerKey: string,
+  payload: PlayerPayload,
+  candidate: PlayerCandidate | undefined,
+  query: MediaAvailability["query"],
+): StreamOption | undefined {
+  const iframe = extractIframeUrl(payload.iframe, undefined);
+
+  if (!iframe) {
+    return undefined;
+  }
+
+  const label = normalizeProviderLabel(providerKey);
+  const qualityLabel = payload.quality?.trim() || "auto";
+
+  return {
+    id: [
+      providerName,
+      label.toLocaleLowerCase(),
+      candidate?.id ?? candidate?.inid ?? query.ids?.shikimori ?? query.title ?? "item",
+      query.seasonNumber ?? "s",
+      query.episodeNumber ?? "e",
+      query.absoluteEpisodeNumber ?? "a",
+    ]
+      .join(":")
+      .replace(/\s+/g, "-"),
+    provider: providerName,
+    player: {
+      kind: "embed",
+      label,
+      providerPlayerId: providerKey,
+    },
+    translation: {
+      title: payload.translate?.trim() || label,
+      type: "unknown",
+      language: "ru",
+    },
+    quality: {
+      label: qualityLabel,
+      height: parseQualityHeight(qualityLabel),
+    },
+    episode: hasEpisodeQuery(query)
+      ? {
+          seasonNumber: query.seasonNumber,
+          episodeNumber: query.episodeNumber,
+          absoluteEpisodeNumber: query.absoluteEpisodeNumber,
+        }
+      : undefined,
+    access: {
+      url: iframe,
+    },
+    availability: payload.warning ? "unknown" : "available",
+    sourceUrl: iframe,
+  };
+}
+
+// Creates an empty availability response without failing metadata flows.
+// Создает пустой availability response без поломки metadata flows.
+function createEmptyAvailability(query: MediaAvailability["query"]): MediaAvailability {
+  return {
+    query,
+    options: [],
+    sourceProviders: [],
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+// Collects known external IDs from a player candidate.
+// Собирает известные external IDs из player candidate.
+function collectCandidateIds(candidate: PlayerCandidate | undefined): ExternalIds | undefined {
+  if (!candidate) {
+    return undefined;
+  }
+
+  const ids: ExternalIds = {};
+  const kinopoiskId = candidate.kinopoisk_id ?? candidate.kp_id;
+
+  if (kinopoiskId !== undefined && kinopoiskId !== null) {
+    ids.kinopoisk = String(kinopoiskId);
+  }
+
+  if (candidate.imdb_id) {
+    ids.imdb = candidate.imdb_id;
+  }
+
+  return Object.keys(ids).length > 0 ? ids : undefined;
+}
+
+// Extracts either raw URL or iframe src/data-src value.
+// Извлекает raw URL или iframe src/data-src значение.
+function extractIframeUrl(
+  value: string | null | undefined,
+  baseUrl: string | undefined,
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("//")) {
+    return toAbsoluteUrl(trimmed, baseUrl);
+  }
+
+  const dataSrcMatch = /data-src="([^"]+)"/i.exec(trimmed);
+
+  if (dataSrcMatch?.[1]) {
+    return toAbsoluteUrl(dataSrcMatch[1], baseUrl);
+  }
+
+  const srcMatch = /src="([^"]+)"/i.exec(trimmed);
+
+  if (srcMatch?.[1]) {
+    return toAbsoluteUrl(srcMatch[1], baseUrl);
+  }
+
+  return undefined;
+}
+
+// Normalizes absolute, protocol-relative, or relative URLs.
+// Нормализует absolute, protocol-relative или relative URLs.
+function toAbsoluteUrl(value: string, baseUrl: string | undefined): string {
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+
+  if (value.startsWith("//")) {
+    return `https:${value}`;
+  }
+
+  if (baseUrl) {
+    return new URL(value, `${baseUrl}/`).toString();
+  }
+
+  return value;
+}
+
+// Checks whether query contains episode targeting fields.
+// Проверяет, содержит ли query поля выбора эпизода.
+function hasEpisodeQuery(query: MediaAvailability["query"]): boolean {
+  return (
+    query.seasonNumber !== undefined ||
+    query.episodeNumber !== undefined ||
+    query.absoluteEpisodeNumber !== undefined
+  );
+}
+
+// Converts provider map keys into display labels.
+// Преобразует provider map keys в display labels.
+function normalizeProviderLabel(providerKey: string): string {
+  return providerKey.split(">")[0]?.trim().toUpperCase() || "PLAYER";
+}
+
+// Parses common quality labels like 720p or 1080p.
+// Парсит распространенные quality labels вроде 720p или 1080p.
+function parseQualityHeight(label: string): number | undefined {
+  const match = /(\d{3,4})p?/i.exec(label);
+
+  return match ? Number.parseInt(match[1]!, 10) : undefined;
+}
+
+// Parses optional integer-like values.
+// Парсит опциональные integer-like значения.
+function parseOptionalInteger(value: number | string | null | undefined): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  const parsed = typeof value === "number" ? value : Number.parseInt(value, 10);
+
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+// Validates and normalizes provider name.
+// Проверяет и нормализует имя provider.
+function normalizeProviderName(name: string): string {
+  const normalized = name.trim();
+
+  if (!normalized) {
+    throw new TypeError("KinoBD streaming provider name is required.");
+  }
+
+  return normalized;
+}
+
+// Removes trailing slashes from base URLs.
+// Убирает trailing slashes из base URLs.
+function trimTrailingSlash(value: string): string {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new TypeError("KinoBD streaming baseUrl is required.");
+  }
+
+  return trimmed.replace(/\/+$/, "");
+}

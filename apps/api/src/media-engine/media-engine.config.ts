@@ -44,8 +44,9 @@ export async function createConfiguredProviders(
 export async function createConfiguredStreamingProviders(
   env: MediaEngineEnv = process.env,
 ): Promise<StreamingProvider[]> {
-  const { kodikProvider } = await import('@media-engine/providers');
-  const providers: StreamingProvider[] = [];
+  const { kinobdStreamingProvider, kodikProvider } =
+    await import('@media-engine/providers');
+  const providers: StreamingProvider[] = [kinobdStreamingProvider()];
   const kodikToken = readOptionalEnv(env.KODIK_TOKEN);
 
   if (kodikToken !== undefined) {
