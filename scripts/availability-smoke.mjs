@@ -26,6 +26,7 @@ const cases = [
       episodeNumber: 1,
     },
     3,
+    { expectEpisodeGroup: true },
   ),
   availabilityCase(
     "anime: Naruto episode 1",
@@ -35,6 +36,7 @@ const cases = [
       absoluteEpisodeNumber: 1,
     },
     3,
+    { expectEpisodeGroup: true },
   ),
 ].slice(0, limit);
 
@@ -50,12 +52,13 @@ if (strict && results.some((result) => result.status === "FAIL")) {
   process.exitCode = 1;
 }
 
-function availabilityCase(name, query, minOptions) {
+function availabilityCase(name, query, minOptions, options = {}) {
   return {
     kind: "availability",
     name,
     query,
     minOptions,
+    expectEpisodeGroup: options.expectEpisodeGroup ?? false,
   };
 }
 
@@ -66,21 +69,38 @@ async function runAvailabilityCase(testCase) {
     const response = await engine.getAvailability(testCase.query);
     const usableOptions = response.options.filter((option) => option.access?.url);
     const failedProviders = response.sourceProviders.length === 0 && usableOptions.length === 0;
+    const invalidKinds = usableOptions.filter(
+      (option) => !isSupportedPlayerKind(option.player.kind),
+    );
+    const episodeOptionCount = (response.episodes ?? []).reduce(
+      (sum, episode) => sum + episode.options.length,
+      0,
+    );
+    const missingEpisodeGroup = testCase.expectEpisodeGroup && episodeOptionCount === 0;
     const status =
-      usableOptions.length >= testCase.minOptions && !failedProviders ? "PASS" : "FAIL";
+      usableOptions.length >= testCase.minOptions &&
+      invalidKinds.length === 0 &&
+      !missingEpisodeGroup &&
+      !failedProviders
+        ? "PASS"
+        : "FAIL";
 
     return {
       status,
       kind: testCase.kind,
       name: testCase.name,
       tookMs: Date.now() - startedAt,
-      actual: `${response.item?.title ?? "unknown"} options=${usableOptions.length} players=${listPlayers(
+      actual: `${response.item?.title ?? "unknown"} options=${usableOptions.length} episodeOptions=${episodeOptionCount} kinds=${listKinds(
         usableOptions,
-      )}`,
+      )} players=${listPlayers(usableOptions)}`,
       notes: [
         usableOptions.length < testCase.minOptions
           ? `expected at least ${testCase.minOptions} usable options`
           : undefined,
+        invalidKinds.length > 0
+          ? `invalid player kinds: ${invalidKinds.map((option) => option.player.kind).join(", ")}`
+          : undefined,
+        missingEpisodeGroup ? "expected episode-grouped options" : undefined,
       ].filter(Boolean),
     };
   } catch (error) {
@@ -97,6 +117,14 @@ async function runAvailabilityCase(testCase) {
 
 function listPlayers(options) {
   return [...new Set(options.map((option) => option.player.label))].slice(0, 8).join(", ");
+}
+
+function listKinds(options) {
+  return [...new Set(options.map((option) => option.player.kind))].sort().join(",");
+}
+
+function isSupportedPlayerKind(kind) {
+  return kind === "embed" || kind === "external" || kind === "hls" || kind === "mp4";
 }
 
 function printSummary(results) {
