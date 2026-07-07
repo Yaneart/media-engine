@@ -448,6 +448,10 @@ function DetailsPanel({
 }
 
 function AvailabilitySummary({ state }: { state: AvailabilityState }) {
+  const options = getAvailabilityOptions(state).slice(0, 8);
+  const [selectedOptionId, setSelectedOptionId] = useState<string>();
+  const selectedOption = options.find((option) => option.id === selectedOptionId) ?? options[0];
+
   if (state.status === "idle") {
     return null;
   }
@@ -481,27 +485,64 @@ function AvailabilitySummary({ state }: { state: AvailabilityState }) {
           : "No player options returned."}
         {failedCount > 0 ? ` ${failedCount} provider failures.` : ""}
       </span>
-      {state.response.options.length > 0 ? (
+      {options.length > 0 ? (
         <ul className="player-list">
-          {state.response.options.slice(0, 8).map((option) => (
+          {options.map((option) => (
             <li className="player-option" key={option.id}>
               <div className="player-option__main">
                 <strong>{option.player.label}</strong>
                 <span>{formatPlayerMeta(option)}</span>
               </div>
-              <a
+              <button
                 className="player-option__action"
-                href={option.access.url}
-                rel="noreferrer"
-                target="_blank"
+                onClick={() => setSelectedOptionId(option.id)}
+                type="button"
               >
-                Open
-              </a>
+                Select
+              </button>
             </li>
           ))}
         </ul>
       ) : null}
+      {selectedOption ? <PlayerPreview option={selectedOption} /> : null}
     </section>
+  );
+}
+
+function PlayerPreview({ option }: { option: AvailabilityOption }) {
+  if (option.player.kind === "external") {
+    return (
+      <div className="player-preview">
+        <strong>{option.player.label}</strong>
+        <a href={option.access.url} rel="noreferrer" target="_blank">
+          Open external player
+        </a>
+      </div>
+    );
+  }
+
+  if (option.player.kind !== "embed") {
+    return (
+      <div className="player-preview">
+        <strong>{option.player.label}</strong>
+        <a href={option.access.url} rel="noreferrer" target="_blank">
+          Open stream
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="player-preview">
+      <strong>{option.player.label}</strong>
+      <iframe
+        allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
+        allowFullScreen
+        referrerPolicy="no-referrer-when-downgrade"
+        src={option.access.url}
+        title={`${option.player.label} player`}
+      />
+    </div>
   );
 }
 
@@ -566,6 +607,10 @@ function formatRuntime(runtimeMinutes: number | undefined): string | undefined {
 
 function formatCount(value: number | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
+}
+
+function getAvailabilityOptions(state: AvailabilityState): AvailabilityOption[] {
+  return state.status === "success" || state.status === "empty" ? state.response.options : [];
 }
 
 function formatPlayerMeta(option: AvailabilityOption): string {

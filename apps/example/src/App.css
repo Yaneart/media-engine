@@ -358,6 +358,38 @@
   border-color: #2f6f73;
 }
 
+.player-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.player-preview iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+  background: #18202a;
+}
+
+.player-preview a {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #1f3d52;
+  border-radius: 8px;
+  color: #1f3d52;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.player-preview a:focus,
+.player-preview a:hover {
+  border-color: #2f6f73;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px;
