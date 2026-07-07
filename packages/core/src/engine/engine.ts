@@ -239,6 +239,7 @@ export class MediaEngine {
   // Loads normalized player and stream availability through streaming providers.
   // Загружает нормализованную доступность player и stream через streaming-провайдеры.
   async getAvailability(query: StreamQuery): Promise<MediaAvailability> {
+    const startedAt = Date.now();
     const normalizedQuery = normalizeStreamQuery(query);
     validateStreamQuery(normalizedQuery);
 
@@ -249,10 +250,19 @@ export class MediaEngine {
       return {
         ...cached,
         query: normalizedQuery,
+        meta: cached.meta
+          ? {
+              ...cached.meta,
+              cached: true,
+              tookMs: elapsedSince(startedAt),
+            }
+          : undefined,
       };
     }
 
     const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
+    const requested = providers.map((provider) => provider.name);
+    const successful: string[] = [];
     const failed: ProviderFailure[] = [];
     const providerResults: MediaAvailability[] = [];
 
@@ -265,6 +275,7 @@ export class MediaEngine {
         });
 
         if (result) {
+          successful.push(provider.name);
           providerResults.push(result);
         }
       } catch (error) {
@@ -281,6 +292,15 @@ export class MediaEngine {
     }
 
     const availability = mergeAvailabilityResults(normalizedQuery, providerResults);
+    availability.meta = createResponseMeta({
+      requested,
+      successful,
+      failed,
+      warnings: [],
+      cached: false,
+      tookMs: elapsedSince(startedAt),
+      debug: this.debug,
+    });
 
     await this.cache?.set(cacheKey, availability);
 

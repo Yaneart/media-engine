@@ -80,6 +80,7 @@ export interface MediaAvailability {
   options: StreamOption[];
   sourceProviders: StreamingProviderSource[];
   checkedAt: string;
+  meta?: ResponseMeta;
 }
 ```
 
@@ -88,7 +89,9 @@ Rules:
 - `options` can be empty when no playable option is found.
 - `checkedAt` is an ISO timestamp from the engine.
 - `episodes` is optional and used when a provider returns an episode map.
+- The engine may derive `episodes` from top-level options that include `option.episode`.
 - `sourceProviders` describes which streaming providers contributed data.
+- `meta` is added by the engine response and includes requested, successful, and failed streaming provider metadata. Provider implementations do not need to create it themselves.
 
 ## StreamMediaItem
 
@@ -125,7 +128,7 @@ Rules:
 - Movie availability does not need episode entries.
 - Series usually use `seasonNumber` and `episodeNumber`.
 - Anime providers may use `absoluteEpisodeNumber`.
-- Episode entries can share player options with the top-level `options` list only if references are explicit in the future implementation.
+- Episode entries may contain the same `StreamOption` objects that appear in the top-level `options` list when those options explicitly include episode identity.
 
 ## StreamOption
 

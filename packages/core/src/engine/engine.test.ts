@@ -606,6 +606,11 @@ test("getAvailability returns empty availability when no streaming providers are
   assert.deepEqual(availability.query, { type: "anime", title: "Naruto" });
   assert.deepEqual(availability.options, []);
   assert.deepEqual(availability.sourceProviders, []);
+  assert.deepEqual(availability.meta?.providers, {
+    requested: [],
+    successful: [],
+    failed: [],
+  });
   assert.equal(typeof availability.checkedAt, "string");
 });
 
@@ -635,6 +640,9 @@ test("getAvailability merges multiple streaming provider results", async () => {
     availability.sourceProviders.map((source) => source.provider),
     ["kodik", "mirror"],
   );
+  assert.deepEqual(availability.meta?.providers.requested, ["kodik", "mirror"]);
+  assert.deepEqual(availability.meta?.providers.successful, ["kodik", "mirror"]);
+  assert.deepEqual(availability.meta?.providers.failed, []);
 });
 
 test("getAvailability derives episode groups from top-level episode options", async () => {
@@ -709,6 +717,16 @@ test("getAvailability tolerates one provider failure when another provider succe
     availability.options.map((option) => option.provider),
     ["successful-stream"],
   );
+  assert.deepEqual(availability.meta?.providers.requested, ["failing-stream", "successful-stream"]);
+  assert.deepEqual(availability.meta?.providers.successful, ["successful-stream"]);
+  assert.deepEqual(availability.meta?.providers.failed, [
+    {
+      provider: "failing-stream",
+      code: "PROVIDER_UNAVAILABLE",
+      retryable: true,
+      message: "Streaming provider is unavailable.",
+    },
+  ]);
 });
 
 test("getAvailability throws predictably when all selected streaming providers fail", async () => {
@@ -799,6 +817,7 @@ test("getAvailability cache integration keeps response shape", async () => {
     "checkedAt",
     "episodes",
     "item",
+    "meta",
     "options",
     "query",
     "sourceProviders",
@@ -807,11 +826,14 @@ test("getAvailability cache integration keeps response shape", async () => {
     "checkedAt",
     "episodes",
     "item",
+    "meta",
     "options",
     "query",
     "sourceProviders",
   ]);
   assert.deepEqual(second.options, first.options);
+  assert.equal(first.meta?.cached, false);
+  assert.equal(second.meta?.cached, true);
 });
 
 function createProvider(

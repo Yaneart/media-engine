@@ -1,5 +1,6 @@
 import type { ExternalIds, MediaType } from "../media/index.js";
 import type { ExternalIdSource, ProviderContext } from "../providers/index.js";
+import type { ResponseMeta } from "../response/index.js";
 
 // Query that identifies one media item or episode for streaming lookup.
 // Запрос, который определяет медиа или эпизод для поиска streaming-вариантов.
@@ -147,6 +148,7 @@ export interface MediaAvailability {
   options: StreamOption[];
   sourceProviders: StreamingProviderSource[];
   checkedAt: string;
+  meta?: ResponseMeta;
 }
 
 // Streaming provider features used by UI and engine selection.
