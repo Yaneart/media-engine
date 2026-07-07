@@ -4,6 +4,8 @@
 
 Build Media Engine into an install-and-use package where an application can get clean metadata and normalized player options without building its own parser layer.
 
+The highest priority is the quality and completeness of the engine/provider layer. The API and example frontend only need to prove the integration path; they should not drive architecture decisions or hide weak parser/player behavior.
+
 Target developer experience:
 
 ```bash
@@ -177,6 +179,14 @@ Implementation target:
 6. Keep direct Kodik API provider optional:
    - `kodikProvider({ token })` can remain for users with an official Kodik token;
    - it should not be required for the default out-of-box flow.
+
+Known KinoBD/ReYohoho player keys to request by default:
+
+```txt
+collaps,vibix,alloha,kodik,kinotochka,flixcdn,ashdi,turbo,videocdn,bazon,ustore,pleer,videospider,iframe,moonwalk,hdvb,cdnmovies,lookbase,kholobok,videoapi,voidboost,trailer_local,videoseed,ia,youtube,ext,trailer,netflix,torrent,vk,nf
+```
+
+The list comes from ReYohoho's KinoBD integration and should stay configurable. It is not a promise that every upstream player is always available; Media Engine should request the broad list, normalize whatever comes back, and expose provider failures clearly.
 
 Provider requirements:
 

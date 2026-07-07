@@ -36,9 +36,14 @@ const DEFAULT_PLAYER_PROVIDERS = [
   "voidboost",
   "trailer_local",
   "videoseed",
+  "ia",
   "youtube",
   "ext",
   "trailer",
+  "netflix",
+  "torrent",
+  "vk",
+  "nf",
 ].join(",");
 
 // Options used to create the no-token KinoBD/ReYohoho-style streaming provider.
@@ -192,8 +197,7 @@ async function getMovieOrSeriesAvailability(
     return createEmptyAvailability(query);
   }
 
-  const playerData = await loadPlayerData(config, selected, context);
-  const options = mapPlayerMapToOptions(config.name, playerData, selected, query);
+  const options = await loadPlayerOptions(config, selected, candidates, query, context);
 
   return {
     query,
@@ -213,6 +217,30 @@ async function getMovieOrSeriesAvailability(
     ],
     checkedAt: new Date().toISOString(),
   };
+}
+
+// Loads playerdata first and falls back to candidate iframes when the player endpoint is unavailable.
+// Сначала грузит playerdata и откатывается к iframe-кандидатам, если player endpoint недоступен.
+async function loadPlayerOptions(
+  config: KinoBdStreamingConfig,
+  selected: PlayerCandidate,
+  candidates: PlayerCandidate[],
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+): Promise<StreamOption[]> {
+  try {
+    const playerData = await loadPlayerData(config, selected, context);
+    const options = mapPlayerMapToOptions(config.name, playerData, selected, query);
+
+    if (options.length > 0) {
+      return options;
+    }
+  } catch {
+    // KinoBD/ReYohoho-style /playerdata can be rate-limited or temporarily unavailable.
+    // KinoBD/ReYohoho-style /playerdata может быть rate-limited или временно недоступен.
+  }
+
+  return mapCandidatesToFallbackOptions(config.name, candidates, query);
 }
 
 // Resolves anime players through /cache_shiki-compatible backend endpoint.
@@ -383,6 +411,44 @@ function mapPlayerMapToOptions(
     .map(([providerKey, payload]) =>
       mapPayloadToOption(providerName, providerKey, payload, candidate, query),
     )
+    .filter((option): option is StreamOption => Boolean(option));
+}
+
+// Maps search-result iframes into fallback player options when /playerdata cannot be used.
+// Мапит iframe из search results в fallback player options, когда /playerdata недоступен.
+function mapCandidatesToFallbackOptions(
+  providerName: string,
+  candidates: PlayerCandidate[],
+  query: MediaAvailability["query"],
+): StreamOption[] {
+  return candidates
+    .map((candidate) => {
+      const iframe = extractIframeUrl(candidate.iframe, undefined);
+
+      if (!iframe) {
+        return undefined;
+      }
+
+      const title =
+        candidate.title?.trim() ||
+        candidate.name_russian?.trim() ||
+        candidate.name_original?.trim() ||
+        "KinoBD";
+      const fallbackKey = `KINOBD>${title}`;
+
+      return mapPayloadToOption(
+        providerName,
+        fallbackKey,
+        {
+          translate: title,
+          iframe,
+          quality: "auto",
+          source: "kinobd",
+        },
+        candidate,
+        query,
+      );
+    })
     .filter((option): option is StreamOption => Boolean(option));
 }
 

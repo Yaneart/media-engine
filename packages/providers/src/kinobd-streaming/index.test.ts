@@ -65,6 +65,11 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   assert.equal(requests[1]?.search, "?cache94666");
   assert.equal(requests[1]?.body.get("inid"), "94666");
   assert.equal(requests[1]?.body.get("player")?.includes("kodik"), true);
+  assert.equal(requests[1]?.body.get("player")?.includes("ia"), true);
+  assert.equal(requests[1]?.body.get("player")?.includes("netflix"), true);
+  assert.equal(requests[1]?.body.get("player")?.includes("torrent"), true);
+  assert.equal(requests[1]?.body.get("player")?.includes("vk"), true);
+  assert.equal(requests[1]?.body.get("player")?.includes("nf"), true);
   assert.equal(availability?.item?.title, "Интерстеллар");
   assert.deepEqual(availability?.item?.ids, {
     imdb: "tt0816692",
@@ -77,6 +82,60 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   assert.equal(availability?.options[0]?.access.url, "https://kodik.test/video/94666");
   assert.equal(availability?.options[0]?.translation?.title, "Дубляж");
   assert.equal(availability?.options[0]?.quality?.height, 1080);
+});
+
+test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+      const body = new URLSearchParams(String(init?.body ?? ""));
+
+      requests.push({
+        method,
+        path: url.pathname,
+        search: url.search,
+        query: url.searchParams,
+        body,
+      });
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [
+            {
+              id: 94666,
+              kinopoisk_id: 258687,
+              imdb_id: "tt0816692",
+              title: "Интерстеллар",
+              name_original: "Interstellar",
+              year: 2014,
+              iframe: '<iframe src="//kinobd.test/player/94666"></iframe>',
+            },
+          ],
+        });
+      }
+
+      return Response.json({ message: "Bad playerdata" }, { status: 400 });
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "movie",
+      ids: {
+        kinopoisk: "258687",
+      },
+    },
+    {},
+  );
+
+  assert.equal(requests[1]?.method, "POST");
+  assert.equal(requests[1]?.path, "/playerdata");
+  assert.equal(availability?.options.length, 1);
+  assert.equal(availability?.options[0]?.player.label, "KINOBD");
+  assert.equal(availability?.options[0]?.access.url, "https://kinobd.test/player/94666");
+  assert.equal(availability?.options[0]?.availability, "available");
 });
 
 test("kinobdStreamingProvider maps Shikimori anime cache players into episode options", async () => {
