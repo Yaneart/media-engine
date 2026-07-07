@@ -32,6 +32,7 @@ type AvailabilityState =
   | { status: "success"; item: MediaSummary; response: AvailabilityResponse }
   | { status: "empty"; item: MediaSummary; response: AvailabilityResponse }
   | { status: "error"; item?: MediaSummary; message: string };
+type AvailabilityOption = AvailabilityResponse["options"][number];
 
 // EN: Root React component for the Media Engine example application shell.
 // RU: Корневой React component для оболочки example приложения Media Engine.
@@ -480,6 +481,26 @@ function AvailabilitySummary({ state }: { state: AvailabilityState }) {
           : "No player options returned."}
         {failedCount > 0 ? ` ${failedCount} provider failures.` : ""}
       </span>
+      {state.response.options.length > 0 ? (
+        <ul className="player-list">
+          {state.response.options.slice(0, 8).map((option) => (
+            <li className="player-option" key={option.id}>
+              <div className="player-option__main">
+                <strong>{option.player.label}</strong>
+                <span>{formatPlayerMeta(option)}</span>
+              </div>
+              <a
+                className="player-option__action"
+                href={option.access.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </section>
   );
 }
@@ -545,6 +566,31 @@ function formatRuntime(runtimeMinutes: number | undefined): string | undefined {
 
 function formatCount(value: number | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
+}
+
+function formatPlayerMeta(option: AvailabilityOption): string {
+  return [
+    option.player.kind,
+    option.translation?.title,
+    option.quality?.label,
+    formatEpisodeRef(option),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function formatEpisodeRef(option: AvailabilityOption): string | undefined {
+  if (!option.episode) {
+    return undefined;
+  }
+
+  if (option.episode.seasonNumber !== undefined || option.episode.episodeNumber !== undefined) {
+    return `S${option.episode.seasonNumber ?? "?"}E${option.episode.episodeNumber ?? "?"}`;
+  }
+
+  return option.episode.absoluteEpisodeNumber === undefined
+    ? undefined
+    : `Episode ${option.episode.absoluteEpisodeNumber}`;
 }
 
 // EN: Read episode counters only from media detail variants that can expose them.
