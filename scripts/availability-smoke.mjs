@@ -96,9 +96,7 @@ async function runAvailabilityCase(testCase) {
 }
 
 function listPlayers(options) {
-  return [...new Set(options.map((option) => option.player.label))]
-    .slice(0, 8)
-    .join(", ");
+  return [...new Set(options.map((option) => option.player.label))].slice(0, 8).join(", ");
 }
 
 function printSummary(results) {

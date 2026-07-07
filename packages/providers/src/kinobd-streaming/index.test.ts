@@ -12,6 +12,8 @@ test("kinobdStreamingProvider exposes no-token streaming capabilities", () => {
   assert.deepEqual(provider.capabilities.lookup.byExternalIds, ["kinopoisk", "shikimori"]);
   assert.equal(provider.capabilities.lookup.byTitle, true);
   assert.equal(provider.capabilities.lookup.byEpisode, true);
+  assert.equal(provider.capabilities.features?.includes("embed"), true);
+  assert.equal(provider.capabilities.features?.includes("external"), true);
 });
 
 test("kinobdStreamingProvider maps movie playerdata into embed options", async () => {
@@ -40,6 +42,16 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
         trailer: {
           translate: "Trailer",
           iframe: "https://youtube.test/embed/trailer",
+          quality: "auto",
+        },
+        netflix: {
+          translate: "Netflix",
+          iframe: "https://kinobd.test/film_netflix/94666",
+          quality: "auto",
+        },
+        torrent: {
+          translate: "Torrent",
+          iframe: "https://kinobd.test/torrent/94666",
           quality: "auto",
         },
       },
@@ -77,7 +89,11 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   });
   assert.deepEqual(
     availability?.options.map((option) => option.player.label),
-    ["KODIK", "TRAILER"],
+    ["KODIK", "TRAILER", "NETFLIX", "TORRENT"],
+  );
+  assert.deepEqual(
+    availability?.options.map((option) => option.player.kind),
+    ["embed", "embed", "external", "external"],
   );
   assert.equal(availability?.options[0]?.access.url, "https://kodik.test/video/94666");
   assert.equal(availability?.options[0]?.translation?.title, "Дубляж");

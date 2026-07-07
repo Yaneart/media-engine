@@ -2,6 +2,7 @@ import type {
   ExternalIds,
   MediaAvailability,
   MediaType,
+  PlayerSourceKind,
   ProviderContext,
   StreamOption,
   StreamingProvider,
@@ -46,6 +47,7 @@ const DEFAULT_PLAYER_PROVIDERS = [
   "vk",
   "nf",
 ].join(",");
+const EXTERNAL_PLAYER_LABELS = new Set(["EXT", "IA", "NETFLIX", "NF", "TORRENT"]);
 
 // Options used to create the no-token KinoBD/ReYohoho-style streaming provider.
 // Опции для создания no-token KinoBD/ReYohoho-style streaming-провайдера.
@@ -179,7 +181,7 @@ function createCapabilities(): StreamingProviderCapabilities {
       byExternalIds: ["kinopoisk", "shikimori"],
       byEpisode: true,
     },
-    features: ["embed", "translations", "qualities", "episode_mapping"],
+    features: ["embed", "external", "translations", "qualities", "episode_mapping"],
   };
 }
 
@@ -577,12 +579,13 @@ function mapPayloadToOption(
   }
 
   const label = normalizeProviderLabel(providerKey);
+  const playerKind = inferPlayerKind(label);
   const qualityLabel = payload.quality?.trim() || "auto";
 
   return {
     id: [
       providerName,
-      label.toLocaleLowerCase(),
+      label.toLowerCase(),
       candidate?.id ?? candidate?.inid ?? query.ids?.shikimori ?? query.title ?? "item",
       query.seasonNumber ?? "s",
       query.episodeNumber ?? "e",
@@ -592,7 +595,7 @@ function mapPayloadToOption(
       .replace(/\s+/g, "-"),
     provider: providerName,
     player: {
-      kind: "embed",
+      kind: playerKind,
       label,
       providerPlayerId: providerKey,
     },
@@ -719,6 +722,12 @@ function hasEpisodeQuery(query: MediaAvailability["query"]): boolean {
 // Преобразует provider map keys в display labels.
 function normalizeProviderLabel(providerKey: string): string {
   return providerKey.split(">")[0]?.trim().toUpperCase() || "PLAYER";
+}
+
+// Infers whether a ReYohoho/KinoBD player should be embedded or opened externally.
+// Определяет, нужно ли ReYohoho/KinoBD player встраивать или открывать внешне.
+function inferPlayerKind(label: string): PlayerSourceKind {
+  return EXTERNAL_PLAYER_LABELS.has(label) ? "external" : "embed";
 }
 
 // Parses common quality labels like 720p or 1080p.

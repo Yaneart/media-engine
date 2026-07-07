@@ -253,7 +253,7 @@ Supported behavior:
 - optional anime cache lookup through a configured `animeCacheBaseUrl` with `/cache_shiki` when an application has an allowed backend for it;
 - player aggregation for the known KinoBD/ReYohoho player list, including Collaps, Vibix, Alloha, Kodik, KinoTochka, FlixCDN, Ashdi, Turbo, VideoCDN, Bazon, UStore, Pleer, VideoSpider, Iframe, Moonwalk, HDVB, CDNMovies, Lookbase, Kholobok, VideoAPI, Voidboost, trailer/local sources, IA, YouTube, external links, Netflix/NF, torrent, and VK keys when upstream returns them;
 - fallback to player iframe candidates from `/api/player/search` when `/playerdata` is unavailable or returns no usable iframe options;
-- normalized embed player options with translation and quality metadata;
+- normalized embed and external player options with translation and quality metadata;
 - provider filtering through `StreamQuery.providers`.
 
 This provider does not use a Kodik API token and does not extract direct video files. It returns player/embed URLs for the application UI to render.
