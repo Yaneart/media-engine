@@ -1,5 +1,9 @@
 import { MediaEngineClient } from "@media-engine/sdk";
-import type { MediaEngineDetailsResponse, MediaEngineSearchResponse } from "@media-engine/sdk";
+import type {
+  MediaEngineAvailabilityResponse,
+  MediaEngineDetailsResponse,
+  MediaEngineSearchResponse,
+} from "@media-engine/sdk";
 
 const DEFAULT_API_URL = "http://127.0.0.1:3000";
 
@@ -12,6 +16,7 @@ export interface SearchFormQuery {
 
 export type SearchResponse = MediaEngineSearchResponse;
 export type DetailsResponse = MediaEngineDetailsResponse;
+export type AvailabilityResponse = MediaEngineAvailabilityResponse;
 export type SearchResult = SearchResponse["results"][number];
 export type MediaSummary = SearchResult["item"];
 export type MediaDetails = NonNullable<DetailsResponse["details"]>;
@@ -45,6 +50,23 @@ export function getMediaDetails(
   return mediaEngineClient.getDetails(
     {
       type: item.type,
+      ids: item.ids,
+    },
+    { signal },
+  );
+}
+
+// EN: Load player availability for the selected result through the public SDK.
+// RU: Загружает доступность плееров выбранного результата через публичный SDK.
+export function getMediaAvailability(
+  item: MediaSummary,
+  signal?: AbortSignal,
+): Promise<AvailabilityResponse> {
+  return mediaEngineClient.getAvailability(
+    {
+      type: item.type,
+      title: item.title,
+      year: item.year,
       ids: item.ids,
     },
     { signal },
