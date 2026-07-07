@@ -301,6 +301,34 @@ Parser plus player release can publish when:
 - example app demonstrates player selection;
 - provider source rules are documented.
 
+## Final Repository Presentation
+
+Keep this repository as a full open-source monorepo, not as a packages-only repository.
+
+GitHub should contain:
+
+- `packages/core` as the main Media Engine library;
+- `packages/providers` as metadata and streaming provider implementations;
+- `packages/sdk` as the HTTP SDK;
+- `apps/api` as the backend/API example;
+- `apps/example` as the frontend/player UI example.
+
+Only publish npm packages from `packages/*`:
+
+- `@media-engine/core`;
+- `@media-engine/providers`;
+- `@media-engine/sdk`.
+
+Do not publish `apps/api`, `apps/example`, or the workspace root. Keep them private example applications that prove real integration.
+
+Before release, polish the repository presentation:
+
+- root README explains the engine, packages, examples, metadata usage, and player availability usage;
+- package READMEs explain install and usage for each npm package;
+- app READMEs explain local API/frontend examples;
+- release docs clearly separate npm package contents from GitHub example apps;
+- npm pack checks confirm that apps, tests, env files, and workspace-only files are not included in published package tarballs.
+
 ## Next Session Starting Point
 
 Start with Phase 2 unless the user explicitly chooses to publish a metadata-only pre-release first.

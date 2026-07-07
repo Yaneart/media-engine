@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import "./App.css";
-import { getMediaDetails, searchMedia } from "./api";
+import { getMediaAvailability, getMediaDetails, searchMedia } from "./api";
 import type {
+  AvailabilityResponse,
   DetailsResponse,
   ExternalIds,
   MediaDetails,
@@ -25,6 +26,13 @@ type DetailsState =
   | { status: "empty"; item: MediaSummary }
   | { status: "error"; item?: MediaSummary; message: string };
 
+type AvailabilityState =
+  | { status: "idle" }
+  | { status: "loading"; item: MediaSummary }
+  | { status: "success"; item: MediaSummary; response: AvailabilityResponse }
+  | { status: "empty"; item: MediaSummary; response: AvailabilityResponse }
+  | { status: "error"; item?: MediaSummary; message: string };
+
 // EN: Root React component for the Media Engine example application shell.
 // RU: Корневой React component для оболочки example приложения Media Engine.
 function App() {
@@ -38,13 +46,18 @@ function App() {
   const [detailsState, setDetailsState] = useState<DetailsState>({
     status: "idle",
   });
+  const [availabilityState, setAvailabilityState] = useState<AvailabilityState>({
+    status: "idle",
+  });
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const detailsAbortControllerRef = useRef<AbortController | null>(null);
+  const availabilityAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
       searchAbortControllerRef.current?.abort();
       detailsAbortControllerRef.current?.abort();
+      availabilityAbortControllerRef.current?.abort();
     };
   }, []);
 
@@ -63,12 +76,14 @@ function App() {
 
     searchAbortControllerRef.current?.abort();
     detailsAbortControllerRef.current?.abort();
+    availabilityAbortControllerRef.current?.abort();
 
     const abortController = new AbortController();
     searchAbortControllerRef.current = abortController;
 
     setSearchState({ status: "loading" });
     setDetailsState({ status: "idle" });
+    setAvailabilityState({ status: "idle" });
 
     try {
       const response = await searchMedia(
@@ -107,11 +122,16 @@ function App() {
     }
 
     detailsAbortControllerRef.current?.abort();
+    availabilityAbortControllerRef.current?.abort();
 
     const abortController = new AbortController();
     detailsAbortControllerRef.current = abortController;
 
     setDetailsState({
+      status: "loading",
+      item,
+    });
+    setAvailabilityState({
       status: "loading",
       item,
     });
@@ -122,6 +142,13 @@ function App() {
       setDetailsState(
         response.details ? { status: "success", item, response } : { status: "empty", item },
       );
+
+      if (!response.details || abortController.signal.aborted) {
+        setAvailabilityState({ status: "idle" });
+        return;
+      }
+
+      await loadAvailability(item);
     } catch (error) {
       if (abortController.signal.aborted) {
         return;
@@ -131,6 +158,34 @@ function App() {
         status: "error",
         item,
         message: error instanceof Error ? error.message : "Details request failed.",
+      });
+      setAvailabilityState({
+        status: "idle",
+      });
+    }
+  }
+
+  async function loadAvailability(item: MediaSummary) {
+    const abortController = new AbortController();
+    availabilityAbortControllerRef.current = abortController;
+
+    try {
+      const response = await getMediaAvailability(item, abortController.signal);
+
+      setAvailabilityState(
+        response.options.length > 0
+          ? { status: "success", item, response }
+          : { status: "empty", item, response },
+      );
+    } catch (error) {
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      setAvailabilityState({
+        status: "error",
+        item,
+        message: error instanceof Error ? error.message : "Availability request failed.",
       });
     }
   }
@@ -190,7 +245,7 @@ function App() {
 
         <div className="workspace">
           <SearchPanel onDetails={handleDetails} state={searchState} />
-          <DetailsPanel state={detailsState} />
+          <DetailsPanel availabilityState={availabilityState} state={detailsState} />
         </div>
       </section>
     </main>
@@ -285,7 +340,13 @@ function SearchPanel({
   );
 }
 
-function DetailsPanel({ state }: { state: DetailsState }) {
+function DetailsPanel({
+  availabilityState,
+  state,
+}: {
+  availabilityState: AvailabilityState;
+  state: DetailsState;
+}) {
   if (state.status === "idle") {
     return (
       <aside className="details-panel">
@@ -378,8 +439,48 @@ function DetailsPanel({ state }: { state: DetailsState }) {
             {!details.sourceProviders?.length ? <span className="muted">No sources</span> : null}
           </div>
         </section>
+
+        <AvailabilitySummary state={availabilityState} />
       </div>
     </aside>
+  );
+}
+
+function AvailabilitySummary({ state }: { state: AvailabilityState }) {
+  if (state.status === "idle") {
+    return null;
+  }
+
+  if (state.status === "loading") {
+    return (
+      <section className="detail-section" aria-live="polite">
+        <span>Players</span>
+        <span className="muted">Loading player options.</span>
+      </section>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <section className="detail-section" aria-live="assertive">
+        <span>Players</span>
+        <span className="muted">{state.message}</span>
+      </section>
+    );
+  }
+
+  const failedCount = state.response.meta?.providers.failed.length ?? 0;
+
+  return (
+    <section className="detail-section" aria-live="polite">
+      <span>Players</span>
+      <span className="muted">
+        {state.response.options.length > 0
+          ? `${state.response.options.length} options available`
+          : "No player options returned."}
+        {failedCount > 0 ? ` ${failedCount} provider failures.` : ""}
+      </span>
+    </section>
   );
 }
 
