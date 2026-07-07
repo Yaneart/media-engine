@@ -637,6 +637,34 @@ test("getAvailability merges multiple streaming provider results", async () => {
   );
 });
 
+test("getAvailability derives episode groups from top-level episode options", async () => {
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        name: "top-level-stream",
+        async getAvailability(query): Promise<MediaAvailability | null> {
+          const availability = createAvailability(query, "top-level-stream");
+
+          return {
+            ...availability,
+            episodes: undefined,
+          };
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    title: "Naruto",
+    absoluteEpisodeNumber: 1,
+  });
+
+  assert.equal(availability.episodes?.length, 1);
+  assert.equal(availability.episodes?.[0]?.absoluteEpisodeNumber, 1);
+  assert.deepEqual(availability.episodes?.[0]?.options, availability.options);
+});
+
 test("getAvailability respects requested streaming provider filter", async () => {
   const engine = new MediaEngine({
     streamingProviders: [

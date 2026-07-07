@@ -15,6 +15,7 @@ import type { SearchQuery, SearchResponse } from "../search/index.js";
 import type {
   MediaAvailability,
   StreamEpisodeAvailability,
+  StreamOption,
   StreamQuery,
   StreamingProvider,
   StreamingProviderInfo,
@@ -605,7 +606,10 @@ function mergeEpisodeAvailability(
 ): StreamEpisodeAvailability[] | undefined {
   const episodesByKey = new Map<string, StreamEpisodeAvailability>();
 
-  for (const episode of results.flatMap((result) => result.episodes ?? [])) {
+  for (const episode of results.flatMap((result) => [
+    ...(result.episodes ?? []),
+    ...createEpisodeAvailabilityFromOptions(result.options),
+  ])) {
     const key = createEpisodeKey(episode);
     const existing = episodesByKey.get(key);
 
@@ -628,6 +632,21 @@ function mergeEpisodeAvailability(
   }
 
   return episodesByKey.size > 0 ? [...episodesByKey.values()] : undefined;
+}
+
+// Creates episode blocks from top-level options that carry episode identity.
+// Создает episode blocks из top-level options, которые содержат идентичность эпизода.
+function createEpisodeAvailabilityFromOptions(
+  options: StreamOption[],
+): StreamEpisodeAvailability[] {
+  return options
+    .filter((option) => option.episode)
+    .map((option) => ({
+      seasonNumber: option.episode?.seasonNumber,
+      episodeNumber: option.episode?.episodeNumber,
+      absoluteEpisodeNumber: option.episode?.absoluteEpisodeNumber,
+      options: [option],
+    }));
 }
 
 // Wraps a provider promise with configured timeout behavior.
