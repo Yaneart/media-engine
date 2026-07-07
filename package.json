@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "release:check": "pnpm format:check && pnpm build && pnpm typecheck && pnpm test",
+    "smoke:availability": "pnpm build && node scripts/availability-smoke.mjs",
     "smoke:providers": "pnpm build && node scripts/provider-smoke.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"

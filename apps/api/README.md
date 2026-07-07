@@ -46,7 +46,7 @@ Movie and series search works without secrets through KinoBD, Cinemeta, Shikimor
 TMDB_API_READ_ACCESS_TOKEN=your_tmdb_read_access_token
 ```
 
-Streaming availability works without secrets through the default KinoBD/ReYohoho-style streaming provider. It returns normalized embed player options from KinoBD-style `/api/player/search`, `/playerdata`, and `/cache_shiki` endpoints when a source is available.
+Streaming availability works without secrets through the default KinoBD/ReYohoho-style streaming provider. It returns normalized embed player options from KinoBD-style `/api/player/search` and `/playerdata` endpoints when a source is available. Anime availability can fall back from a Shikimori ID to Shikimori title lookup and KinoBD player search.
 
 To add the direct Kodik API provider as an extra source, set a Kodik API token:
 

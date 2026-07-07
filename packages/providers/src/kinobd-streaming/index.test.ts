@@ -141,6 +141,7 @@ test("kinobdStreamingProvider falls back to candidate iframes when playerdata fa
 test("kinobdStreamingProvider maps Shikimori anime cache players into episode options", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({
+    animeCacheBaseUrl: "https://kinobd.test",
     fetch: createMockFetch(requests, {
       "POST /cache_shiki": {
         "KODIK>AniDUB": {
@@ -172,6 +173,67 @@ test("kinobdStreamingProvider maps Shikimori anime cache players into episode op
   assert.equal(availability?.episodes?.[0]?.options.length, 1);
   assert.equal(availability?.options[0]?.player.label, "KODIK");
   assert.equal(availability?.options[0]?.access.url, "https://kodik.test/anime/20/1");
+});
+
+test("kinobdStreamingProvider falls back from Shikimori ID to KinoBD title search", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    shikimoriBaseUrl: "https://shikimori.test",
+    fetch: createMockFetch(requests, {
+      "GET /api/animes/20": {
+        name: "Naruto",
+        russian: "Наруто",
+        english: ["Naruto"],
+        aired_on: "2002-10-03",
+      },
+      "GET /api/player/search": {
+        data: [
+          {
+            id: 112166,
+            kinopoisk_id: 283290,
+            imdb_id: "tt0409591",
+            title: "Наруто",
+            name_original: "Naruto",
+            year: 2002,
+            iframe: '<iframe src="//kinobd.test/player/112166"></iframe>',
+          },
+        ],
+      },
+      "POST /playerdata": {
+        kodik: {
+          translate: "AniDUB",
+          iframe: "//kodik.test/anime/20",
+          quality: "720p",
+        },
+      },
+    }),
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "anime",
+      ids: {
+        shikimori: "20",
+      },
+      absoluteEpisodeNumber: 1,
+    },
+    {},
+  );
+
+  assert.equal(requests[0]?.method, "GET");
+  assert.equal(requests[0]?.path, "/api/animes/20");
+  assert.equal(requests[1]?.method, "GET");
+  assert.equal(requests[1]?.path, "/api/player/search");
+  assert.equal(requests[1]?.query.get("q"), "Наруто");
+  assert.equal(requests[1]?.query.get("type"), "title");
+  assert.equal(availability?.item?.title, "Наруто");
+  assert.deepEqual(availability?.item?.ids, {
+    imdb: "tt0409591",
+    kinopoisk: "283290",
+  });
+  assert.equal(availability?.options.length, 1);
+  assert.equal(availability?.options[0]?.player.label, "KODIK");
+  assert.equal(availability?.options[0]?.episode?.absoluteEpisodeNumber, 1);
 });
 
 test("kinobdStreamingProvider returns empty availability when no player candidate exists", async () => {

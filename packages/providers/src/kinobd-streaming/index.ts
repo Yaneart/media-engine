@@ -11,6 +11,7 @@ import { fetchJson, type ProviderFetch } from "../shared/index.js";
 
 const PROVIDER_NAME = "kinobd-streaming";
 const DEFAULT_BASE_URL = "https://kinobd.net";
+const DEFAULT_SHIKIMORI_BASE_URL = "https://shikimori.io";
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_PLAYER_PROVIDERS = [
   "collaps",
@@ -52,10 +53,13 @@ export interface KinoBdStreamingProviderOptions {
   name?: string;
   version?: string;
   baseUrl?: string;
+  animeCacheBaseUrl?: string;
+  shikimoriBaseUrl?: string;
   fetch?: ProviderFetch;
   searchLimit?: number;
   playerProviders?: string;
   fast?: number;
+  userAgent?: string;
 }
 
 // Creates a no-token streaming provider that asks KinoBD-style endpoints for iframe players.
@@ -81,10 +85,13 @@ export function kinobdStreamingProvider(
 interface KinoBdStreamingConfig {
   name: string;
   baseUrl: string;
+  animeCacheBaseUrl?: string;
+  shikimoriBaseUrl: string;
   fetch?: ProviderFetch;
   searchLimit: number;
   playerProviders: string;
   fast: number;
+  userAgent?: string;
 }
 
 // Search response returned by KinoBD-style player lookup.
@@ -123,6 +130,15 @@ interface PlayerPayload {
   source?: string | null;
 }
 
+// Minimal Shikimori payload used only to resolve a Shikimori ID into a title fallback.
+// Минимальный payload Shikimori только для резолва Shikimori ID в title fallback.
+interface ShikimoriAnimeLookup {
+  name?: string | null;
+  russian?: string | null;
+  english?: string[] | null;
+  aired_on?: string | null;
+}
+
 // Builds provider config with ReYohoho-compatible defaults.
 // Собирает provider config с ReYohoho-compatible defaults.
 function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingConfig {
@@ -140,10 +156,16 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
   return {
     name: normalizeProviderName(options.name ?? PROVIDER_NAME),
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
+    animeCacheBaseUrl:
+      options.animeCacheBaseUrl === undefined
+        ? undefined
+        : trimTrailingSlash(options.animeCacheBaseUrl),
+    shikimoriBaseUrl: trimTrailingSlash(options.shikimoriBaseUrl ?? DEFAULT_SHIKIMORI_BASE_URL),
     fetch: options.fetch,
     searchLimit,
     playerProviders: options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
     fast,
+    userAgent: options.userAgent,
   };
 }
 
@@ -172,15 +194,35 @@ async function getKinoBdAvailability(
     return null;
   }
 
-  if (query.type === "anime" && query.ids?.shikimori) {
-    return getShikimoriAvailability(config, query, context);
-  }
-
   if (query.type === "anime") {
-    return createEmptyAvailability(query);
+    return getAnimeAvailability(config, query, context);
   }
 
   return getMovieOrSeriesAvailability(config, query, context);
+}
+
+// Resolves anime availability through optional cache_shiki first, then KinoBD title fallback.
+// Получает anime availability через опциональный cache_shiki, затем через KinoBD title fallback.
+async function getAnimeAvailability(
+  config: KinoBdStreamingConfig,
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+): Promise<MediaAvailability> {
+  if (config.animeCacheBaseUrl && query.ids?.shikimori) {
+    const cached = await tryGetShikimoriCacheAvailability(config, query, context);
+
+    if (cached && cached.options.length > 0) {
+      return cached;
+    }
+  }
+
+  const fallbackQuery = await createAnimeTitleFallbackQuery(config, query, context);
+
+  if (!fallbackQuery.title && !fallbackQuery.ids?.kinopoisk) {
+    return createEmptyAvailability(query);
+  }
+
+  return getMovieOrSeriesAvailability(config, fallbackQuery, context);
 }
 
 // Resolves movie or series players through /api/player/search and /playerdata.
@@ -245,58 +287,125 @@ async function loadPlayerOptions(
 
 // Resolves anime players through /cache_shiki-compatible backend endpoint.
 // Получает anime players через /cache_shiki-compatible backend endpoint.
-async function getShikimoriAvailability(
+async function tryGetShikimoriCacheAvailability(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
   context: ProviderContext,
-): Promise<MediaAvailability> {
-  const url = new URL("/cache_shiki", `${config.baseUrl}/`);
+): Promise<MediaAvailability | undefined> {
+  const url = new URL("/cache_shiki", `${config.animeCacheBaseUrl}/`);
   const body = new URLSearchParams({
     shikimori: query.ids!.shikimori!,
     type: "anime",
   });
-  const playerData = await fetchJson<PlayerDataResponse>({
-    provider: config.name,
-    url,
-    context,
-    fetch: config.fetch,
-    init: {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-      },
-      body,
-    },
-  });
-  const options = mapPlayerMapToOptions(config.name, playerData, undefined, query);
 
-  return {
-    query,
-    item: {
-      type: "anime",
-      title: query.title,
-      year: query.year,
-      ids: query.ids,
-    },
-    episodes: hasEpisodeQuery(query)
-      ? [
-          {
-            seasonNumber: query.seasonNumber,
-            episodeNumber: query.episodeNumber,
-            absoluteEpisodeNumber: query.absoluteEpisodeNumber,
-            options,
-          },
-        ]
-      : undefined,
-    options,
-    sourceProviders: [
-      {
-        provider: config.name,
+  try {
+    const playerData = await fetchJson<PlayerDataResponse>({
+      provider: config.name,
+      url,
+      context,
+      fetch: config.fetch,
+      init: {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body,
+      },
+    });
+    const options = mapPlayerMapToOptions(config.name, playerData, undefined, query);
+
+    return {
+      query,
+      item: {
+        type: "anime",
+        title: query.title,
+        year: query.year,
         ids: query.ids,
       },
-    ],
-    checkedAt: new Date().toISOString(),
+      episodes: hasEpisodeQuery(query)
+        ? [
+            {
+              seasonNumber: query.seasonNumber,
+              episodeNumber: query.episodeNumber,
+              absoluteEpisodeNumber: query.absoluteEpisodeNumber,
+              options,
+            },
+          ]
+        : undefined,
+      options,
+      sourceProviders: [
+        {
+          provider: config.name,
+          ids: query.ids,
+        },
+      ],
+      checkedAt: new Date().toISOString(),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+// Builds an anime fallback query that KinoBD player search can understand.
+// Собирает anime fallback query, который понимает KinoBD player search.
+async function createAnimeTitleFallbackQuery(
+  config: KinoBdStreamingConfig,
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+): Promise<MediaAvailability["query"]> {
+  if (query.title) {
+    return query;
+  }
+
+  if (!query.ids?.shikimori) {
+    return query;
+  }
+
+  const lookup = await tryLookupShikimoriAnime(config, query.ids.shikimori, context);
+  const title =
+    lookup?.russian?.trim() ||
+    lookup?.name?.trim() ||
+    lookup?.english?.find((value) => value.trim())?.trim();
+
+  return {
+    ...query,
+    title,
+    year: query.year ?? parseYear(lookup?.aired_on),
   };
+}
+
+// Resolves Shikimori ID into title metadata without requiring user secrets.
+// Резолвит Shikimori ID в title metadata без пользовательских секретов.
+async function tryLookupShikimoriAnime(
+  config: KinoBdStreamingConfig,
+  shikimoriId: string,
+  context: ProviderContext,
+): Promise<ShikimoriAnimeLookup | undefined> {
+  const url = new URL(
+    `/api/animes/${encodeURIComponent(shikimoriId)}`,
+    `${config.shikimoriBaseUrl}/`,
+  );
+  const headers: Record<string, string> = {
+    accept: "application/json",
+  };
+
+  if (config.userAgent) {
+    headers["user-agent"] = config.userAgent;
+  }
+
+  try {
+    return await fetchJson<ShikimoriAnimeLookup>({
+      provider: config.name,
+      url,
+      context,
+      fetch: config.fetch,
+      init: {
+        headers,
+      },
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 // Searches KinoBD player candidates by Kinopoisk ID or title.
@@ -630,6 +739,18 @@ function parseOptionalInteger(value: number | string | null | undefined): number
   const parsed = typeof value === "number" ? value : Number.parseInt(value, 10);
 
   return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+// Parses a year from date-like values such as 2002-10-03.
+// Парсит год из date-like значений вроде 2002-10-03.
+function parseYear(value: string | null | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const year = Number.parseInt(value.slice(0, 4), 10);
+
+  return Number.isInteger(year) ? year : undefined;
 }
 
 // Validates and normalizes provider name.

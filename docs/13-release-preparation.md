@@ -85,6 +85,20 @@ pnpm smoke:providers -- --strict
 
 Strict mode exits non-zero when required parser expectations fail. Keep this check separate from `pnpm release:check` because live third-party providers can be rate-limited or temporarily unavailable.
 
+Run live streaming availability smoke checks before publishing parser-plus-player builds:
+
+```bash
+pnpm smoke:availability
+```
+
+For release-blocking behavior:
+
+```bash
+pnpm smoke:availability -- --strict
+```
+
+This verifies real `/media/availability`-equivalent engine behavior for movie, series, and anime lookups through the default no-token KinoBD/ReYohoho-style streaming provider.
+
 ## Pack Checks
 
 After a successful release gate, verify npm package contents without publishing:
@@ -129,6 +143,7 @@ Before publishing:
 - update `CHANGELOG.md`;
 - run `pnpm release:check`;
 - run `pnpm smoke:providers`;
+- run `pnpm smoke:availability` for parser-plus-player releases;
 - run pack checks;
 - review package tarball contents;
 - commit release preparation manually;
