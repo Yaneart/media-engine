@@ -358,6 +358,20 @@
   border-color: #2f6f73;
 }
 
+.provider-failures {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #ead2a8;
+  border-radius: 8px;
+  background: #fff9ee;
+  color: #785a24;
+  font-size: 0.78rem;
+  list-style: none;
+}
+
 .player-preview {
   display: flex;
   flex-direction: column;

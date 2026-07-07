@@ -475,6 +475,7 @@ function AvailabilitySummary({ state }: { state: AvailabilityState }) {
   }
 
   const failedCount = state.response.meta?.providers.failed.length ?? 0;
+  const failedProviders = state.response.meta?.providers.failed ?? [];
 
   return (
     <section className="detail-section" aria-live="polite">
@@ -485,6 +486,13 @@ function AvailabilitySummary({ state }: { state: AvailabilityState }) {
           : "No player options returned."}
         {failedCount > 0 ? ` ${failedCount} provider failures.` : ""}
       </span>
+      {failedProviders.length > 0 ? (
+        <ul className="provider-failures">
+          {failedProviders.map((failure) => (
+            <li key={`${failure.provider}:${failure.code}`}>{formatProviderFailure(failure)}</li>
+          ))}
+        </ul>
+      ) : null}
       {options.length > 0 ? (
         <ul className="player-list">
           {options.map((option) => (
@@ -636,6 +644,12 @@ function formatEpisodeRef(option: AvailabilityOption): string | undefined {
   return option.episode.absoluteEpisodeNumber === undefined
     ? undefined
     : `Episode ${option.episode.absoluteEpisodeNumber}`;
+}
+
+function formatProviderFailure(
+  failure: NonNullable<AvailabilityResponse["meta"]>["providers"]["failed"][number],
+): string {
+  return `${failure.provider}: ${failure.message}`;
 }
 
 // EN: Read episode counters only from media detail variants that can expose them.
