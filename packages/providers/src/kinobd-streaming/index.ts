@@ -6,6 +6,7 @@ import type {
   StreamOption,
   StreamingProvider,
   StreamingProviderCapabilities,
+  TranslationInfo,
 } from "@media-engine/core";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
 
@@ -739,6 +740,7 @@ function mapPayloadToOption(
   }
 
   const label = normalizeProviderLabel(providerKey);
+  const translationTitle = payload.translate?.trim() || label;
   const qualityLabel = payload.quality?.trim() || "auto";
 
   return {
@@ -758,11 +760,7 @@ function mapPayloadToOption(
       label,
       providerPlayerId: providerKey,
     },
-    translation: {
-      title: payload.translate?.trim() || label,
-      type: "unknown",
-      language: "ru",
-    },
+    translation: createTranslationInfo(translationTitle),
     quality: {
       label: qualityLabel,
       height: parseQualityHeight(qualityLabel),
@@ -881,6 +879,74 @@ function hasEpisodeQuery(query: MediaAvailability["query"]): boolean {
 // Преобразует provider map keys в display labels.
 function normalizeProviderLabel(providerKey: string): string {
   return providerKey.split(">")[0]?.trim().toUpperCase() || "PLAYER";
+}
+
+function createTranslationInfo(title: string): TranslationInfo {
+  return {
+    title,
+    type: inferTranslationType(title),
+    language: inferTranslationLanguage(title),
+  };
+}
+
+function inferTranslationType(title: string): TranslationInfo["type"] {
+  const normalized = normalizeSearchText(title);
+
+  if (/\b(sub|subs|subtitle|subtitles)\b/.test(normalized) || normalized.includes("субтит")) {
+    return "subtitles";
+  }
+
+  if (/\b(original|orig)\b/.test(normalized) || normalized.includes("оригинал")) {
+    return "original";
+  }
+
+  if (/\b(dub|dubbed|dubbing)\b/.test(normalized) || normalized.includes("дубл")) {
+    return "dub";
+  }
+
+  if (
+    /\b(voice|voiceover)\b/.test(normalized) ||
+    normalized.includes("озвуч") ||
+    normalized.includes("закадр") ||
+    normalized.includes("одноголос") ||
+    normalized.includes("многоголос") ||
+    normalized.includes("любител") ||
+    normalized.includes("профессион")
+  ) {
+    return "voiceover";
+  }
+
+  return "unknown";
+}
+
+function inferTranslationLanguage(title: string): string | undefined {
+  const normalized = normalizeSearchText(title);
+
+  if (
+    /[іїєґ]/i.test(title) ||
+    normalized.includes("украин") ||
+    normalized.includes("україн") ||
+    normalized.includes("професій") ||
+    normalized.includes("дубльований") ||
+    normalized.includes("багатоголос") ||
+    normalized.includes("закадровий") ||
+    /\b(uateam|dniprofilm)\b/.test(normalized)
+  ) {
+    return "uk";
+  }
+
+  if (/\b(eng|english)\b/.test(normalized) || normalized.includes("англ")) {
+    return "en";
+  }
+
+  if (
+    /[а-яё]/i.test(title) ||
+    /\b(lostfilm|jaskier|anidub|anilibria|coldfilm|newstudio|cube|kubik|2x2)\b/.test(normalized)
+  ) {
+    return "ru";
+  }
+
+  return undefined;
 }
 
 function parsePlayerProviderKeys(playerProviders: string): ReadonlySet<string> {

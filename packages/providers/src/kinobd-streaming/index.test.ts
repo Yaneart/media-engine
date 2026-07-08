@@ -99,7 +99,76 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   );
   assert.equal(availability?.options[0]?.access.url, "https://kodik.test/video/94666");
   assert.equal(availability?.options[0]?.translation?.title, "Дубляж");
+  assert.equal(availability?.options[0]?.translation?.type, "dub");
+  assert.equal(availability?.options[0]?.translation?.language, "ru");
   assert.equal(availability?.options[0]?.quality?.height, 1080);
+});
+
+test("kinobdStreamingProvider infers translation language and type", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "GET /api/player/search": {
+        data: [
+          {
+            id: 94666,
+            kinopoisk_id: 258687,
+            title: "Интерстеллар",
+            name_original: "Interstellar",
+            year: 2014,
+            iframe: '<iframe src="//kinobd.test/player/94666"></iframe>',
+          },
+        ],
+      },
+      "POST /playerdata": {
+        ashdi: {
+          translate: "багатоголосий закадровий | UATeam, DniproFilm",
+          iframe: "https://ashdi.test/video/94666",
+          quality: "1080p",
+        },
+        collaps: {
+          translate: "English subtitles",
+          iframe: "https://collaps.test/video/94666",
+          quality: "1080p",
+        },
+        vibix: {
+          translate: "2x2",
+          iframe: "https://vibix.test/video/94666",
+          quality: "720p",
+        },
+      },
+    }),
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "movie",
+      ids: {
+        kinopoisk: "258687",
+      },
+    },
+    {},
+  );
+
+  assert.deepEqual(
+    availability?.options.map((option) => option.translation),
+    [
+      {
+        title: "багатоголосий закадровий | UATeam, DniproFilm",
+        type: "voiceover",
+        language: "uk",
+      },
+      {
+        title: "English subtitles",
+        type: "subtitles",
+        language: "en",
+      },
+      {
+        title: "2x2",
+        type: "unknown",
+        language: "ru",
+      },
+    ],
+  );
 });
 
 test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
