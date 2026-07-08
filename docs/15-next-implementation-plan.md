@@ -279,7 +279,7 @@ Engine-first tasks:
    - Use popularity/rating only as a tiebreaker after identity checks.
 3. Rank and filter player options.
    - Default to useful embeddable providers first.
-   - Limit default output to a small top set, for example 5 high-confidence players.
+   - Return all filtered playback player options by default; UI can group or collapse the list without hiding engine data.
    - Exclude external-only sources such as Netflix/Torrent from the provider default list instead of carrying them as normal output.
 4. Represent availability confidence more honestly.
    - Do not treat every returned iframe URL as fully verified playback.
