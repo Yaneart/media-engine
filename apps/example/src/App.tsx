@@ -655,7 +655,7 @@ function groupAvailabilityOptions(
 }
 
 function formatTranslationGroup(option: AvailabilityOption): string {
-  return formatTranslationTag(option) ?? "Unknown";
+  return formatTranslationTag(option) ?? "Other translations";
 }
 
 function formatPlayerMeta(option: AvailabilityOption): string {
@@ -671,13 +671,41 @@ function formatPlayerMeta(option: AvailabilityOption): string {
 }
 
 function formatTranslationTag(option: AvailabilityOption): string | undefined {
-  const language = option.translation?.language?.toUpperCase();
+  const language = formatLanguageLabel(option.translation?.language);
   const type =
     option.translation?.type && option.translation.type !== "unknown"
-      ? option.translation.type
+      ? formatTranslationType(option.translation.type)
       : undefined;
 
   return [language, type].filter(Boolean).join(" ") || undefined;
+}
+
+function formatLanguageLabel(language: string | undefined): string | undefined {
+  switch (language) {
+    case "ru":
+      return "Russian";
+    case "uk":
+      return "Ukrainian";
+    case "en":
+      return "English";
+    default:
+      return language?.toUpperCase();
+  }
+}
+
+function formatTranslationType(type: string): string {
+  switch (type) {
+    case "dub":
+      return "Dub";
+    case "voiceover":
+      return "Voiceover";
+    case "subtitles":
+      return "Subtitles";
+    case "original":
+      return "Original";
+    default:
+      return type;
+  }
 }
 
 function formatEpisodeRef(option: AvailabilityOption): string | undefined {

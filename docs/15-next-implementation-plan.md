@@ -265,6 +265,7 @@ Observed live issues:
 - Some player options are displayed because a provider returned a URL, but the embedded player later shows unavailable video or does not play.
 - Title-only KinoBD/ReYohoho lookup can select the wrong item. Example: `Game of Thrones` `2011` `series` selected `Game of Thrones: A Day in the Life` instead of the main series.
 - External-only sources such as Netflix/Torrent are not useful as default player options for the example playback flow.
+- Unknown translation language/type and unknown metadata status should be treated as provider normalization gaps, not only hidden by the frontend.
 
 Engine-first tasks:
 
@@ -294,14 +295,21 @@ Engine-first tasks:
    - Normalize player translation language separately from provider label.
    - Prefer grouping player options by language and translation/voiceover before quality.
    - If English or other non-Russian tracks are found, expose them clearly in availability responses and the example UI.
+   - Expand KinoBD/ReYohoho translation inference from live unknown labels such as `AlexFilm`, `HDrezka Studio`, `LE-Production`, `Shachiburi`, and similar teams when their language/type is known.
+   - Avoid emitting misleading `unknown` values where `undefined` or a clearer confidence model would be more honest for API/UI consumers.
+7. Normalize metadata status more carefully.
+   - Treat `Status: Unknown` in details as an engine/provider normalization issue.
+   - Prefer a real normalized status when provider data supports it.
+   - If status is genuinely unavailable, expose absence clearly so clients do not render `Unknown` as if it were useful data.
 
 Done when:
 
 - Title-only fallback does not silently pick the wrong item for known regression cases.
-- Default availability output favors a small list of useful embeddable players.
+- Default availability output returns all filtered playback player options without obvious broken/non-playback sources.
 - External-only player sources are hidden by default or clearly separated.
 - Smoke/e2e checks catch wrong-content and unusable-option regressions.
 - Language/translation data is preserved well enough for UI grouping when sources provide it.
+- Unknown translation/status values are reduced through provider normalization and represented honestly when still unavailable.
 
 ## Phase 6: Package and Release Polish
 
