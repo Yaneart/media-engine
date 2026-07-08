@@ -50,6 +50,18 @@ const cases = [
     3,
     { expectEpisodeGroup: true, expectedIds: { kinopoisk: "283290" } },
   ),
+  availabilityCase(
+    "anime broken-player filter: One Piece",
+    {
+      type: "anime",
+      ids: { kinopoisk: "382731" },
+    },
+    3,
+    {
+      expectedIds: { kinopoisk: "382731" },
+      forbiddenPlayers: ["ASHDI", "HDVB"],
+    },
+  ),
 ].slice(0, limit);
 
 const results = [];
@@ -72,6 +84,7 @@ function availabilityCase(name, query, minOptions, options = {}) {
     minOptions,
     expectEpisodeGroup: options.expectEpisodeGroup ?? false,
     expectedIds: options.expectedIds ?? {},
+    forbiddenPlayers: options.forbiddenPlayers ?? [],
   };
 }
 
@@ -93,12 +106,16 @@ async function runAvailabilityCase(testCase) {
     const mismatchedIds = Object.entries(testCase.expectedIds).filter(
       ([source, value]) => response.item?.ids?.[source] !== value,
     );
+    const forbiddenPlayers = usableOptions
+      .map((option) => option.player.label)
+      .filter((label) => testCase.forbiddenPlayers.includes(label));
     const status =
       usableOptions.length >= testCase.minOptions &&
       invalidKinds.length === 0 &&
       !missingEpisodeGroup &&
       !failedProviders &&
-      mismatchedIds.length === 0
+      mismatchedIds.length === 0 &&
+      forbiddenPlayers.length === 0
         ? "PASS"
         : "FAIL";
 
@@ -122,6 +139,9 @@ async function runAvailabilityCase(testCase) {
           ? `expected item ids: ${mismatchedIds
               .map(([source, value]) => `${source}=${value}`)
               .join(", ")}`
+          : undefined,
+        forbiddenPlayers.length > 0
+          ? `forbidden players returned: ${[...new Set(forbiddenPlayers)].join(", ")}`
           : undefined,
       ].filter(Boolean),
     };
