@@ -38,14 +38,9 @@ const DEFAULT_PLAYER_PROVIDERS = [
   "voidboost",
   "trailer_local",
   "videoseed",
-  "ia",
   "youtube",
-  "ext",
   "trailer",
-  "netflix",
-  "torrent",
   "vk",
-  "nf",
 ].join(",");
 const EXTERNAL_PLAYER_LABELS = new Set(["EXT", "IA", "NETFLIX", "NF", "TORRENT"]);
 
@@ -92,6 +87,7 @@ interface KinoBdStreamingConfig {
   fetch?: ProviderFetch;
   searchLimit: number;
   playerProviders: string;
+  allowedPlayerProviders: ReadonlySet<string>;
   fast: number;
   userAgent?: string;
 }
@@ -166,6 +162,9 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
     fetch: options.fetch,
     searchLimit,
     playerProviders: options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
+    allowedPlayerProviders: parsePlayerProviderKeys(
+      options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
+    ),
     fast,
     userAgent: options.userAgent,
   };
@@ -181,7 +180,7 @@ function createCapabilities(): StreamingProviderCapabilities {
       byExternalIds: ["kinopoisk", "shikimori"],
       byEpisode: true,
     },
-    features: ["embed", "external", "translations", "qualities", "episode_mapping"],
+    features: ["embed", "translations", "qualities", "episode_mapping"],
   };
 }
 
@@ -274,7 +273,13 @@ async function loadPlayerOptions(
 ): Promise<StreamOption[]> {
   try {
     const playerData = await loadPlayerData(config, selected, context);
-    const options = mapPlayerMapToOptions(config.name, playerData, selected, query);
+    const options = mapPlayerMapToOptions(
+      config.name,
+      playerData,
+      selected,
+      query,
+      config.allowedPlayerProviders,
+    );
 
     if (options.length > 0) {
       return options;
@@ -314,7 +319,13 @@ async function tryGetShikimoriCacheAvailability(
         body,
       },
     });
-    const options = mapPlayerMapToOptions(config.name, playerData, undefined, query);
+    const options = mapPlayerMapToOptions(
+      config.name,
+      playerData,
+      undefined,
+      query,
+      config.allowedPlayerProviders,
+    );
 
     return {
       query,
@@ -517,8 +528,10 @@ function mapPlayerMapToOptions(
   playerMap: PlayerDataResponse,
   candidate: PlayerCandidate | undefined,
   query: MediaAvailability["query"],
+  allowedPlayerProviders: ReadonlySet<string>,
 ): StreamOption[] {
   return Object.entries(playerMap)
+    .filter(([providerKey]) => isAllowedPlayerProvider(providerKey, allowedPlayerProviders))
     .map(([providerKey, payload]) =>
       mapPayloadToOption(providerName, providerKey, payload, candidate, query),
     )
@@ -722,6 +735,24 @@ function hasEpisodeQuery(query: MediaAvailability["query"]): boolean {
 // Преобразует provider map keys в display labels.
 function normalizeProviderLabel(providerKey: string): string {
   return providerKey.split(">")[0]?.trim().toUpperCase() || "PLAYER";
+}
+
+function parsePlayerProviderKeys(playerProviders: string): ReadonlySet<string> {
+  return new Set(
+    playerProviders
+      .split(",")
+      .map((provider) => provider.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function isAllowedPlayerProvider(
+  providerKey: string,
+  allowedPlayerProviders: ReadonlySet<string>,
+): boolean {
+  const key = providerKey.split(">")[0]?.trim().toLowerCase();
+
+  return Boolean(key && allowedPlayerProviders.has(key));
 }
 
 // Infers whether a ReYohoho/KinoBD player should be embedded or opened externally.

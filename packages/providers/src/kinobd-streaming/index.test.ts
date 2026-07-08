@@ -13,7 +13,7 @@ test("kinobdStreamingProvider exposes no-token streaming capabilities", () => {
   assert.equal(provider.capabilities.lookup.byTitle, true);
   assert.equal(provider.capabilities.lookup.byEpisode, true);
   assert.equal(provider.capabilities.features?.includes("embed"), true);
-  assert.equal(provider.capabilities.features?.includes("external"), true);
+  assert.equal(provider.capabilities.features?.includes("external"), false);
 });
 
 test("kinobdStreamingProvider maps movie playerdata into embed options", async () => {
@@ -77,11 +77,11 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   assert.equal(requests[1]?.search, "?cache94666");
   assert.equal(requests[1]?.body.get("inid"), "94666");
   assert.equal(requests[1]?.body.get("player")?.includes("kodik"), true);
-  assert.equal(requests[1]?.body.get("player")?.includes("ia"), true);
-  assert.equal(requests[1]?.body.get("player")?.includes("netflix"), true);
-  assert.equal(requests[1]?.body.get("player")?.includes("torrent"), true);
+  assert.equal(requests[1]?.body.get("player")?.includes("ia"), false);
+  assert.equal(requests[1]?.body.get("player")?.includes("netflix"), false);
+  assert.equal(requests[1]?.body.get("player")?.includes("torrent"), false);
   assert.equal(requests[1]?.body.get("player")?.includes("vk"), true);
-  assert.equal(requests[1]?.body.get("player")?.includes("nf"), true);
+  assert.equal(requests[1]?.body.get("player")?.includes("nf"), false);
   assert.equal(availability?.item?.title, "Интерстеллар");
   assert.deepEqual(availability?.item?.ids, {
     imdb: "tt0816692",
@@ -89,11 +89,11 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   });
   assert.deepEqual(
     availability?.options.map((option) => option.player.label),
-    ["KODIK", "TRAILER", "NETFLIX", "TORRENT"],
+    ["KODIK", "TRAILER"],
   );
   assert.deepEqual(
     availability?.options.map((option) => option.player.kind),
-    ["embed", "embed", "external", "external"],
+    ["embed", "embed"],
   );
   assert.equal(availability?.options[0]?.access.url, "https://kodik.test/video/94666");
   assert.equal(availability?.options[0]?.translation?.title, "Дубляж");

@@ -183,10 +183,10 @@ Implementation target:
 Known KinoBD/ReYohoho player keys to request by default:
 
 ```txt
-collaps,vibix,alloha,kodik,kinotochka,flixcdn,ashdi,turbo,videocdn,bazon,ustore,pleer,videospider,iframe,moonwalk,hdvb,cdnmovies,lookbase,kholobok,videoapi,voidboost,trailer_local,videoseed,ia,youtube,ext,trailer,netflix,torrent,vk,nf
+collaps,vibix,alloha,kodik,kinotochka,flixcdn,ashdi,turbo,videocdn,bazon,ustore,pleer,videospider,iframe,moonwalk,hdvb,cdnmovies,lookbase,kholobok,videoapi,voidboost,trailer_local,videoseed,youtube,trailer,vk
 ```
 
-The list comes from ReYohoho's KinoBD integration and should stay configurable. It is not a promise that every upstream player is always available; Media Engine should request the broad list, normalize whatever comes back, and expose provider failures clearly.
+The list comes from ReYohoho's KinoBD integration and intentionally excludes external-only/default-noisy sources such as `ia`, `ext`, `netflix`, `torrent`, and `nf`. It is not a promise that every upstream player is always available; Media Engine should request useful embeddable players, normalize whatever comes back, and expose provider failures clearly.
 
 Provider requirements:
 
@@ -255,6 +255,52 @@ Done when:
 - User can open details.
 - User can see available player options.
 - User can open an allowed embed/external player.
+
+## Media Engine Quality Plan Before README Polish
+
+Goal: make availability results accurate and useful before documenting the project as release-ready.
+
+Observed live issues:
+
+- Some player options are displayed because a provider returned a URL, but the embedded player later shows unavailable video or does not play.
+- Title-only KinoBD/ReYohoho lookup can select the wrong item. Example: `Game of Thrones` `2011` `series` selected `Game of Thrones: A Day in the Life` instead of the main series.
+- External-only sources such as Netflix/Torrent are not useful as default player options for the example playback flow.
+
+Engine-first tasks:
+
+1. Add regression coverage for the live bugs.
+   - `Game of Thrones`, `2011`, `series` must resolve to the main series, not documentaries or specials.
+   - Availability smoke should assert expected item identity, not only option count.
+2. Improve KinoBD/ReYohoho candidate selection.
+   - Prefer exact external IDs when present.
+   - Match media type: `series` should prefer KinoBD `serial`, movies should prefer `film`.
+   - Match year or year range (`year`, `year_start`, `year_end`).
+   - Score exact original/Russian title matches above partial matches.
+   - Use popularity/rating only as a tiebreaker after identity checks.
+3. Rank and filter player options.
+   - Default to useful embeddable providers first.
+   - Limit default output to a small top set, for example 5 high-confidence players.
+   - Exclude external-only sources such as Netflix/Torrent from the provider default list instead of carrying them as normal output.
+4. Represent availability confidence more honestly.
+   - Do not treat every returned iframe URL as fully verified playback.
+   - Distinguish discovered player URLs from checked or high-confidence playable options where the model supports it.
+   - Preserve provider failure/debug metadata so consumers can understand partial failures.
+5. Add live smoke and browser e2e checks.
+   - CLI smoke should verify expected item identity, option shape, player kind, and top player URL sanity.
+   - Browser e2e should verify the example app can search, open details, select an embed player, render an iframe, and avoid embedding external-only options.
+   - Cross-origin iframe video playback cannot always be inspected directly, so checks should focus on stable signals and avoid false guarantees.
+6. Add language/translation grouping when provider data supports it.
+   - Normalize player translation language separately from provider label.
+   - Prefer grouping player options by language and translation/voiceover before quality.
+   - If English or other non-Russian tracks are found, expose them clearly in availability responses and the example UI.
+
+Done when:
+
+- Title-only fallback does not silently pick the wrong item for known regression cases.
+- Default availability output favors a small list of useful embeddable players.
+- External-only player sources are hidden by default or clearly separated.
+- Smoke/e2e checks catch wrong-content and unusable-option regressions.
+- Language/translation data is preserved well enough for UI grouping when sources provide it.
 
 ## Phase 6: Package and Release Polish
 
