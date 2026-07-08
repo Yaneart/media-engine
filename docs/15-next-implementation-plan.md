@@ -183,10 +183,10 @@ Implementation target:
 Known KinoBD/ReYohoho player keys to request by default:
 
 ```txt
-collaps,vibix,alloha,kodik,kinotochka,flixcdn,ashdi,turbo,videocdn,bazon,ustore,pleer,videospider,iframe,moonwalk,hdvb,cdnmovies,lookbase,kholobok,videoapi,voidboost,trailer_local,videoseed,youtube,trailer,vk
+collaps,vibix,alloha,kodik,kinotochka,flixcdn,ashdi,turbo,videocdn,bazon,ustore,pleer,videospider,iframe,moonwalk,hdvb,cdnmovies,lookbase,kholobok,videoapi,voidboost,videoseed,vk
 ```
 
-The list comes from ReYohoho's KinoBD integration and intentionally excludes external-only/default-noisy sources such as `ia`, `ext`, `netflix`, `torrent`, and `nf`. It is not a promise that every upstream player is always available; Media Engine should request useful embeddable players, normalize whatever comes back, and expose provider failures clearly.
+The list comes from ReYohoho's KinoBD integration and intentionally excludes external-only/default-noisy or non-playback sources such as `ia`, `ext`, `netflix`, `torrent`, `nf`, `trailer`, `trailer_local`, and `youtube`. It is not a promise that every upstream player is always available; Media Engine should request useful embeddable players, normalize whatever comes back, and expose provider failures clearly.
 
 Provider requirements:
 

@@ -80,6 +80,8 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   assert.equal(requests[1]?.body.get("player")?.includes("ia"), false);
   assert.equal(requests[1]?.body.get("player")?.includes("netflix"), false);
   assert.equal(requests[1]?.body.get("player")?.includes("torrent"), false);
+  assert.equal(requests[1]?.body.get("player")?.includes("trailer"), false);
+  assert.equal(requests[1]?.body.get("player")?.includes("youtube"), false);
   assert.equal(requests[1]?.body.get("player")?.includes("vk"), true);
   assert.equal(requests[1]?.body.get("player")?.includes("nf"), false);
   assert.equal(availability?.item?.title, "Интерстеллар");
@@ -89,11 +91,11 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
   });
   assert.deepEqual(
     availability?.options.map((option) => option.player.label),
-    ["KODIK", "TRAILER"],
+    ["KODIK"],
   );
   assert.deepEqual(
     availability?.options.map((option) => option.player.kind),
-    ["embed", "embed"],
+    ["embed"],
   );
   assert.equal(availability?.options[0]?.access.url, "https://kodik.test/video/94666");
   assert.equal(availability?.options[0]?.translation?.title, "Дубляж");
@@ -218,10 +220,10 @@ test("kinobdStreamingProvider prefers exact series candidate over title noise", 
   assert.equal(availability?.options[0]?.access.url, "https://collaps.test/serial/237164/1/1");
 });
 
-test("kinobdStreamingProvider blocks noisy external-only players even when configured", async () => {
+test("kinobdStreamingProvider blocks noisy non-playback players even when configured", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({
-    playerProviders: "kodik,netflix,torrent,nf,ia,ext",
+    playerProviders: "kodik,netflix,torrent,nf,ia,ext,trailer,youtube,trailer_local",
     fetch: createMockFetch(requests, {
       "GET /api/player/search": {
         data: [
@@ -249,6 +251,11 @@ test("kinobdStreamingProvider blocks noisy external-only players even when confi
         torrent: {
           translate: "Torrent",
           iframe: "https://kinobd.test/torrent/94666",
+          quality: "auto",
+        },
+        trailer: {
+          translate: "Trailer",
+          iframe: "https://youtube.test/embed/trailer",
           quality: "auto",
         },
       },

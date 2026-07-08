@@ -35,13 +35,19 @@ const DEFAULT_PLAYER_PROVIDERS = [
   "kholobok",
   "videoapi",
   "voidboost",
-  "trailer_local",
   "videoseed",
-  "youtube",
-  "trailer",
   "vk",
 ].join(",");
-const BLOCKED_PLAYER_PROVIDERS = new Set(["ext", "ia", "netflix", "nf", "torrent"]);
+const BLOCKED_PLAYER_PROVIDERS = new Set([
+  "ext",
+  "ia",
+  "netflix",
+  "nf",
+  "torrent",
+  "trailer",
+  "trailer_local",
+  "youtube",
+]);
 
 // Options used to create the no-token KinoBD/ReYohoho-style streaming provider.
 // Опции для создания no-token KinoBD/ReYohoho-style streaming-провайдера.

@@ -251,10 +251,10 @@ Supported behavior:
 - movie and series lookup through `/api/player/search` and `/playerdata`;
 - anime fallback lookup by resolving a Shikimori ID through Shikimori's public API and searching KinoBD players by title;
 - optional anime cache lookup through a configured `animeCacheBaseUrl` with `/cache_shiki` when an application has an allowed backend for it;
-- player aggregation for the known KinoBD/ReYohoho embeddable player list, including Collaps, Vibix, Alloha, Kodik, KinoTochka, FlixCDN, Ashdi, Turbo, VideoCDN, Bazon, UStore, Pleer, VideoSpider, Iframe, Moonwalk, HDVB, CDNMovies, Lookbase, Kholobok, VideoAPI, Voidboost, trailer/local sources, YouTube, and VK keys when upstream returns them;
+- player aggregation for the known KinoBD/ReYohoho embeddable player list, including Collaps, Vibix, Alloha, Kodik, KinoTochka, FlixCDN, Ashdi, Turbo, VideoCDN, Bazon, UStore, Pleer, VideoSpider, Iframe, Moonwalk, HDVB, CDNMovies, Lookbase, Kholobok, VideoAPI, Voidboost, Videoseed, and VK keys when upstream returns them;
 - fallback to player iframe candidates from `/api/player/search` when `/playerdata` is unavailable or returns no usable iframe options;
 - normalized embed player options with translation and quality metadata;
-- noisy external-only keys such as `ia`, `ext`, `netflix`, `nf`, and `torrent` are excluded from requests and filtered from upstream responses;
+- noisy external-only or non-playback keys such as `ia`, `ext`, `netflix`, `nf`, `torrent`, `trailer`, `trailer_local`, and `youtube` are excluded from requests and filtered from upstream responses;
 - provider filtering through `StreamQuery.providers`.
 
 This provider does not use a Kodik API token and does not extract direct video files. It returns player/embed URLs for the application UI to render.
