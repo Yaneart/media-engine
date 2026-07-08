@@ -295,7 +295,7 @@ Engine-first tasks:
    - Normalize player translation language separately from provider label.
    - Prefer grouping player options by language and translation/voiceover before quality.
    - If English or other non-Russian tracks are found, expose them clearly in availability responses and the example UI.
-   - Expand KinoBD/ReYohoho translation inference from live unknown labels such as `AlexFilm`, `HDrezka Studio`, `LE-Production`, `Shachiburi`, and similar teams when their language/type is known.
+   - KinoBD/ReYohoho now infers known Russian voiceover labels such as `AlexFilm`, `HDrezka Studio`, `LE-Production`, and `Shachiburi`; keep expanding this list from live samples when language/type is known.
    - Avoid emitting misleading `unknown` values where `undefined` or a clearer confidence model would be more honest for API/UI consumers.
 7. Normalize metadata status more carefully.
    - Treat `Status: Unknown` in details as an engine/provider normalization issue.

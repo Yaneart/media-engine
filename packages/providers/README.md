@@ -254,7 +254,7 @@ Supported behavior:
 - player aggregation for the known KinoBD/ReYohoho embeddable player list, including Collaps, Vibix, Alloha, Kodik, KinoTochka, FlixCDN, Ashdi, Turbo, VideoCDN, Bazon, UStore, Pleer, VideoSpider, Iframe, Moonwalk, HDVB, CDNMovies, Lookbase, Kholobok, VideoAPI, Voidboost, Videoseed, and VK keys when upstream returns them;
 - fallback to player iframe candidates from `/api/player/search` when `/playerdata` is unavailable or returns no usable iframe options;
 - normalized embed player options with translation and quality metadata;
-- best-effort translation type and language inference for labels such as Russian dubbing, Ukrainian dubbing, English subtitles, and known Russian voiceover teams;
+- best-effort translation type and language inference for labels such as Russian dubbing, Ukrainian dubbing, English subtitles, and known Russian voiceover teams including AlexFilm, HDrezka Studio, LE-Production, Shachiburi, LostFilm, AniDUB, AniLibria, and 2x2;
 - best-effort filtering of clearly broken player pages, including HTTP 404/410/5xx and known unavailable-player HTML markers;
 - noisy external-only or non-playback keys such as `ia`, `ext`, `netflix`, `nf`, `torrent`, `trailer`, `trailer_local`, and `youtube` are excluded from requests and filtered from upstream responses;
 - provider filtering through `StreamQuery.providers`.

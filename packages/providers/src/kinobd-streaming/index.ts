@@ -51,6 +51,21 @@ const BLOCKED_PLAYER_PROVIDERS = new Set([
   "trailer_local",
   "youtube",
 ]);
+const KNOWN_RUSSIAN_VOICEOVER_TEAMS = [
+  "2x2",
+  "alexfilm",
+  "anidub",
+  "anilibria",
+  "coldfilm",
+  "cube",
+  "hdrezka studio",
+  "jaskier",
+  "kubik",
+  "le-production",
+  "lostfilm",
+  "newstudio",
+  "shachiburi",
+];
 
 // Options used to create the no-token KinoBD/ReYohoho-style streaming provider.
 // Опции для создания no-token KinoBD/ReYohoho-style streaming-провайдера.
@@ -743,9 +758,21 @@ async function isBrokenPlayerUrl(
 
     return nestedUrl ? isBrokenPlayerUrl(config, nestedUrl, context, depth + 1) : false;
   } catch {
-    return false;
+    return isKnownBrokenPlayerUrl(url);
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function isKnownBrokenPlayerUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+
+    return (
+      /(^|\.)sevstar\d*krop\.com$/i.test(parsed.hostname) && parsed.pathname.includes("/iframe")
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -958,10 +985,13 @@ function normalizeProviderLabel(providerKey: string): string {
 }
 
 function createTranslationInfo(title: string): TranslationInfo {
+  const team = inferTranslationTeam(title);
+
   return {
     title,
     type: inferTranslationType(title),
     language: inferTranslationLanguage(title),
+    ...(team ? { team } : {}),
   };
 }
 
@@ -987,7 +1017,8 @@ function inferTranslationType(title: string): TranslationInfo["type"] {
     normalized.includes("одноголос") ||
     normalized.includes("многоголос") ||
     normalized.includes("любител") ||
-    normalized.includes("профессион")
+    normalized.includes("профессион") ||
+    hasKnownRussianVoiceoverTeam(normalized)
   ) {
     return "voiceover";
   }
@@ -1015,14 +1046,25 @@ function inferTranslationLanguage(title: string): string | undefined {
     return "en";
   }
 
-  if (
-    /[а-яё]/i.test(title) ||
-    /\b(lostfilm|jaskier|anidub|anilibria|coldfilm|newstudio|cube|kubik|2x2)\b/.test(normalized)
-  ) {
+  if (/[а-яё]/i.test(title) || hasKnownRussianVoiceoverTeam(normalized)) {
     return "ru";
   }
 
   return undefined;
+}
+
+function inferTranslationTeam(title: string): string | undefined {
+  const normalized = normalizeSearchText(title);
+
+  return KNOWN_RUSSIAN_VOICEOVER_TEAMS.find((team) =>
+    normalized.includes(normalizeSearchText(team)),
+  );
+}
+
+function hasKnownRussianVoiceoverTeam(normalizedTitle: string): boolean {
+  return KNOWN_RUSSIAN_VOICEOVER_TEAMS.some((team) =>
+    normalizedTitle.includes(normalizeSearchText(team)),
+  );
 }
 
 function parsePlayerProviderKeys(playerProviders: string): ReadonlySet<string> {

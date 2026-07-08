@@ -135,6 +135,26 @@ test("kinobdStreamingProvider infers translation language and type", async () =>
           iframe: "https://vibix.test/video/94666",
           quality: "720p",
         },
+        kodik: {
+          translate: "Shachiburi",
+          iframe: "https://kodik.test/video/94666",
+          quality: "720p",
+        },
+        flixcdn: {
+          translate: "AlexFilm",
+          iframe: "https://flixcdn.test/video/94666",
+          quality: "720p",
+        },
+        alloha: {
+          translate: "HDrezka Studio",
+          iframe: "https://alloha.test/video/94666",
+          quality: "720p",
+        },
+        videocdn: {
+          translate: "LE-Production",
+          iframe: "https://videocdn.test/video/94666",
+          quality: "720p",
+        },
       },
     }),
   });
@@ -164,8 +184,33 @@ test("kinobdStreamingProvider infers translation language and type", async () =>
       },
       {
         title: "2x2",
-        type: "unknown",
+        type: "voiceover",
         language: "ru",
+        team: "2x2",
+      },
+      {
+        title: "Shachiburi",
+        type: "voiceover",
+        language: "ru",
+        team: "shachiburi",
+      },
+      {
+        title: "AlexFilm",
+        type: "voiceover",
+        language: "ru",
+        team: "alexfilm",
+      },
+      {
+        title: "HDrezka Studio",
+        type: "voiceover",
+        language: "ru",
+        team: "hdrezka studio",
+      },
+      {
+        title: "LE-Production",
+        type: "voiceover",
+        language: "ru",
+        team: "le-production",
       },
     ],
   );
@@ -263,6 +308,58 @@ test("kinobdStreamingProvider filters clearly broken player pages", async () => 
     availability?.options.map((option) => option.player.label),
     ["KODIK"],
   );
+});
+
+test("kinobdStreamingProvider filters known broken HDVB hosts when validation fetch fails", async () => {
+  const provider = createProvider({
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [
+            {
+              id: 153327,
+              kinopoisk_id: 382731,
+              title: "Ван-Пис",
+              name_original: "One Piece",
+              year: 1999,
+              iframe: '<iframe src="//kinobd.test/player/153327"></iframe>',
+            },
+          ],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json({
+          hdvb: {
+            translate: "одноголосый закадровый",
+            iframe: "https://vid1783527725.sevstar933krop.com/serial/hash/iframe?d=kinobd.ru",
+            quality: "HDTVRip",
+          },
+        });
+      }
+
+      if (String(input).includes("sevstar933krop.com")) {
+        throw new TypeError("fetch failed");
+      }
+
+      return new Response("{}", { status: 404 });
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "anime",
+      ids: {
+        kinopoisk: "382731",
+      },
+    },
+    {},
+  );
+
+  assert.deepEqual(availability?.options, []);
 });
 
 test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
