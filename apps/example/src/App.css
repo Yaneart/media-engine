@@ -307,13 +307,36 @@
   font-size: 0.95rem;
 }
 
+.player-groups,
 .player-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.player-groups {
   margin: 4px 0 0;
+}
+
+.player-list {
+  margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.player-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.player-group__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #5b6876;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .player-option {

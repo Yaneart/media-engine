@@ -449,6 +449,7 @@ function DetailsPanel({
 
 function AvailabilitySummary({ state }: { state: AvailabilityState }) {
   const options = getAvailabilityOptions(state);
+  const optionGroups = groupAvailabilityOptions(options);
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const selectedOption = options.find((option) => option.id === selectedOptionId) ?? options[0];
 
@@ -494,23 +495,33 @@ function AvailabilitySummary({ state }: { state: AvailabilityState }) {
         </ul>
       ) : null}
       {options.length > 0 ? (
-        <ul className="player-list">
-          {options.map((option) => (
-            <li className="player-option" key={option.id}>
-              <div className="player-option__main">
-                <strong>{option.player.label}</strong>
-                <span>{formatPlayerMeta(option)}</span>
+        <div className="player-groups">
+          {optionGroups.map((group) => (
+            <section className="player-group" key={group.label}>
+              <div className="player-group__heading">
+                <span>{group.label}</span>
+                <span>{group.options.length}</span>
               </div>
-              <button
-                className="player-option__action"
-                onClick={() => setSelectedOptionId(option.id)}
-                type="button"
-              >
-                Select
-              </button>
-            </li>
+              <ul className="player-list">
+                {group.options.map((option) => (
+                  <li className="player-option" key={option.id}>
+                    <div className="player-option__main">
+                      <strong>{option.player.label}</strong>
+                      <span>{formatPlayerMeta(option)}</span>
+                    </div>
+                    <button
+                      className="player-option__action"
+                      onClick={() => setSelectedOptionId(option.id)}
+                      type="button"
+                    >
+                      Select
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       ) : null}
       {selectedOption ? <PlayerPreview option={selectedOption} /> : null}
     </section>
@@ -619,6 +630,32 @@ function formatCount(value: number | undefined): string | undefined {
 
 function getAvailabilityOptions(state: AvailabilityState): AvailabilityOption[] {
   return state.status === "success" || state.status === "empty" ? state.response.options : [];
+}
+
+function groupAvailabilityOptions(
+  options: AvailabilityOption[],
+): Array<{ label: string; options: AvailabilityOption[] }> {
+  const groups = new Map<string, AvailabilityOption[]>();
+
+  for (const option of options) {
+    const label = formatTranslationGroup(option);
+    const group = groups.get(label);
+
+    if (group) {
+      group.push(option);
+    } else {
+      groups.set(label, [option]);
+    }
+  }
+
+  return [...groups.entries()].map(([label, groupOptions]) => ({
+    label,
+    options: groupOptions,
+  }));
+}
+
+function formatTranslationGroup(option: AvailabilityOption): string {
+  return formatTranslationTag(option) ?? "Unknown";
 }
 
 function formatPlayerMeta(option: AvailabilityOption): string {
