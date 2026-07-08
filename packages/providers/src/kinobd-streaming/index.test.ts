@@ -171,6 +171,100 @@ test("kinobdStreamingProvider infers translation language and type", async () =>
   );
 });
 
+test("kinobdStreamingProvider filters clearly broken player pages", async () => {
+  const provider = createProvider({
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [
+            {
+              id: 153327,
+              kinopoisk_id: 382731,
+              title: "Ван-Пис",
+              name_original: "One Piece",
+              year: 1999,
+              iframe: '<iframe src="//kinobd.test/player/153327"></iframe>',
+            },
+          ],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json({
+          ashdi: {
+            translate: "багатоголосий закадровий",
+            iframe: "https://kinobd.test/external_player/ashdi/382731",
+            quality: "auto",
+          },
+          hdvb: {
+            translate: "одноголосый закадровый",
+            iframe: "https://hdvb.test/broken/iframe",
+            quality: "HDTVRip",
+          },
+          kodik: {
+            translate: "Shachiburi",
+            iframe: "https://kodik.test/serial/52881/720p",
+            quality: "720p",
+          },
+        });
+      }
+
+      if (String(input) === "https://kinobd.test/external_player/ashdi/382731") {
+        return new Response('<iframe src="https://ashdi.test/serial/1381"></iframe>', {
+          headers: {
+            "content-type": "text/html",
+          },
+        });
+      }
+
+      if (String(input) === "https://ashdi.test/serial/1381") {
+        return new Response("<html><body><h1>Плеєр недоступний для перегляду</h1></body></html>", {
+          headers: {
+            "content-type": "text/html",
+          },
+        });
+      }
+
+      if (String(input) === "https://hdvb.test/broken/iframe") {
+        return new Response("<html><body><h1>404 Not Found!</h1></body></html>", {
+          status: 404,
+          headers: {
+            "content-type": "text/html",
+          },
+        });
+      }
+
+      if (String(input) === "https://kodik.test/serial/52881/720p") {
+        return new Response("<html><body>Kodik player</body></html>", {
+          headers: {
+            "content-type": "text/html",
+          },
+        });
+      }
+
+      return new Response("{}", { status: 404 });
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "anime",
+      ids: {
+        kinopoisk: "382731",
+      },
+    },
+    {},
+  );
+
+  assert.deepEqual(
+    availability?.options.map((option) => option.player.label),
+    ["KODIK"],
+  );
+});
+
 test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({

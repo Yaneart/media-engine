@@ -284,6 +284,7 @@ Engine-first tasks:
 4. Represent availability confidence more honestly.
    - Do not treat every returned iframe URL as fully verified playback.
    - Distinguish discovered player URLs from checked or high-confidence playable options where the model supports it.
+   - Filter obvious broken player pages with lightweight server-side checks, including HTTP 404/410/5xx and known unavailable markers such as `Video Not Found` or region-blocked player HTML.
    - Preserve provider failure/debug metadata so consumers can understand partial failures.
 5. Add live smoke and browser e2e checks.
    - CLI smoke should verify expected item identity, option shape, player kind, and top player URL sanity.

@@ -14,6 +14,8 @@ const PROVIDER_NAME = "kinobd-streaming";
 const DEFAULT_BASE_URL = "https://kinobd.net";
 const DEFAULT_SHIKIMORI_BASE_URL = "https://shikimori.io";
 const DEFAULT_SEARCH_LIMIT = 10;
+const PLAYER_VALIDATION_TIMEOUT_MS = 2_500;
+const PLAYER_VALIDATION_MAX_DEPTH = 1;
 const DEFAULT_PLAYER_PROVIDERS = [
   "collaps",
   "vibix",
@@ -300,7 +302,7 @@ async function loadPlayerOptions(
     );
 
     if (options.length > 0) {
-      return options;
+      return filterBrokenPlayerOptions(config, options, context);
     }
   } catch {
     // KinoBD/ReYohoho-style /playerdata can be rate-limited or temporarily unavailable.
@@ -684,6 +686,80 @@ function mapPlayerMapToOptions(
       mapPayloadToOption(providerName, providerKey, payload, candidate, query),
     )
     .filter((option): option is StreamOption => Boolean(option));
+}
+
+async function filterBrokenPlayerOptions(
+  config: KinoBdStreamingConfig,
+  options: StreamOption[],
+  context: ProviderContext,
+): Promise<StreamOption[]> {
+  const checks = await Promise.all(
+    options.map(async (option) => ({
+      option,
+      broken: await isBrokenPlayerUrl(config, option.access.url, context),
+    })),
+  );
+
+  return checks.filter((check) => !check.broken).map((check) => check.option);
+}
+
+async function isBrokenPlayerUrl(
+  config: KinoBdStreamingConfig,
+  url: string,
+  context: ProviderContext,
+  depth = 0,
+): Promise<boolean> {
+  const fetchImpl = config.fetch ?? fetch;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PLAYER_VALIDATION_TIMEOUT_MS);
+
+  try {
+    if (context.signal?.aborted) {
+      return false;
+    }
+
+    const response = await fetchImpl(url, {
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+      },
+      signal: controller.signal,
+    });
+
+    if (response.status === 404 || response.status === 410 || response.status >= 500) {
+      return true;
+    }
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const html = await response.text();
+
+    if (hasBrokenPlayerMarker(html)) {
+      return true;
+    }
+
+    const nestedUrl = depth < PLAYER_VALIDATION_MAX_DEPTH ? extractIframeUrl(html, url) : undefined;
+
+    return nestedUrl ? isBrokenPlayerUrl(config, nestedUrl, context, depth + 1) : false;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function hasBrokenPlayerMarker(html: string): boolean {
+  const normalized = normalizeSearchText(html);
+
+  return (
+    normalized.includes("video not found") ||
+    normalized.includes("404 not found") ||
+    normalized.includes("плеер недоступ") ||
+    normalized.includes("плеєр недоступ") ||
+    normalized.includes("недоступний для перегляду") ||
+    normalized.includes("змініть країну перегляду")
+  );
 }
 
 // Maps search-result iframes into fallback player options when /playerdata cannot be used.
