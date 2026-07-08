@@ -448,7 +448,7 @@ function DetailsPanel({
 }
 
 function AvailabilitySummary({ state }: { state: AvailabilityState }) {
-  const options = getAvailabilityOptions(state).slice(0, 8);
+  const options = getAvailabilityOptions(state);
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const selectedOption = options.find((option) => option.id === selectedOptionId) ?? options[0];
 
@@ -624,12 +624,23 @@ function getAvailabilityOptions(state: AvailabilityState): AvailabilityOption[] 
 function formatPlayerMeta(option: AvailabilityOption): string {
   return [
     option.player.kind,
+    formatTranslationTag(option),
     option.translation?.title,
     option.quality?.label,
     formatEpisodeRef(option),
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+function formatTranslationTag(option: AvailabilityOption): string | undefined {
+  const language = option.translation?.language?.toUpperCase();
+  const type =
+    option.translation?.type && option.translation.type !== "unknown"
+      ? option.translation.type
+      : undefined;
+
+  return [language, type].filter(Boolean).join(" ") || undefined;
 }
 
 function formatEpisodeRef(option: AvailabilityOption): string | undefined {
