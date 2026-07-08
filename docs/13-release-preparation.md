@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document defines the release baseline for `TASK-102`.
+This document defines the release baseline for the first public npm release.
 
 Release preparation covers:
 
@@ -104,18 +104,7 @@ This verifies real `/media/availability`-equivalent engine behavior for movie, s
 After a successful release gate, verify npm package contents without publishing:
 
 ```bash
-mkdir -p /tmp/media-engine-pack
-pnpm --filter @media-engine/core pack --pack-destination /tmp/media-engine-pack
-pnpm --filter @media-engine/providers pack --pack-destination /tmp/media-engine-pack
-pnpm --filter @media-engine/sdk pack --pack-destination /tmp/media-engine-pack
-```
-
-Inspect the tarballs:
-
-```bash
-tar -tf /tmp/media-engine-pack/media-engine-core-*.tgz
-tar -tf /tmp/media-engine-pack/media-engine-providers-*.tgz
-tar -tf /tmp/media-engine-pack/media-engine-sdk-*.tgz
+pnpm pack:check
 ```
 
 Each package should contain:
@@ -142,9 +131,9 @@ Before publishing:
 - choose and update the release version;
 - update `CHANGELOG.md`;
 - run `pnpm release:check`;
-- run `pnpm smoke:providers`;
-- run `pnpm smoke:availability` for parser-plus-player releases;
-- run pack checks;
+- run `pnpm smoke:providers -- --strict`;
+- run `pnpm smoke:availability -- --strict` for parser-plus-player releases;
+- run `pnpm pack:check`;
 - review package tarball contents;
 - commit release preparation manually;
 - create a git tag manually if releasing from git.

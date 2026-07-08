@@ -6,15 +6,9 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **v1.0 Stabilization**.
+Current phase: **v1.0 stabilization**.
 
-The project follows a documentation-first workflow. The core foundation, first metadata providers, REST API, React example, streaming architecture draft, and SDK are implemented before final stabilization.
-
-Current active task:
-
-```txt
-TASK-102: Release Preparation
-```
+The core engine, metadata providers, streaming availability API, REST API, SDK, React example, smoke checks, and package dry-run checks are implemented. The remaining work before a public release is documentation, final audit, versioning, and changelog polish.
 
 ## Core Idea
 
@@ -53,6 +47,78 @@ Media Engine is responsible for:
 - normalizing provider responses;
 - merging duplicated results;
 - returning one strongly typed response.
+
+## Install
+
+For direct Node.js usage:
+
+```bash
+npm install @media-engine/core @media-engine/providers
+```
+
+For applications that call the REST API:
+
+```bash
+npm install @media-engine/sdk
+```
+
+The publishable npm packages are `packages/core`, `packages/providers`, and `packages/sdk`.
+`apps/api` and `apps/example` are included in the GitHub repository as runnable integration examples, not as npm packages.
+
+## Quickstart
+
+```ts
+import { MediaEngine } from "@media-engine/core";
+import {
+  cinemetaProvider,
+  kinobdProvider,
+  kinobdStreamingProvider,
+  shikimoriProvider,
+  wikidataProvider,
+} from "@media-engine/providers";
+
+const media = new MediaEngine({
+  providers: [
+    kinobdProvider(),
+    cinemetaProvider(),
+    shikimoriProvider({
+      userAgent: "MyApp/1.0.0",
+    }),
+    wikidataProvider(),
+  ],
+  streamingProviders: [kinobdStreamingProvider()],
+});
+
+const search = await media.search({
+  title: "Interstellar",
+  type: "movie",
+});
+
+const details = await media.getDetails({
+  kinopoisk: "258687",
+  type: "movie",
+});
+
+const availability = await media.getAvailability({
+  kinopoisk: "258687",
+  type: "movie",
+});
+```
+
+Streaming availability is a best-effort player discovery layer. Media Engine returns normalized embed/player options and provider failures; it is not a streaming service, does not host video, and does not extract direct video files by default.
+
+## Release Checks
+
+Useful release gates:
+
+```bash
+pnpm release:check
+pnpm smoke:providers -- --strict
+pnpm smoke:availability -- --strict
+pnpm pack:check
+```
+
+Live smoke commands call third-party providers and can fail when an upstream source is rate-limited or temporarily unavailable.
 
 ## Products
 

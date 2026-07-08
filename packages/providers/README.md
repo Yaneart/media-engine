@@ -6,6 +6,14 @@ This package contains concrete metadata provider factories such as KinoBD, Cinem
 
 The package depends on `@media-engine/core` for provider contracts and normalized media types. Core must not import this package.
 
+## Install
+
+```bash
+npm install @media-engine/core @media-engine/providers
+```
+
+Use this package from server-side or trusted application code. Do not expose provider tokens in browser bundles.
+
 Current structure:
 
 ```txt
@@ -24,6 +32,8 @@ src/
 ```
 
 No API keys or environment reads are stored in this package. Applications pass provider secrets from the outside.
+
+Streaming providers in this package return normalized embed/player access metadata. They do not make Media Engine a streaming service, do not host video, and do not extract direct video files by default. Review each upstream source's usage rules before enabling a provider in a product.
 
 ## KinoBD Provider
 

@@ -10,7 +10,7 @@ The audit covers:
 - `@media-engine/providers`;
 - `@media-engine/sdk`;
 - the REST API shape used by the SDK and example app;
-- the current experimental streaming surface.
+- the current streaming availability surface.
 
 ## Package Entry Points
 
@@ -26,6 +26,8 @@ import {
   shikimoriProvider,
   tmdbProvider,
   wikidataProvider,
+  kinobdStreamingProvider,
+  kodikProvider,
 } from "@media-engine/providers";
 import { MediaEngineClient } from "@media-engine/sdk";
 ```
@@ -62,6 +64,7 @@ The stable core surface for the first release is:
 - `MemoryCache`;
 - `MergeStrategy`;
 - `DefaultMergeStrategy`;
+- streaming availability types such as `StreamQuery`, `MediaAvailability`, `StreamOption`, `PlayerSource`, `StreamAccess`, and `StreamingProvider`;
 - testing utilities under the root `@media-engine/core` export.
 
 The stable engine methods are:
@@ -71,7 +74,9 @@ const engine = new MediaEngine(options);
 
 await engine.search(query);
 await engine.getDetails(query);
+await engine.getAvailability(query);
 engine.getProviders();
+engine.getStreamingProviders();
 ```
 
 The engine must stay framework-independent. It must not depend on NestJS, React, Express, or concrete provider packages.
@@ -86,6 +91,12 @@ The stable metadata provider factories are:
 - `kinobdProvider`;
 - `cinemetaProvider`;
 - `imdbDatasetProvider`.
+
+The provider package also exports streaming provider factories:
+
+- `kinobdStreamingProvider`;
+- `kodikProvider`;
+- `experimentalStreamingProvider`.
 
 The provider package also exports shared HTTP helpers for provider implementation work:
 
@@ -115,7 +126,9 @@ const client = new MediaEngineClient({ baseUrl });
 
 await client.search(query);
 await client.getDetails(query);
+await client.getAvailability(query);
 await client.getProviders();
+await client.getStreamingProviders();
 await client.getHealth();
 ```
 
@@ -127,20 +140,24 @@ The SDK and example app currently depend on these REST endpoints:
 
 - `GET /health`;
 - `GET /providers`;
+- `GET /providers/streaming`;
 - `GET /media/search`;
 - `GET /media/details`;
+- `GET /media/availability`;
 - `GET /docs`;
 - `GET /docs-json`.
 
-The stable data responses for `search`, `details`, and `providers` should continue to match the core response and provider metadata types.
+The stable data responses for `search`, `details`, `availability`, `providers`, and `providers/streaming` should continue to match the core response, availability, and provider metadata types.
 
 Error responses may evolve before v1.0, but SDK error handling must keep exposing `MediaEngineApiError` with HTTP status and parsed response body.
 
-## Experimental Streaming Surface
+## Streaming Availability Surface
 
 Streaming is intentionally separate from metadata search/details.
 
-The current streaming model and `StreamingProvider` contract are public for architecture validation, but not yet v1.0-stable. The `experimentalStreamingProvider` factory is test/demo infrastructure, not a production provider.
+The current streaming model, `StreamingProvider` contract, `MediaEngine.getAvailability`, SDK `getAvailability`, and REST `/media/availability` endpoint are part of the pre-release public surface.
+
+The `experimentalStreamingProvider` factory remains test/demo infrastructure, not a production provider. Real streaming providers are best-effort integrations over allowed embed/API surfaces and must document source rules.
 
 Breaking changes are still allowed in:
 
@@ -151,6 +168,7 @@ Breaking changes are still allowed in:
 - `StreamAccess`;
 - `StreamingProvider`;
 - `experimentalStreamingProvider`;
+- real streaming provider option shapes before v1.0;
 - related translation, quality, subtitle, audio, and episode mapping types.
 
 Before v1.0, streaming changes must update `docs/11-streaming-data-model.md` and this audit document.
@@ -164,7 +182,7 @@ After v1.0, the following changes are breaking:
 - removing a root export from `@media-engine/core`, `@media-engine/providers`, or `@media-engine/sdk`;
 - renaming public classes, functions, interfaces, type aliases, or enum-like string unions;
 - changing required constructor options or method parameters;
-- changing `MediaEngine.search`, `MediaEngine.getDetails`, `MediaEngine.getProviders`, or SDK method behavior in a way that valid existing calls fail;
+- changing `MediaEngine.search`, `MediaEngine.getDetails`, `MediaEngine.getAvailability`, `MediaEngine.getProviders`, `MediaEngine.getStreamingProviders`, or SDK method behavior in a way that valid existing calls fail;
 - removing fields from response objects;
 - changing public REST endpoint paths used by the SDK;
 - changing error class names or removing `MediaEngineApiError.status`;
@@ -183,12 +201,6 @@ The following changes are not breaking when documented:
 
 ## Audit Result
 
-The current public surface is coherent enough to proceed to documentation audit.
+The current public surface is coherent enough to proceed to final documentation and release audit.
 
-No runtime API change is required for `TASK-100`. The main release risk is that streaming types and the experimental streaming provider are still architecture-validation APIs, not stable v1.0 contracts.
-
-Follow-up release task:
-
-```txt
-TASK-102: Release Preparation
-```
+No runtime API change is required before release preparation. The main release risk is not the API shape, but the best-effort nature of live third-party metadata and player providers; release notes must describe that honestly and keep smoke checks in the release gate.
