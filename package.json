@@ -14,6 +14,7 @@
     "dev:example": "pnpm --filter @media-engine/example dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "pack:check": "pnpm build && pnpm --filter @media-engine/core pack --dry-run && pnpm --filter @media-engine/providers pack --dry-run && pnpm --filter @media-engine/sdk pack --dry-run",
     "release:check": "pnpm format:check && pnpm build && pnpm typecheck && pnpm test",
     "smoke:availability": "pnpm build && node scripts/availability-smoke.mjs",
     "smoke:providers": "pnpm build && node scripts/provider-smoke.mjs",

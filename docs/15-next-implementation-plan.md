@@ -326,12 +326,12 @@ Tasks:
    - SDK client.
 3. Audit package exports.
 4. Run npm pack checks.
-5. Verify tarballs contain only useful compiled files.
+5. Verify tarballs contain only useful compiled files through `pnpm pack:check`.
 6. Add changelog and version.
 7. Run final gates:
    - `pnpm release:check`;
    - `pnpm smoke:providers -- --strict`;
-   - npm pack checks;
+   - `pnpm pack:check`;
    - Docker API/example smoke.
 
 Done when:
