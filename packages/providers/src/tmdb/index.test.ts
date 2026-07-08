@@ -268,6 +268,23 @@ test("tmdbProvider maps series details", async () => {
   assert.equal(result?.details.alternativeTitles?.[0], "Во все тяжкие");
 });
 
+test("tmdbProvider omits unsupported details status labels", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/movie/1": {
+        id: 1,
+        title: "Mystery Movie",
+        original_title: "Mystery Movie",
+        status: "Post Production",
+      },
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { tmdb: "1" }, type: "movie" }, {});
+
+  assert.equal(result?.details.status, undefined);
+});
+
 test("tmdbProvider maps HTTP failures through provider errors", async () => {
   const provider = createProvider({
     fetch: async () => new Response("unauthorized", { status: 401 }),

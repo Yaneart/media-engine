@@ -184,6 +184,24 @@ test("shikimoriProvider maps anime details", async () => {
   assert.equal(result?.details.alternativeTitles?.includes("カウボーイビバップ"), true);
 });
 
+test("shikimoriProvider omits unsupported details status labels", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/api/animes/1": {
+        id: 1,
+        name: "Unknown Status Anime",
+        status: "paused",
+      },
+      "/api/animes/1/roles": [],
+      "/api/animes/1/screenshots": [],
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { shikimori: "1" }, type: "anime" }, {});
+
+  assert.equal(result?.details.status, undefined);
+});
+
 test("shikimoriProvider maps HTTP failures through provider errors", async () => {
   const provider = createProvider({
     fetch: async () => new Response("rate limited", { status: 429 }),

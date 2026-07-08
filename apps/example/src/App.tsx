@@ -405,7 +405,7 @@ function DetailsPanel({
         <div className="details-grid">
           <DetailValue label="Rating" value={formatRating(details.ratings)} />
           <DetailValue label="Runtime" value={formatRuntime(details.runtimeMinutes)} />
-          <DetailValue label="Status" value={details.status} />
+          <DetailValue label="Status" value={formatStatus(details.status)} />
           <DetailValue label="Episodes" value={formatCount(getEpisodesCount(details))} />
         </div>
 
@@ -583,7 +583,7 @@ function DetailValue({ label, value }: { label: string; value?: string }) {
   return (
     <div className="detail-value">
       <span>{label}</span>
-      <strong>{value ?? "Unknown"}</strong>
+      <strong>{value ?? "Not available"}</strong>
     </div>
   );
 }
@@ -622,6 +622,17 @@ function formatRating(ratings: MediaSummary["ratings"]): string {
 
 function formatRuntime(runtimeMinutes: number | undefined): string | undefined {
   return runtimeMinutes ? `${runtimeMinutes} min` : undefined;
+}
+
+function formatStatus(status: MediaDetails["status"]): string | undefined {
+  if (!status || status === "unknown") {
+    return undefined;
+  }
+
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function formatCount(value: number | undefined): string | undefined {

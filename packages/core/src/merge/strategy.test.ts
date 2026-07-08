@@ -411,6 +411,30 @@ test("fills series status and counters from secondary details provider", () => {
   assert.equal(details.seasonsCount, 8);
 });
 
+test("skips unknown details status when another provider has a meaningful status", () => {
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("primary", {
+        id: "primary-got",
+        type: "series",
+        title: "Game of Thrones",
+        status: "unknown",
+        ids: { imdb: "tt0944947" },
+      }),
+      providerDetailsResult("secondary", {
+        id: "secondary-got",
+        type: "series",
+        title: "Game of Thrones",
+        status: "ended",
+        ids: { imdb: "tt0944947" },
+      }),
+    ],
+    {},
+  );
+
+  assert.equal(details?.status, "ended");
+});
+
 test("keeps anime episodes from primary provider", () => {
   const details = strategy.mergeDetails(
     [

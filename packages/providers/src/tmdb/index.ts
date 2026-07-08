@@ -875,7 +875,7 @@ function mapStatus(status: string | undefined): MediaDetails["status"] {
     case "Cancelled":
       return "canceled";
     default:
-      return status ? "unknown" : undefined;
+      return undefined;
   }
 }
 

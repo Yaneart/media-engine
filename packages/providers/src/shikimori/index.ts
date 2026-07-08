@@ -501,7 +501,7 @@ function mapStatus(status: string | undefined): MediaStatus | undefined {
     case "released":
       return "ended";
     default:
-      return status ? "unknown" : undefined;
+      return undefined;
   }
 }
 

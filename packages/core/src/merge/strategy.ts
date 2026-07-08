@@ -277,7 +277,7 @@ function mergeDetailsEntries(entries: DetailsEntry[], context: MergeContext): Me
     title,
     originalTitle: firstDefinedDetails(entries, (entry) => entry.result.details.originalTitle),
     alternativeTitles: mergeDetailsAlternativeTitles(entries, title),
-    status: firstDefinedDetails(entries, (entry) => entry.result.details.status),
+    status: firstMeaningfulDetailsStatus(entries),
     year: selectDetailsYear(entries, context),
     releaseDate: selectDetailsReleaseDate(entries),
     description: selectDetailsDescription(entries),
@@ -1082,6 +1082,16 @@ function firstDefinedDetails<T>(
   }
 
   return undefined;
+}
+
+// Returns the first lifecycle status that carries useful provider information.
+// Возвращает первый lifecycle status, который несет полезную информацию от provider.
+function firstMeaningfulDetailsStatus(entries: DetailsEntry[]): MediaDetails["status"] {
+  return firstDefinedDetails(entries, (entry) => {
+    const status = entry.result.details.status;
+
+    return status === "unknown" ? undefined : status;
+  });
 }
 
 // Returns the item with the highest computed score.

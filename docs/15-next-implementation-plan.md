@@ -298,9 +298,9 @@ Engine-first tasks:
    - KinoBD/ReYohoho now infers known Russian voiceover labels such as `AlexFilm`, `HDrezka Studio`, `LE-Production`, and `Shachiburi`; keep expanding this list from live samples when language/type is known.
    - Avoid emitting misleading `unknown` values where `undefined` or a clearer confidence model would be more honest for API/UI consumers.
 7. Normalize metadata status more carefully.
-   - Treat `Status: Unknown` in details as an engine/provider normalization issue.
-   - Prefer a real normalized status when provider data supports it.
-   - If status is genuinely unavailable, expose absence clearly so clients do not render `Unknown` as if it were useful data.
+   - TMDB/Shikimori now omit unsupported lifecycle status labels instead of emitting `unknown`.
+   - Details merge now prefers a real normalized status over `unknown` when another provider has useful status data.
+   - The example app renders absent status clearly instead of presenting `Status: Unknown` as useful data.
 
 Done when:
 
