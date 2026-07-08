@@ -109,6 +109,17 @@ interface PlayerCandidate {
   name_russian?: string | null;
   name_original?: string | null;
   year?: string | number | null;
+  year_start?: string | number | null;
+  year_end?: string | number | null;
+  rating_kp?: string | number | null;
+  rating_kp_count?: string | number | null;
+  rating_imdb?: string | number | null;
+  rating_imdb_count?: string | number | null;
+  type?: string | null;
+  popular_rate?: string | number | null;
+  popularity?: {
+    popular_rate?: string | number | null;
+  } | null;
   iframe?: string | null;
 }
 
@@ -234,7 +245,7 @@ async function getMovieOrSeriesAvailability(
   context: ProviderContext,
 ): Promise<MediaAvailability> {
   const candidates = await searchPlayerCandidates(config, query, context);
-  const selected = candidates[0];
+  const selected = selectBestPlayerCandidate(candidates, query);
 
   if (!selected) {
     return createEmptyAvailability(query);
@@ -248,7 +259,7 @@ async function getMovieOrSeriesAvailability(
       type: query.type,
       title: selected.title ?? selected.name_russian ?? query.title,
       originalTitle: selected.name_original ?? undefined,
-      year: parseOptionalInteger(selected.year) ?? query.year,
+      year: getCandidateStartYear(selected) ?? query.year,
       ids: collectCandidateIds(selected) ?? query.ids,
     },
     options,
@@ -289,7 +300,7 @@ async function loadPlayerOptions(
     // KinoBD/ReYohoho-style /playerdata может быть rate-limited или временно недоступен.
   }
 
-  return mapCandidatesToFallbackOptions(config.name, candidates, query);
+  return mapCandidatesToFallbackOptions(config.name, [selected], query);
 }
 
 // Resolves anime players through /cache_shiki-compatible backend endpoint.
@@ -453,6 +464,136 @@ async function searchPlayerCandidates(
   });
 
   return (response.data ?? []).slice(0, config.searchLimit);
+}
+
+// Chooses the most likely KinoBD record instead of trusting upstream result order.
+// Выбирает наиболее вероятную KinoBD-запись вместо доверия порядку upstream results.
+function selectBestPlayerCandidate(
+  candidates: PlayerCandidate[],
+  query: MediaAvailability["query"],
+): PlayerCandidate | undefined {
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  if (query.ids?.kinopoisk || query.ids?.imdb) {
+    const exact = candidates.find((candidate) => hasExactCandidateId(candidate, query.ids));
+
+    if (exact) {
+      return exact;
+    }
+  }
+
+  const normalizedTitle = normalizeSearchText(query.title ?? "");
+
+  return candidates
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      score: scorePlayerCandidate(candidate, query, normalizedTitle),
+    }))
+    .filter((entry) => entry.score > Number.NEGATIVE_INFINITY)
+    .sort((left, right) => right.score - left.score || left.index - right.index)[0]?.candidate;
+}
+
+function scorePlayerCandidate(
+  candidate: PlayerCandidate,
+  query: MediaAvailability["query"],
+  normalizedTitle: string,
+): number {
+  const candidateType = mapCandidateMediaType(candidate.type);
+  const queryType = query.type === "movie" || query.type === "series" ? query.type : undefined;
+
+  if (queryType && candidateType && candidateType !== queryType) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const startYear = getCandidateStartYear(candidate);
+  const endYear = parseOptionalInteger(candidate.year_end);
+
+  if (query.year !== undefined) {
+    if (startYear === undefined) {
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    if (queryType === "series") {
+      const lastYear = endYear ?? startYear;
+
+      if (query.year < startYear || query.year > lastYear) {
+        return Number.NEGATIVE_INFINITY;
+      }
+    } else if (startYear !== query.year) {
+      return Number.NEGATIVE_INFINITY;
+    }
+  }
+
+  const original = normalizeSearchText(candidate.name_original ?? "");
+  const russian = normalizeSearchText(candidate.name_russian ?? candidate.title ?? "");
+  const popularity =
+    parseOptionalInteger(candidate.popular_rate ?? candidate.popularity?.popular_rate) ?? 0;
+  const votes =
+    parseOptionalInteger(candidate.rating_kp_count) ??
+    parseOptionalInteger(candidate.rating_imdb_count) ??
+    0;
+  const rating =
+    parseOptionalInteger(candidate.rating_kp) ?? parseOptionalInteger(candidate.rating_imdb) ?? 0;
+  let score = 10;
+
+  if (queryType && candidateType === queryType) {
+    score += 40;
+  }
+
+  if (normalizedTitle && (original === normalizedTitle || russian === normalizedTitle)) {
+    score += 80;
+  } else if (
+    normalizedTitle &&
+    (original.includes(normalizedTitle) || russian.includes(normalizedTitle))
+  ) {
+    score += 25;
+  }
+
+  if (query.year !== undefined && startYear !== undefined) {
+    score += startYear === query.year ? 35 : 15;
+  }
+
+  if (candidate.imdb_id) {
+    score += 5;
+  }
+
+  if (candidate.kinopoisk_id ?? candidate.kp_id) {
+    score += 5;
+  }
+
+  score += Math.min(8, rating);
+  score += Math.min(10, Math.log10(votes + 1) * 2);
+  score += Math.min(12, Math.log10(popularity + 1) * 2);
+
+  return score;
+}
+
+function hasExactCandidateId(candidate: PlayerCandidate, ids: ExternalIds | undefined): boolean {
+  const candidateIds = collectCandidateIds(candidate);
+
+  return Boolean(
+    (ids?.kinopoisk && candidateIds?.kinopoisk === ids.kinopoisk) ||
+    (ids?.imdb && candidateIds?.imdb === ids.imdb),
+  );
+}
+
+function mapCandidateMediaType(type: string | null | undefined): MediaType | undefined {
+  if (type === "film") {
+    return "movie";
+  }
+
+  if (type === "serial" || type === "series") {
+    return "series";
+  }
+
+  return undefined;
+}
+
+function getCandidateStartYear(candidate: PlayerCandidate): number | undefined {
+  return parseOptionalInteger(candidate.year ?? candidate.year_start);
 }
 
 // Creates the best supported player search input from a stream query.
@@ -784,6 +925,16 @@ function parseYear(value: string | null | undefined): number | undefined {
   const year = Number.parseInt(value.slice(0, 4), 10);
 
   return Number.isInteger(year) ? year : undefined;
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // Validates and normalizes provider name.

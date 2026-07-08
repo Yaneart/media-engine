@@ -154,6 +154,70 @@ test("kinobdStreamingProvider falls back to candidate iframes when playerdata fa
   assert.equal(availability?.options[0]?.availability, "available");
 });
 
+test("kinobdStreamingProvider prefers exact series candidate over title noise", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "GET /api/player/search": {
+        data: [
+          {
+            id: 428099,
+            kinopoisk_id: 916125,
+            imdb_id: "tt4437700",
+            name_original: "Game of Thrones: A Day in the Life",
+            name_russian: "Игра престолов: Один день из жизни",
+            year: 2015,
+            type: "film",
+            popular_rate: 0,
+            iframe: '<iframe src="//kinobd.test/player/428099"></iframe>',
+          },
+          {
+            id: 237164,
+            kinopoisk_id: 464963,
+            imdb_id: "tt0944947",
+            name_original: "Game of Thrones",
+            name_russian: "Игра престолов",
+            year_start: 2011,
+            year_end: 2019,
+            type: "serial",
+            popular_rate: 994347,
+            iframe: '<iframe src="//kinobd.test/player/237164"></iframe>',
+          },
+        ],
+      },
+      "POST /playerdata": {
+        collaps: {
+          translate: "LostFilm",
+          iframe: "//collaps.test/serial/237164/1/1",
+          quality: "1080p",
+        },
+      },
+    }),
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "series",
+      title: "Game of Thrones",
+      year: 2011,
+      seasonNumber: 1,
+      episodeNumber: 1,
+    },
+    {},
+  );
+
+  assert.equal(requests[1]?.body.get("inid"), "237164");
+  assert.equal(availability?.item?.title, "Игра престолов");
+  assert.equal(availability?.item?.originalTitle, "Game of Thrones");
+  assert.equal(availability?.item?.year, 2011);
+  assert.deepEqual(availability?.item?.ids, {
+    imdb: "tt0944947",
+    kinopoisk: "464963",
+  });
+  assert.equal(availability?.options.length, 1);
+  assert.equal(availability?.options[0]?.access.url, "https://collaps.test/serial/237164/1/1");
+});
+
 test("kinobdStreamingProvider blocks noisy external-only players even when configured", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({
@@ -269,6 +333,7 @@ test("kinobdStreamingProvider falls back from Shikimori ID to KinoBD title searc
             title: "Наруто",
             name_original: "Naruto",
             year: 2002,
+            type: "serial",
             iframe: '<iframe src="//kinobd.test/player/112166"></iframe>',
           },
         ],
@@ -305,6 +370,7 @@ test("kinobdStreamingProvider falls back from Shikimori ID to KinoBD title searc
     imdb: "tt0409591",
     kinopoisk: "283290",
   });
+  assert.equal(availability?.item?.type, "anime");
   assert.equal(availability?.options.length, 1);
   assert.equal(availability?.options[0]?.player.label, "KODIK");
   assert.equal(availability?.options[0]?.episode?.absoluteEpisodeNumber, 1);

@@ -26,7 +26,19 @@ const cases = [
       episodeNumber: 1,
     },
     3,
-    { expectEpisodeGroup: true },
+    { expectEpisodeGroup: true, expectedIds: { kinopoisk: "464963" } },
+  ),
+  availabilityCase(
+    "series title fallback: Game of Thrones S01E01",
+    {
+      type: "series",
+      title: "Game of Thrones",
+      year: 2011,
+      seasonNumber: 1,
+      episodeNumber: 1,
+    },
+    3,
+    { expectEpisodeGroup: true, expectedIds: { kinopoisk: "464963" } },
   ),
   availabilityCase(
     "anime: Naruto episode 1",
@@ -36,7 +48,7 @@ const cases = [
       absoluteEpisodeNumber: 1,
     },
     3,
-    { expectEpisodeGroup: true },
+    { expectEpisodeGroup: true, expectedIds: { kinopoisk: "283290" } },
   ),
 ].slice(0, limit);
 
@@ -59,6 +71,7 @@ function availabilityCase(name, query, minOptions, options = {}) {
     query,
     minOptions,
     expectEpisodeGroup: options.expectEpisodeGroup ?? false,
+    expectedIds: options.expectedIds ?? {},
   };
 }
 
@@ -77,11 +90,15 @@ async function runAvailabilityCase(testCase) {
       0,
     );
     const missingEpisodeGroup = testCase.expectEpisodeGroup && episodeOptionCount === 0;
+    const mismatchedIds = Object.entries(testCase.expectedIds).filter(
+      ([source, value]) => response.item?.ids?.[source] !== value,
+    );
     const status =
       usableOptions.length >= testCase.minOptions &&
       invalidKinds.length === 0 &&
       !missingEpisodeGroup &&
-      !failedProviders
+      !failedProviders &&
+      mismatchedIds.length === 0
         ? "PASS"
         : "FAIL";
 
@@ -101,6 +118,11 @@ async function runAvailabilityCase(testCase) {
           ? `invalid player kinds: ${invalidKinds.map((option) => option.player.kind).join(", ")}`
           : undefined,
         missingEpisodeGroup ? "expected episode-grouped options" : undefined,
+        mismatchedIds.length > 0
+          ? `expected item ids: ${mismatchedIds
+              .map(([source, value]) => `${source}=${value}`)
+              .join(", ")}`
+          : undefined,
       ].filter(Boolean),
     };
   } catch (error) {
