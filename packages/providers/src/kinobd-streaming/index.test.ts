@@ -154,6 +154,64 @@ test("kinobdStreamingProvider falls back to candidate iframes when playerdata fa
   assert.equal(availability?.options[0]?.availability, "available");
 });
 
+test("kinobdStreamingProvider blocks noisy external-only players even when configured", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    playerProviders: "kodik,netflix,torrent,nf,ia,ext",
+    fetch: createMockFetch(requests, {
+      "GET /api/player/search": {
+        data: [
+          {
+            id: 94666,
+            kinopoisk_id: 258687,
+            title: "Интерстеллар",
+            name_original: "Interstellar",
+            year: 2014,
+            iframe: '<iframe src="//kinobd.test/player/94666"></iframe>',
+          },
+        ],
+      },
+      "POST /playerdata": {
+        kodik: {
+          translate: "Дубляж",
+          iframe: "//kodik.test/video/94666",
+          quality: "1080p",
+        },
+        netflix: {
+          translate: "Netflix",
+          iframe: "https://kinobd.test/film_netflix/94666",
+          quality: "auto",
+        },
+        torrent: {
+          translate: "Torrent",
+          iframe: "https://kinobd.test/torrent/94666",
+          quality: "auto",
+        },
+      },
+    }),
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "movie",
+      ids: {
+        kinopoisk: "258687",
+      },
+    },
+    {},
+  );
+
+  assert.equal(requests[1]?.body.get("player"), "kodik");
+  assert.deepEqual(
+    availability?.options.map((option) => option.player.label),
+    ["KODIK"],
+  );
+  assert.deepEqual(
+    availability?.options.map((option) => option.player.kind),
+    ["embed"],
+  );
+});
+
 test("kinobdStreamingProvider maps Shikimori anime cache players into episode options", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({

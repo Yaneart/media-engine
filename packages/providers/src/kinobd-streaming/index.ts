@@ -2,7 +2,6 @@ import type {
   ExternalIds,
   MediaAvailability,
   MediaType,
-  PlayerSourceKind,
   ProviderContext,
   StreamOption,
   StreamingProvider,
@@ -42,7 +41,7 @@ const DEFAULT_PLAYER_PROVIDERS = [
   "trailer",
   "vk",
 ].join(",");
-const EXTERNAL_PLAYER_LABELS = new Set(["EXT", "IA", "NETFLIX", "NF", "TORRENT"]);
+const BLOCKED_PLAYER_PROVIDERS = new Set(["ext", "ia", "netflix", "nf", "torrent"]);
 
 // Options used to create the no-token KinoBD/ReYohoho-style streaming provider.
 // Опции для создания no-token KinoBD/ReYohoho-style streaming-провайдера.
@@ -142,6 +141,9 @@ interface ShikimoriAnimeLookup {
 function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingConfig {
   const searchLimit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT;
   const fast = options.fast ?? 1;
+  const allowedPlayerProviders = parsePlayerProviderKeys(
+    options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
+  );
 
   if (!Number.isInteger(searchLimit) || searchLimit <= 0) {
     throw new TypeError("KinoBD streaming searchLimit must be a positive integer.");
@@ -161,10 +163,8 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
     shikimoriBaseUrl: trimTrailingSlash(options.shikimoriBaseUrl ?? DEFAULT_SHIKIMORI_BASE_URL),
     fetch: options.fetch,
     searchLimit,
-    playerProviders: options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
-    allowedPlayerProviders: parsePlayerProviderKeys(
-      options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
-    ),
+    playerProviders: [...allowedPlayerProviders].join(","),
+    allowedPlayerProviders,
     fast,
     userAgent: options.userAgent,
   };
@@ -592,7 +592,6 @@ function mapPayloadToOption(
   }
 
   const label = normalizeProviderLabel(providerKey);
-  const playerKind = inferPlayerKind(label);
   const qualityLabel = payload.quality?.trim() || "auto";
 
   return {
@@ -608,7 +607,7 @@ function mapPayloadToOption(
       .replace(/\s+/g, "-"),
     provider: providerName,
     player: {
-      kind: playerKind,
+      kind: "embed",
       label,
       providerPlayerId: providerKey,
     },
@@ -742,7 +741,7 @@ function parsePlayerProviderKeys(playerProviders: string): ReadonlySet<string> {
     playerProviders
       .split(",")
       .map((provider) => provider.trim().toLowerCase())
-      .filter(Boolean),
+      .filter((provider) => provider && !BLOCKED_PLAYER_PROVIDERS.has(provider)),
   );
 }
 
@@ -753,12 +752,6 @@ function isAllowedPlayerProvider(
   const key = providerKey.split(">")[0]?.trim().toLowerCase();
 
   return Boolean(key && allowedPlayerProviders.has(key));
-}
-
-// Infers whether a ReYohoho/KinoBD player should be embedded or opened externally.
-// Определяет, нужно ли ReYohoho/KinoBD player встраивать или открывать внешне.
-function inferPlayerKind(label: string): PlayerSourceKind {
-  return EXTERNAL_PLAYER_LABELS.has(label) ? "external" : "embed";
 }
 
 // Parses common quality labels like 720p or 1080p.
