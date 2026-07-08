@@ -31,6 +31,18 @@ export class ProviderRegistry {
   // Registers one provider and rejects duplicate stable names.
   // Регистрирует одного провайдера и запрещает повторяющиеся стабильные имена.
   register(provider: MediaProvider): void {
+    const name = provider.name.trim();
+
+    if (!name) {
+      throw new Error("Provider name is required.");
+    }
+
+    if (name !== provider.name) {
+      throw new Error(
+        `Provider name "${provider.name}" must not include leading or trailing whitespace.`,
+      );
+    }
+
     if (this.providers.has(provider.name)) {
       throw new Error(`Provider with name "${provider.name}" is already registered.`);
     }

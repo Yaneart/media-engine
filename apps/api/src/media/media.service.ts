@@ -63,37 +63,17 @@ export class MediaService {
   // EN: Convert HTTP query parameters into a core SearchQuery and run search.
   // RU: Преобразует HTTP query параметры в core SearchQuery и запускает поиск.
   async search(query: MediaSearchHttpQuery): Promise<SearchResponse> {
-    try {
-      return await this.mediaEngine.search(toSearchQuery(query));
-    } catch (error) {
-      if (isMediaEngineError(error, 'INVALID_QUERY')) {
-        throw new BadRequestException(error.message);
-      }
-
-      if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
-        throw new ServiceUnavailableException(error.message);
-      }
-
-      throw error;
-    }
+    return runEngineRequest(() =>
+      this.mediaEngine.search(toSearchQuery(query)),
+    );
   }
 
   // EN: Convert HTTP query parameters into a core DetailsQuery and load details.
   // RU: Преобразует HTTP query параметры в core DetailsQuery и загружает детали.
   async getDetails(query: MediaDetailsHttpQuery): Promise<DetailsResponse> {
-    try {
-      return await this.mediaEngine.getDetails(toDetailsQuery(query));
-    } catch (error) {
-      if (isMediaEngineError(error, 'INVALID_QUERY')) {
-        throw new BadRequestException(error.message);
-      }
-
-      if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
-        throw new ServiceUnavailableException(error.message);
-      }
-
-      throw error;
-    }
+    return runEngineRequest(() =>
+      this.mediaEngine.getDetails(toDetailsQuery(query)),
+    );
   }
 
   // EN: Convert HTTP query parameters into a core StreamQuery and load player options.
@@ -101,19 +81,9 @@ export class MediaService {
   async getAvailability(
     query: MediaAvailabilityHttpQuery,
   ): Promise<MediaAvailability> {
-    try {
-      return await this.mediaEngine.getAvailability(toStreamQuery(query));
-    } catch (error) {
-      if (isMediaEngineError(error, 'INVALID_QUERY')) {
-        throw new BadRequestException(error.message);
-      }
-
-      if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
-        throw new ServiceUnavailableException(error.message);
-      }
-
-      throw error;
-    }
+    return runEngineRequest(() =>
+      this.mediaEngine.getAvailability(toStreamQuery(query)),
+    );
   }
 
   // EN: Return safe provider metadata from the configured core engine.
@@ -321,6 +291,24 @@ function readMediaType(
   }
 
   throw new BadRequestException('type must be movie, series, or anime.');
+}
+
+// EN: Keep core-to-HTTP error mapping consistent across media endpoints.
+// RU: Держит единый mapping ошибок core в HTTP для media endpoints.
+async function runEngineRequest<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isMediaEngineError(error, 'INVALID_QUERY')) {
+      throw new BadRequestException(error.message);
+    }
+
+    if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
+      throw new ServiceUnavailableException(error.message);
+    }
+
+    throw error;
+  }
 }
 
 // EN: Detect core engine errors without requiring the ESM-only core package at runtime.

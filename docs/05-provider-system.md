@@ -37,7 +37,7 @@ export interface MediaProvider {
 
 Rules:
 
-- `name` is unique, lowercase, and stable;
+- `name` is unique, lowercase, stable, non-empty, and has no leading or trailing whitespace;
 - `search` is required;
 - `getDetails` is optional;
 - provider errors are mapped to known provider error codes;
@@ -105,7 +105,7 @@ export interface ProviderInfo {
 }
 ```
 
-`ProviderInfo` is safe to return from `MediaEngine.getProviders()` and from the REST API. It must not include secrets, API keys, internal HTTP clients, or provider raw configuration.
+`ProviderInfo` is safe to return from `MediaEngine.getProviders()` and from the REST API. It must not include secrets, API keys, internal HTTP clients, or provider raw configuration. Capability arrays are returned as copies so callers cannot mutate provider internals through metadata.
 
 ## ProviderContext
 
@@ -360,5 +360,7 @@ export interface StreamingProvider {
 ```
 
 The future streaming contract should support a UI flow where one media item or episode can return multiple player options. For example, a Kodik provider and later alternative providers can return normalized embed/HLS/MP4 options with provider name, player label, translation, subtitles, quality, episode number, and required headers when allowed.
+
+Streaming provider `name` follows the same rule as metadata providers: unique, lowercase, stable, non-empty, and no leading or trailing whitespace. `MediaEngine.getStreamingProviders()` returns safe copied metadata for the same reason as `getProviders()`.
 
 This contract is part of the v0.5 streaming architecture. It does not make metadata providers depend on streaming providers.

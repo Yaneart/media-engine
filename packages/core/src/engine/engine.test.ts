@@ -75,6 +75,23 @@ test("passes streaming providers through duplicate-name validation", () => {
   );
 });
 
+test("rejects blank or padded streaming provider names", () => {
+  assert.throws(
+    () =>
+      new MediaEngine({
+        streamingProviders: [createStreamingProvider({ name: " " })],
+      }),
+    /name is required/,
+  );
+  assert.throws(
+    () =>
+      new MediaEngine({
+        streamingProviders: [createStreamingProvider({ name: " kodik" })],
+      }),
+    /must not include/,
+  );
+});
+
 test("accepts custom cache merge strategy timeout and debug options", () => {
   const cache = new MemoryCache();
   const mergeStrategy: MergeStrategy = {
@@ -125,6 +142,21 @@ test("returns safe streaming provider info", () => {
     },
   ]);
   assert.equal("secret" in engine.getStreamingProviders()[0]!, false);
+
+  const providerInfo = engine.getStreamingProviders()[0]!;
+  providerInfo.capabilities.mediaTypes.push("movie");
+  providerInfo.capabilities.lookup.byExternalIds.push("imdb");
+  providerInfo.capabilities.features?.push("hls");
+
+  assert.deepEqual(engine.getStreamingProviders()[0]?.capabilities, {
+    mediaTypes: ["anime"],
+    lookup: {
+      byTitle: true,
+      byExternalIds: ["shikimori"],
+      byEpisode: true,
+    },
+    features: ["embed", "translations", "qualities", "episode_mapping"],
+  });
 });
 
 test("search rejects empty queries predictably", async () => {

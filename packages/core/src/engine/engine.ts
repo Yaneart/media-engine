@@ -66,7 +66,15 @@ export class MediaEngine {
       name: provider.name,
       version: provider.version,
       kind: provider.kind,
-      capabilities: provider.capabilities,
+      capabilities: {
+        mediaTypes: [...provider.capabilities.mediaTypes],
+        lookup: {
+          byTitle: provider.capabilities.lookup.byTitle,
+          byExternalIds: [...provider.capabilities.lookup.byExternalIds],
+          byEpisode: provider.capabilities.lookup.byEpisode,
+        },
+        features: provider.capabilities.features ? [...provider.capabilities.features] : undefined,
+      },
     }));
   }
 
@@ -344,11 +352,23 @@ function validateStreamingProviders(providers: StreamingProvider[]): StreamingPr
   const names = new Set<string>();
 
   for (const provider of providers) {
-    if (names.has(provider.name)) {
-      throw new Error(`Streaming provider "${provider.name}" is already registered.`);
+    const name = provider.name.trim();
+
+    if (!name) {
+      throw new Error("Streaming provider name is required.");
     }
 
-    names.add(provider.name);
+    if (name !== provider.name) {
+      throw new Error(
+        `Streaming provider name "${provider.name}" must not include leading or trailing whitespace.`,
+      );
+    }
+
+    if (names.has(name)) {
+      throw new Error(`Streaming provider "${name}" is already registered.`);
+    }
+
+    names.add(name);
   }
 
   return [...providers];

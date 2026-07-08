@@ -36,6 +36,14 @@ test("rejects duplicate provider names", () => {
   );
 });
 
+test("rejects blank or padded provider names", () => {
+  assert.throws(() => new ProviderRegistry([createProvider({ name: " " })]), /name is required/);
+  assert.throws(
+    () => new ProviderRegistry([createProvider({ name: " tmdb" })]),
+    /must not include/,
+  );
+});
+
 test("returns safe provider info", () => {
   const registry = new ProviderRegistry([
     createProvider({
