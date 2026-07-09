@@ -599,8 +599,32 @@ function createProviderSearchQuery(query: SearchQuery): ProviderSearchQuery {
 
   return {
     ...query,
-    limit: Math.max(query.limit * 5, 10),
+    limit: getProviderSearchLimit(query),
   };
+}
+
+// Expands broad short queries more because final ranking needs enough cross-provider candidates.
+// Расширяет короткие широкие запросы сильнее, потому что финальному ranking нужны кандидаты разных провайдеров.
+function getProviderSearchLimit(query: SearchQuery): number {
+  if (isBroadShortTitleSearch(query)) {
+    return Math.max(query.limit! * 10, 50);
+  }
+
+  return Math.max(query.limit! * 5, 10);
+}
+
+// Detects searches like "one" or "game" where popular canonical results may be deeper.
+// Определяет поиски вроде "one" или "game", где популярные канонические результаты могут быть глубже.
+function isBroadShortTitleSearch(query: SearchQuery): boolean {
+  if (query.type || hasExternalIds(query.ids)) {
+    return false;
+  }
+
+  const normalizedTitle = query.title?.trim().replace(/\s+/g, " ") ?? "";
+
+  return (
+    normalizedTitle.length > 0 && normalizedTitle.length <= 4 && !normalizedTitle.includes(" ")
+  );
 }
 
 // Calls one search provider and returns normalized timing/failure metadata.

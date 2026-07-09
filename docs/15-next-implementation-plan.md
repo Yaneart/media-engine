@@ -267,6 +267,7 @@ Goal: make the real application feel fast, predictable, and honest under normal 
 Observed live issue:
 
 - Searching `one` in the example app can take around 15 seconds before movies and series appear.
+- Search quality can drift between broad and specific queries. Example: `one` may show `One Piece` low in the list with only Cinemeta data, no rating, and a weaker poster, while `one piece` returns a better merged `One Piece` result first with KinoBD IDs, ratings, and poster. Treat this as a merge/ranking/enrichment quality bug, not just a frontend display difference.
 - Root cause found in the current search path: `MediaEngine.search()` calls selected metadata providers sequentially. A broad query without `type` may wait for KinoBD, Cinemeta, Shikimori, Wikidata, and optionally TMDB one after another before merge/ranking.
 - Some providers perform multi-step requests: Cinemeta may enrich sparse search results with details; Wikidata searches entity IDs and then loads full entities; title-only broad searches often hit movie and series paths.
 - API-created `MediaEngine` currently has no explicit provider timeout, so a slow upstream can dominate the perceived response time.
@@ -297,13 +298,18 @@ Priority tasks for the next session:
    - Unit tests for concurrent provider execution and deterministic results.
    - Tests for timeout behavior with one slow provider and one fast provider.
    - Smoke/performance expectation for `one` and similar broad queries, using a practical threshold for local/dev environments.
-7. Audit live source filtering breadth.
+7. Audit broad-query identity and enrichment quality.
+   - Compare broad and specific variants such as `one` vs `one piece`, `game` vs `game of thrones`, `dark` vs `dark series`, and `avatar` vs `avatar the last airbender`.
+   - Ensure the same canonical item keeps stable IDs, useful poster, ratings, and source attribution when another provider has the data.
+   - Add regression coverage for canonical popular titles appearing too low or too sparse in broad search results.
+   - Prefer merging/enrichment fixes over frontend masking; the API result should be high quality before UI rendering.
+8. Audit live source filtering breadth.
    - Use a fixed live sample of 10 movies, 10 series, and 10 anime.
    - For each title, record discovered player sources, shown sources, filtered sources, and the reason each source was filtered.
    - Verify filtering does not remove working playback sources.
    - Prefer showing as many working playback sources as possible while still removing obvious broken, trailer, torrent, external-only, or non-playback sources.
    - Keep filtering reasons visible enough for debugging.
-8. Search for non-Russian playback sources.
+9. Search for non-Russian playback sources.
    - Look for English or otherwise international sources comparable to the current Russian voiceover-heavy sources.
    - If a source is usable and allowed, add it as a separate provider or source option instead of mixing language assumptions into Russian providers.
    - Preserve language/translation metadata so API and example UI can offer a real choice between Russian, English, subtitles, dub, voiceover, and original tracks when available.

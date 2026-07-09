@@ -233,6 +233,56 @@ test("ranks popular relevant series first for broad any-title search", () => {
   );
 });
 
+test("merges anime and series title variants for broad canonical search quality", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "cinemeta-one-outs",
+        type: "series",
+        title: "One Outs",
+        year: 2008,
+        ids: { imdb: "tt1411815" },
+        ratings: [{ source: "imdb", value: 8.2, max: 10 }],
+        confidence: 0.95,
+      }),
+      providerResult("cinemeta", {
+        id: "cinemeta-one-piece",
+        type: "series",
+        title: "One Piece",
+        year: 1999,
+        ids: { imdb: "tt0388629" },
+        confidence: 0.95,
+      }),
+      providerResult("shikimori", {
+        id: "shikimori-one-piece",
+        type: "anime",
+        title: "Ван-Пис",
+        originalTitle: "One Piece",
+        year: 1999,
+        ids: { shikimori: "21" },
+        ratings: [{ source: "shikimori", value: 8.73, max: 10 }],
+        confidence: 1,
+      }),
+    ],
+    { query: { title: "one" } },
+  );
+
+  assert.equal(results[0]?.item.title, "One Piece");
+  assert.equal(results[0]?.item.type, "series");
+  assert.deepEqual(results[0]?.item.ids, {
+    imdb: "tt0388629",
+    shikimori: "21",
+  });
+  assert.deepEqual(
+    results[0]?.item.ratings?.map((rating) => rating.source),
+    ["shikimori"],
+  );
+  assert.deepEqual(
+    results[0]?.sources.map((source) => source.provider),
+    ["cinemeta", "shikimori"],
+  );
+});
+
 test("does not merge normalized title matches when strong IDs conflict", () => {
   const results = strategy.mergeSearchResults(
     [

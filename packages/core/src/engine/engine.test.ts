@@ -238,6 +238,24 @@ test("search widens provider limit before applying public response limit", async
   assert.equal(response.results[0]?.item.title, "Interstellar");
 });
 
+test("search widens short broad title queries more aggressively", async () => {
+  let receivedLimit: number | undefined;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async search(query): Promise<ProviderSearchResult[]> {
+          receivedLimit = query.limit;
+          return [];
+        },
+      }),
+    ],
+  });
+
+  await engine.search({ title: "one", limit: 5 });
+
+  assert.equal(receivedLimit, 50);
+});
+
 test("search tolerates one provider failure when another provider succeeds", async () => {
   const engine = new MediaEngine({
     providers: [

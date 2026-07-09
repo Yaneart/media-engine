@@ -191,11 +191,10 @@ function canJoinByTitleYearType(entry: SearchEntry, group: SearchGroup): boolean
     const groupItem = groupEntry.result.item;
 
     return (
-      item.type === groupItem.type &&
+      areSearchTypesCompatible(item.type, groupItem.type) &&
       item.year !== undefined &&
       item.year === groupItem.year &&
-      normalizeTitle(item.title) !== "" &&
-      normalizeTitle(item.title) === normalizeTitle(groupItem.title) &&
+      hasSharedNormalizedTitleCandidate(item, groupItem) &&
       !hasStrongIdConflict(item.ids, groupItem.ids)
     );
   });
@@ -210,13 +209,52 @@ function hasExactTitleYearTypeMatch(entry: SearchEntry, group: SearchGroup): boo
     const groupItem = groupEntry.result.item;
 
     return (
-      item.type === groupItem.type &&
+      areSearchTypesCompatible(item.type, groupItem.type) &&
       item.year !== undefined &&
       item.year === groupItem.year &&
-      exactTitleKey(item.title) !== "" &&
-      exactTitleKey(item.title) === exactTitleKey(groupItem.title)
+      hasSharedExactTitleCandidate(item, groupItem)
     );
   });
+}
+
+// Treats anime and series as compatible only for strong title/year grouping.
+// Считает anime и series совместимыми только для сильной группировки по title/year.
+function areSearchTypesCompatible(left: MediaType, right: MediaType): boolean {
+  return (
+    left === right ||
+    (left === "anime" && right === "series") ||
+    (left === "series" && right === "anime")
+  );
+}
+
+// Checks title/original/alternative candidates after normalization.
+// Проверяет title/original/alternative кандидаты после нормализации.
+function hasSharedNormalizedTitleCandidate(left: MediaItem, right: MediaItem): boolean {
+  const leftTitles = normalizedTitleCandidateSet(left);
+
+  if (leftTitles.size === 0) {
+    return false;
+  }
+
+  return titleCandidates(right).some((title) => leftTitles.has(normalizeTitle(title)));
+}
+
+// Checks title/original/alternative candidates without accent/case normalization.
+// Проверяет title/original/alternative кандидаты без accent/case нормализации.
+function hasSharedExactTitleCandidate(left: MediaItem, right: MediaItem): boolean {
+  const leftTitles = new Set(titleCandidates(left).map(exactTitleKey).filter(Boolean));
+
+  if (leftTitles.size === 0) {
+    return false;
+  }
+
+  return titleCandidates(right).some((title) => leftTitles.has(exactTitleKey(title)));
+}
+
+// Builds normalized non-empty title candidate set for grouping.
+// Собирает набор нормализованных непустых title candidates для группировки.
+function normalizedTitleCandidateSet(item: MediaItem): Set<string> {
+  return new Set(titleCandidates(item).map(normalizeTitle).filter(Boolean));
 }
 
 // Merges one internal search group into one public search result.
