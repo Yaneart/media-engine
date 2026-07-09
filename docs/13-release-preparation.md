@@ -99,6 +99,20 @@ For a custom local threshold:
 pnpm smoke:latency -- --threshold-ms 3000
 ```
 
+Run player/video availability latency smoke checks when debugging slow player lookup:
+
+```bash
+pnpm smoke:availability-latency
+```
+
+This prints total availability lookup time, usable player option counts, player labels, provider failures, and per-provider timings for movie, series, and anime cases.
+
+For a custom local threshold:
+
+```bash
+pnpm smoke:availability-latency -- --threshold-ms 6000
+```
+
 Run live streaming availability smoke checks before publishing parser-plus-player builds:
 
 ```bash
@@ -147,6 +161,7 @@ Before publishing:
 - run `pnpm release:check`;
 - run `pnpm smoke:providers -- --strict`;
 - run `pnpm smoke:latency` when broad-query performance changed;
+- run `pnpm smoke:availability-latency` when player/video lookup performance changed;
 - run `pnpm smoke:availability -- --strict` for parser-plus-player releases;
 - run `pnpm pack:check`;
 - review package tarball contents;
