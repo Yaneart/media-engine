@@ -85,6 +85,20 @@ pnpm smoke:providers -- --strict
 
 Strict mode exits non-zero when required parser expectations fail. Keep this check separate from `pnpm release:check` because live third-party providers can be rate-limited or temporarily unavailable.
 
+Run search latency smoke checks when debugging broad-query performance:
+
+```bash
+pnpm smoke:latency
+```
+
+This prints total search time, top results, provider failures, and per-provider timings for representative queries such as `one`, `game`, `naruto`, `interstellar`, and `breaking bad`.
+
+For a custom local threshold:
+
+```bash
+pnpm smoke:latency -- --threshold-ms 3000
+```
+
 Run live streaming availability smoke checks before publishing parser-plus-player builds:
 
 ```bash
@@ -132,6 +146,7 @@ Before publishing:
 - update `CHANGELOG.md`;
 - run `pnpm release:check`;
 - run `pnpm smoke:providers -- --strict`;
+- run `pnpm smoke:latency` when broad-query performance changed;
 - run `pnpm smoke:availability -- --strict` for parser-plus-player releases;
 - run `pnpm pack:check`;
 - review package tarball contents;
