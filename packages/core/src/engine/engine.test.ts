@@ -645,6 +645,55 @@ test("getDetails tolerates one provider failure when another provider succeeds",
   ]);
 });
 
+test("getDetails includes provider timings when debug is enabled", async () => {
+  const engine = new MediaEngine({
+    debug: true,
+    providers: [
+      createProvider({
+        name: "failing-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          throw new Error("Details failed.");
+        },
+      }),
+      createProvider({
+        name: "successful-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          return {
+            provider: "successful-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Interstellar",
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.deepEqual(
+    response.meta.debug?.timings.map((timing) => ({
+      provider: timing.provider,
+      status: timing.status,
+      tookMsType: typeof timing.tookMs,
+    })),
+    [
+      {
+        provider: "failing-provider",
+        status: "failed",
+        tookMsType: "number",
+      },
+      {
+        provider: "successful-provider",
+        status: "success",
+        tookMsType: "number",
+      },
+    ],
+  );
+});
+
 test("getDetails throws predictably when all selected providers fail", async () => {
   const engine = new MediaEngine({
     providers: [
@@ -893,6 +942,43 @@ test("getAvailability tolerates one provider failure when another provider succe
       message: "Streaming provider is unavailable.",
     },
   ]);
+});
+
+test("getAvailability includes provider timings when debug is enabled", async () => {
+  const engine = new MediaEngine({
+    debug: true,
+    streamingProviders: [
+      createStreamingProvider({
+        name: "failing-stream",
+        async getAvailability(): Promise<MediaAvailability | null> {
+          throw new Error("Availability failed.");
+        },
+      }),
+      createStreamingProvider({ name: "successful-stream" }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({ type: "anime", title: "Naruto" });
+
+  assert.deepEqual(
+    availability.meta?.debug?.timings.map((timing) => ({
+      provider: timing.provider,
+      status: timing.status,
+      tookMsType: typeof timing.tookMs,
+    })),
+    [
+      {
+        provider: "failing-stream",
+        status: "failed",
+        tookMsType: "number",
+      },
+      {
+        provider: "successful-stream",
+        status: "success",
+        tookMsType: "number",
+      },
+    ],
+  );
 });
 
 test("getAvailability throws predictably when all selected streaming providers fail", async () => {

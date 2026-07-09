@@ -200,22 +200,24 @@ export class MediaEngine {
     const failed: ProviderFailure[] = [];
     const warnings: EngineWarning[] = [];
     const providerResults: ProviderDetailsResult[] = [];
+    const providerTimings: ProviderTimingMeta[] = [];
 
     for (const provider of providers) {
-      try {
-        const result = await callProviderDetails(provider, normalizedQuery, {
-          debug: this.debug,
-          language: normalizedQuery.language,
-          timeoutMs: this.timeoutMs,
-        });
+      const outcome = await callTimedProviderDetails(provider, normalizedQuery, {
+        debug: this.debug,
+        language: normalizedQuery.language,
+        timeoutMs: this.timeoutMs,
+      });
+      providerTimings.push(outcome.timing);
 
-        successful.push(provider.name);
+      if (outcome.failure) {
+        failed.push(outcome.failure);
+      } else {
+        successful.push(outcome.provider);
 
-        if (result) {
-          providerResults.push(result);
+        if (outcome.result) {
+          providerResults.push(outcome.result);
         }
-      } catch (error) {
-        failed.push(toProviderFailure(provider.name, error));
       }
     }
 
@@ -245,6 +247,7 @@ export class MediaEngine {
         cached: false,
         tookMs: elapsedSince(startedAt),
         debug: this.debug,
+        timings: providerTimings,
       }),
     };
 
@@ -282,21 +285,21 @@ export class MediaEngine {
     const successful: string[] = [];
     const failed: ProviderFailure[] = [];
     const providerResults: MediaAvailability[] = [];
+    const providerTimings: ProviderTimingMeta[] = [];
 
     for (const provider of providers) {
-      try {
-        const result = await callProviderAvailability(provider, normalizedQuery, {
-          debug: this.debug,
-          language: normalizedQuery.language,
-          timeoutMs: this.timeoutMs,
-        });
+      const outcome = await callTimedProviderAvailability(provider, normalizedQuery, {
+        debug: this.debug,
+        language: normalizedQuery.language,
+        timeoutMs: this.timeoutMs,
+      });
+      providerTimings.push(outcome.timing);
 
-        if (result) {
-          successful.push(provider.name);
-          providerResults.push(result);
-        }
-      } catch (error) {
-        failed.push(toProviderFailure(provider.name, error));
+      if (outcome.failure) {
+        failed.push(outcome.failure);
+      } else if (outcome.result) {
+        successful.push(outcome.provider);
+        providerResults.push(outcome.result);
       }
     }
 
@@ -317,6 +320,7 @@ export class MediaEngine {
       cached: false,
       tookMs: elapsedSince(startedAt),
       debug: this.debug,
+      timings: providerTimings,
     });
 
     await this.cache?.set(cacheKey, availability);
@@ -410,6 +414,24 @@ interface ProviderSearchCallOutcome {
   provider: string;
   timing: ProviderTimingMeta;
   results: ProviderSearchResult[];
+  failure?: ProviderFailure;
+}
+
+// Result of one provider details call after timing and failure normalization.
+// Результат одного details-вызова провайдера после замера времени и нормализации ошибок.
+interface ProviderDetailsCallOutcome {
+  provider: string;
+  timing: ProviderTimingMeta;
+  result: ProviderDetailsResult | null;
+  failure?: ProviderFailure;
+}
+
+// Result of one streaming provider call after timing and failure normalization.
+// Результат одного streaming-вызова провайдера после замера времени и нормализации ошибок.
+interface ProviderAvailabilityCallOutcome {
+  provider: string;
+  timing: ProviderTimingMeta;
+  result: MediaAvailability | null;
   failure?: ProviderFailure;
 }
 
@@ -611,6 +633,76 @@ async function callTimedProviderSearch(
         tookMs: elapsedSince(startedAt),
       },
       results: [],
+      failure: toProviderFailure(provider.name, error),
+    };
+  }
+}
+
+// Calls one details provider and returns normalized timing/failure metadata.
+// Вызывает один details-провайдер и возвращает нормализованные timing/failure метаданные.
+async function callTimedProviderDetails(
+  provider: MediaProvider,
+  query: ProviderDetailsQuery,
+  context: ProviderCallContext,
+): Promise<ProviderDetailsCallOutcome> {
+  const startedAt = Date.now();
+
+  try {
+    const result = await callProviderDetails(provider, query, context);
+
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "success",
+        tookMs: elapsedSince(startedAt),
+      },
+      result,
+    };
+  } catch (error) {
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "failed",
+        tookMs: elapsedSince(startedAt),
+      },
+      result: null,
+      failure: toProviderFailure(provider.name, error),
+    };
+  }
+}
+
+// Calls one streaming provider and returns normalized timing/failure metadata.
+// Вызывает один streaming-провайдер и возвращает нормализованные timing/failure метаданные.
+async function callTimedProviderAvailability(
+  provider: StreamingProvider,
+  query: StreamQuery,
+  context: ProviderCallContext,
+): Promise<ProviderAvailabilityCallOutcome> {
+  const startedAt = Date.now();
+
+  try {
+    const result = await callProviderAvailability(provider, query, context);
+
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "success",
+        tookMs: elapsedSince(startedAt),
+      },
+      result,
+    };
+  } catch (error) {
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "failed",
+        tookMs: elapsedSince(startedAt),
+      },
+      result: null,
       failure: toProviderFailure(provider.name, error),
     };
   }
