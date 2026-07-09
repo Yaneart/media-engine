@@ -15,6 +15,7 @@ const DEFAULT_BASE_URL = "https://kinobd.net";
 const DEFAULT_SHIKIMORI_BASE_URL = "https://shikimori.io";
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_PLAYER_VALIDATION_LIMIT = 8;
+const DEFAULT_SHIKIMORI_LOOKUP_TIMEOUT_MS = 2_500;
 const PLAYER_VALIDATION_TIMEOUT_MS = 2_500;
 const PLAYER_VALIDATION_MAX_DEPTH = 1;
 const DEFAULT_PLAYER_PROVIDERS = [
@@ -78,6 +79,7 @@ export interface KinoBdStreamingProviderOptions {
   shikimoriBaseUrl?: string;
   fetch?: ProviderFetch;
   searchLimit?: number;
+  shikimoriLookupTimeoutMs?: number;
   playerValidationLimit?: number;
   playerValidationTimeoutMs?: number;
   playerProviders?: string;
@@ -112,6 +114,7 @@ interface KinoBdStreamingConfig {
   shikimoriBaseUrl: string;
   fetch?: ProviderFetch;
   searchLimit: number;
+  shikimoriLookupTimeoutMs: number;
   playerValidationLimit: number;
   playerValidationTimeoutMs: number;
   playerProviders: string;
@@ -180,6 +183,8 @@ interface ShikimoriAnimeLookup {
 // Собирает provider config с ReYohoho-compatible defaults.
 function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingConfig {
   const searchLimit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT;
+  const shikimoriLookupTimeoutMs =
+    options.shikimoriLookupTimeoutMs ?? DEFAULT_SHIKIMORI_LOOKUP_TIMEOUT_MS;
   const playerValidationLimit = options.playerValidationLimit ?? DEFAULT_PLAYER_VALIDATION_LIMIT;
   const playerValidationTimeoutMs =
     options.playerValidationTimeoutMs ?? PLAYER_VALIDATION_TIMEOUT_MS;
@@ -190,6 +195,10 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
 
   if (!Number.isInteger(searchLimit) || searchLimit <= 0) {
     throw new TypeError("KinoBD streaming searchLimit must be a positive integer.");
+  }
+
+  if (!Number.isInteger(shikimoriLookupTimeoutMs) || shikimoriLookupTimeoutMs <= 0) {
+    throw new TypeError("KinoBD streaming shikimoriLookupTimeoutMs must be a positive integer.");
   }
 
   if (!Number.isInteger(playerValidationLimit) || playerValidationLimit < 0) {
@@ -214,6 +223,7 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
     shikimoriBaseUrl: trimTrailingSlash(options.shikimoriBaseUrl ?? DEFAULT_SHIKIMORI_BASE_URL),
     fetch: options.fetch,
     searchLimit,
+    shikimoriLookupTimeoutMs,
     playerValidationLimit,
     playerValidationTimeoutMs,
     playerProviders: [...allowedPlayerProviders].join(","),
@@ -463,8 +473,12 @@ async function tryLookupShikimoriAnime(
     return await fetchJson<ShikimoriAnimeLookup>({
       provider: config.name,
       url,
-      context,
+      context: {
+        ...context,
+        timeoutMs: getBoundedTimeoutMs(context.timeoutMs, config.shikimoriLookupTimeoutMs),
+      },
       fetch: config.fetch,
+      maxRetries: 0,
       init: {
         headers,
       },
@@ -472,6 +486,17 @@ async function tryLookupShikimoriAnime(
   } catch {
     return undefined;
   }
+}
+
+// Keeps helper lookups inside the remaining provider budget when one exists.
+// Удерживает вспомогательные lookup-запросы внутри общего бюджета провайдера, если он задан.
+function getBoundedTimeoutMs(
+  contextTimeoutMs: number | undefined,
+  fallbackTimeoutMs: number,
+): number {
+  return contextTimeoutMs === undefined
+    ? fallbackTimeoutMs
+    : Math.min(contextTimeoutMs, fallbackTimeoutMs);
 }
 
 // Searches KinoBD player candidates by Kinopoisk ID or title.

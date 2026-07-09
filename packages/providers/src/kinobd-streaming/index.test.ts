@@ -713,6 +713,44 @@ test("kinobdStreamingProvider falls back from Shikimori ID to KinoBD title searc
   assert.equal(availability?.options[0]?.episode?.absoluteEpisodeNumber, 1);
 });
 
+test("kinobdStreamingProvider bounds slow Shikimori fallback lookup", async () => {
+  const requests: string[] = [];
+  const provider = createProvider({
+    shikimoriBaseUrl: "https://shikimori.test",
+    shikimoriLookupTimeoutMs: 1,
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+
+      requests.push(`${init?.method ?? "GET"} ${url.pathname}`);
+
+      if (url.pathname === "/api/animes/20") {
+        return new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Request aborted.", "AbortError"));
+          });
+        });
+      }
+
+      return Response.json({});
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "anime",
+      ids: {
+        shikimori: "20",
+      },
+      absoluteEpisodeNumber: 1,
+    },
+    {},
+  );
+
+  assert.deepEqual(requests, ["GET /api/animes/20"]);
+  assert.deepEqual(availability?.options, []);
+  assert.deepEqual(availability?.sourceProviders, []);
+});
+
 test("kinobdStreamingProvider returns empty availability when no player candidate exists", async () => {
   const provider = createProvider({
     fetch: createMockFetch([], {
@@ -758,6 +796,13 @@ test("kinobdStreamingProvider validates numeric options", () => {
         searchLimit: 0,
       }),
     /searchLimit/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        shikimoriLookupTimeoutMs: 0,
+      }),
+    /shikimoriLookupTimeoutMs/,
   );
   assert.throws(
     () =>
