@@ -107,6 +107,20 @@ For a custom local threshold:
 pnpm smoke:latency -- --threshold-ms 3000
 ```
 
+Run details latency smoke checks when the Details panel feels slow:
+
+```bash
+pnpm smoke:details-latency
+```
+
+This prints total details lookup time, selected merged details, missing enrichment fields, provider failures, and per-provider timings for popular movie, series, and anime cases including House of the Dragon.
+
+For a custom local threshold:
+
+```bash
+pnpm smoke:details-latency -- --threshold-ms 3000
+```
+
 Run player/video availability latency smoke checks when debugging slow player lookup:
 
 ```bash
@@ -170,6 +184,7 @@ Before publishing:
 - run `pnpm smoke:providers -- --strict`;
 - run `pnpm smoke:search-quality` when search ranking or merge behavior changed;
 - run `pnpm smoke:latency` when broad-query performance changed;
+- run `pnpm smoke:details-latency` when details loading performance changed;
 - run `pnpm smoke:availability-latency` when player/video lookup performance changed;
 - run `pnpm smoke:availability -- --strict` for parser-plus-player releases;
 - run `pnpm pack:check`;

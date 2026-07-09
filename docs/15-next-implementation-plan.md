@@ -26,6 +26,12 @@ Do not publish with marketing that says video is production-ready until the stre
 
 Goal: make metadata search/details feel polished for popular movies, series, and anime.
 
+Observed issues from live UI testing:
+
+- Pressing `Details` can feel slow; details latency needs the same per-provider visibility as search and availability.
+- Broad queries can return a weak canonical item before the enriched canonical item. Example: `one` previously ranked a low-enrichment `One Piece` result below less relevant franchise entries, while `one piece` returned the enriched canonical result first.
+- A details-selected item can still show player failure. Example: House of the Dragon details load with strong external IDs, but the Players panel can show `All streaming providers failed`; this should be treated as an availability query/source matching bug, not as a UI-only issue.
+
 Tasks:
 
 1. Expand the golden query set.
@@ -54,12 +60,18 @@ Tasks:
    - Add optional cache policy for live provider calls.
    - Document rate-limit behavior clearly.
 
+6. Measure details latency.
+   - Add a live smoke command for `MediaEngine.getDetails`.
+   - Include movie, series, anime, and House of the Dragon cases.
+   - Print total time, per-provider timings, provider failures, and missing enrichment fields.
+
 Done when:
 
 - `pnpm release:check` passes.
 - `pnpm smoke:providers -- --strict` passes.
 - Game of Thrones, Interstellar, Naruto, One Piece, Avatar, Dune, Dark, Breaking Bad, and similar popular queries rank correctly.
 - Details for key series include status and episode/season counters when providers expose them.
+- `pnpm smoke:details-latency` makes slow details providers visible before UI work starts.
 
 ## Phase 2: Add Core Streaming Availability API
 
@@ -203,6 +215,7 @@ Done when:
 - `engine.getAvailability({ type: "anime", shikimori: "20", absoluteEpisodeNumber: 1 })` can return player options when the upstream source has them.
 - API `/media/availability` works without requiring the user to obtain a Kodik token.
 - Example app can show returned player options and open an embed/external player.
+- Details-selected popular series, including House of the Dragon, do not silently collapse to `All streaming providers failed` when stable external IDs are available.
 
 Candidate providers:
 

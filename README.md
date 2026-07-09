@@ -116,12 +116,13 @@ pnpm release:check
 pnpm smoke:providers -- --strict
 pnpm smoke:search-quality
 pnpm smoke:latency
+pnpm smoke:details-latency
 pnpm smoke:availability-latency
 pnpm smoke:availability -- --strict
 pnpm pack:check
 ```
 
-Live smoke commands call third-party providers and can fail when an upstream source is rate-limited or temporarily unavailable. `pnpm smoke:search-quality` checks canonical result rank and enrichment for broad queries. `pnpm smoke:latency` prints per-provider search timings for broad-query debugging. `pnpm smoke:availability-latency` does the same for player/video availability.
+Live smoke commands call third-party providers and can fail when an upstream source is rate-limited or temporarily unavailable. `pnpm smoke:search-quality` checks canonical result rank and enrichment for broad queries. `pnpm smoke:latency` prints per-provider search timings for broad-query debugging. `pnpm smoke:details-latency` does the same for details lookups. `pnpm smoke:availability-latency` does the same for player/video availability.
 
 ## Products
 

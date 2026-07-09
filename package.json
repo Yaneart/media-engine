@@ -18,6 +18,7 @@
     "release:check": "pnpm format:check && pnpm build && pnpm typecheck && pnpm test",
     "smoke:availability": "pnpm build && node scripts/availability-smoke.mjs",
     "smoke:availability-latency": "pnpm build && node scripts/availability-latency-smoke.mjs",
+    "smoke:details-latency": "pnpm build && node scripts/details-latency-smoke.mjs",
     "smoke:latency": "pnpm build && node scripts/search-latency-smoke.mjs",
     "smoke:search-quality": "pnpm build && node scripts/search-quality-smoke.mjs",
     "smoke:providers": "pnpm build && node scripts/provider-smoke.mjs",
