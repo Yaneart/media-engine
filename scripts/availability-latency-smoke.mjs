@@ -25,6 +25,12 @@ const cases = [
     seasonNumber: 1,
     episodeNumber: 1,
   }),
+  latencyCase("series: House of the Dragon", {
+    type: "series",
+    title: "Дом Дракона",
+    year: 2022,
+    ids: { imdb: "tt11198330", tmdb: "94997", kinopoisk: "1316601" },
+  }),
   latencyCase("series title fallback: Game of Thrones S01E01", {
     type: "series",
     title: "Game of Thrones",

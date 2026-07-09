@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import "./App.css";
 import { getMediaAvailability, getMediaDetails, searchMedia } from "./api";
 import type {
+  AvailabilityMediaInput,
   AvailabilityResponse,
   DetailsResponse,
   ExternalIds,
@@ -171,7 +172,7 @@ function App() {
         return;
       }
 
-      await loadAvailability(item);
+      await loadAvailability(item, response.details);
     } catch (error) {
       if (abortController.signal.aborted || requestId !== detailsRequestIdRef.current) {
         return;
@@ -188,14 +189,17 @@ function App() {
     }
   }
 
-  async function loadAvailability(item: MediaSummary) {
+  async function loadAvailability(
+    item: MediaSummary,
+    availabilityItem: AvailabilityMediaInput = item,
+  ) {
     const abortController = new AbortController();
     const requestId = availabilityRequestIdRef.current + 1;
     availabilityRequestIdRef.current = requestId;
     availabilityAbortControllerRef.current = abortController;
 
     try {
-      const response = await getMediaAvailability(item, abortController.signal);
+      const response = await getMediaAvailability(availabilityItem, abortController.signal);
 
       if (abortController.signal.aborted || requestId !== availabilityRequestIdRef.current) {
         return;

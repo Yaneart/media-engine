@@ -20,6 +20,7 @@ export type AvailabilityResponse = MediaEngineAvailabilityResponse;
 export type SearchResult = SearchResponse["results"][number];
 export type MediaSummary = SearchResult["item"];
 export type MediaDetails = NonNullable<DetailsResponse["details"]>;
+export type AvailabilityMediaInput = Pick<MediaSummary, "type" | "title" | "year" | "ids">;
 export type ExternalIds = NonNullable<MediaSummary["ids"]>;
 
 // EN: Shared SDK client used by the example app browser requests.
@@ -59,7 +60,7 @@ export function getMediaDetails(
 // EN: Load player availability for the selected result through the public SDK.
 // RU: Загружает доступность плееров выбранного результата через публичный SDK.
 export function getMediaAvailability(
-  item: MediaSummary,
+  item: AvailabilityMediaInput,
   signal?: AbortSignal,
 ): Promise<AvailabilityResponse> {
   return mediaEngineClient.getAvailability(
