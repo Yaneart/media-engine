@@ -53,6 +53,9 @@ function App() {
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const detailsAbortControllerRef = useRef<AbortController | null>(null);
   const availabilityAbortControllerRef = useRef<AbortController | null>(null);
+  const searchRequestIdRef = useRef(0);
+  const detailsRequestIdRef = useRef(0);
+  const availabilityRequestIdRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -78,8 +81,12 @@ function App() {
     searchAbortControllerRef.current?.abort();
     detailsAbortControllerRef.current?.abort();
     availabilityAbortControllerRef.current?.abort();
+    detailsRequestIdRef.current += 1;
+    availabilityRequestIdRef.current += 1;
 
     const abortController = new AbortController();
+    const requestId = searchRequestIdRef.current + 1;
+    searchRequestIdRef.current = requestId;
     searchAbortControllerRef.current = abortController;
 
     setSearchState({ status: "loading" });
@@ -95,13 +102,17 @@ function App() {
         abortController.signal,
       );
 
+      if (abortController.signal.aborted || requestId !== searchRequestIdRef.current) {
+        return;
+      }
+
       setSearchState(
         response.results.length > 0
           ? { status: "success", response }
           : { status: "empty", response },
       );
     } catch (error) {
-      if (abortController.signal.aborted) {
+      if (abortController.signal.aborted || requestId !== searchRequestIdRef.current) {
         return;
       }
 
@@ -114,6 +125,10 @@ function App() {
 
   async function handleDetails(item: MediaSummary) {
     if (!hasDetailsLookup(item)) {
+      detailsAbortControllerRef.current?.abort();
+      availabilityAbortControllerRef.current?.abort();
+      detailsRequestIdRef.current += 1;
+      availabilityRequestIdRef.current += 1;
       setDetailsState({
         status: "error",
         item,
@@ -124,8 +139,11 @@ function App() {
 
     detailsAbortControllerRef.current?.abort();
     availabilityAbortControllerRef.current?.abort();
+    availabilityRequestIdRef.current += 1;
 
     const abortController = new AbortController();
+    const requestId = detailsRequestIdRef.current + 1;
+    detailsRequestIdRef.current = requestId;
     detailsAbortControllerRef.current = abortController;
 
     setDetailsState({
@@ -140,6 +158,10 @@ function App() {
     try {
       const response = await getMediaDetails(item, abortController.signal);
 
+      if (abortController.signal.aborted || requestId !== detailsRequestIdRef.current) {
+        return;
+      }
+
       setDetailsState(
         response.details ? { status: "success", item, response } : { status: "empty", item },
       );
@@ -151,7 +173,7 @@ function App() {
 
       await loadAvailability(item);
     } catch (error) {
-      if (abortController.signal.aborted) {
+      if (abortController.signal.aborted || requestId !== detailsRequestIdRef.current) {
         return;
       }
 
@@ -168,10 +190,16 @@ function App() {
 
   async function loadAvailability(item: MediaSummary) {
     const abortController = new AbortController();
+    const requestId = availabilityRequestIdRef.current + 1;
+    availabilityRequestIdRef.current = requestId;
     availabilityAbortControllerRef.current = abortController;
 
     try {
       const response = await getMediaAvailability(item, abortController.signal);
+
+      if (abortController.signal.aborted || requestId !== availabilityRequestIdRef.current) {
+        return;
+      }
 
       setAvailabilityState(
         response.options.length > 0
@@ -179,7 +207,7 @@ function App() {
           : { status: "empty", item, response },
       );
     } catch (error) {
-      if (abortController.signal.aborted) {
+      if (abortController.signal.aborted || requestId !== availabilityRequestIdRef.current) {
         return;
       }
 
