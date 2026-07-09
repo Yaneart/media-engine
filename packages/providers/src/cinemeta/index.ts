@@ -201,9 +201,23 @@ async function searchCatalogType(
     .filter((item): item is MediaItem => item !== undefined)
     .filter((item) => query.year === undefined || item.year === query.year)
     .slice(0, query.limit ?? config.searchLimit);
-  const enrichedItems = await enrichSearchItems(config, type, items, context);
+  const enrichedItems = shouldEnrichSearchItems(query)
+    ? await enrichSearchItems(config, type, items, context)
+    : items;
 
   return enrichedItems.map((item) => createSearchResult(item, context.debug));
+}
+
+// Keeps broad title-only search responsive by avoiding extra per-item meta requests.
+// Сохраняет быстрым широкий title-only поиск, избегая дополнительных meta-запросов на каждый item.
+function shouldEnrichSearchItems(query: ProviderSearchQuery): boolean {
+  if (query.type || query.year !== undefined || query.ids?.imdb) {
+    return true;
+  }
+
+  const normalizedTitle = normalizeSearchTitle(query.title);
+
+  return normalizedTitle.length > 4 && normalizedTitle.split(" ").length > 1;
 }
 
 // Enriches top search candidates with meta details when catalog search is sparse.
@@ -237,6 +251,12 @@ async function enrichSearchItems(
 // Проверяет, достаточно ли данных catalog item для ранжирования и отображения.
 function hasSearchQuality(item: MediaItem): boolean {
   return Boolean(item.ratings?.length && item.description && item.genres?.length);
+}
+
+// Normalizes a title enough to decide whether it is broad or specific.
+// Нормализует title достаточно для решения, широкий это запрос или конкретный.
+function normalizeSearchTitle(title: string | undefined): string {
+  return (title ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 // Loads one Cinemeta meta document.

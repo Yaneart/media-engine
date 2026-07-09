@@ -80,6 +80,66 @@ test("cinemetaProvider enriches sparse search results with meta ratings", async 
   );
 });
 
+test("cinemetaProvider skips enrichment for short broad title-only search", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/catalog/movie/top/search=one.json": {
+        metas: [
+          {
+            id: "tt1234567",
+            imdb_id: "tt1234567",
+            type: "movie",
+            name: "One Movie",
+            releaseInfo: "2020",
+          },
+        ],
+      },
+      "/catalog/series/top/search=one.json": {
+        metas: [
+          {
+            id: "tt7654321",
+            imdb_id: "tt7654321",
+            type: "series",
+            name: "One Series",
+            releaseInfo: "2021",
+          },
+        ],
+      },
+      "/meta/movie/tt1234567.json": {
+        meta: {
+          id: "tt1234567",
+          imdb_id: "tt1234567",
+          type: "movie",
+          name: "One Movie",
+          imdbRating: "8.0",
+        },
+      },
+      "/meta/series/tt7654321.json": {
+        meta: {
+          id: "tt7654321",
+          imdb_id: "tt7654321",
+          type: "series",
+          name: "One Series",
+          imdbRating: "8.5",
+        },
+      },
+    }),
+  });
+
+  const results = await provider.search({ title: "one" }, {});
+
+  assert.deepEqual(results.map((result) => result.item.title).sort(), ["One Movie", "One Series"]);
+  assert.deepEqual(
+    requests.map((request) => request.path),
+    ["/catalog/movie/top/search=one.json", "/catalog/series/top/search=one.json"],
+  );
+  assert.equal(
+    results.some((result) => result.item.ratings?.length),
+    false,
+  );
+});
+
 test("cinemetaProvider applies search limit per media type for any search", async () => {
   const provider = createProvider({
     fetch: createMockFetch([], {
