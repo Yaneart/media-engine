@@ -93,6 +93,14 @@ pnpm smoke:latency
 
 This prints total search time, top results, provider failures, and per-provider timings for representative queries such as `one`, `game`, `naruto`, `interstellar`, and `breaking bad`.
 
+Run search quality smoke checks when broad/specific query quality changed:
+
+```bash
+pnpm smoke:search-quality
+```
+
+This prints canonical result rank, source coverage, IDs, ratings, posters, and current top results for broad-query cases such as `one`, `game`, `avatar`, and `dark`.
+
 For a custom local threshold:
 
 ```bash
@@ -160,6 +168,7 @@ Before publishing:
 - update `CHANGELOG.md`;
 - run `pnpm release:check`;
 - run `pnpm smoke:providers -- --strict`;
+- run `pnpm smoke:search-quality` when search ranking or merge behavior changed;
 - run `pnpm smoke:latency` when broad-query performance changed;
 - run `pnpm smoke:availability-latency` when player/video lookup performance changed;
 - run `pnpm smoke:availability -- --strict` for parser-plus-player releases;
