@@ -202,12 +202,17 @@ export class MediaEngine {
     const providerResults: ProviderDetailsResult[] = [];
     const providerTimings: ProviderTimingMeta[] = [];
 
-    for (const provider of providers) {
-      const outcome = await callTimedProviderDetails(provider, normalizedQuery, {
-        debug: this.debug,
-        language: normalizedQuery.language,
-        timeoutMs: this.timeoutMs,
-      });
+    const outcomes = await Promise.all(
+      providers.map((provider) =>
+        callTimedProviderDetails(provider, normalizedQuery, {
+          debug: this.debug,
+          language: normalizedQuery.language,
+          timeoutMs: this.timeoutMs,
+        }),
+      ),
+    );
+
+    for (const outcome of outcomes) {
       providerTimings.push(outcome.timing);
 
       if (outcome.failure) {

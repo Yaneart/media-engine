@@ -712,6 +712,58 @@ test("getDetails includes provider timings when debug is enabled", async () => {
   );
 });
 
+test("getDetails calls selected providers concurrently", async () => {
+  const calls: string[] = [];
+  let releaseFirstProvider: (() => void) | undefined;
+  const firstProviderGate = new Promise<void>((resolve) => {
+    releaseFirstProvider = resolve;
+  });
+
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "slow-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          calls.push("slow-start");
+          await firstProviderGate;
+          calls.push("slow-finish");
+
+          return {
+            provider: "slow-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Slow Details",
+            },
+          };
+        },
+      }),
+      createProvider({
+        name: "fast-provider",
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          calls.push("fast-start");
+          releaseFirstProvider?.();
+          calls.push("fast-finish");
+
+          return {
+            provider: "fast-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Fast Details",
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.equal(response.details?.title, "Slow Details");
+  assert.deepEqual(calls, ["slow-start", "fast-start", "fast-finish", "slow-finish"]);
+});
+
 test("getDetails throws predictably when all selected providers fail", async () => {
   const engine = new MediaEngine({
     providers: [
