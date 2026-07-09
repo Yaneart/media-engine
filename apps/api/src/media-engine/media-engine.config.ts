@@ -8,7 +8,10 @@ export interface MediaEngineEnv {
   TMDB_API_KEY?: string;
   TMDB_API_READ_ACCESS_TOKEN?: string;
   KODIK_TOKEN?: string;
+  MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
 }
+
+export const DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS = 5_000;
 
 // EN: Build providers from environment without requiring secrets for local boot.
 // RU: Собираем провайдеры из env без обязательных секретов для локального запуска.
@@ -66,7 +69,28 @@ export async function createMediaEngine(
   return new MediaEngine({
     providers: await createConfiguredProviders(env),
     streamingProviders: await createConfiguredStreamingProviders(env),
+    timeoutMs: readProviderTimeoutMs(env),
   });
+}
+
+export function readProviderTimeoutMs(
+  env: MediaEngineEnv = process.env,
+): number {
+  const value = readOptionalEnv(env.MEDIA_ENGINE_PROVIDER_TIMEOUT_MS);
+
+  if (value === undefined) {
+    return DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS;
+  }
+
+  const timeoutMs = Number(value);
+
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(
+      'MEDIA_ENGINE_PROVIDER_TIMEOUT_MS must be a positive integer.',
+    );
+  }
+
+  return timeoutMs;
 }
 
 function readOptionalEnv(value: string | undefined): string | undefined {

@@ -10,7 +10,12 @@ import type {
   ProviderSearchQuery,
   ProviderSearchResult,
 } from "../providers/index.js";
-import type { EngineWarning, ProviderFailure, ResponseMeta } from "../response/index.js";
+import type {
+  EngineWarning,
+  ProviderFailure,
+  ProviderTimingMeta,
+  ResponseMeta,
+} from "../response/index.js";
 import type { SearchQuery, SearchResponse } from "../search/index.js";
 import type {
   MediaAvailability,
@@ -106,23 +111,26 @@ export class MediaEngine {
     const failed: ProviderFailure[] = [];
     const warnings: EngineWarning[] = [];
     const providerResults: ProviderSearchResult[] = [];
+    const providerTimings: ProviderTimingMeta[] = [];
 
-    for (const provider of providers) {
-      try {
-        const results = await callProviderSearch(
-          provider,
-          createProviderSearchQuery(normalizedQuery),
-          {
-            debug: this.debug,
-            language: normalizedQuery.language,
-            timeoutMs: this.timeoutMs,
-          },
-        );
+    const outcomes = await Promise.all(
+      providers.map((provider) =>
+        callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
+          debug: this.debug,
+          language: normalizedQuery.language,
+          timeoutMs: this.timeoutMs,
+        }),
+      ),
+    );
 
-        successful.push(provider.name);
-        providerResults.push(...results);
-      } catch (error) {
-        failed.push(toProviderFailure(provider.name, error));
+    for (const outcome of outcomes) {
+      providerTimings.push(outcome.timing);
+
+      if (outcome.failure) {
+        failed.push(outcome.failure);
+      } else {
+        successful.push(outcome.provider);
+        providerResults.push(...outcome.results);
       }
     }
 
@@ -155,6 +163,7 @@ export class MediaEngine {
         cached: false,
         tookMs: elapsedSince(startedAt),
         debug: this.debug,
+        timings: providerTimings,
       }),
     };
 
@@ -392,6 +401,16 @@ interface ResponseMetaInput {
   cached: boolean;
   tookMs: number;
   debug: boolean;
+  timings?: ProviderTimingMeta[];
+}
+
+// Result of one provider search call after timing and failure normalization.
+// Результат одного search-вызова провайдера после замера времени и нормализации ошибок.
+interface ProviderSearchCallOutcome {
+  provider: string;
+  timing: ProviderTimingMeta;
+  results: ProviderSearchResult[];
+  failure?: ProviderFailure;
 }
 
 // Normalizes top-level external ID shortcuts into the ids object.
@@ -560,6 +579,41 @@ function createProviderSearchQuery(query: SearchQuery): ProviderSearchQuery {
     ...query,
     limit: Math.max(query.limit * 5, 10),
   };
+}
+
+// Calls one search provider and returns normalized timing/failure metadata.
+// Вызывает один search-провайдер и возвращает нормализованные timing/failure метаданные.
+async function callTimedProviderSearch(
+  provider: MediaProvider,
+  query: ProviderSearchQuery,
+  context: ProviderCallContext,
+): Promise<ProviderSearchCallOutcome> {
+  const startedAt = Date.now();
+
+  try {
+    const results = await callProviderSearch(provider, query, context);
+
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "success",
+        tookMs: elapsedSince(startedAt),
+      },
+      results,
+    };
+  } catch (error) {
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "failed",
+        tookMs: elapsedSince(startedAt),
+      },
+      results: [],
+      failure: toProviderFailure(provider.name, error),
+    };
+  }
 }
 
 // Calls one provider search method with timeout and abort signal support.
@@ -746,7 +800,12 @@ function createResponseMeta(input: ResponseMetaInput): ResponseMeta {
     cached: input.cached,
     tookMs: input.tookMs,
     warnings: input.warnings.length > 0 ? input.warnings : undefined,
-    debug: input.debug ? { providers: input.requested } : undefined,
+    debug: input.debug
+      ? {
+          providers: input.requested,
+          timings: input.timings ?? [],
+        }
+      : undefined,
   };
 }
 

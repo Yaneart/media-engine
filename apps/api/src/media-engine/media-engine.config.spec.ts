@@ -1,7 +1,9 @@
 import {
+  DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   createConfiguredProviders,
   createConfiguredStreamingProviders,
   createMediaEngine,
+  readProviderTimeoutMs,
 } from './media-engine.config';
 
 describe('MediaEngine configuration', () => {
@@ -67,5 +69,27 @@ describe('MediaEngine configuration', () => {
     ]);
     expect(providers[0]?.kind).toBe('streaming');
     expect(providers[1]?.kind).toBe('streaming');
+  });
+
+  it('uses a finite provider timeout by default', () => {
+    expect(readProviderTimeoutMs({})).toBe(
+      DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
+    );
+  });
+
+  it('allows provider timeout override from environment', () => {
+    expect(
+      readProviderTimeoutMs({
+        MEDIA_ENGINE_PROVIDER_TIMEOUT_MS: ' 2500 ',
+      }),
+    ).toBe(2500);
+  });
+
+  it('rejects invalid provider timeout override values', () => {
+    expect(() =>
+      readProviderTimeoutMs({
+        MEDIA_ENGINE_PROVIDER_TIMEOUT_MS: '0',
+      }),
+    ).toThrow(/positive integer/);
   });
 });

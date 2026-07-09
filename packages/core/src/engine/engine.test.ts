@@ -285,6 +285,140 @@ test("search tolerates one provider failure when another provider succeeds", asy
   ]);
 });
 
+test("search starts independent providers concurrently", async () => {
+  let resolveSlowProvider: ((results: ProviderSearchResult[]) => void) | undefined;
+  let markFastProviderStarted: (() => void) | undefined;
+  const fastProviderStarted = new Promise<void>((resolve) => {
+    markFastProviderStarted = resolve;
+  });
+  const engine = new MediaEngine({
+    debug: true,
+    providers: [
+      createProvider({
+        name: "slow-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          return new Promise((resolve) => {
+            resolveSlowProvider = resolve;
+          });
+        },
+      }),
+      createProvider({
+        name: "fast-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          markFastProviderStarted?.();
+
+          return [
+            {
+              provider: "fast-provider",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const searchPromise = engine.search({ title: "Interstellar" });
+  const fastStartedBeforeSlowFinished = await Promise.race([
+    fastProviderStarted.then(() => true),
+    sleep(20).then(() => false),
+  ]);
+
+  resolveSlowProvider?.([]);
+
+  assert.equal(fastStartedBeforeSlowFinished, true);
+
+  const response = await searchPromise;
+
+  assert.deepEqual(response.meta.providers.successful, ["slow-provider", "fast-provider"]);
+  assert.deepEqual(
+    response.meta.debug?.timings.map((timing) => ({
+      provider: timing.provider,
+      status: timing.status,
+      tookMsType: typeof timing.tookMs,
+    })),
+    [
+      {
+        provider: "slow-provider",
+        status: "success",
+        tookMsType: "number",
+      },
+      {
+        provider: "fast-provider",
+        status: "success",
+        tookMsType: "number",
+      },
+    ],
+  );
+});
+
+test("search keeps provider result order deterministic after concurrent completion", async () => {
+  const receivedProviders: string[] = [];
+  const mergeStrategy: MergeStrategy = {
+    mergeSearchResults(results): MediaSearchResult[] {
+      receivedProviders.push(...results.map((result) => result.provider));
+
+      return results.map((result) => ({
+        item: result.item,
+        score: result.confidence ?? 0,
+        sources: [{ provider: result.provider, id: result.item.id }],
+      }));
+    },
+    mergeDetails(): MediaDetails | null {
+      return null;
+    },
+  };
+  const engine = new MediaEngine({
+    mergeStrategy,
+    providers: [
+      createProvider({
+        name: "slow-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          await sleep(20);
+
+          return [
+            {
+              provider: "slow-provider",
+              item: {
+                id: "movie-slow",
+                type: "movie",
+                title: "Slow Result",
+              },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "fast-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "fast-provider",
+              item: {
+                id: "movie-fast",
+                type: "movie",
+                title: "Fast Result",
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "Interstellar" });
+
+  assert.deepEqual(receivedProviders, ["slow-provider", "fast-provider"]);
+  assert.deepEqual(
+    response.results.map((result) => result.item.title),
+    ["Slow Result", "Fast Result"],
+  );
+});
+
 test("search throws predictably when all selected providers fail", async () => {
   const engine = new MediaEngine({
     providers: [
@@ -989,4 +1123,10 @@ function createAvailability(query: StreamQuery, provider: string): MediaAvailabi
     ],
     checkedAt: "2026-07-05T00:00:00.000Z",
   };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

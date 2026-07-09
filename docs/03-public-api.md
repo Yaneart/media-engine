@@ -184,7 +184,7 @@ interface ResponseMeta {
   cached: boolean;
   tookMs: number;
   warnings?: EngineWarning[];
-  debug?: unknown;
+  debug?: ResponseDebugMeta;
 }
 ```
 
@@ -195,6 +195,21 @@ interface ProviderExecutionMeta {
   requested: string[];
   successful: string[];
   failed: ProviderFailure[];
+}
+```
+
+## ResponseDebugMeta
+
+```ts
+interface ResponseDebugMeta {
+  providers: string[];
+  timings: ProviderTimingMeta[];
+}
+
+interface ProviderTimingMeta {
+  provider: string;
+  status: "success" | "failed";
+  tookMs: number;
 }
 ```
 

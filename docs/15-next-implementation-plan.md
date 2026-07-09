@@ -260,6 +260,64 @@ Done when:
 
 Goal: make availability results accurate and useful before documenting the project as release-ready.
 
+## Runtime Quality Plan Before Release
+
+Goal: make the real application feel fast, predictable, and honest under normal user behavior, not only pass unit tests and package checks.
+
+Observed live issue:
+
+- Searching `one` in the example app can take around 15 seconds before movies and series appear.
+- Root cause found in the current search path: `MediaEngine.search()` calls selected metadata providers sequentially. A broad query without `type` may wait for KinoBD, Cinemeta, Shikimori, Wikidata, and optionally TMDB one after another before merge/ranking.
+- Some providers perform multi-step requests: Cinemeta may enrich sparse search results with details; Wikidata searches entity IDs and then loads full entities; title-only broad searches often hit movie and series paths.
+- API-created `MediaEngine` currently has no explicit provider timeout, so a slow upstream can dominate the perceived response time.
+
+Priority tasks for the next session:
+
+1. Add focused latency instrumentation.
+   - Capture per-provider `tookMs` for search/details/availability in debug or meta where appropriate.
+   - Add a local timing script or smoke mode for representative queries: `one`, `game`, `naruto`, `interstellar`, `breaking bad`.
+   - Separate provider latency, merge latency, API latency, and frontend latency.
+2. Parallelize independent provider calls.
+   - Change search provider execution from sequential `for await` behavior to concurrent execution with `Promise.allSettled` or an equivalent helper.
+   - Preserve current partial failure semantics: one provider failure should not fail the whole search when another provider succeeds.
+   - Keep deterministic merge/ranking output independent of provider completion order.
+3. Add sane timeout defaults.
+   - Configure API `MediaEngine` with a finite provider timeout, likely 4-5 seconds to start.
+   - Keep timeout configurable for library users.
+   - Ensure timeout failures are reported as provider failures and do not block faster providers.
+4. Audit retries and broad-query work.
+   - Confirm `fetchJson` retry/backoff does not make common UI searches feel stuck.
+   - Reduce unnecessary enrichment on broad search when it hurts first result time.
+   - Consider provider-specific search limits for vague queries.
+5. Verify frontend request behavior.
+   - Confirm typing triggers debounce and aborts stale requests.
+   - Ensure stale slower responses cannot overwrite newer faster query results.
+   - Add browser/e2e coverage for fast repeated search input.
+6. Add regression coverage.
+   - Unit tests for concurrent provider execution and deterministic results.
+   - Tests for timeout behavior with one slow provider and one fast provider.
+   - Smoke/performance expectation for `one` and similar broad queries, using a practical threshold for local/dev environments.
+7. Audit live source filtering breadth.
+   - Use a fixed live sample of 10 movies, 10 series, and 10 anime.
+   - For each title, record discovered player sources, shown sources, filtered sources, and the reason each source was filtered.
+   - Verify filtering does not remove working playback sources.
+   - Prefer showing as many working playback sources as possible while still removing obvious broken, trailer, torrent, external-only, or non-playback sources.
+   - Keep filtering reasons visible enough for debugging.
+8. Search for non-Russian playback sources.
+   - Look for English or otherwise international sources comparable to the current Russian voiceover-heavy sources.
+   - If a source is usable and allowed, add it as a separate provider or source option instead of mixing language assumptions into Russian providers.
+   - Preserve language/translation metadata so API and example UI can offer a real choice between Russian, English, subtitles, dub, voiceover, and original tracks when available.
+   - Do not hardcode an English label unless provider data or source behavior supports it.
+
+Done when:
+
+- A slow provider no longer delays all other search results.
+- Broad search returns useful first results within an acceptable local/dev threshold.
+- Provider timeout and partial failure metadata make slow/failing upstreams visible.
+- Example app search does not feel frozen during normal typing.
+- A 30-title live sample proves filtering keeps working playback sources and removes only justified bad/non-playback sources.
+- If suitable English/international sources are found, they are either added or documented with the reason they were not added yet.
+
 Observed live issues:
 
 - Some player options are displayed because a provider returned a URL, but the embedded player later shows unavailable video or does not play.
@@ -297,7 +355,16 @@ Engine-first tasks:
    - If English or other non-Russian tracks are found, expose them clearly in availability responses and the example UI.
    - KinoBD/ReYohoho now infers known Russian voiceover labels such as `AlexFilm`, `HDrezka Studio`, `LE-Production`, and `Shachiburi`; keep expanding this list from live samples when language/type is known.
    - Avoid emitting misleading `unknown` values where `undefined` or a clearer confidence model would be more honest for API/UI consumers.
-7. Normalize metadata status more carefully.
+7. Audit source filtering across a broad live sample.
+   - Check 10 popular movies, 10 popular series, and 10 popular anime.
+   - For every filtered source, verify whether it was actually broken/non-playback or whether the filter is too aggressive.
+   - Keep the default output broad: show all working playback sources, then let UI grouping make the list readable.
+   - Add regressions for any working source that was filtered by mistake.
+8. Explore English/international player sources.
+   - Search for sources that can provide English audio, original audio, or English subtitles.
+   - Add only sources with acceptable usage rules and stable enough behavior for a package.
+   - Model them as first-class sources/providers with language metadata instead of hiding them behind generic labels.
+9. Normalize metadata status more carefully.
    - TMDB/Shikimori now omit unsupported lifecycle status labels instead of emitting `unknown`.
    - Details merge now prefers a real normalized status over `unknown` when another provider has useful status data.
    - The example app renders absent status clearly instead of presenting `Status: Unknown` as useful data.
@@ -309,6 +376,9 @@ Done when:
 - External-only player sources are hidden by default or clearly separated.
 - Smoke/e2e checks catch wrong-content and unusable-option regressions.
 - Language/translation data is preserved well enough for UI grouping when sources provide it.
+- Live source filtering has been checked against 10 movies, 10 series, and 10 anime.
+- Working playback sources are not removed just because they are unfamiliar or lower priority.
+- English/international source options are added or explicitly documented as researched but not usable yet.
 - Unknown translation/status values are reduced through provider normalization and represented honestly when still unavailable.
 
 ## Phase 6: Package and Release Polish
@@ -386,11 +456,14 @@ Before release, polish the repository presentation:
 
 ## Next Session Starting Point
 
-Start with Phase 2 unless the user explicitly chooses to publish a metadata-only pre-release first.
+Start with the Runtime Quality Plan before continuing release polish or Docker smoke.
 
 Recommended first implementation task:
 
-1. Add `streamingProviders` to `MediaEngineOptions`.
-2. Add `MediaEngine.getAvailability`.
-3. Add core tests with `experimentalStreamingProvider`.
-4. Then add API and SDK availability endpoints.
+1. Reproduce and measure slow broad search for `one`.
+2. Add provider-level timing visibility.
+3. Parallelize `MediaEngine.search()` provider calls while preserving partial-failure semantics and deterministic output.
+4. Add API timeout defaults and regression tests.
+5. Run the 10 movies / 10 series / 10 anime live source filtering audit.
+6. Search for English/international playback sources and add or document the usable candidates.
+7. Then continue the already planned Docker API/example smoke and final version/changelog decision.

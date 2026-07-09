@@ -15,12 +15,27 @@ export interface ProviderExecutionMeta {
   failed: ProviderFailure[];
 }
 
+// Runtime timing for one provider call, exposed only in debug metadata.
+// Время выполнения одного вызова провайдера, доступное только в debug-метаданных.
+export interface ProviderTimingMeta {
+  provider: string;
+  status: "success" | "failed";
+  tookMs: number;
+}
+
 // Non-fatal engine warning returned with a response.
 // Некритичное предупреждение движка, возвращаемое вместе с ответом.
 export interface EngineWarning {
   code: string;
   message: string;
   provider?: string;
+}
+
+// Extra diagnostics returned when the engine is created with debug enabled.
+// Дополнительная диагностика, возвращаемая при включенном debug у движка.
+export interface ResponseDebugMeta {
+  providers: string[];
+  timings: ProviderTimingMeta[];
 }
 
 // Shared metadata returned with search and details responses.
@@ -30,5 +45,5 @@ export interface ResponseMeta {
   cached: boolean;
   tookMs: number;
   warnings?: EngineWarning[];
-  debug?: unknown;
+  debug?: ResponseDebugMeta;
 }
