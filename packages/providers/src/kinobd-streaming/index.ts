@@ -14,6 +14,7 @@ const PROVIDER_NAME = "kinobd-streaming";
 const DEFAULT_BASE_URL = "https://kinobd.net";
 const DEFAULT_SHIKIMORI_BASE_URL = "https://shikimori.io";
 const DEFAULT_SEARCH_LIMIT = 10;
+const DEFAULT_PLAYER_VALIDATION_LIMIT = 8;
 const PLAYER_VALIDATION_TIMEOUT_MS = 2_500;
 const PLAYER_VALIDATION_MAX_DEPTH = 1;
 const DEFAULT_PLAYER_PROVIDERS = [
@@ -77,6 +78,8 @@ export interface KinoBdStreamingProviderOptions {
   shikimoriBaseUrl?: string;
   fetch?: ProviderFetch;
   searchLimit?: number;
+  playerValidationLimit?: number;
+  playerValidationTimeoutMs?: number;
   playerProviders?: string;
   fast?: number;
   userAgent?: string;
@@ -109,6 +112,8 @@ interface KinoBdStreamingConfig {
   shikimoriBaseUrl: string;
   fetch?: ProviderFetch;
   searchLimit: number;
+  playerValidationLimit: number;
+  playerValidationTimeoutMs: number;
   playerProviders: string;
   allowedPlayerProviders: ReadonlySet<string>;
   fast: number;
@@ -175,6 +180,9 @@ interface ShikimoriAnimeLookup {
 // Собирает provider config с ReYohoho-compatible defaults.
 function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingConfig {
   const searchLimit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT;
+  const playerValidationLimit = options.playerValidationLimit ?? DEFAULT_PLAYER_VALIDATION_LIMIT;
+  const playerValidationTimeoutMs =
+    options.playerValidationTimeoutMs ?? PLAYER_VALIDATION_TIMEOUT_MS;
   const fast = options.fast ?? 1;
   const allowedPlayerProviders = parsePlayerProviderKeys(
     options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
@@ -182,6 +190,14 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
 
   if (!Number.isInteger(searchLimit) || searchLimit <= 0) {
     throw new TypeError("KinoBD streaming searchLimit must be a positive integer.");
+  }
+
+  if (!Number.isInteger(playerValidationLimit) || playerValidationLimit < 0) {
+    throw new TypeError("KinoBD streaming playerValidationLimit must be a non-negative integer.");
+  }
+
+  if (!Number.isInteger(playerValidationTimeoutMs) || playerValidationTimeoutMs <= 0) {
+    throw new TypeError("KinoBD streaming playerValidationTimeoutMs must be a positive integer.");
   }
 
   if (!Number.isInteger(fast) || fast < 0) {
@@ -198,6 +214,8 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
     shikimoriBaseUrl: trimTrailingSlash(options.shikimoriBaseUrl ?? DEFAULT_SHIKIMORI_BASE_URL),
     fetch: options.fetch,
     searchLimit,
+    playerValidationLimit,
+    playerValidationTimeoutMs,
     playerProviders: [...allowedPlayerProviders].join(","),
     allowedPlayerProviders,
     fast,
@@ -708,14 +726,22 @@ async function filterBrokenPlayerOptions(
   options: StreamOption[],
   context: ProviderContext,
 ): Promise<StreamOption[]> {
+  const optionsWithoutKnownBrokenUrls = options.filter(
+    (option) => !isKnownBrokenPlayerUrl(option.access.url),
+  );
+  const optionsToValidate = optionsWithoutKnownBrokenUrls.slice(0, config.playerValidationLimit);
+  const optionsSkippedByLimit = optionsWithoutKnownBrokenUrls.slice(config.playerValidationLimit);
   const checks = await Promise.all(
-    options.map(async (option) => ({
+    optionsToValidate.map(async (option) => ({
       option,
       broken: await isBrokenPlayerUrl(config, option.access.url, context),
     })),
   );
 
-  return checks.filter((check) => !check.broken).map((check) => check.option);
+  return [
+    ...checks.filter((check) => !check.broken).map((check) => check.option),
+    ...optionsSkippedByLimit,
+  ];
 }
 
 async function isBrokenPlayerUrl(
@@ -726,7 +752,7 @@ async function isBrokenPlayerUrl(
 ): Promise<boolean> {
   const fetchImpl = config.fetch ?? fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PLAYER_VALIDATION_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), config.playerValidationTimeoutMs);
 
   try {
     if (context.signal?.aborted) {

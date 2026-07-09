@@ -362,6 +362,76 @@ test("kinobdStreamingProvider filters known broken HDVB hosts when validation fe
   assert.deepEqual(availability?.options, []);
 });
 
+test("kinobdStreamingProvider limits live player validation fan-out", async () => {
+  const validatedUrls: string[] = [];
+  const provider = createProvider({
+    playerValidationLimit: 1,
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [
+            {
+              id: 94666,
+              kinopoisk_id: 258687,
+              title: "Интерстеллар",
+              name_original: "Interstellar",
+              year: 2014,
+              iframe: '<iframe src="//kinobd.test/player/94666"></iframe>',
+            },
+          ],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json({
+          collaps: {
+            translate: "Дубляж",
+            iframe: "https://collaps.test/video/94666",
+            quality: "1080p",
+          },
+          flixcdn: {
+            translate: "LostFilm",
+            iframe: "https://flixcdn.test/video/94666",
+            quality: "1080p",
+          },
+          hdvb: {
+            translate: "одноголосый закадровый",
+            iframe: "https://vid1783527725.sevstar933krop.com/serial/hash/iframe?d=kinobd.ru",
+            quality: "HDTVRip",
+          },
+        });
+      }
+
+      validatedUrls.push(String(input));
+
+      return new Response("<html><body>Player</body></html>", {
+        headers: {
+          "content-type": "text/html",
+        },
+      });
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "movie",
+      ids: {
+        kinopoisk: "258687",
+      },
+    },
+    {},
+  );
+
+  assert.deepEqual(validatedUrls, ["https://collaps.test/video/94666"]);
+  assert.deepEqual(
+    availability?.options.map((option) => option.player.label),
+    ["COLLAPS", "FLIXCDN"],
+  );
+});
+
 test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({
@@ -688,6 +758,20 @@ test("kinobdStreamingProvider validates numeric options", () => {
         searchLimit: 0,
       }),
     /searchLimit/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        playerValidationLimit: -1,
+      }),
+    /playerValidationLimit/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        playerValidationTimeoutMs: 0,
+      }),
+    /playerValidationTimeoutMs/,
   );
 });
 
