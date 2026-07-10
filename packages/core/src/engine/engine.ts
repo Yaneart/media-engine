@@ -39,6 +39,9 @@ const EXTERNAL_ID_SHORTCUTS = [
   "aniList",
 ] as const;
 
+const SEARCH_ID_ENRICHMENT_LIMIT = 3;
+const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
+
 // Main entry point for using Media Engine core.
 // Главная точка входа для использования Media Engine core.
 export class MediaEngine {
@@ -144,12 +147,61 @@ export class MediaEngine {
       });
     }
 
-    const results = this.mergeStrategy.mergeSearchResults(providerResults, {
+    let results = this.mergeStrategy.mergeSearchResults(providerResults, {
       query: normalizedQuery,
       language: normalizedQuery.language,
       debug: this.debug,
       warnings,
     });
+
+    const enrichmentResults = await Promise.all(
+      results
+        .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
+        .filter((result) => !result.item.ratings?.length && hasExternalIds(result.item.ids))
+        .map(async (result) => {
+          const existingProviders = new Set(result.sources.map((source) => source.provider));
+          const enrichmentProvider = this.registry
+            .selectSearchProviders({ ids: result.item.ids, type: result.item.type })
+            .find((provider) => !existingProviders.has(provider.name));
+
+          if (!enrichmentProvider) {
+            return [];
+          }
+
+          const providerTimeoutMs = this.getProviderTimeoutMs(enrichmentProvider.name);
+          const enrichmentTimeoutMs =
+            providerTimeoutMs === undefined
+              ? SEARCH_ID_ENRICHMENT_TIMEOUT_MS
+              : Math.min(providerTimeoutMs, SEARCH_ID_ENRICHMENT_TIMEOUT_MS);
+          const outcome = await callTimedProviderSearch(
+            enrichmentProvider,
+            {
+              ids: result.item.ids,
+              type: result.item.type,
+              limit: 1,
+              language: normalizedQuery.language,
+            },
+            {
+              debug: this.debug,
+              language: normalizedQuery.language,
+              timeoutMs: enrichmentTimeoutMs,
+            },
+          );
+
+          return outcome.failure ? [] : outcome.results;
+        }),
+    );
+    const flattenedEnrichmentResults = enrichmentResults.flat();
+
+    if (flattenedEnrichmentResults.length > 0) {
+      providerResults.push(...flattenedEnrichmentResults);
+      results = this.mergeStrategy.mergeSearchResults(providerResults, {
+        query: normalizedQuery,
+        language: normalizedQuery.language,
+        debug: this.debug,
+        warnings,
+      });
+    }
 
     const limitedResults =
       normalizedQuery.limit === undefined ? results : results.slice(0, normalizedQuery.limit);

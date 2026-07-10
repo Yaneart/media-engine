@@ -7,10 +7,12 @@ import type {
 export interface MediaEngineEnv {
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
 }
 
 export const DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS = 5_000;
 export const DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS = 2_500;
+export const DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS = 10_000;
 
 // EN: Build providers from environment without requiring secrets for local boot.
 // RU: Собираем провайдеры из env без обязательных секретов для локального запуска.
@@ -55,8 +57,21 @@ export async function createMediaEngine(
     providerTimeouts: {
       cinemeta: readEnrichmentProviderTimeoutMs(env),
       wikidata: readEnrichmentProviderTimeoutMs(env),
+      'kinobd-streaming': readStreamingProviderTimeoutMs(env),
     },
   });
+}
+
+// Streaming lookup performs candidate search, player loading, and bounded iframe validation.
+// Streaming lookup выполняет поиск кандидата, загрузку плееров и ограниченную проверку iframe.
+export function readStreamingProviderTimeoutMs(
+  env: MediaEngineEnv = process.env,
+): number {
+  return readPositiveIntegerEnv(
+    env.MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
+    DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
+    'MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS',
+  );
 }
 
 export function readEnrichmentProviderTimeoutMs(

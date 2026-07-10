@@ -51,7 +51,10 @@ Provider call budgets can be adjusted when an upstream is unusually slow:
 ```txt
 MEDIA_ENGINE_PROVIDER_TIMEOUT_MS=5000
 MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS=2500
+MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS=10000
 ```
+
+Streaming uses a larger default budget because one cold availability lookup may include candidate search, player data loading, and bounded iframe validation.
 
 The first value is the global upper boundary. The second gives optional Cinemeta and Wikidata enrichment a shorter budget so they cannot hold the entire response until the global timeout.
 

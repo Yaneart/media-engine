@@ -303,6 +303,78 @@ test("search tolerates one provider failure when another provider succeeds", asy
   ]);
 });
 
+test("search enriches sparse top results through one external ID provider", async () => {
+  let enrichmentQueries = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "title-source",
+        capabilities: {
+          mediaTypes: ["series"],
+          search: { byTitle: true, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async search(query): Promise<ProviderSearchResult[]> {
+          if (!query.title) {
+            return [];
+          }
+
+          return [
+            {
+              provider: "title-source",
+              item: {
+                id: "imdb:tt0388629",
+                type: "series",
+                title: "One Piece",
+                ids: { imdb: "tt0388629" },
+              },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "id-enricher",
+        capabilities: {
+          mediaTypes: ["series"],
+          search: { byTitle: false, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+          features: ["ratings", "alternative_titles"],
+        },
+        async search(query): Promise<ProviderSearchResult[]> {
+          enrichmentQueries += 1;
+          assert.deepEqual(query.ids, { imdb: "tt0388629" });
+          assert.equal(query.limit, 1);
+
+          return [
+            {
+              provider: "id-enricher",
+              item: {
+                id: "kinopoisk:382731",
+                type: "series",
+                title: "Ван-Пис",
+                alternativeTitles: ["One Piece"],
+                ids: { imdb: "tt0388629", kinopoisk: "382731" },
+                ratings: [{ source: "kinopoisk", value: 8.5, max: 10 }],
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "ванпис", limit: 10 });
+
+  assert.equal(enrichmentQueries, 1);
+  assert.equal(response.results.length, 1);
+  assert.equal(response.results[0]?.item.ids?.kinopoisk, "382731");
+  assert.equal(response.results[0]?.item.ratings?.[0]?.value, 8.5);
+  assert.deepEqual(
+    response.results[0]?.sources.map((source) => source.provider),
+    ["title-source", "id-enricher"],
+  );
+});
+
 test("search starts independent providers concurrently", async () => {
   let resolveSlowProvider: ((results: ProviderSearchResult[]) => void) | undefined;
   let markFastProviderStarted: (() => void) | undefined;

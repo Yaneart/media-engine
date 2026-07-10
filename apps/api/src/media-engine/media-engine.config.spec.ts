@@ -1,11 +1,13 @@
 import {
   DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
+  DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
   createConfiguredProviders,
   createConfiguredStreamingProviders,
   createMediaEngine,
   readEnrichmentProviderTimeoutMs,
   readProviderTimeoutMs,
+  readStreamingProviderTimeoutMs,
 } from './media-engine.config';
 
 describe('MediaEngine configuration', () => {
@@ -72,6 +74,31 @@ describe('MediaEngine configuration', () => {
     expect(() =>
       readEnrichmentProviderTimeoutMs({
         MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS: 'not-a-number',
+      }),
+    ).toThrow(/positive integer/);
+  });
+
+  it('uses a larger timeout for cold streaming lookups by default', () => {
+    expect(readStreamingProviderTimeoutMs({})).toBe(
+      DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
+    );
+    expect(readStreamingProviderTimeoutMs({})).toBeGreaterThan(
+      readProviderTimeoutMs({}),
+    );
+  });
+
+  it('allows streaming timeout override from environment', () => {
+    expect(
+      readStreamingProviderTimeoutMs({
+        MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: ' 12000 ',
+      }),
+    ).toBe(12000);
+  });
+
+  it('rejects invalid streaming timeout override values', () => {
+    expect(() =>
+      readStreamingProviderTimeoutMs({
+        MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: '-1',
       }),
     ).toThrow(/positive integer/);
   });

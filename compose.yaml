@@ -15,6 +15,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 3000
+      MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS:-10000}
     command: npm --prefix apps/api run start:dev
 
   example:
