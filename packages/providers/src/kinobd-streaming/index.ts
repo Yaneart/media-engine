@@ -85,6 +85,29 @@ export interface KinoBdStreamingProviderOptions {
   playerProviders?: string;
   fast?: number;
   userAgent?: string;
+  onPlayerAudit?: (audit: KinoBdPlayerAudit) => void;
+}
+
+// Stable reasons why a discovered KinoBD player was not returned.
+// Стабильные причины, по которым найденный KinoBD player не был возвращен.
+export type KinoBdPlayerFilterReason =
+  "provider_not_allowed" | "missing_iframe" | "known_broken_url" | "player_validation_failed";
+
+// One player removed during mapping or live validation.
+// Один player, удаленный во время mapping или live validation.
+export interface KinoBdFilteredPlayerAuditEntry {
+  player: string;
+  reason: KinoBdPlayerFilterReason;
+  url?: string;
+}
+
+// Diagnostic snapshot emitted after one KinoBD player lookup.
+// Диагностический snapshot после одного KinoBD player lookup.
+export interface KinoBdPlayerAudit {
+  query: MediaAvailability["query"];
+  discovered: string[];
+  shown: string[];
+  filtered: KinoBdFilteredPlayerAuditEntry[];
 }
 
 // Creates a no-token streaming provider that asks KinoBD-style endpoints for iframe players.
@@ -121,6 +144,18 @@ interface KinoBdStreamingConfig {
   allowedPlayerProviders: ReadonlySet<string>;
   fast: number;
   userAgent?: string;
+  onPlayerAudit?: (audit: KinoBdPlayerAudit) => void;
+}
+
+interface PlayerOptionMapping {
+  options: StreamOption[];
+  discovered: string[];
+  filtered: KinoBdFilteredPlayerAuditEntry[];
+}
+
+interface PlayerOptionFilterResult {
+  options: StreamOption[];
+  filtered: KinoBdFilteredPlayerAuditEntry[];
 }
 
 // Search response returned by KinoBD-style player lookup.
@@ -230,6 +265,7 @@ function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingC
     allowedPlayerProviders,
     fast,
     userAgent: options.userAgent,
+    onPlayerAudit: options.onPlayerAudit,
   };
 }
 
@@ -336,7 +372,7 @@ async function loadPlayerOptions(
 ): Promise<StreamOption[]> {
   try {
     const playerData = await loadPlayerData(config, selected, context);
-    const options = mapPlayerMapToOptions(
+    const mapping = mapPlayerMapToOptions(
       config.name,
       playerData,
       selected,
@@ -344,15 +380,38 @@ async function loadPlayerOptions(
       config.allowedPlayerProviders,
     );
 
-    if (options.length > 0) {
-      return filterBrokenPlayerOptions(config, options, context);
+    if (mapping.options.length > 0) {
+      const filtered = await filterBrokenPlayerOptions(config, mapping.options, context);
+
+      emitPlayerAudit(config, query, mapping.discovered, filtered.options, [
+        ...mapping.filtered,
+        ...filtered.filtered,
+      ]);
+
+      return filtered.options;
     }
+
+    const fallbackOptions = mapCandidatesToFallbackOptions(config.name, [selected], query);
+
+    emitPlayerAudit(config, query, mapping.discovered, fallbackOptions, mapping.filtered);
+
+    return fallbackOptions;
   } catch {
     // KinoBD/ReYohoho-style /playerdata can be rate-limited or temporarily unavailable.
     // KinoBD/ReYohoho-style /playerdata может быть rate-limited или временно недоступен.
   }
 
-  return mapCandidatesToFallbackOptions(config.name, [selected], query);
+  const fallbackOptions = mapCandidatesToFallbackOptions(config.name, [selected], query);
+
+  emitPlayerAudit(
+    config,
+    query,
+    fallbackOptions.map((option) => option.player.label),
+    fallbackOptions,
+    [],
+  );
+
+  return fallbackOptions;
 }
 
 // Resolves anime players through /cache_shiki-compatible backend endpoint.
@@ -382,13 +441,16 @@ async function tryGetShikimoriCacheAvailability(
         body,
       },
     });
-    const options = mapPlayerMapToOptions(
+    const mapping = mapPlayerMapToOptions(
       config.name,
       playerData,
       undefined,
       query,
       config.allowedPlayerProviders,
     );
+    const options = mapping.options;
+
+    emitPlayerAudit(config, query, mapping.discovered, options, mapping.filtered);
 
     return {
       query,
@@ -737,22 +799,42 @@ function mapPlayerMapToOptions(
   candidate: PlayerCandidate | undefined,
   query: MediaAvailability["query"],
   allowedPlayerProviders: ReadonlySet<string>,
-): StreamOption[] {
-  return Object.entries(playerMap)
-    .filter(([providerKey]) => isAllowedPlayerProvider(providerKey, allowedPlayerProviders))
-    .map(([providerKey, payload]) =>
-      mapPayloadToOption(providerName, providerKey, payload, candidate, query),
-    )
-    .filter((option): option is StreamOption => Boolean(option));
+): PlayerOptionMapping {
+  const options: StreamOption[] = [];
+  const discovered: string[] = [];
+  const filtered: KinoBdFilteredPlayerAuditEntry[] = [];
+
+  for (const [providerKey, payload] of Object.entries(playerMap)) {
+    const player = normalizeProviderLabel(providerKey);
+
+    discovered.push(player);
+
+    if (!isAllowedPlayerProvider(providerKey, allowedPlayerProviders)) {
+      filtered.push({ player, reason: "provider_not_allowed" });
+      continue;
+    }
+
+    const option = mapPayloadToOption(providerName, providerKey, payload, candidate, query);
+
+    if (!option) {
+      filtered.push({ player, reason: "missing_iframe" });
+      continue;
+    }
+
+    options.push(option);
+  }
+
+  return { options, discovered, filtered };
 }
 
 async function filterBrokenPlayerOptions(
   config: KinoBdStreamingConfig,
   options: StreamOption[],
   context: ProviderContext,
-): Promise<StreamOption[]> {
+): Promise<PlayerOptionFilterResult> {
+  const knownBrokenOptions = options.filter((option) => isKnownBrokenPlayerUrl(option.access.url));
   const optionsWithoutKnownBrokenUrls = options.filter(
-    (option) => !isKnownBrokenPlayerUrl(option.access.url),
+    (option) => !knownBrokenOptions.includes(option),
   );
   const optionsToValidate = optionsWithoutKnownBrokenUrls.slice(0, config.playerValidationLimit);
   const optionsSkippedByLimit = optionsWithoutKnownBrokenUrls.slice(config.playerValidationLimit);
@@ -763,10 +845,49 @@ async function filterBrokenPlayerOptions(
     })),
   );
 
-  return [
-    ...checks.filter((check) => !check.broken).map((check) => check.option),
-    ...optionsSkippedByLimit,
-  ];
+  return {
+    options: [
+      ...checks.filter((check) => !check.broken).map((check) => check.option),
+      ...optionsSkippedByLimit,
+    ],
+    filtered: [
+      ...knownBrokenOptions.map((option) => ({
+        player: option.player.label,
+        reason: "known_broken_url" as const,
+        url: option.access.url,
+      })),
+      ...checks
+        .filter((check) => check.broken)
+        .map((check) => ({
+          player: check.option.player.label,
+          reason: "player_validation_failed" as const,
+          url: check.option.access.url,
+        })),
+    ],
+  };
+}
+
+function emitPlayerAudit(
+  config: KinoBdStreamingConfig,
+  query: MediaAvailability["query"],
+  discovered: string[],
+  shown: StreamOption[],
+  filtered: KinoBdFilteredPlayerAuditEntry[],
+): void {
+  try {
+    config.onPlayerAudit?.({
+      query: {
+        ...query,
+        ...(query.ids ? { ids: { ...query.ids } } : {}),
+        ...(query.providers ? { providers: [...query.providers] } : {}),
+      },
+      discovered: [...new Set(discovered)],
+      shown: [...new Set(shown.map((option) => option.player.label))],
+      filtered,
+    });
+  } catch {
+    // Diagnostics must not change availability behavior.
+  }
 }
 
 async function isBrokenPlayerUrl(

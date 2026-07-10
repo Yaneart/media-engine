@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { kinobdStreamingProvider, type KinoBdStreamingProviderOptions } from "./index.js";
+import {
+  kinobdStreamingProvider,
+  type KinoBdPlayerAudit,
+  type KinoBdStreamingProviderOptions,
+} from "./index.js";
 
 test("kinobdStreamingProvider exposes no-token streaming capabilities", () => {
   const provider = kinobdStreamingProvider();
@@ -217,7 +221,11 @@ test("kinobdStreamingProvider infers translation language and type", async () =>
 });
 
 test("kinobdStreamingProvider filters clearly broken player pages", async () => {
+  let audit: KinoBdPlayerAudit | undefined;
   const provider = createProvider({
+    onPlayerAudit(value) {
+      audit = value;
+    },
     fetch: async (input, init) => {
       const url = new URL(String(input));
       const method = init?.method ?? "GET";
@@ -248,6 +256,13 @@ test("kinobdStreamingProvider filters clearly broken player pages", async () => 
             translate: "одноголосый закадровый",
             iframe: "https://hdvb.test/broken/iframe",
             quality: "HDTVRip",
+          },
+          netflix: {
+            translate: "Netflix",
+            iframe: "https://netflix.test/title/382731",
+          },
+          vibix: {
+            translate: "Дубляж",
           },
           kodik: {
             translate: "Shachiburi",
@@ -308,6 +323,36 @@ test("kinobdStreamingProvider filters clearly broken player pages", async () => 
     availability?.options.map((option) => option.player.label),
     ["KODIK"],
   );
+  assert.deepEqual(audit, {
+    query: {
+      type: "anime",
+      ids: {
+        kinopoisk: "382731",
+      },
+    },
+    discovered: ["ASHDI", "HDVB", "NETFLIX", "VIBIX", "KODIK"],
+    shown: ["KODIK"],
+    filtered: [
+      {
+        player: "NETFLIX",
+        reason: "provider_not_allowed",
+      },
+      {
+        player: "VIBIX",
+        reason: "missing_iframe",
+      },
+      {
+        player: "ASHDI",
+        reason: "player_validation_failed",
+        url: "https://kinobd.test/external_player/ashdi/382731",
+      },
+      {
+        player: "HDVB",
+        reason: "player_validation_failed",
+        url: "https://hdvb.test/broken/iframe",
+      },
+    ],
+  });
 });
 
 test("kinobdStreamingProvider filters known broken HDVB hosts when validation fetch fails", async () => {

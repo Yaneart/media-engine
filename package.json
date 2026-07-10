@@ -21,6 +21,7 @@
     "smoke:details-latency": "pnpm build && node scripts/details-latency-smoke.mjs",
     "smoke:latency": "pnpm build && node scripts/search-latency-smoke.mjs",
     "smoke:search-quality": "pnpm build && node scripts/search-quality-smoke.mjs",
+    "smoke:source-filter-audit": "pnpm build && node scripts/source-filter-audit.mjs",
     "smoke:providers": "pnpm build && node scripts/provider-smoke.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"

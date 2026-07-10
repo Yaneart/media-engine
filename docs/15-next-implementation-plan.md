@@ -330,6 +330,7 @@ Priority tasks for the next session:
    - Verify filtering does not remove working playback sources.
    - Prefer showing as many working playback sources as possible while still removing obvious broken, trailer, torrent, external-only, or non-playback sources.
    - Keep filtering reasons visible enough for debugging.
+   - The first audit slice adds `pnpm smoke:source-filter-audit` with one movie, one series, and one anime plus provider-level filter reasons; expand each category incrementally to 10 cases.
 9. Search for non-Russian playback sources.
    - Look for English or otherwise international sources comparable to the current Russian voiceover-heavy sources.
    - If a source is usable and allowed, add it as a separate provider or source option instead of mixing language assumptions into Russian providers.

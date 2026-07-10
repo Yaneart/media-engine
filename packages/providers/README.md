@@ -271,6 +271,8 @@ Supported behavior:
 
 This provider does not use a Kodik API token and does not extract direct video files. It returns player/embed URLs for the application UI to render.
 
+For live source-filter audits, pass `onPlayerAudit`. The callback reports discovered and shown player labels plus filtered labels with stable reasons such as `provider_not_allowed`, `missing_iframe`, `known_broken_url`, and `player_validation_failed`. Callback failures are isolated from normal availability behavior.
+
 ## Kodik Streaming Provider
 
 `kodikProvider` creates a token-based streaming provider for normalized player options. It uses the configured Kodik API token from the application and returns embed player URLs as `StreamOption` values. It does not scrape player pages, does not extract direct video files, and does not expose secrets in provider metadata.

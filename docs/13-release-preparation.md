@@ -129,6 +129,14 @@ pnpm smoke:availability-latency
 
 This prints total availability lookup time, usable player option counts, player labels, provider failures, and per-provider timings for movie, series, and anime cases.
 
+Run the initial source-filter audit sample when changing KinoBD player filtering:
+
+```bash
+pnpm smoke:source-filter-audit -- --strict
+```
+
+The audit reports discovered, shown, and filtered players with filter reasons for one movie, one series, and one anime. Expand the fixed sample in separate reviewable commits toward the required 10/10/10 coverage.
+
 For a custom local threshold:
 
 ```bash
