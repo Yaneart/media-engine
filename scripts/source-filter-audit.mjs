@@ -5,6 +5,7 @@ import { kinobdStreamingProvider } from "../packages/providers/dist/index.js";
 
 const strict = process.argv.includes("--strict");
 const limit = readLimit();
+const category = readCategory();
 let latestAudit;
 
 const engine = new MediaEngine({
@@ -31,8 +32,19 @@ const cases = [
   kinopoiskCase("movie: The Lord of the Rings: The Fellowship of the Ring", "movie", "328"),
   kinopoiskCase("movie: Avatar", "movie", "251733"),
   kinopoiskCase("series: Game of Thrones", "series", "464963"),
+  kinopoiskCase("series: Breaking Bad", "series", "404900"),
+  kinopoiskCase("series: Sherlock", "series", "502838"),
+  kinopoiskCase("series: Chernobyl", "series", "1227803"),
+  kinopoiskCase("series: Stranger Things", "series", "915196"),
+  kinopoiskCase("series: House of the Dragon", "series", "1316601"),
+  kinopoiskCase("series: True Detective", "series", "681831"),
+  kinopoiskCase("series: Peaky Blinders", "series", "716587"),
+  kinopoiskCase("series: Better Call Saul", "series", "796660"),
+  kinopoiskCase("series: The Last of Us", "series", "839458"),
   kinopoiskCase("anime: One Piece", "anime", "382731"),
-].slice(0, limit);
+]
+  .filter((testCase) => category === undefined || testCase.query.type === category)
+  .slice(0, limit);
 
 const results = [];
 
@@ -51,6 +63,7 @@ function kinopoiskCase(name, type, kinopoiskId) {
     name,
     query: { type, ids: { kinopoisk: kinopoiskId } },
     expectedKinopoiskId: kinopoiskId,
+    expectedTitle: name.slice(name.indexOf(":") + 1).trim(),
   };
 }
 
@@ -65,11 +78,13 @@ async function runAuditCase(testCase) {
       audit?.filtered.filter((entry) => !entry.player || !entry.reason) ?? [];
     const actualKinopoiskId = availability.item?.ids?.kinopoisk;
     const identityMismatch = actualKinopoiskId !== testCase.expectedKinopoiskId;
+    const titleMismatch = !matchesExpectedTitle(availability.item, testCase.expectedTitle);
     const status =
       availability.options.length > 0 &&
       audit &&
       invalidFilteredEntries.length === 0 &&
-      !identityMismatch
+      !identityMismatch &&
+      !titleMismatch
         ? "PASS"
         : "FAIL";
 
@@ -85,6 +100,7 @@ async function runAuditCase(testCase) {
         !audit ? "provider audit was not emitted" : undefined,
         invalidFilteredEntries.length > 0 ? "filtered entries missing reasons" : undefined,
         identityMismatch ? `expected kinopoisk=${testCase.expectedKinopoiskId}` : undefined,
+        titleMismatch ? `expected title=${testCase.expectedTitle}` : undefined,
       ].filter(Boolean),
     };
   } catch (error) {
@@ -129,6 +145,18 @@ function formatFiltered(entries) {
     : "none";
 }
 
+function matchesExpectedTitle(item, expectedTitle) {
+  const normalizedExpectedTitle = normalizeTitle(expectedTitle);
+
+  return [item?.title, item?.originalTitle].some(
+    (title) => title && normalizeTitle(title) === normalizedExpectedTitle,
+  );
+}
+
+function normalizeTitle(title) {
+  return title.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function readLimit() {
   const index = process.argv.indexOf("--limit");
 
@@ -139,4 +167,20 @@ function readLimit() {
   const value = Number(process.argv[index + 1]);
 
   return Number.isFinite(value) && value > 0 ? value : Number.POSITIVE_INFINITY;
+}
+
+function readCategory() {
+  const index = process.argv.indexOf("--category");
+
+  if (index === -1) {
+    return undefined;
+  }
+
+  const value = process.argv[index + 1];
+
+  if (value !== "movie" && value !== "series" && value !== "anime") {
+    throw new TypeError("--category must be movie, series, or anime.");
+  }
+
+  return value;
 }

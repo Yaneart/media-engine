@@ -330,8 +330,9 @@ Priority tasks for the next session:
    - Verify filtering does not remove working playback sources.
    - Prefer showing as many working playback sources as possible while still removing obvious broken, trailer, torrent, external-only, or non-playback sources.
    - Keep filtering reasons visible enough for debugging.
-   - `pnpm smoke:source-filter-audit` now covers 10 movies, 1 series, and 1 anime with provider-level filter reasons and expected Kinopoisk identity assertions; expand series and anime incrementally to 10 cases.
+   - `pnpm smoke:source-filter-audit` now covers 10 movies, 10 series, and 1 anime with provider-level filter reasons plus expected Kinopoisk ID and title assertions; `--category` runs one media category independently. Expand anime to 10 cases next.
    - The 10-movie strict audit passed with correct identities. Collaps, FlixCDN, and Vibix remained available across the sample, while VideoSeed was preserved where returned. No working source was found among the filtered Turbo/ASHDI live-validation failures or known-broken HDVB URLs in this sample.
+   - The 10-series strict audit also passed after correcting two bad fixture IDs exposed by title assertions. Collaps, FlixCDN, and Vibix remained available across all cases, while VideoSeed was preserved where returned. No mistakenly filtered working source was found in the series sample.
 9. Search for non-Russian playback sources.
    - Look for English or otherwise international sources comparable to the current Russian voiceover-heavy sources.
    - If a source is usable and allowed, add it as a separate provider or source option instead of mixing language assumptions into Russian providers.
