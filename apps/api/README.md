@@ -56,6 +56,15 @@ KODIK_TOKEN=your_kodik_token
 
 The API loads the nearest `.env` file on local startup without overriding already exported environment variables.
 
+Provider call budgets can be adjusted when an upstream is unusually slow:
+
+```txt
+MEDIA_ENGINE_PROVIDER_TIMEOUT_MS=5000
+MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS=2500
+```
+
+The first value is the global upper boundary. The second gives optional Cinemeta and Wikidata enrichment a shorter budget so they cannot hold the entire response until the global timeout.
+
 Swagger UI is available at:
 
 ```txt

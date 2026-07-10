@@ -47,6 +47,7 @@ export class MediaEngine {
   private readonly cache?: Cache;
   private readonly mergeStrategy: MergeStrategy;
   private readonly timeoutMs?: number;
+  private readonly providerTimeouts: Readonly<Record<string, number>>;
   private readonly debug: boolean;
 
   constructor(options: MediaEngineOptions = {}) {
@@ -55,6 +56,7 @@ export class MediaEngine {
     this.cache = options.cache;
     this.mergeStrategy = options.mergeStrategy ?? new DefaultMergeStrategy();
     this.timeoutMs = options.timeoutMs;
+    this.providerTimeouts = { ...options.providerTimeouts };
     this.debug = options.debug ?? false;
   }
 
@@ -118,7 +120,7 @@ export class MediaEngine {
         callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
           debug: this.debug,
           language: normalizedQuery.language,
-          timeoutMs: this.timeoutMs,
+          timeoutMs: this.getProviderTimeoutMs(provider.name),
         }),
       ),
     );
@@ -207,7 +209,7 @@ export class MediaEngine {
         callTimedProviderDetails(provider, normalizedQuery, {
           debug: this.debug,
           language: normalizedQuery.language,
-          timeoutMs: this.timeoutMs,
+          timeoutMs: this.getProviderTimeoutMs(provider.name),
         }),
       ),
     );
@@ -296,7 +298,7 @@ export class MediaEngine {
       const outcome = await callTimedProviderAvailability(provider, normalizedQuery, {
         debug: this.debug,
         language: normalizedQuery.language,
-        timeoutMs: this.timeoutMs,
+        timeoutMs: this.getProviderTimeoutMs(provider.name),
       });
       providerTimings.push(outcome.timing);
 
@@ -355,6 +357,20 @@ export class MediaEngine {
   // Дает будущим методам движка доступ к настроенному timeout.
   protected get engineTimeoutMs(): number | undefined {
     return this.timeoutMs;
+  }
+
+  // Resolves a provider override without allowing it to exceed the global boundary.
+  // Выбирает override провайдера, не позволяя ему превысить глобальную границу.
+  private getProviderTimeoutMs(providerName: string): number | undefined {
+    const providerTimeoutMs = this.providerTimeouts[providerName];
+
+    if (providerTimeoutMs === undefined) {
+      return this.timeoutMs;
+    }
+
+    return this.timeoutMs === undefined
+      ? providerTimeoutMs
+      : Math.min(this.timeoutMs, providerTimeoutMs);
   }
 
   // Gives future engine methods access to the debug flag.

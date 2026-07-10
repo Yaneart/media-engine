@@ -764,6 +764,58 @@ test("getDetails calls selected providers concurrently", async () => {
   assert.deepEqual(calls, ["slow-start", "fast-start", "fast-finish", "slow-finish"]);
 });
 
+test("getDetails applies provider timeout overrides within the global boundary", async () => {
+  let slowTimeoutMs: number | undefined;
+  let fastTimeoutMs: number | undefined;
+  const engine = new MediaEngine({
+    timeoutMs: 100,
+    providerTimeouts: {
+      "slow-provider": 5,
+      "fast-provider": 500,
+    },
+    providers: [
+      createProvider({
+        name: "slow-provider",
+        async getDetails(_, context): Promise<ProviderDetailsResult | null> {
+          slowTimeoutMs = context.timeoutMs;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+
+          return null;
+        },
+      }),
+      createProvider({
+        name: "fast-provider",
+        async getDetails(_, context): Promise<ProviderDetailsResult | null> {
+          fastTimeoutMs = context.timeoutMs;
+
+          return {
+            provider: "fast-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Fast Details",
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.equal(slowTimeoutMs, 5);
+  assert.equal(fastTimeoutMs, 100);
+  assert.equal(response.details?.title, "Fast Details");
+  assert.deepEqual(response.meta.providers.failed, [
+    {
+      provider: "slow-provider",
+      code: "PROVIDER_TIMEOUT",
+      retryable: true,
+      message: 'Provider "slow-provider" timed out.',
+    },
+  ]);
+});
+
 test("getDetails throws predictably when all selected providers fail", async () => {
   const engine = new MediaEngine({
     providers: [

@@ -15,6 +15,10 @@ const thresholdMs = readThresholdMs();
 const engine = new MediaEngine({
   debug: true,
   timeoutMs: 5_000,
+  providerTimeouts: {
+    cinemeta: 2_500,
+    wikidata: 2_500,
+  },
   providers: [
     kinobdProvider(),
     cinemetaProvider(),

@@ -11,5 +11,6 @@ export interface MediaEngineOptions {
   cache?: Cache;
   mergeStrategy?: MergeStrategy;
   timeoutMs?: number;
+  providerTimeouts?: Readonly<Record<string, number>>;
   debug?: boolean;
 }

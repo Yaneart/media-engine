@@ -281,9 +281,17 @@ Observed live issue:
 
 - Searching `one` in the example app can take around 15 seconds before movies and series appear.
 - Search quality can drift between broad and specific queries. Example: `one` may show `One Piece` low in the list with only Cinemeta data, no rating, and a weaker poster, while `one piece` returns a better merged `One Piece` result first with KinoBD IDs, ratings, and poster. Treat this as a merge/ranking/enrichment quality bug, not just a frontend display difference.
-- Root cause found in the current search path: `MediaEngine.search()` calls selected metadata providers sequentially. A broad query without `type` may wait for KinoBD, Cinemeta, Shikimori, Wikidata, and optionally TMDB one after another before merge/ranking.
+- Original root cause: `MediaEngine.search()` called selected metadata providers sequentially. Search calls are now concurrent and preserve deterministic merge order.
 - Some providers perform multi-step requests: Cinemeta may enrich sparse search results with details; Wikidata searches entity IDs and then loads full entities; title-only broad searches often hit movie and series paths.
-- API-created `MediaEngine` currently has no explicit provider timeout, so a slow upstream can dominate the perceived response time.
+- The API now has explicit global and optional-enrichment provider budgets; live smokes remain necessary because a slow primary provider can still approach the global boundary.
+
+Current implementation status:
+
+- Search and details provider calls now run concurrently with deterministic merge order and provider timings.
+- The API has a 5-second global provider timeout.
+- `MediaEngineOptions.providerTimeouts` now supports smaller per-provider budgets without exceeding the global limit.
+- API Cinemeta and Wikidata enrichment uses a 2.5-second default budget, configurable through `MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS`.
+- Details latency smoke mirrors these optional enrichment budgets. Continue monitoring primary provider latency separately.
 
 Priority tasks for the next session:
 

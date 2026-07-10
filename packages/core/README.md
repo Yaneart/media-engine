@@ -89,6 +89,21 @@ export const provider: MediaProvider = {
 
 Provider methods receive a `context` with `signal`, `timeoutMs`, `debug`, and `language`. Providers should respect `context.signal` when they perform slow work.
 
+Applications can bound slower optional providers independently while keeping a global upper limit:
+
+```ts
+const media = new MediaEngine({
+  providers,
+  timeoutMs: 5_000,
+  providerTimeouts: {
+    cinemeta: 2_500,
+    wikidata: 2_500,
+  },
+});
+```
+
+The effective timeout is the smaller of `timeoutMs` and the matching `providerTimeouts` value.
+
 ## Streaming Availability Contract
 
 Streaming availability is separate from metadata search and details. Configure streaming providers through `streamingProviders` and call `getAvailability` with a media or episode identity.

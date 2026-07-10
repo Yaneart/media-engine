@@ -9,9 +9,11 @@ export interface MediaEngineEnv {
   TMDB_API_READ_ACCESS_TOKEN?: string;
   KODIK_TOKEN?: string;
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS?: string;
 }
 
 export const DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS = 5_000;
+export const DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS = 2_500;
 
 // EN: Build providers from environment without requiring secrets for local boot.
 // RU: Собираем провайдеры из env без обязательных секретов для локального запуска.
@@ -70,31 +72,55 @@ export async function createMediaEngine(
     providers: await createConfiguredProviders(env),
     streamingProviders: await createConfiguredStreamingProviders(env),
     timeoutMs: readProviderTimeoutMs(env),
+    providerTimeouts: {
+      cinemeta: readEnrichmentProviderTimeoutMs(env),
+      wikidata: readEnrichmentProviderTimeoutMs(env),
+    },
   });
+}
+
+export function readEnrichmentProviderTimeoutMs(
+  env: MediaEngineEnv = process.env,
+): number {
+  return readPositiveIntegerEnv(
+    env.MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS,
+    DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS,
+    'MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS',
+  );
 }
 
 export function readProviderTimeoutMs(
   env: MediaEngineEnv = process.env,
 ): number {
-  const value = readOptionalEnv(env.MEDIA_ENGINE_PROVIDER_TIMEOUT_MS);
-
-  if (value === undefined) {
-    return DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS;
-  }
-
-  const timeoutMs = Number(value);
-
-  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    throw new Error(
-      'MEDIA_ENGINE_PROVIDER_TIMEOUT_MS must be a positive integer.',
-    );
-  }
-
-  return timeoutMs;
+  return readPositiveIntegerEnv(
+    env.MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
+    DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
+    'MEDIA_ENGINE_PROVIDER_TIMEOUT_MS',
+  );
 }
 
 function readOptionalEnv(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
 
   return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
+}
+
+function readPositiveIntegerEnv(
+  value: string | undefined,
+  defaultValue: number,
+  name: string,
+): number {
+  const normalizedValue = readOptionalEnv(value);
+
+  if (normalizedValue === undefined) {
+    return defaultValue;
+  }
+
+  const parsedValue = Number(normalizedValue);
+
+  if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+
+  return parsedValue;
 }

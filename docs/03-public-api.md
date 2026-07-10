@@ -70,6 +70,7 @@ interface MediaEngineOptions {
   cache?: Cache;
   mergeStrategy?: MergeStrategy;
   timeoutMs?: number;
+  providerTimeouts?: Readonly<Record<string, number>>;
   debug?: boolean;
 }
 ```
@@ -77,6 +78,8 @@ interface MediaEngineOptions {
 `providers` are passed from the outside. Core never imports or creates concrete providers by name.
 
 `timeoutMs` is the default timeout for provider calls. A provider may also have its own internal timeout, but the engine-level timeout is the upper orchestration boundary.
+
+`providerTimeouts` optionally assigns a smaller orchestration budget by provider name. When both values are configured, the effective timeout is the smaller of the global and provider-specific values. This lets applications bound optional enrichment without weakening the global safety limit.
 
 ## SearchQuery
 
