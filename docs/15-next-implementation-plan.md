@@ -188,9 +188,7 @@ Implementation target:
    - iframe/embed URL;
    - source attribution;
    - episode references when available.
-6. Keep direct Kodik API provider optional:
-   - `kodikProvider({ token })` can remain for users with an official Kodik token;
-   - it should not be required for the default out-of-box flow.
+6. Keep the streaming layer strictly no-token; Kodik may appear only as an upstream player returned through KinoBD/ReYohoho-style endpoints.
 
 Known KinoBD/ReYohoho player keys to request by default:
 

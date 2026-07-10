@@ -142,7 +142,6 @@ Suggested structure:
 packages/providers/
   src/
     experimental-streaming/
-    tmdb/
     shikimori/
     shared/
     index.ts

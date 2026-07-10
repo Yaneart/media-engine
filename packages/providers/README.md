@@ -2,7 +2,7 @@
 
 Provider package for Media Engine.
 
-This package contains concrete metadata provider factories such as KinoBD, Cinemeta, TMDB, Shikimori, Wikidata, and local IMDb datasets, plus streaming provider factories such as Kodik and the local experimental provider.
+This package contains no-token metadata provider factories such as KinoBD, Cinemeta, Shikimori, Wikidata, and local IMDb datasets, plus the no-token KinoBD streaming provider and local experimental provider.
 
 The package depends on `@media-engine/core` for provider contracts and normalized media types. Core must not import this package.
 
@@ -21,7 +21,6 @@ src/
   shared/
   kinobd/
   cinemeta/
-  tmdb/
   shikimori/
   wikidata/
   imdb-dataset/
@@ -79,34 +78,7 @@ Supported data:
 - posters, backdrops, IMDb ratings, genres, cast, writers, and directors when available;
 - configurable `imageLimit`, `personLimit`, and `enrichSearchLimit`.
 
-Cinemeta is the secondary no-token movie and series provider for the local API stand. TMDB can still be added for richer dedicated metadata when a token is configured.
-
-## TMDB Provider
-
-`tmdbProvider` creates a metadata provider for movies and series.
-
-```ts
-import { MediaEngine } from "@media-engine/core";
-import { tmdbProvider } from "@media-engine/providers";
-
-const engine = new MediaEngine({
-  providers: [
-    tmdbProvider({
-      apiKey: process.env.TMDB_API_READ_ACCESS_TOKEN ?? "",
-      language: "ru-RU",
-    }),
-  ],
-});
-```
-
-Supported data:
-
-- title search for movies and series;
-- IMDb and TMDB external ID lookup;
-- movie and series details;
-- posters, backdrops, ratings, genres, persons, seasons, and alternative titles.
-
-`apiKey` is sent as a TMDB bearer token. Tests use mock `fetch` implementations and do not call the real TMDB API.
+Cinemeta is a secondary no-token movie and series provider. Its results are merged with KinoBD and Wikidata to improve metadata completeness without application secrets.
 
 ## Shikimori Provider
 
@@ -154,7 +126,7 @@ Supported data:
 - IMDb ID lookup through Wikidata;
 - basic details with title, description, release date, image, and IMDb ID when present.
 
-Wikidata is useful as a free fallback when TMDB credentials are not configured. It is less complete than TMDB and should be treated as a baseline metadata source, not a full replacement for dedicated movie databases.
+Wikidata is a free metadata source whose results are merged with KinoBD and Cinemeta. It is less complete than a dedicated movie database and should be treated as one enrichment source rather than the only source.
 
 ## IMDb Dataset Provider
 
@@ -272,40 +244,6 @@ Supported behavior:
 This provider does not use a Kodik API token and does not extract direct video files. It returns player/embed URLs for the application UI to render.
 
 For live source-filter audits, pass `onPlayerAudit`. The callback reports discovered and shown player labels plus filtered labels with stable reasons such as `provider_not_allowed`, `missing_iframe`, `known_broken_url`, and `player_validation_failed`. Callback failures are isolated from normal availability behavior.
-
-## Kodik Streaming Provider
-
-`kodikProvider` creates a token-based streaming provider for normalized player options. It uses the configured Kodik API token from the application and returns embed player URLs as `StreamOption` values. It does not scrape player pages, does not extract direct video files, and does not expose secrets in provider metadata.
-
-```ts
-import { MediaEngine } from "@media-engine/core";
-import { kodikProvider, shikimoriProvider } from "@media-engine/providers";
-
-const engine = new MediaEngine({
-  providers: [shikimoriProvider()],
-  streamingProviders: [
-    kodikProvider({
-      token: process.env.KODIK_TOKEN ?? "",
-    }),
-  ],
-});
-
-const availability = await engine.getAvailability({
-  type: "anime",
-  shikimori: "20",
-  absoluteEpisodeNumber: 1,
-});
-```
-
-Supported behavior:
-
-- anime, movie, and series availability lookup;
-- title, IMDb ID, Kinopoisk ID, and Shikimori ID lookup;
-- episode mapping from Kodik season/episode maps;
-- normalized translation, quality, provider attribution, and embed access URLs;
-- configurable API base URL, fetch implementation, result limit, and Kodik type filters.
-
-Before shipping an app with Kodik enabled, verify your Kodik API token terms and allowed embed usage for your product.
 
 ## Shared Utilities
 

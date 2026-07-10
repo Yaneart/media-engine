@@ -86,7 +86,7 @@ Includes:
 - mock HTTP tests;
 - provider documentation.
 
-TMDB is the rich source for movies and series when credentials are configured. Wikidata is the no-token baseline source for movies and series. Shikimori is first for anime.
+KinoBD, Cinemeta, and Wikidata are merged as the no-token metadata baseline for movies and series. Shikimori is first for anime.
 
 IMDb, Kinopoisk, and AniList are important planned metadata sources, but they are not required to prove the first provider architecture. Add them after TMDB, Shikimori, and Wikidata are stable.
 

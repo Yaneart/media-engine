@@ -14,7 +14,7 @@ The core engine, metadata providers, streaming availability API, REST API, SDK, 
 
 Developers should work with Media Engine, not with every provider separately.
 
-Instead of manually integrating TMDB, IMDb, Kinopoisk, Shikimori, Kodik, Collaps, VideoCDN, and other services, a developer calls one typed API:
+Instead of manually integrating IMDb, Kinopoisk, Shikimori, Kodik, Collaps, VideoCDN, and other sources, a developer calls one typed API:
 
 ```ts
 const media = new MediaEngine({

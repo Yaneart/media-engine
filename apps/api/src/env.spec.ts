@@ -8,15 +8,15 @@ describe('local env loader', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'media-engine-env-'));
     const nestedDir = join(rootDir, 'apps', 'api');
     const env: NodeJS.ProcessEnv = {
-      TMDB_API_READ_ACCESS_TOKEN: 'existing-token',
+      EXISTING_VALUE: 'existing',
     };
 
     mkdirSync(nestedDir, { recursive: true });
     writeFileSync(
       join(rootDir, '.env'),
       [
-        'TMDB_API_READ_ACCESS_TOKEN=file-token',
-        'TMDB_API_KEY="fallback-token"',
+        'EXISTING_VALUE=file-value',
+        'EXAMPLE_VALUE="loaded-value"',
         "VITE_MEDIA_ENGINE_API_URL='http://127.0.0.1:3000'",
         '# ignored comment',
         '',
@@ -24,8 +24,8 @@ describe('local env loader', () => {
     );
 
     expect(loadLocalEnv(nestedDir, env)).toBe(join(rootDir, '.env'));
-    expect(env.TMDB_API_READ_ACCESS_TOKEN).toBe('existing-token');
-    expect(env.TMDB_API_KEY).toBe('fallback-token');
+    expect(env.EXISTING_VALUE).toBe('existing');
+    expect(env.EXAMPLE_VALUE).toBe('loaded-value');
     expect(env.VITE_MEDIA_ENGINE_API_URL).toBe('http://127.0.0.1:3000');
   });
 
@@ -36,10 +36,10 @@ describe('local env loader', () => {
     const env: NodeJS.ProcessEnv = {};
 
     mkdirSync(nestedDir, { recursive: true });
-    writeFileSync(join(parentDir, '.env'), 'TMDB_API_KEY=parent-token\n');
+    writeFileSync(join(parentDir, '.env'), 'EXAMPLE_VALUE=parent-value\n');
     writeFileSync(join(workspaceDir, 'pnpm-workspace.yaml'), 'packages: []\n');
 
     expect(loadLocalEnv(nestedDir, env)).toBeUndefined();
-    expect(env.TMDB_API_KEY).toBeUndefined();
+    expect(env.EXAMPLE_VALUE).toBeUndefined();
   });
 });

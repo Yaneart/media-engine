@@ -5,9 +5,6 @@ import type {
 } from '@media-engine/core';
 
 export interface MediaEngineEnv {
-  TMDB_API_KEY?: string;
-  TMDB_API_READ_ACCESS_TOKEN?: string;
-  KODIK_TOKEN?: string;
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS?: string;
 }
@@ -24,7 +21,6 @@ export async function createConfiguredProviders(
     cinemetaProvider,
     kinobdProvider,
     shikimoriProvider,
-    tmdbProvider,
     wikidataProvider,
   } = await import('@media-engine/providers');
   const providers: MediaProvider[] = [
@@ -33,14 +29,6 @@ export async function createConfiguredProviders(
     shikimoriProvider(),
     wikidataProvider(),
   ];
-  const tmdbApiKey = readOptionalEnv(
-    env.TMDB_API_READ_ACCESS_TOKEN ?? env.TMDB_API_KEY,
-  );
-
-  if (tmdbApiKey !== undefined) {
-    providers.push(tmdbProvider({ apiKey: tmdbApiKey }));
-  }
-
   return providers;
 }
 
@@ -49,16 +37,8 @@ export async function createConfiguredProviders(
 export async function createConfiguredStreamingProviders(
   env: MediaEngineEnv = process.env,
 ): Promise<StreamingProvider[]> {
-  const { kinobdStreamingProvider, kodikProvider } =
-    await import('@media-engine/providers');
-  const providers: StreamingProvider[] = [kinobdStreamingProvider()];
-  const kodikToken = readOptionalEnv(env.KODIK_TOKEN);
-
-  if (kodikToken !== undefined) {
-    providers.push(kodikProvider({ token: kodikToken }));
-  }
-
-  return providers;
+  const { kinobdStreamingProvider } = await import('@media-engine/providers');
+  return [kinobdStreamingProvider()];
 }
 
 // EN: Create the API-wide engine instance used by Nest dependency injection.

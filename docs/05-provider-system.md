@@ -183,7 +183,7 @@ TMDB, Shikimori, Wikidata, and local IMDb datasets prove the first provider cont
 
 ### Wikidata
 
-Role: no-token baseline metadata for movies and series, especially when TMDB credentials are not configured.
+Role: one part of the no-token metadata baseline for movies and series, merged with KinoBD and Cinemeta.
 
 Source:
 

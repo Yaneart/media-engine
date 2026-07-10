@@ -105,7 +105,6 @@ Suggested structure:
 ```txt
 packages/providers/src/
   experimental-streaming/
-  tmdb/
   shikimori/
   shared/
   index.ts

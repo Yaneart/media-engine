@@ -24,10 +24,8 @@ import {
   cinemetaProvider,
   kinobdProvider,
   shikimoriProvider,
-  tmdbProvider,
   wikidataProvider,
   kinobdStreamingProvider,
-  kodikProvider,
 } from "@media-engine/providers";
 import { MediaEngineClient } from "@media-engine/sdk";
 ```
@@ -36,7 +34,7 @@ Not supported:
 
 ```ts
 import { MediaEngine } from "@media-engine/core/dist/engine/engine.js";
-import { tmdbProvider } from "@media-engine/providers/dist/tmdb/index.js";
+import { kinobdProvider } from "@media-engine/providers/dist/kinobd/index.js";
 import { MediaEngineClient } from "@media-engine/sdk/dist/client.js";
 ```
 
@@ -85,7 +83,6 @@ The engine must stay framework-independent. It must not depend on NestJS, React,
 
 The stable metadata provider factories are:
 
-- `tmdbProvider`;
 - `shikimoriProvider`;
 - `wikidataProvider`;
 - `kinobdProvider`;
@@ -95,7 +92,6 @@ The stable metadata provider factories are:
 The provider package also exports streaming provider factories:
 
 - `kinobdStreamingProvider`;
-- `kodikProvider`;
 - `experimentalStreamingProvider`.
 
 The provider package also exports shared HTTP helpers for provider implementation work:
