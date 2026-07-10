@@ -135,7 +135,7 @@ Run the initial source-filter audit sample when changing KinoBD player filtering
 pnpm smoke:source-filter-audit -- --strict
 ```
 
-The audit reports discovered, shown, and filtered players with filter reasons. The fixed sample currently covers ten movies, ten series, and one anime. Run one category independently with `--category movie`, `--category series`, or `--category anime`. Expand anime coverage in a separate reviewable commit toward the required 10/10/10 total.
+The audit reports discovered, shown, and filtered players with filter reasons. The fixed sample covers ten movies, ten series, and ten anime. Run one category independently with `--category movie`, `--category series`, or `--category anime`.
 
 For a custom local threshold:
 
