@@ -226,7 +226,7 @@ interface CacheSetOptions {
 }
 ```
 
-The cache interface is optional. `@media-engine/core` provides a simple `MemoryCache` for v0.1.
+The cache interface is optional. `@media-engine/core` provides a bounded `MemoryCache` with optional `defaultTtlMs` and `maxEntries`. When bounded, reads refresh recency and overflow evicts the least-recently-used entry.
 
 ## MergeStrategy
 

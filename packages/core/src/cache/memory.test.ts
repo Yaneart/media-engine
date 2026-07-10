@@ -70,3 +70,30 @@ test("works through the cache interface in async usage", async () => {
 
   assert.equal(await cache.get("movie"), "Interstellar");
 });
+
+test("applies a default ttl when set does not provide one", () => {
+  let now = 1_000;
+  const cache = new MemoryCache({ now: () => now, defaultTtlMs: 100 });
+
+  cache.set("movie", "Interstellar");
+  now = 1_101;
+
+  assert.equal(cache.get("movie"), undefined);
+});
+
+test("evicts the least recently used entry when bounded", () => {
+  const cache = new MemoryCache({ maxEntries: 2 });
+
+  cache.set("first", 1);
+  cache.set("second", 2);
+  assert.equal(cache.get("first"), 1);
+  cache.set("third", 3);
+
+  assert.equal(cache.get("first"), 1);
+  assert.equal(cache.get("second"), undefined);
+  assert.equal(cache.get("third"), 3);
+});
+
+test("rejects invalid max entry bounds", () => {
+  assert.throws(() => new MemoryCache({ maxEntries: 0 }), /positive integer/);
+});

@@ -202,6 +202,25 @@ test("shikimoriProvider omits unsupported details status labels", async () => {
   assert.equal(result?.details.status, undefined);
 });
 
+test("shikimoriProvider keeps core details when optional roles and screenshots fail", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/api/animes/1": {
+        id: 1,
+        name: "Cowboy Bebop",
+        russian: "Ковбой Бибоп",
+        score: "8.75",
+      },
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { shikimori: "1" }, type: "anime" }, {});
+
+  assert.equal(result?.details.title, "Ковбой Бибоп");
+  assert.equal(result?.details.persons, undefined);
+  assert.equal(result?.details.images, undefined);
+});
+
 test("shikimoriProvider maps HTTP failures through provider errors", async () => {
   const provider = createProvider({
     fetch: async () => new Response("rate limited", { status: 429 }),

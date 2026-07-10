@@ -2,7 +2,6 @@ import {
   DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
-  createConfiguredProviders,
   createConfiguredStreamingProviders,
   createMediaEngine,
   readEnrichmentProviderTimeoutMs,
@@ -26,7 +25,7 @@ describe('MediaEngine configuration', () => {
   });
 
   it('creates no-token streaming providers by default', async () => {
-    const providers = await createConfiguredStreamingProviders({});
+    const providers = await createConfiguredStreamingProviders();
 
     expect(providers.map((provider) => provider.name)).toEqual([
       'kinobd-streaming',
@@ -101,5 +100,30 @@ describe('MediaEngine configuration', () => {
         MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: '-1',
       }),
     ).toThrow(/positive integer/);
+  });
+
+  it('allows a streaming request to exceed the shorter metadata timeout', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      return Response.json({ data: [] });
+    }) as typeof fetch;
+
+    try {
+      const engine = await createMediaEngine({
+        MEDIA_ENGINE_PROVIDER_TIMEOUT_MS: '20',
+        MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS: '10',
+        MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: '80',
+      });
+      const availability = await engine.getAvailability({
+        type: 'movie',
+        title: 'Interstellar',
+      });
+
+      expect(availability.options).toEqual([]);
+      expect(availability.meta?.providers.failed).toEqual([]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

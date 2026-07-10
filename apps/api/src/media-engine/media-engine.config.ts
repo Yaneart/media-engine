@@ -13,12 +13,12 @@ export interface MediaEngineEnv {
 export const DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS = 5_000;
 export const DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS = 2_500;
 export const DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS = 10_000;
+export const DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS = 5 * 60_000;
+export const DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES = 500;
 
 // EN: Build providers from environment without requiring secrets for local boot.
 // RU: Собираем провайдеры из env без обязательных секретов для локального запуска.
-export async function createConfiguredProviders(
-  env: MediaEngineEnv = process.env,
-): Promise<MediaProvider[]> {
+export async function createConfiguredProviders(): Promise<MediaProvider[]> {
   const {
     cinemetaProvider,
     kinobdProvider,
@@ -36,9 +36,9 @@ export async function createConfiguredProviders(
 
 // EN: Build streaming providers from environment without requiring them for local boot.
 // RU: Собираем streaming-провайдеры из env без обязательности для локального запуска.
-export async function createConfiguredStreamingProviders(
-  env: MediaEngineEnv = process.env,
-): Promise<StreamingProvider[]> {
+export async function createConfiguredStreamingProviders(): Promise<
+  StreamingProvider[]
+> {
   const { kinobdStreamingProvider } = await import('@media-engine/providers');
   return [kinobdStreamingProvider()];
 }
@@ -48,13 +48,19 @@ export async function createConfiguredStreamingProviders(
 export async function createMediaEngine(
   env: MediaEngineEnv = process.env,
 ): Promise<MediaEngine> {
-  const { MediaEngine } = await import('@media-engine/core');
+  const { MediaEngine, MemoryCache } = await import('@media-engine/core');
 
   return new MediaEngine({
-    providers: await createConfiguredProviders(env),
-    streamingProviders: await createConfiguredStreamingProviders(env),
-    timeoutMs: readProviderTimeoutMs(env),
+    providers: await createConfiguredProviders(),
+    streamingProviders: await createConfiguredStreamingProviders(),
+    cache: new MemoryCache({
+      defaultTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
+      maxEntries: DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES,
+    }),
+    timeoutMs: readStreamingProviderTimeoutMs(env),
     providerTimeouts: {
+      kinobd: readProviderTimeoutMs(env),
+      shikimori: readProviderTimeoutMs(env),
       cinemeta: readEnrichmentProviderTimeoutMs(env),
       wikidata: readEnrichmentProviderTimeoutMs(env),
       'kinobd-streaming': readStreamingProviderTimeoutMs(env),

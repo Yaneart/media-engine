@@ -346,12 +346,17 @@ export class MediaEngine {
     const providerResults: MediaAvailability[] = [];
     const providerTimings: ProviderTimingMeta[] = [];
 
-    for (const provider of providers) {
-      const outcome = await callTimedProviderAvailability(provider, normalizedQuery, {
-        debug: this.debug,
-        language: normalizedQuery.language,
-        timeoutMs: this.getProviderTimeoutMs(provider.name),
-      });
+    const outcomes = await Promise.all(
+      providers.map((provider) =>
+        callTimedProviderAvailability(provider, normalizedQuery, {
+          debug: this.debug,
+          language: normalizedQuery.language,
+          timeoutMs: this.getProviderTimeoutMs(provider.name),
+        }),
+      ),
+    );
+
+    for (const outcome of outcomes) {
       providerTimings.push(outcome.timing);
 
       if (outcome.failure) {

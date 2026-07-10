@@ -37,7 +37,7 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
         throw providerError;
       }
 
-      await delay(getRetryDelayMs(retryDelayMs, attempt));
+      await delay(getRetryDelayMs(retryDelayMs, attempt), options.context?.signal);
       attempt += 1;
     }
   }
@@ -204,33 +204,7 @@ function mergeAbortSignals(
   externalSignal: AbortSignal | undefined,
   timeoutSignal: AbortSignal,
 ): AbortSignal {
-  if (!externalSignal) {
-    return timeoutSignal;
-  }
-
-  const controller = new AbortController();
-
-  forwardAbort(externalSignal, controller);
-  forwardAbort(timeoutSignal, controller);
-
-  return controller.signal;
-}
-
-// Forwards one abort signal into another controller.
-// Передает отмену одного signal в другой controller.
-function forwardAbort(signal: AbortSignal, controller: AbortController): void {
-  if (signal.aborted) {
-    controller.abort(signal.reason);
-    return;
-  }
-
-  signal.addEventListener(
-    "abort",
-    () => {
-      controller.abort(signal.reason);
-    },
-    { once: true },
-  );
+  return externalSignal ? AbortSignal.any([externalSignal, timeoutSignal]) : timeoutSignal;
 }
 
 // Checks whether an unknown error is an abort-style error.
@@ -250,12 +224,26 @@ function getRetryDelayMs(baseDelayMs: number, attempt: number): number {
 
 // Waits before the next provider retry.
 // Ждет перед следующей provider retry.
-function delay(ms: number): Promise<void> {
+function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
   if (ms <= 0) {
     return Promise.resolve();
   }
 
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(signal?.reason);
+    };
+
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }

@@ -7,7 +7,6 @@ The API owns HTTP routing, DTO/query parsing, provider configuration, health che
 ## Endpoints
 
 ```txt
-GET /
 GET /health
 GET /providers
 GET /providers/streaming
@@ -56,7 +55,9 @@ MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS=10000
 
 Streaming uses a larger default budget because one cold availability lookup may include candidate search, player data loading, and bounded iframe validation.
 
-The first value is the global upper boundary. The second gives optional Cinemeta and Wikidata enrichment a shorter budget so they cannot hold the entire response until the global timeout.
+The streaming value is the engine-wide upper boundary. Regular KinoBD and Shikimori metadata calls use the first value, while optional Cinemeta and Wikidata enrichment uses the shorter second value.
+
+Successful search, details, and availability responses are cached in memory for five minutes. The cache is bounded to 500 least-recently-used entries so repeated requests are fast without unbounded process memory growth.
 
 Swagger UI is available at:
 

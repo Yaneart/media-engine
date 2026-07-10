@@ -73,6 +73,8 @@ interface ImdbTitleRecord {
   endYear?: number;
   runtimeMinutes?: number;
   genres?: string[];
+  normalizedPrimaryTitle: string;
+  normalizedOriginalTitle: string;
 }
 
 interface ImdbRatingRecord {
@@ -124,20 +126,39 @@ function searchImdbDataset(
     return [];
   }
 
-  return Array.from(config.recordsById.values())
-    .filter((record) => matchesType(record, query.type))
-    .filter((record) => query.year === undefined || record.startYear === query.year)
-    .map((record) => ({
-      record,
-      score: scoreTitle(record, normalizedTitle),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort(
-      (left, right) =>
-        right.score - left.score || compareNumbers(left.record.startYear, right.record.startYear),
-    )
-    .slice(0, query.limit ?? config.searchLimit)
-    .map((entry) => createSearchResult(config, entry.record, debug, entry.score));
+  const limit = query.limit ?? config.searchLimit;
+  const matches: Array<{ record: ImdbTitleRecord; score: number }> = [];
+
+  for (const record of config.recordsById.values()) {
+    if (
+      !matchesType(record, query.type) ||
+      (query.year !== undefined && record.startYear !== query.year)
+    ) {
+      continue;
+    }
+
+    const score = scoreTitle(record, normalizedTitle);
+
+    if (score <= 0) {
+      continue;
+    }
+
+    const candidate = { record, score };
+    const worstMatch = matches.at(-1);
+
+    if (matches.length >= limit && worstMatch && compareSearchMatches(candidate, worstMatch) >= 0) {
+      continue;
+    }
+
+    matches.push(candidate);
+    matches.sort(compareSearchMatches);
+
+    if (matches.length > limit) {
+      matches.pop();
+    }
+  }
+
+  return matches.map((entry) => createSearchResult(config, entry.record, debug, entry.score));
 }
 
 // Loads local details by IMDb title ID.
@@ -241,15 +262,19 @@ function mapTitleBasicsRow(
     return undefined;
   }
 
+  const originalTitle = emptyToUndefined(row.originalTitle);
+
   return {
     tconst: row.tconst,
     type,
     primaryTitle: row.primaryTitle,
-    originalTitle: emptyToUndefined(row.originalTitle),
+    originalTitle,
     startYear: parseNumber(row.startYear),
     endYear: parseNumber(row.endYear),
     runtimeMinutes: parseNumber(row.runtimeMinutes),
     genres: parseList(row.genres),
+    normalizedPrimaryTitle: normalizeSearchText(row.primaryTitle),
+    normalizedOriginalTitle: normalizeSearchText(originalTitle ?? ""),
   };
 }
 
@@ -278,11 +303,25 @@ function parseRatings(tsv: string | undefined): Map<string, ImdbRatingRecord> {
 
 // Parses TSV content into rows keyed by header names.
 // Парсит TSV content в rows с ключами из header names.
-function parseTsv(content: string): Array<Record<string, string>> {
-  const lines = content.split(/\r?\n/).filter((line) => line.length > 0);
-  const headers = lines[0]?.split("\t") ?? [];
+function* parseTsv(content: string): Generator<Record<string, string>> {
+  const firstLineEnd = content.indexOf("\n");
+  const headerLine = (firstLineEnd < 0 ? content : content.slice(0, firstLineEnd)).replace(
+    /\r$/,
+    "",
+  );
+  const headers = headerLine.split("\t");
+  let offset = firstLineEnd < 0 ? content.length : firstLineEnd + 1;
 
-  return lines.slice(1).map((line) => {
+  while (offset < content.length) {
+    const nextLineEnd = content.indexOf("\n", offset);
+    const lineEnd = nextLineEnd < 0 ? content.length : nextLineEnd;
+    const line = content.slice(offset, lineEnd).replace(/\r$/, "");
+    offset = nextLineEnd < 0 ? content.length : nextLineEnd + 1;
+
+    if (!line) {
+      continue;
+    }
+
     const values = line.split("\t");
     const row: Record<string, string> = {};
 
@@ -290,8 +329,8 @@ function parseTsv(content: string): Array<Record<string, string>> {
       row[header] = values[index] ?? "";
     });
 
-    return row;
-  });
+    yield row;
+  }
 }
 
 // Maps IMDb titleType into Media Engine type.
@@ -353,8 +392,8 @@ function mapRating(rating: ImdbRatingRecord | undefined): Rating[] | undefined {
 // Scores a record title against a normalized search query.
 // Оценивает record title относительно нормализованного search query.
 function scoreTitle(record: ImdbTitleRecord, normalizedQuery: string): number {
-  const primary = normalizeSearchText(record.primaryTitle);
-  const original = normalizeSearchText(record.originalTitle ?? "");
+  const primary = record.normalizedPrimaryTitle;
+  const original = record.normalizedOriginalTitle;
 
   if (primary === normalizedQuery || original === normalizedQuery) {
     return 1;
@@ -402,4 +441,11 @@ function emptyToUndefined(value: string | undefined): string | undefined {
 
 function compareNumbers(left: number | undefined, right: number | undefined): number {
   return (right ?? 0) - (left ?? 0);
+}
+
+function compareSearchMatches(
+  left: { record: ImdbTitleRecord; score: number },
+  right: { record: ImdbTitleRecord; score: number },
+): number {
+  return right.score - left.score || compareNumbers(left.record.startYear, right.record.startYear);
 }

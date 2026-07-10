@@ -175,7 +175,7 @@ async function getCinemetaDetails(
     ? {
         provider: PROVIDER_NAME,
         details,
-        source: createProviderSource(details.type, details.ids),
+        source: createProviderSource(details.ids),
         raw: context.debug ? details : undefined,
         confidence: 1,
       }
@@ -268,17 +268,22 @@ async function getDetailsByImdbId(
   context: ProviderContext,
 ): Promise<MediaDetails | null> {
   const types = type === "movie" || type === "series" ? [type] : (["movie", "series"] as const);
-
-  for (const currentType of types) {
+  const loadType = async (currentType: "movie" | "series"): Promise<MediaDetails | null> => {
     const url = new URL(`${config.baseUrl}/meta/${toCinemetaType(currentType)}/${imdbId}.json`);
     const response = await requestJson<CinemetaMetaResponse>(config, url, context);
 
-    if (response.meta) {
-      return metaToDetails(config, response.meta, currentType);
-    }
+    return response.meta ? metaToDetails(config, response.meta, currentType) : null;
+  };
+
+  if (types.length === 1) {
+    return loadType(types[0]!);
   }
 
-  return null;
+  const results = await Promise.all(
+    types.map((currentType) => loadType(currentType).catch(() => null)),
+  );
+
+  return results.find((details): details is MediaDetails => details !== null) ?? null;
 }
 
 // Maps Cinemeta summary into compact MediaItem.
@@ -328,7 +333,7 @@ function metaToDetails(
       .filter((image): image is Image => Boolean(image))
       .slice(0, config.imageLimit),
     persons: mapPersons(meta, config.personLimit),
-    sourceProviders: [createProviderSource(type, item.ids)],
+    sourceProviders: [createProviderSource(item.ids)],
   };
 
   return type === "series"
@@ -348,7 +353,7 @@ function createSearchResult(item: MediaItem, debug: boolean | undefined): Provid
   return {
     provider: PROVIDER_NAME,
     item,
-    source: createProviderSource(item.type, item.ids),
+    source: createProviderSource(item.ids),
     raw: debug ? item : undefined,
     confidence: item.ids?.imdb ? 0.95 : 0.8,
   };
@@ -391,10 +396,7 @@ function createIds(meta: CinemetaMetaSummary, imdbId: string): ExternalIds {
 
 // Creates source attribution for Cinemeta results.
 // Создает source attribution для результатов Cinemeta.
-function createProviderSource(
-  type: MediaItem["type"],
-  ids: ExternalIds | undefined,
-): ProviderSource {
+function createProviderSource(ids: ExternalIds | undefined): ProviderSource {
   return {
     provider: PROVIDER_NAME,
     ids,

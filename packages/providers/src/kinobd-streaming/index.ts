@@ -339,7 +339,7 @@ async function getMovieOrSeriesAvailability(
     return createEmptyAvailability(query);
   }
 
-  const options = await loadPlayerOptions(config, selected, candidates, query, context);
+  const options = await loadPlayerOptions(config, selected, query, context);
 
   return {
     query,
@@ -366,7 +366,6 @@ async function getMovieOrSeriesAvailability(
 async function loadPlayerOptions(
   config: KinoBdStreamingConfig,
   selected: PlayerCandidate,
-  candidates: PlayerCandidate[],
   query: MediaAvailability["query"],
   context: ProviderContext,
 ): Promise<StreamOption[]> {

@@ -202,6 +202,32 @@ test("cinemetaProvider loads movie details by IMDb ID", async () => {
   assert.equal(result?.details.persons?.[0]?.roles[0], "director");
 });
 
+test("cinemetaProvider resolves an untyped IMDb ID across movie and series in parallel", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/meta/series/tt0944947.json": {
+        meta: {
+          id: "tt0944947",
+          imdb_id: "tt0944947",
+          type: "series",
+          name: "Game of Thrones",
+          releaseInfo: "2011-2019",
+          imdbRating: "9.2",
+        },
+      },
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { imdb: "tt0944947" } }, {});
+
+  assert.equal(result?.details.type, "series");
+  assert.deepEqual(
+    requests.map((request) => request.path).sort(),
+    ["/meta/movie/tt0944947.json", "/meta/series/tt0944947.json"].sort(),
+  );
+});
+
 test("cinemetaProvider limits heavy details arrays", async () => {
   const provider = createProvider({
     imageLimit: 1,

@@ -1138,6 +1138,49 @@ test("getAvailability tolerates one provider failure when another provider succe
   ]);
 });
 
+test("getAvailability starts independent streaming providers concurrently", async () => {
+  let resolveSlowProvider: ((availability: MediaAvailability) => void) | undefined;
+  let markFastProviderStarted: (() => void) | undefined;
+  const fastProviderStarted = new Promise<void>((resolve) => {
+    markFastProviderStarted = resolve;
+  });
+  const query: StreamQuery = { type: "anime", title: "Naruto" };
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        name: "slow-stream",
+        async getAvailability(): Promise<MediaAvailability> {
+          return new Promise((resolve) => {
+            resolveSlowProvider = resolve;
+          });
+        },
+      }),
+      createStreamingProvider({
+        name: "fast-stream",
+        async getAvailability(): Promise<MediaAvailability> {
+          markFastProviderStarted?.();
+          return createAvailability(query, "fast-stream");
+        },
+      }),
+    ],
+  });
+
+  const availabilityPromise = engine.getAvailability(query);
+  const fastStartedBeforeSlowFinished = await Promise.race([
+    fastProviderStarted.then(() => true),
+    sleep(20).then(() => false),
+  ]);
+
+  resolveSlowProvider?.(createAvailability(query, "slow-stream"));
+  const availability = await availabilityPromise;
+
+  assert.equal(fastStartedBeforeSlowFinished, true);
+  assert.deepEqual(
+    availability.options.map((option) => option.provider),
+    ["slow-stream", "fast-stream"],
+  );
+});
+
 test("getAvailability includes provider timings when debug is enabled", async () => {
   const engine = new MediaEngine({
     debug: true,

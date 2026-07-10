@@ -259,6 +259,21 @@ const response = await media.getAvailability({
 
 When no streaming providers are configured, `options` is empty and `sourceProviders` is empty. Provider failures are exposed through response metadata when configured providers fail.
 
+## Bounded Memory Cache
+
+```ts
+import { MediaEngine, MemoryCache } from "@media-engine/core";
+
+const media = new MediaEngine({
+  cache: new MemoryCache({
+    defaultTtlMs: 5 * 60_000,
+    maxEntries: 500,
+  }),
+});
+```
+
+`defaultTtlMs` applies when a cache write does not specify its own TTL. `maxEntries` bounds memory usage and evicts the least-recently-used entry when full.
+
 ## Testing Utilities
 
 The core package exports deterministic helpers for tests and examples:

@@ -123,6 +123,34 @@ test("fetchJson returns the last retryable provider failure after retries", asyn
   assert.equal(calls, 3);
 });
 
+test("fetchJson stops retry backoff when the provider call is aborted", async () => {
+  const controller = new AbortController();
+  const timeoutError = new ProviderError({
+    provider: "test-provider",
+    code: "PROVIDER_TIMEOUT",
+    message: "Provider timed out.",
+    retryable: true,
+  });
+  let calls = 0;
+
+  const request = fetchJson({
+    provider: "test-provider",
+    url: "https://example.test/movie",
+    context: { signal: controller.signal },
+    maxRetries: 2,
+    retryDelayMs: 1_000,
+    fetch: async () => {
+      calls += 1;
+      return new Response("temporarily unavailable", { status: 503 });
+    },
+  });
+
+  setTimeout(() => controller.abort(timeoutError), 10);
+
+  await assert.rejects(request, { code: "PROVIDER_TIMEOUT" });
+  assert.equal(calls, 1);
+});
+
 test("fetchJson maps network failures to provider unavailable", async () => {
   await assert.rejects(
     () =>

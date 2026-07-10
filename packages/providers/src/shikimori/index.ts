@@ -242,13 +242,13 @@ async function getAnimeById(
       `/api/animes/${encodedId}/roles`,
       {},
       context,
-    ),
+    ).catch(() => []),
     requestShikimori<ShikimoriImageResponse[]>(
       config,
       `/api/animes/${encodedId}/screenshots`,
       {},
       context,
-    ),
+    ).catch(() => []),
   ]);
 
   return mapAnimeDetails(config, data, roles, screenshots);

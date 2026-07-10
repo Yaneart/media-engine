@@ -13,7 +13,7 @@ import { MEDIA_ENGINE } from './../src/media-engine';
 import { AppModule } from './../src/app.module';
 import { setupOpenApi } from './../src/openapi';
 
-describe('AppController (e2e)', () => {
+describe('Media Engine API (e2e)', () => {
   let app: INestApplication<App>;
   let mediaEngine: jest.Mocked<
     Pick<MediaEngine, 'search' | 'getDetails' | 'getProviders'>
@@ -92,13 +92,6 @@ describe('AppController (e2e)', () => {
     app = moduleFixture.createNestApplication();
     setupOpenApi(app);
     await app.init();
-  });
-
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
   });
 
   it('/health (GET)', () => {
