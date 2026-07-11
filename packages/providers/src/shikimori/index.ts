@@ -288,14 +288,17 @@ function mapAnimeSearchResult(
   item: ShikimoriAnimeSearchResult,
   extraIds: ExternalIds = {},
 ): MediaItem {
+  const title = item.russian || item.name || `Shikimori anime ${item.id}`;
+  const alternativeTitles = collectUnique([item.russian, item.name]).filter(
+    (candidate) => candidate !== title,
+  );
+
   return {
     id: createMediaId(item.id),
     type: "anime",
-    title: item.russian || item.name || `Shikimori anime ${item.id}`,
+    title,
     originalTitle: item.name,
-    alternativeTitles: collectUnique([item.russian, item.name]).filter(
-      (title) => title !== item.russian && title !== item.name,
-    ),
+    alternativeTitles: alternativeTitles.length > 0 ? alternativeTitles : undefined,
     year: getYear(item.aired_on),
     releaseDate: item.aired_on || undefined,
     description: undefined,

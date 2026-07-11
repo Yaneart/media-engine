@@ -286,6 +286,34 @@ test("cinemetaProvider maps series status and episode counters", async () => {
   assert.equal(result.details.seasonsCount, 2);
 });
 
+test("cinemetaProvider distinguishes planned, production, and returning statuses", async () => {
+  const cases = [
+    ["Planned", "announced"],
+    ["Pilot", "announced"],
+    ["In Production", "in_production"],
+    ["Returning Series", "ongoing"],
+  ] as const;
+
+  for (const [providerStatus, expectedStatus] of cases) {
+    const provider = createProvider({
+      fetch: createMockFetch([], {
+        "/meta/series/tt-test.json": {
+          meta: {
+            id: "tt-test",
+            imdb_id: "tt-test",
+            type: "series",
+            name: "Status fixture",
+            status: providerStatus,
+          },
+        },
+      }),
+    });
+    const result = await provider.getDetails?.({ ids: { imdb: "tt-test" }, type: "series" }, {});
+
+    assert.equal(result?.details.status, expectedStatus);
+  }
+});
+
 function createProvider(options: Partial<CinemetaProviderOptions>) {
   return cinemetaProvider({
     baseUrl: "https://cinemeta.test",

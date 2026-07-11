@@ -563,11 +563,12 @@ function createImage(url: string | null | undefined, type: Image["type"]): Image
 // Adds original and localized titles when they differ.
 // Добавляет original и localized titles, когда они отличаются.
 function mapAlternativeTitles(title: KinoBdTitle): string[] | undefined {
+  const displayTitle = title.name_russian ?? title.name_original;
   const titles = [title.name_original, title.name_russian]
     .filter(isStringValue)
-    .filter((value, index, values) => values.indexOf(value) === index);
+    .filter((value, index, values) => value !== displayTitle && values.indexOf(value) === index);
 
-  return titles.length > 1 ? titles : undefined;
+  return titles.length > 0 ? titles : undefined;
 }
 
 // Parses numbers from KinoBD string or number fields.

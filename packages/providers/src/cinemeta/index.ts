@@ -515,8 +515,12 @@ function mapStatus(status: string | undefined): MediaStatus | undefined {
     case "ended":
       return "ended";
     case "returning series":
-    case "in production":
       return "ongoing";
+    case "in production":
+      return "in_production";
+    case "planned":
+    case "pilot":
+      return "announced";
     case "canceled":
     case "cancelled":
       return "canceled";

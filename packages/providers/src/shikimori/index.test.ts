@@ -47,6 +47,7 @@ test("shikimoriProvider searches anime by title", async () => {
   assert.equal(results[0]?.item.type, "anime");
   assert.equal(results[0]?.item.title, "Ковбой Бибоп");
   assert.equal(results[0]?.item.originalTitle, "Cowboy Bebop");
+  assert.deepEqual(results[0]?.item.alternativeTitles, ["Cowboy Bebop"]);
   assert.equal(results[0]?.item.year, 1998);
   assert.equal(results[0]?.item.ids?.shikimori, "1");
   assert.equal(results[0]?.item.poster?.url, "https://shikimori.one/system/animes/original/1.jpg");

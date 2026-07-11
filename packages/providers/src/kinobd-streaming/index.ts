@@ -1202,11 +1202,12 @@ function normalizeProviderLabel(providerKey: string): string {
 
 function createTranslationInfo(title: string): TranslationInfo {
   const team = inferTranslationTeam(title);
+  const type = inferTranslationType(title);
 
   return {
     title,
-    type: inferTranslationType(title),
-    language: inferTranslationLanguage(title),
+    type,
+    language: inferTranslationLanguage(title, type),
     ...(team ? { team } : {}),
   };
 }
@@ -1242,7 +1243,10 @@ function inferTranslationType(title: string): TranslationInfo["type"] {
   return "unknown";
 }
 
-function inferTranslationLanguage(title: string): string | undefined {
+function inferTranslationLanguage(
+  title: string,
+  type: TranslationInfo["type"],
+): string | undefined {
   const normalized = normalizeSearchText(title);
 
   if (
@@ -1262,7 +1266,17 @@ function inferTranslationLanguage(title: string): string | undefined {
     return "en";
   }
 
-  if (/[а-яё]/i.test(title) || hasKnownRussianVoiceoverTeam(normalized)) {
+  if (/\b(ru|rus|russian)\b/.test(normalized) || normalized.includes("русск")) {
+    return "ru";
+  }
+
+  if (hasKnownRussianVoiceoverTeam(normalized)) {
+    return "ru";
+  }
+
+  // A Cyrillic UI label alone does not prove the language of original audio or subtitles.
+  // Кириллическая подпись сама по себе не доказывает язык оригинальной дорожки или субтитров.
+  if (type !== "original" && type !== "subtitles" && /[а-яё]/i.test(title)) {
     return "ru";
   }
 

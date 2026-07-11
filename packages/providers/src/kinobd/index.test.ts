@@ -29,6 +29,7 @@ test("kinobdProvider searches and ranks exact popular movies by title", async ()
   assert.equal(results[0]?.provider, "kinobd");
   assert.equal(results[0]?.item.title, "Интерстеллар");
   assert.equal(results[0]?.item.originalTitle, "Interstellar");
+  assert.deepEqual(results[0]?.item.alternativeTitles, ["Interstellar"]);
   assert.equal(results[0]?.item.ids?.kinopoisk, "258687");
   assert.equal(results[0]?.item.ids?.imdb, "tt0816692");
   assert.equal(results[0]?.item.ratings?.[0]?.source, "kinopoisk");

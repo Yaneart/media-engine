@@ -159,6 +159,16 @@ test("kinobdStreamingProvider infers translation language and type", async () =>
           iframe: "https://videocdn.test/video/94666",
           quality: "720p",
         },
+        moonwalk: {
+          translate: "Оригинал",
+          iframe: "https://moonwalk.test/video/94666",
+          quality: "1080p",
+        },
+        bazon: {
+          translate: "Субтитры",
+          iframe: "https://bazon.test/video/94666",
+          quality: "1080p",
+        },
       },
     }),
   });
@@ -215,6 +225,16 @@ test("kinobdStreamingProvider infers translation language and type", async () =>
         type: "voiceover",
         language: "ru",
         team: "le-production",
+      },
+      {
+        title: "Оригинал",
+        type: "original",
+        language: undefined,
+      },
+      {
+        title: "Субтитры",
+        type: "subtitles",
+        language: undefined,
       },
     ],
   );
