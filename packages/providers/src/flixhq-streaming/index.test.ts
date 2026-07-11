@@ -52,6 +52,7 @@ test("flixHqStreamingProvider maps movie player tokens into embed options", asyn
     ],
   );
   assert.equal(result?.options[0]?.access.referer, `${BASE_URL}/`);
+  assert.equal(result?.options[0]?.translation?.language, undefined);
   assert.equal(requests[2]?.init?.method, "POST");
   assert.equal(requests[2]?.init?.body, "players=movie-token");
 });
@@ -115,6 +116,84 @@ test("flixHqStreamingProvider respects provider filters and unsupported anime", 
   );
 });
 
+test("flixHqStreamingProvider filters confirmed unavailable players", async () => {
+  const provider = flixHqStreamingProvider({
+    baseUrl: BASE_URL,
+    fetch: async (input) => {
+      const url = new URL(input.toString());
+      if (url.hostname === "missing.test") return new Response("Not found", { status: 404 });
+      if (url.hostname === "deleted.test") return new Response("This file has been deleted");
+      if (url.hostname === "working.test") return new Response("<html>player</html>");
+      if (url.pathname === "/search") {
+        return new Response(
+          searchHtml([["Inception", "/watch-movie/inception-2010-watch-online/"]]),
+        );
+      }
+      if (url.pathname.includes("/watch-movie/")) return new Response(movieHtml("token"));
+      if (url.pathname === "/ajax/ajax.php") {
+        return Response.json([
+          { name: "Missing", link: "https://missing.test/embed/1" },
+          { name: "Deleted", link: "https://deleted.test/embed/1" },
+          { name: "Working", link: "https://working.test/embed/1" },
+        ]);
+      }
+      return new Response("Not found", { status: 404 });
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "movie", title: "Inception", year: 2010 },
+    {},
+  );
+
+  assert.deepEqual(
+    result?.options.map((option) => option.player.label),
+    ["Working"],
+  );
+});
+
+test("flixHqStreamingProvider bounds player validation concurrency", async () => {
+  let activeValidations = 0;
+  let maximumValidations = 0;
+  const provider = flixHqStreamingProvider({
+    baseUrl: BASE_URL,
+    playerValidationConcurrency: 2,
+    fetch: async (input) => {
+      const url = new URL(input.toString());
+      if (url.hostname.endsWith("player.test")) {
+        activeValidations += 1;
+        maximumValidations = Math.max(maximumValidations, activeValidations);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        activeValidations -= 1;
+        return new Response("<html>player</html>");
+      }
+      if (url.pathname === "/search") {
+        return new Response(
+          searchHtml([["Inception", "/watch-movie/inception-2010-watch-online/"]]),
+        );
+      }
+      if (url.pathname.includes("/watch-movie/")) return new Response(movieHtml("token"));
+      if (url.pathname === "/ajax/ajax.php") {
+        return Response.json(
+          Array.from({ length: 5 }, (_, index) => ({
+            name: `Player ${index + 1}`,
+            link: `https://${index + 1}.player.test/embed`,
+          })),
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "movie", title: "Inception", year: 2010 },
+    {},
+  );
+
+  assert.equal(result?.options.length, 5);
+  assert.equal(maximumValidations, 2);
+});
+
 test("FlixHQ parsers recognize current movie, series, season, and episode URLs", () => {
   assert.deepEqual(
     parseSearchCandidates(
@@ -149,6 +228,18 @@ test("flixHqStreamingProvider validates bounded configuration", () => {
     () => flixHqStreamingProvider({ baseUrl: BASE_URL, maxHtmlBytes: -1 }),
     /maxHtmlBytes/,
   );
+  assert.throws(
+    () => flixHqStreamingProvider({ baseUrl: BASE_URL, playerValidationConcurrency: 0 }),
+    /playerValidationConcurrency/,
+  );
+  assert.throws(
+    () => flixHqStreamingProvider({ baseUrl: BASE_URL, playerValidationTimeoutMs: 0 }),
+    /playerValidationTimeoutMs/,
+  );
+  assert.throws(
+    () => flixHqStreamingProvider({ baseUrl: BASE_URL, playerValidationMaxBytes: 0 }),
+    /playerValidationMaxBytes/,
+  );
   assert.throws(() => flixHqStreamingProvider({ baseUrl: "file:///tmp/flixhq" }), /HTTP or HTTPS/);
 });
 
@@ -179,6 +270,11 @@ function createFetch(
   return async (input, init) => {
     const url = new URL(input.toString());
     requests.push({ url: url.href, init });
+    if (url.origin !== BASE_URL) {
+      return new Response("<html>working player</html>", {
+        headers: { "Content-Type": "text/html" },
+      });
+    }
     const key = `${url.pathname}${url.search}`;
     const body = responses[key];
 

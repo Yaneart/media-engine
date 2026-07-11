@@ -41,7 +41,7 @@ http://127.0.0.1:3000
 
 Movie and series search works without secrets through KinoBD, Cinemeta, Shikimori, and Wikidata. The engine merges their results to improve metadata completeness.
 
-Streaming availability works without secrets through the default KinoBD/ReYohoho-style streaming provider. It returns normalized embed player options from KinoBD-style `/api/player/search` and `/playerdata` endpoints when a source is available. Anime availability can fall back from a Shikimori ID to Shikimori title lookup and KinoBD player search.
+Streaming availability works without secrets through the default KinoBD/ReYohoho-style and FlixHQ providers. KinoBD supplies Russian and Ukrainian player variants, while FlixHQ adds international movie and series embeds. Anime availability can fall back from a Shikimori ID to Shikimori title lookup and KinoBD player search.
 
 The API loads the nearest `.env` file on local startup without overriding already exported environment variables.
 
@@ -51,11 +51,12 @@ Provider call budgets can be adjusted when an upstream is unusually slow:
 MEDIA_ENGINE_PROVIDER_TIMEOUT_MS=5000
 MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS=2500
 MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS=10000
+MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS=15000
 ```
 
-Streaming uses a larger default budget because one cold availability lookup may include candidate search, player data loading, and bounded iframe validation.
+Streaming uses a larger default budget because one cold availability lookup may include candidate search, player data loading, and bounded iframe validation. FlixHQ has its own 15-second provider budget because it also resolves series episodes and validates several international embeds.
 
-The streaming value is the engine-wide upper boundary. Regular KinoBD and Shikimori metadata calls use the first value, while optional Cinemeta and Wikidata enrichment uses the shorter second value.
+The general streaming value is the engine-wide default and the KinoBD streaming budget. The FlixHQ value overrides it for that provider. Regular KinoBD and Shikimori metadata calls use the first value, while optional Cinemeta and Wikidata enrichment uses the shorter second value.
 
 Successful search, details, and availability responses are cached in memory for five minutes. The cache is bounded to 500 least-recently-used entries so repeated requests are fast without unbounded process memory growth.
 

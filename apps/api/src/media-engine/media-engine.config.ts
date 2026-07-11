@@ -8,11 +8,13 @@ export interface MediaEngineEnv {
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS?: string;
 }
 
 export const DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS = 5_000;
 export const DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS = 2_500;
 export const DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS = 10_000;
+export const DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS = 15_000;
 export const DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS = 5 * 60_000;
 export const DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES = 500;
 
@@ -39,8 +41,9 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
 export async function createConfiguredStreamingProviders(): Promise<
   StreamingProvider[]
 > {
-  const { kinobdStreamingProvider } = await import('@media-engine/providers');
-  return [kinobdStreamingProvider()];
+  const { flixHqStreamingProvider, kinobdStreamingProvider } =
+    await import('@media-engine/providers');
+  return [kinobdStreamingProvider(), flixHqStreamingProvider()];
 }
 
 // EN: Create the API-wide engine instance used by Nest dependency injection.
@@ -64,8 +67,21 @@ export async function createMediaEngine(
       cinemeta: readEnrichmentProviderTimeoutMs(env),
       wikidata: readEnrichmentProviderTimeoutMs(env),
       'kinobd-streaming': readStreamingProviderTimeoutMs(env),
+      'flixhq-streaming': readFlixHqStreamingProviderTimeoutMs(env),
     },
   });
+}
+
+// FlixHQ performs title lookup, episode resolution, and bounded player validation.
+// FlixHQ выполняет поиск, резолв эпизода и ограниченную проверку плееров.
+export function readFlixHqStreamingProviderTimeoutMs(
+  env: MediaEngineEnv = process.env,
+): number {
+  return readPositiveIntegerEnv(
+    env.MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
+    DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
+    'MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS',
+  );
 }
 
 // Streaming lookup performs candidate search, player loading, and bounded iframe validation.

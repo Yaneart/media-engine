@@ -1,10 +1,12 @@
 import {
   DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS,
+  DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
   createConfiguredStreamingProviders,
   createMediaEngine,
   readEnrichmentProviderTimeoutMs,
+  readFlixHqStreamingProviderTimeoutMs,
   readProviderTimeoutMs,
   readStreamingProviderTimeoutMs,
 } from './media-engine.config';
@@ -21,7 +23,7 @@ describe('MediaEngine configuration', () => {
     ]);
     expect(
       engine.getStreamingProviders().map((provider) => provider.name),
-    ).toEqual(['kinobd-streaming']);
+    ).toEqual(['kinobd-streaming', 'flixhq-streaming']);
   });
 
   it('creates no-token streaming providers by default', async () => {
@@ -29,8 +31,10 @@ describe('MediaEngine configuration', () => {
 
     expect(providers.map((provider) => provider.name)).toEqual([
       'kinobd-streaming',
+      'flixhq-streaming',
     ]);
     expect(providers[0]?.kind).toBe('streaming');
+    expect(providers[1]?.kind).toBe('streaming');
   });
 
   it('uses a finite provider timeout by default', () => {
@@ -98,6 +102,28 @@ describe('MediaEngine configuration', () => {
     expect(() =>
       readStreamingProviderTimeoutMs({
         MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: '-1',
+      }),
+    ).toThrow(/positive integer/);
+  });
+
+  it('uses a separate larger timeout for FlixHQ lookups', () => {
+    expect(readFlixHqStreamingProviderTimeoutMs({})).toBe(
+      DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
+    );
+    expect(readFlixHqStreamingProviderTimeoutMs({})).toBeGreaterThan(
+      readStreamingProviderTimeoutMs({}),
+    );
+  });
+
+  it('allows and validates the FlixHQ timeout override', () => {
+    expect(
+      readFlixHqStreamingProviderTimeoutMs({
+        MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS: ' 18000 ',
+      }),
+    ).toBe(18000);
+    expect(() =>
+      readFlixHqStreamingProviderTimeoutMs({
+        MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS: '0',
       }),
     ).toThrow(/positive integer/);
   });
