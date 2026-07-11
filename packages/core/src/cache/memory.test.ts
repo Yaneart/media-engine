@@ -12,6 +12,18 @@ test("returns stored values", () => {
   assert.deepEqual(cache.get("movie"), { title: "Interstellar" });
 });
 
+test("isolates stored values from caller mutations", () => {
+  const cache = new MemoryCache();
+  const original = { details: { title: "Interstellar" } };
+
+  cache.set("movie", original);
+  original.details.title = "Changed before read";
+  const first = cache.get<typeof original>("movie")!;
+  first.details.title = "Changed after read";
+
+  assert.deepEqual(cache.get("movie"), { details: { title: "Interstellar" } });
+});
+
 test("does not return expired entries", () => {
   let now = 1_000;
   const cache = new MemoryCache({ now: () => now });

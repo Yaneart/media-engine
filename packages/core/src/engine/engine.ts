@@ -41,6 +41,8 @@ const EXTERNAL_ID_SHORTCUTS = [
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 3;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
+const MAX_SEARCH_LIMIT = 100;
+const MAX_PROVIDER_SEARCH_LIMIT = 100;
 
 // Main entry point for using Media Engine core.
 // Главная точка входа для использования Media Engine core.
@@ -581,10 +583,13 @@ function normalizeStreamQuery(query: StreamQuery): StreamQuery {
 // Validates that a search query has at least one supported lookup input.
 // Проверяет, что search query содержит хотя бы один поддерживаемый вход для поиска.
 function validateSearchQuery(query: SearchQuery): void {
-  if (query.limit !== undefined && (!Number.isInteger(query.limit) || query.limit < 0)) {
+  if (
+    query.limit !== undefined &&
+    (!Number.isInteger(query.limit) || query.limit < 0 || query.limit > MAX_SEARCH_LIMIT)
+  ) {
     throw new MediaEngineError({
       code: "INVALID_QUERY",
-      message: "Search query limit must be a non-negative integer.",
+      message: `Search query limit must be an integer between 0 and ${MAX_SEARCH_LIMIT}.`,
     });
   }
 
@@ -685,10 +690,10 @@ function createProviderSearchQuery(query: SearchQuery): ProviderSearchQuery {
 // Расширяет короткие широкие запросы сильнее, потому что финальному ranking нужны кандидаты разных провайдеров.
 function getProviderSearchLimit(query: SearchQuery): number {
   if (isBroadShortTitleSearch(query)) {
-    return Math.max(query.limit! * 10, 50);
+    return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(query.limit! * 10, 50));
   }
 
-  return Math.max(query.limit! * 5, 10);
+  return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(query.limit! * 5, 10));
 }
 
 // Detects searches like "one" or "game" where popular canonical results may be deeper.

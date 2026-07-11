@@ -22,24 +22,38 @@ export interface FetchJsonOptions {
 export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
   const maxRetries = options.maxRetries ?? 1;
   const retryDelayMs = options.retryDelayMs ?? 150;
+  const timeout = createProviderTimeout(options.provider, options.context);
+  const signal = mergeAbortSignals(options.context?.signal, timeout.controller.signal);
+  const boundedOptions: FetchJsonOptions = {
+    ...options,
+    context: {
+      ...options.context,
+      signal,
+      timeoutMs: undefined,
+    },
+  };
   let attempt = 0;
   let lastError: ProviderError | undefined;
 
-  while (attempt <= maxRetries) {
-    try {
-      return await fetchJsonAttempt<T>(options);
-    } catch (error) {
-      const providerError = mapProviderHttpError(options.provider, error);
+  try {
+    while (attempt <= maxRetries) {
+      try {
+        return await fetchJsonAttempt<T>(boundedOptions);
+      } catch (error) {
+        const providerError = mapProviderHttpError(options.provider, error);
 
-      lastError = providerError;
+        lastError = providerError;
 
-      if (!providerError.retryable || attempt >= maxRetries) {
-        throw providerError;
+        if (!providerError.retryable || attempt >= maxRetries) {
+          throw providerError;
+        }
+
+        await delay(getRetryDelayMs(retryDelayMs, attempt), signal);
+        attempt += 1;
       }
-
-      await delay(getRetryDelayMs(retryDelayMs, attempt), options.context?.signal);
-      attempt += 1;
     }
+  } finally {
+    timeout.clear();
   }
 
   throw lastError;

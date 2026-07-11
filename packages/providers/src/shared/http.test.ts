@@ -194,6 +194,40 @@ test("fetchJson applies timeout to fetch implementations", async () => {
   );
 });
 
+test("fetchJson keeps retries inside one total timeout budget", async () => {
+  let attempts = 0;
+  const startedAt = Date.now();
+
+  await assert.rejects(
+    fetchJson({
+      provider: "slow-retry",
+      url: "https://provider.test/data",
+      context: { timeoutMs: 25 },
+      maxRetries: 3,
+      retryDelayMs: 20,
+      fetch: async (_input, init) => {
+        attempts += 1;
+
+        if (attempts === 1) {
+          return new Response("unavailable", { status: 503 });
+        }
+
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason ?? new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    }),
+    (error: unknown) => error instanceof ProviderError && error.code === "PROVIDER_TIMEOUT",
+  );
+
+  assert.equal(attempts, 2);
+  assert.ok(Date.now() - startedAt < 100);
+});
+
 test("mapHttpStatusToProviderErrorCode maps important provider statuses", () => {
   assert.equal(mapHttpStatusToProviderErrorCode(401), "PROVIDER_UNAUTHORIZED");
   assert.equal(mapHttpStatusToProviderErrorCode(403), "PROVIDER_UNAUTHORIZED");

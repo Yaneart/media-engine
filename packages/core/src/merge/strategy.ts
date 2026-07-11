@@ -141,20 +141,35 @@ function searchResultProviderRank(result: MediaSearchResult): number {
 // Группирует результаты сначала по точным ID, затем по нормализованным title/year/type.
 function groupSearchResults(results: ProviderSearchResult[]): SearchGroup[] {
   const groups: SearchGroup[] = [];
+  const groupsByStrongId = new Map<string, number[]>();
+  const groupsByTitleYearType = new Map<string, number[]>();
 
   results.forEach((result, index) => {
     const entry = { result, index };
-    const exactIdGroup = groups.find((group) => canJoinByExactId(entry, group));
+    const exactIdGroupIndex = findIndexedGroup(
+      strongIdIndexKeys(result.item),
+      groupsByStrongId,
+      groups,
+      (group) => canJoinByExactId(entry, group),
+    );
 
-    if (exactIdGroup) {
+    if (exactIdGroupIndex !== undefined) {
+      const exactIdGroup = groups[exactIdGroupIndex]!;
       exactIdGroup.entries.push(entry);
       exactIdGroup.matchStrength = "exact_id";
+      indexSearchEntry(entry, exactIdGroupIndex, groupsByStrongId, groupsByTitleYearType);
       return;
     }
 
-    const titleGroup = groups.find((group) => canJoinByTitleYearType(entry, group));
+    const titleGroupIndex = findIndexedGroup(
+      titleYearTypeIndexKeys(result.item),
+      groupsByTitleYearType,
+      groups,
+      (group) => canJoinByTitleYearType(entry, group),
+    );
 
-    if (titleGroup) {
+    if (titleGroupIndex !== undefined) {
+      const titleGroup = groups[titleGroupIndex]!;
       const isExactTitleMatch = hasExactTitleYearTypeMatch(entry, titleGroup);
 
       titleGroup.entries.push(entry);
@@ -162,13 +177,77 @@ function groupSearchResults(results: ProviderSearchResult[]): SearchGroup[] {
         titleGroup.matchStrength === "exact_title_year_type" || isExactTitleMatch
           ? "exact_title_year_type"
           : "normalized_title_year_type";
+      indexSearchEntry(entry, titleGroupIndex, groupsByStrongId, groupsByTitleYearType);
       return;
     }
 
+    const groupIndex = groups.length;
     groups.push({ entries: [entry], matchStrength: "none" });
+    indexSearchEntry(entry, groupIndex, groupsByStrongId, groupsByTitleYearType);
   });
 
   return groups;
+}
+
+function findIndexedGroup(
+  keys: string[],
+  index: Map<string, number[]>,
+  groups: SearchGroup[],
+  matches: (group: SearchGroup) => boolean,
+): number | undefined {
+  const candidates = new Set<number>();
+
+  for (const key of keys) {
+    for (const groupIndex of index.get(key) ?? []) {
+      candidates.add(groupIndex);
+    }
+  }
+
+  return [...candidates]
+    .sort((left, right) => left - right)
+    .find((groupIndex) => {
+      const group = groups[groupIndex];
+      return group ? matches(group) : false;
+    });
+}
+
+function indexSearchEntry(
+  entry: SearchEntry,
+  groupIndex: number,
+  groupsByStrongId: Map<string, number[]>,
+  groupsByTitleYearType: Map<string, number[]>,
+): void {
+  addGroupIndex(groupsByStrongId, strongIdIndexKeys(entry.result.item), groupIndex);
+  addGroupIndex(groupsByTitleYearType, titleYearTypeIndexKeys(entry.result.item), groupIndex);
+}
+
+function addGroupIndex(index: Map<string, number[]>, keys: string[], groupIndex: number): void {
+  for (const key of keys) {
+    const groupIndexes = index.get(key);
+
+    if (!groupIndexes) {
+      index.set(key, [groupIndex]);
+    } else if (groupIndexes.at(-1) !== groupIndex && !groupIndexes.includes(groupIndex)) {
+      groupIndexes.push(groupIndex);
+    }
+  }
+}
+
+function strongIdIndexKeys(item: MediaItem): string[] {
+  return STRONG_ID_KEYS.flatMap((key) => {
+    const value = item.ids?.[key];
+    return value ? [`${item.type}:${key}:${value}`] : [];
+  });
+}
+
+function titleYearTypeIndexKeys(item: MediaItem): string[] {
+  if (item.year === undefined) {
+    return [];
+  }
+
+  const typeKey = item.type === "anime" || item.type === "series" ? "series-or-anime" : item.type;
+
+  return [...normalizedTitleCandidateSet(item)].map((title) => `${typeKey}:${item.year}:${title}`);
 }
 
 // Checks whether an entry can join a group through a shared strong external ID.

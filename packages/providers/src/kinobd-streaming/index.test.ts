@@ -477,6 +477,60 @@ test("kinobdStreamingProvider limits live player validation fan-out", async () =
   );
 });
 
+test("kinobdStreamingProvider aborts live validation with the provider context", async () => {
+  const controller = new AbortController();
+  let validationAborted = false;
+  const provider = createProvider({
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [
+            {
+              id: 94666,
+              kinopoisk_id: 258687,
+              title: "Интерстеллар",
+              year: 2014,
+            },
+          ],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json({
+          collaps: {
+            translate: "Дубляж",
+            iframe: "https://collaps.test/video/94666",
+          },
+        });
+      }
+
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => {
+            validationAborted = true;
+            reject(init.signal?.reason ?? new DOMException("Aborted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+    },
+  });
+
+  const availabilityPromise = provider.getAvailability(
+    { type: "movie", ids: { kinopoisk: "258687" } },
+    { signal: controller.signal },
+  );
+  setTimeout(() => controller.abort(), 5);
+
+  await availabilityPromise;
+
+  assert.equal(validationAborted, true);
+});
+
 test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({

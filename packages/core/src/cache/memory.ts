@@ -55,7 +55,7 @@ export class MemoryCache implements Cache {
       this.entries.set(key, entry);
     }
 
-    return entry.value as T;
+    return cloneCacheValue(entry.value as T);
   }
 
   // Stores a value with an optional TTL in milliseconds.
@@ -65,7 +65,7 @@ export class MemoryCache implements Cache {
     const expiresAt = ttlMs === undefined || ttlMs < 0 ? undefined : this.now() + ttlMs;
 
     this.entries.delete(key);
-    this.entries.set(key, { value, expiresAt });
+    this.entries.set(key, { value: cloneCacheValue(value), expiresAt });
     this.evictOverflow();
   }
 
@@ -110,4 +110,10 @@ export class MemoryCache implements Cache {
       this.entries.delete(oldestKey);
     }
   }
+}
+
+// Keeps callers from mutating values stored by the shared in-memory cache.
+// Не позволяет вызывающему коду изменять значения внутри общего memory cache.
+function cloneCacheValue<T>(value: T): T {
+  return structuredClone(value);
 }

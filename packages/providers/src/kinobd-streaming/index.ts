@@ -18,6 +18,7 @@ const DEFAULT_PLAYER_VALIDATION_LIMIT = 8;
 const DEFAULT_SHIKIMORI_LOOKUP_TIMEOUT_MS = 2_500;
 const PLAYER_VALIDATION_TIMEOUT_MS = 2_500;
 const PLAYER_VALIDATION_MAX_DEPTH = 1;
+const PLAYER_VALIDATION_MAX_BODY_BYTES = 256 * 1024;
 const DEFAULT_PLAYER_PROVIDERS = [
   "collaps",
   "vibix",
@@ -898,6 +899,9 @@ async function isBrokenPlayerUrl(
   const fetchImpl = config.fetch ?? fetch;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.playerValidationTimeoutMs);
+  const signal = context.signal
+    ? AbortSignal.any([context.signal, controller.signal])
+    : controller.signal;
 
   try {
     if (context.signal?.aborted) {
@@ -908,7 +912,7 @@ async function isBrokenPlayerUrl(
       headers: {
         accept: "text/html,application/xhtml+xml",
       },
-      signal: controller.signal,
+      signal,
     });
 
     if (response.status === 404 || response.status === 410 || response.status >= 500) {
@@ -919,7 +923,7 @@ async function isBrokenPlayerUrl(
       return false;
     }
 
-    const html = await response.text();
+    const html = await readBoundedResponseText(response, PLAYER_VALIDATION_MAX_BODY_BYTES);
 
     if (hasBrokenPlayerMarker(html)) {
       return true;
@@ -933,6 +937,47 @@ async function isBrokenPlayerUrl(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function readBoundedResponseText(response: Response, maxBytes: number): Promise<string> {
+  if (!response.body) {
+    return "";
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (totalBytes <= maxBytes) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      totalBytes += value.byteLength;
+
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        break;
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0));
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(body);
 }
 
 function isKnownBrokenPlayerUrl(url: string): boolean {

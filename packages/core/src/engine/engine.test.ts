@@ -169,6 +169,18 @@ test("search rejects empty queries predictably", async () => {
   });
 });
 
+test("search rejects limits that could amplify provider and merge work", async () => {
+  const engine = new MediaEngine();
+
+  await assert.rejects(
+    engine.search({ title: "Interstellar", limit: 101 }),
+    (error: unknown) =>
+      error instanceof MediaEngineError &&
+      error.code === "INVALID_QUERY" &&
+      error.message.includes("between 0 and 100"),
+  );
+});
+
 test("search normalizes top-level external id shortcuts into ids", async () => {
   let receivedIds: unknown;
   const engine = new MediaEngine({
