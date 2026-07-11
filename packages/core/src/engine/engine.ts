@@ -160,11 +160,12 @@ export class MediaEngine {
     const enrichmentResults = await Promise.all(
       results
         .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
-        .filter((result) => !result.item.ratings?.length && hasExternalIds(result.item.ids))
+        .filter((result) => needsSearchEnrichment(result.item) && hasExternalIds(result.item.ids))
         .map(async (result) => {
           const existingProviders = new Set(result.sources.map((source) => source.provider));
+          const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
           const enrichmentProvider = this.registry
-            .selectSearchProviders({ ids: result.item.ids, type: result.item.type })
+            .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
             .find((provider) => !existingProviders.has(provider.name));
 
           if (!enrichmentProvider) {
@@ -180,7 +181,7 @@ export class MediaEngine {
             enrichmentProvider,
             {
               ids: result.item.ids,
-              type: result.item.type,
+              type: enrichmentType,
               limit: 1,
               language: normalizedQuery.language,
             },
@@ -444,6 +445,16 @@ export class MediaEngine {
   protected get engineDebug(): boolean {
     return this.debug;
   }
+}
+
+// Enriches compact catalog hits when follow-up cards would otherwise choose different metadata.
+// Обогащает compact catalog hits, чтобы search и details не выбирали разные metadata.
+function needsSearchEnrichment(item: {
+  ratings?: unknown[];
+  description?: string;
+  poster?: unknown;
+}): boolean {
+  return !item.ratings?.length || !item.description?.trim() || !item.poster;
 }
 
 // Validates streaming providers and rejects duplicate public names.

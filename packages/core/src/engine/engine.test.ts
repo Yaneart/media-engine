@@ -387,6 +387,72 @@ test("search enriches sparse top results through one external ID provider", asyn
   );
 });
 
+test("search enriches incomplete anime cards through a compatible series catalog", async () => {
+  let receivedType: string | undefined = "not-called";
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "anime-source",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: true, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async search(query): Promise<ProviderSearchResult[]> {
+          if (!query.title) return [];
+          return [
+            {
+              provider: "anime-source",
+              item: {
+                id: "anime:21",
+                type: "anime",
+                title: "Ван-Пис",
+                originalTitle: "One Piece",
+                year: 1999,
+                poster: { url: "https://images.example/old.jpg", type: "poster" },
+                ratings: [{ source: "shikimori", value: 8.7, max: 10 }],
+                ids: { imdb: "tt0388629" },
+              },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "kinobd",
+        capabilities: {
+          mediaTypes: ["series"],
+          search: { byTitle: false, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async search(query): Promise<ProviderSearchResult[]> {
+          receivedType = query.type;
+          return [
+            {
+              provider: "kinobd",
+              item: {
+                id: "series:tt0388629",
+                type: "series",
+                title: "One Piece",
+                year: 1999,
+                description: "Complete catalog synopsis.",
+                poster: { url: "https://images.example/current.jpg", type: "poster" },
+                ids: { imdb: "tt0388629" },
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "one", limit: 1 });
+
+  assert.equal(receivedType, undefined);
+  assert.equal(response.results[0]?.item.type, "anime");
+  assert.equal(response.results[0]?.item.poster?.url, "https://images.example/current.jpg");
+  assert.equal(response.results[0]?.item.description, "Complete catalog synopsis.");
+});
+
 test("search starts independent providers concurrently", async () => {
   let resolveSlowProvider: ((results: ProviderSearchResult[]) => void) | undefined;
   let markFastProviderStarted: (() => void) | undefined;
