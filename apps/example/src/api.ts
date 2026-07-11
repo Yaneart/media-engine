@@ -20,7 +20,14 @@ export type AvailabilityResponse = MediaEngineAvailabilityResponse;
 export type SearchResult = SearchResponse["results"][number];
 export type MediaSummary = SearchResult["item"];
 export type MediaDetails = NonNullable<DetailsResponse["details"]>;
-export type AvailabilityMediaInput = Pick<MediaSummary, "type" | "title" | "year" | "ids">;
+export type AvailabilityMediaInput = Pick<
+  MediaSummary,
+  "type" | "title" | "originalTitle" | "year" | "ids"
+> & {
+  seasonNumber?: number;
+  episodeNumber?: number;
+  absoluteEpisodeNumber?: number;
+};
 export type ExternalIds = NonNullable<MediaSummary["ids"]>;
 
 // EN: Shared SDK client used by the example app browser requests.
@@ -66,9 +73,12 @@ export function getMediaAvailability(
   return mediaEngineClient.getAvailability(
     {
       type: item.type,
-      title: item.title,
+      title: item.originalTitle?.trim() || item.title,
       year: item.year,
       ids: item.ids,
+      seasonNumber: item.seasonNumber,
+      episodeNumber: item.episodeNumber,
+      absoluteEpisodeNumber: item.absoluteEpisodeNumber,
     },
     { signal },
   );

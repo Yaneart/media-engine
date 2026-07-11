@@ -257,6 +257,28 @@
   border-color: #2f6f73;
 }
 
+.details-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.episode-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.episode-picker__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.episode-picker__fields .details-button {
+  min-height: 44px;
+}
+
 .details-panel {
   display: flex;
   flex-direction: column;

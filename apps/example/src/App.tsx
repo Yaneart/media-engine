@@ -172,7 +172,11 @@ function App() {
         return;
       }
 
-      await loadAvailability(item, response.details);
+      if (response.details.type === "movie") {
+        await loadAvailability(item, response.details);
+      } else {
+        setAvailabilityState({ status: "idle" });
+      }
     } catch (error) {
       if (abortController.signal.aborted || requestId !== detailsRequestIdRef.current) {
         return;
@@ -278,7 +282,11 @@ function App() {
 
         <div className="workspace">
           <SearchPanel onDetails={handleDetails} state={searchState} />
-          <DetailsPanel availabilityState={availabilityState} state={detailsState} />
+          <DetailsPanel
+            availabilityState={availabilityState}
+            onLoadAvailability={loadAvailability}
+            state={detailsState}
+          />
         </div>
       </section>
     </main>
@@ -375,9 +383,14 @@ function SearchPanel({
 
 function DetailsPanel({
   availabilityState,
+  onLoadAvailability,
   state,
 }: {
   availabilityState: AvailabilityState;
+  onLoadAvailability: (
+    item: MediaSummary,
+    availabilityItem?: AvailabilityMediaInput,
+  ) => Promise<void>;
   state: DetailsState;
 }) {
   if (state.status === "idle") {
@@ -473,9 +486,90 @@ function DetailsPanel({
           </div>
         </section>
 
+        {details.type === "series" || details.type === "anime" ? (
+          <EpisodeAvailabilityControls
+            details={details}
+            item={state.item}
+            loading={availabilityState.status === "loading"}
+            onLoadAvailability={onLoadAvailability}
+          />
+        ) : null}
+
         <AvailabilitySummary state={availabilityState} />
       </div>
     </aside>
+  );
+}
+
+function EpisodeAvailabilityControls({
+  details,
+  item,
+  loading,
+  onLoadAvailability,
+}: {
+  details: MediaDetails;
+  item: MediaSummary;
+  loading: boolean;
+  onLoadAvailability: (
+    item: MediaSummary,
+    availabilityItem?: AvailabilityMediaInput,
+  ) => Promise<void>;
+}) {
+  const [seasonNumber, setSeasonNumber] = useState("1");
+  const [episodeNumber, setEpisodeNumber] = useState("1");
+  const isAnime = details.type === "anime";
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const episode = Number.parseInt(episodeNumber, 10);
+    const season = Number.parseInt(seasonNumber, 10);
+
+    if (
+      !Number.isInteger(episode) ||
+      episode <= 0 ||
+      (!isAnime && (!Number.isInteger(season) || season <= 0))
+    ) {
+      return;
+    }
+
+    void onLoadAvailability(item, {
+      ...details,
+      ...(isAnime
+        ? { absoluteEpisodeNumber: episode }
+        : { seasonNumber: season, episodeNumber: episode }),
+    });
+  }
+
+  return (
+    <form className="episode-picker" onSubmit={handleSubmit}>
+      <span>{isAnime ? "Episode" : "Episode selection"}</span>
+      <div className="episode-picker__fields">
+        {!isAnime ? (
+          <label className="field">
+            <span>Season</span>
+            <input
+              min="1"
+              onChange={(event) => setSeasonNumber(event.target.value)}
+              type="number"
+              value={seasonNumber}
+            />
+          </label>
+        ) : null}
+        <label className="field">
+          <span>Episode</span>
+          <input
+            min="1"
+            onChange={(event) => setEpisodeNumber(event.target.value)}
+            type="number"
+            value={episodeNumber}
+          />
+        </label>
+        <button className="details-button" disabled={loading} type="submit">
+          {loading ? "Loading..." : "Load players"}
+        </button>
+      </div>
+      <span className="muted">Choose an episode before loading player options.</span>
+    </form>
   );
 }
 

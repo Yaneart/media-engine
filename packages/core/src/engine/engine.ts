@@ -154,6 +154,7 @@ export class MediaEngine {
       language: normalizedQuery.language,
       debug: this.debug,
       warnings,
+      includeIrrelevantSearchResults: true,
     });
 
     const enrichmentResults = await Promise.all(
@@ -197,6 +198,12 @@ export class MediaEngine {
 
     if (flattenedEnrichmentResults.length > 0) {
       providerResults.push(...flattenedEnrichmentResults);
+    }
+
+    if (
+      this.mergeStrategy instanceof DefaultMergeStrategy ||
+      flattenedEnrichmentResults.length > 0
+    ) {
       results = this.mergeStrategy.mergeSearchResults(providerResults, {
         query: normalizedQuery,
         language: normalizedQuery.language,

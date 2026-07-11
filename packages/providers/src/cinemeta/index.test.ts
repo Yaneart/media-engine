@@ -39,7 +39,7 @@ test("cinemetaProvider searches movies by title", async () => {
   assert.equal(requests[0]?.path, "/catalog/movie/top/search=Interstellar.json");
 });
 
-test("cinemetaProvider enriches sparse search results with meta ratings", async () => {
+test("cinemetaProvider does not block typed title search on optional meta enrichment", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({
     fetch: createMockFetch(requests, {
@@ -72,11 +72,10 @@ test("cinemetaProvider enriches sparse search results with meta ratings", async 
   const results = await provider.search({ title: "game of", type: "series" }, {});
 
   assert.equal(results[0]?.item.title, "Game of Thrones");
-  assert.equal(results[0]?.item.ratings?.[0]?.source, "imdb");
-  assert.equal(results[0]?.item.ratings?.[0]?.value, 9.2);
+  assert.equal(results[0]?.item.ratings, undefined);
   assert.deepEqual(
     requests.map((request) => request.path),
-    ["/catalog/series/top/search=game%20of.json", "/meta/series/tt0944947.json"],
+    ["/catalog/series/top/search=game%20of.json"],
   );
 });
 

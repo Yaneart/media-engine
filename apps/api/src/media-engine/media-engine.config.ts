@@ -64,8 +64,8 @@ export async function createMediaEngine(
     providerTimeouts: {
       kinobd: readProviderTimeoutMs(env),
       shikimori: readProviderTimeoutMs(env),
-      cinemeta: readEnrichmentProviderTimeoutMs(env),
-      wikidata: readEnrichmentProviderTimeoutMs(env),
+      cinemeta: readProviderTimeoutMs(env),
+      wikidata: readProviderTimeoutMs(env),
       'kinobd-streaming': readStreamingProviderTimeoutMs(env),
       'flixhq-streaming': readFlixHqStreamingProviderTimeoutMs(env),
     },

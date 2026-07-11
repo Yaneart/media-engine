@@ -233,7 +233,74 @@ test("ranks popular relevant series first for broad any-title search", () => {
   );
 });
 
-test("merges anime and series title variants for broad canonical search quality", () => {
+test("filters unrelated provider noise from title searches", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "game-of-thrones",
+        type: "series",
+        title: "Game of Thrones",
+        year: 2011,
+      }),
+      providerResult("shikimori", {
+        id: "nausicaa",
+        type: "anime",
+        title: "Kaze no Tani no Nausicaa",
+        year: 1984,
+        ratings: [{ source: "shikimori", value: 8.36, max: 10 }],
+      }),
+    ],
+    { query: { title: "game of" } },
+  );
+
+  assert.deepEqual(
+    results.map((result) => result.item.title),
+    ["Game of Thrones"],
+  );
+});
+
+test("keeps a canonical result for a one-character title typo", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "game-of-thrones",
+        type: "series",
+        title: "Game of Thrones",
+        year: 2011,
+      }),
+      providerResult("shikimori", {
+        id: "unrelated",
+        type: "anime",
+        title: "Kara no Kyoukai",
+        year: 2007,
+      }),
+    ],
+    { query: { title: "game of trone" } },
+  );
+
+  assert.deepEqual(
+    results.map((result) => result.item.title),
+    ["Game of Thrones"],
+  );
+});
+
+test("matches joined and punctuated title variants", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("shikimori", {
+        id: "one-piece",
+        type: "anime",
+        title: "Ван-Пис",
+        year: 1999,
+      }),
+    ],
+    { query: { title: "ванпис" } },
+  );
+
+  assert.equal(results[0]?.item.title, "Ван-Пис");
+});
+
+test("merges anime and series title variants while preserving anime semantics", () => {
   const results = strategy.mergeSearchResults(
     [
       providerResult("cinemeta", {
@@ -267,8 +334,8 @@ test("merges anime and series title variants for broad canonical search quality"
     { query: { title: "one" } },
   );
 
-  assert.equal(results[0]?.item.title, "One Piece");
-  assert.equal(results[0]?.item.type, "series");
+  assert.equal(results[0]?.item.title, "Ван-Пис");
+  assert.equal(results[0]?.item.type, "anime");
   assert.deepEqual(results[0]?.item.ids, {
     imdb: "tt0388629",
     shikimori: "21",
@@ -279,7 +346,7 @@ test("merges anime and series title variants for broad canonical search quality"
   );
   assert.deepEqual(
     results[0]?.sources.map((source) => source.provider),
-    ["cinemeta", "shikimori"],
+    ["shikimori", "cinemeta"],
   );
 });
 

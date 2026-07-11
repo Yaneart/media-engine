@@ -89,6 +89,7 @@ export class DefaultMergeStrategy implements MergeStrategy {
     const groups = groupSearchResults(results);
 
     return groups
+      .filter((group) => isSearchGroupRelevant(group, context))
       .map((group, groupIndex) => ({
         groupIndex,
         result: mergeSearchGroup(group, context),
@@ -129,6 +130,23 @@ export class DefaultMergeStrategy implements MergeStrategy {
 
     return mergeDetailsEntries(sortedEntries, context);
   }
+}
+
+// Drops provider noise that has no textual relationship to a title query.
+// Убирает шум провайдеров, который никак текстово не связан с title-запросом.
+function isSearchGroupRelevant(group: SearchGroup, context: MergeContext): boolean {
+  if (context.includeIrrelevantSearchResults) {
+    return true;
+  }
+
+  const query = context.query as SearchQuery | undefined;
+  const queryTitle = "title" in (query ?? {}) ? query?.title : undefined;
+
+  if (!queryTitle?.trim()) {
+    return true;
+  }
+
+  return titleRelevanceScore(group.entries, queryTitle) > 0;
 }
 
 // Calculates rank for a merged search result using its primary source provider.
@@ -339,7 +357,7 @@ function normalizedTitleCandidateSet(item: MediaItem): Set<string> {
 // Merges one internal search group into one public search result.
 // Объединяет одну внутреннюю группу поиска в один публичный результат поиска.
 function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearchResult {
-  const mediaType = group.entries[0]?.result.item.type;
+  const mediaType = selectMergedSearchType(group.entries);
   const sortedEntries = sortEntriesByPriority(group.entries, context, mediaType);
   const primary = sortedEntries[0]?.result.item;
 
@@ -352,7 +370,7 @@ function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearc
   const item: MediaItem = {
     ...primary,
     id: primary.id,
-    type: primary.type,
+    type: mediaType ?? primary.type,
     title,
     originalTitle: firstDefined(sortedEntries, (entry) => entry.result.item.originalTitle),
     alternativeTitles: mergeAlternativeTitles(sortedEntries, title),
@@ -372,6 +390,18 @@ function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearc
     score: scoreGroup(group, sortedEntries, context),
     sources: mergeSources(sortedEntries),
   };
+}
+
+// Preserves anime semantics when a generic series catalog describes the same animated title.
+// Сохраняет anime-семантику, когда generic series-каталог описывает тот же анимационный тайтл.
+function selectMergedSearchType(entries: SearchEntry[]): MediaType | undefined {
+  const types = new Set(entries.map((entry) => entry.result.item.type));
+
+  if (types.has("anime")) {
+    return "anime";
+  }
+
+  return entries[0]?.result.item.type;
 }
 
 // Merges sorted details entries while keeping unsafe nested fields from primary.
@@ -1059,6 +1089,10 @@ function scoreNormalizedTitle(title: string, query: string): number {
     return 1;
   }
 
+  if (title.replace(/\s+/g, "") === query.replace(/\s+/g, "")) {
+    return 0.98;
+  }
+
   if (title.startsWith(`${query} `)) {
     return 0.92;
   }
@@ -1073,7 +1107,66 @@ function scoreNormalizedTitle(title: string, query: string): number {
     return 0.55;
   }
 
+  const titleTokens = title.split(" ").filter(Boolean);
+  const fuzzyTokenScores = queryTokens.map((queryToken) =>
+    Math.max(...titleTokens.map((titleToken) => fuzzyTokenSimilarity(queryToken, titleToken)), 0),
+  );
+
+  if (fuzzyTokenScores.length > 0 && fuzzyTokenScores.every((score) => score >= 0.75)) {
+    return (
+      (fuzzyTokenScores.reduce((sum, score) => sum + score, 0) / fuzzyTokenScores.length) * 0.7
+    );
+  }
+
   return 0;
+}
+
+// Allows one small typo in meaningful words while keeping short tokens exact.
+// Допускает одну небольшую опечатку в значимых словах, сохраняя короткие токены точными.
+function fuzzyTokenSimilarity(left: string, right: string): number {
+  if (left === right) {
+    return 1;
+  }
+
+  if (Math.min(left.length, right.length) < 4) {
+    return 0;
+  }
+
+  const variants = [right, ...(right.endsWith("s") ? [right.slice(0, -1)] : [])];
+  const distance = Math.min(
+    ...variants
+      .filter((variant) => Math.abs(left.length - variant.length) <= 1)
+      .map((variant) => levenshteinDistance(left, variant, 1)),
+  );
+  return distance <= 1 ? 1 - distance / Math.max(left.length, right.length) : 0;
+}
+
+function levenshteinDistance(left: string, right: string, maxDistance: number): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    let rowMinimum = leftIndex;
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      const value = Math.min(
+        current[rightIndex - 1]! + 1,
+        previous[rightIndex]! + 1,
+        previous[rightIndex - 1]! + substitutionCost,
+      );
+      current.push(value);
+      rowMinimum = Math.min(rowMinimum, value);
+    }
+
+    if (rowMinimum > maxDistance) {
+      return maxDistance + 1;
+    }
+
+    previous = current;
+  }
+
+  return previous[right.length] ?? maxDistance + 1;
 }
 
 // Scores popularity from the largest available vote count.

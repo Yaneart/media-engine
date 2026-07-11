@@ -17,6 +17,7 @@ export interface MergeContext {
   providerPriority?: string[];
   debug?: boolean;
   warnings?: EngineWarning[];
+  includeIrrelevantSearchResults?: boolean;
 }
 
 // Contract implemented by search and details merge strategies.

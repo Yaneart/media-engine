@@ -211,13 +211,7 @@ async function searchCatalogType(
 // Keeps broad title-only search responsive by avoiding extra per-item meta requests.
 // Сохраняет быстрым широкий title-only поиск, избегая дополнительных meta-запросов на каждый item.
 function shouldEnrichSearchItems(query: ProviderSearchQuery): boolean {
-  if (query.type || query.year !== undefined || query.ids?.imdb) {
-    return true;
-  }
-
-  const normalizedTitle = normalizeSearchTitle(query.title);
-
-  return normalizedTitle.length > 4 && normalizedTitle.split(" ").length > 1;
+  return query.year !== undefined || Boolean(query.ids?.imdb);
 }
 
 // Enriches top search candidates with meta details when catalog search is sparse.
@@ -255,10 +249,6 @@ function hasSearchQuality(item: MediaItem): boolean {
 
 // Normalizes a title enough to decide whether it is broad or specific.
 // Нормализует title достаточно для решения, широкий это запрос или конкретный.
-function normalizeSearchTitle(title: string | undefined): string {
-  return (title ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 // Loads one Cinemeta meta document.
 // Загружает один Cinemeta meta document.
 async function getDetailsByImdbId(
