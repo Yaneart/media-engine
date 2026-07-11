@@ -120,7 +120,7 @@ test("shikimoriProvider maps anime details", async () => {
         released_on: "1999-04-24",
         duration: 24,
         rating: "r_plus",
-        description: "In the year 2071, bounty hunters travel through space.",
+        description: "[character=2]Spike Spiegel[/character] travels through space.",
         description_source: "A short source description.",
         myanimelist_id: 1,
         rates_scores_stats: [
@@ -174,6 +174,7 @@ test("shikimoriProvider maps anime details", async () => {
   assert.equal(result?.details.status, "ended");
   assert.equal(result?.details.animeKind, "tv");
   assert.equal(result?.details.runtimeMinutes, 24);
+  assert.equal(result?.details.description, "Spike Spiegel travels through space.");
   assert.equal(result?.details.episodesCount, 26);
   assert.equal(result?.details.episodes?.[25]?.episodeNumber, 26);
   assert.equal(result?.details.genres?.[0]?.name, "Экшен");

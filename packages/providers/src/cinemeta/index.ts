@@ -165,7 +165,7 @@ async function getCinemetaDetails(
   query: ProviderDetailsQuery,
   context: ProviderContext,
 ): Promise<ProviderDetailsResult | null> {
-  if (!query.ids?.imdb || query.type === "anime") {
+  if (!query.ids?.imdb) {
     return null;
   }
 
@@ -257,7 +257,12 @@ async function getDetailsByImdbId(
   type: ProviderDetailsQuery["type"],
   context: ProviderContext,
 ): Promise<MediaDetails | null> {
-  const types = type === "movie" || type === "series" ? [type] : (["movie", "series"] as const);
+  const types =
+    type === "movie" || type === "series"
+      ? [type]
+      : type === "anime"
+        ? (["series"] as const)
+        : (["movie", "series"] as const);
   const loadType = async (currentType: "movie" | "series"): Promise<MediaDetails | null> => {
     const url = new URL(`${config.baseUrl}/meta/${toCinemetaType(currentType)}/${imdbId}.json`);
     const response = await requestJson<CinemetaMetaResponse>(config, url, context);

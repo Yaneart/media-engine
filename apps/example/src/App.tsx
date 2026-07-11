@@ -172,11 +172,7 @@ function App() {
         return;
       }
 
-      if (response.details.type === "movie") {
-        await loadAvailability(item, response.details);
-      } else {
-        setAvailabilityState({ status: "idle" });
-      }
+      await loadAvailability(item, response.details);
     } catch (error) {
       if (abortController.signal.aborted || requestId !== detailsRequestIdRef.current) {
         return;
@@ -486,7 +482,7 @@ function DetailsPanel({
           </div>
         </section>
 
-        {details.type === "series" || details.type === "anime" ? (
+        {details.type === "series" ? (
           <EpisodeAvailabilityControls
             details={details}
             item={state.item}
@@ -517,44 +513,36 @@ function EpisodeAvailabilityControls({
 }) {
   const [seasonNumber, setSeasonNumber] = useState("1");
   const [episodeNumber, setEpisodeNumber] = useState("1");
-  const isAnime = details.type === "anime";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const episode = Number.parseInt(episodeNumber, 10);
     const season = Number.parseInt(seasonNumber, 10);
 
-    if (
-      !Number.isInteger(episode) ||
-      episode <= 0 ||
-      (!isAnime && (!Number.isInteger(season) || season <= 0))
-    ) {
+    if (!Number.isInteger(episode) || episode <= 0 || !Number.isInteger(season) || season <= 0) {
       return;
     }
 
     void onLoadAvailability(item, {
       ...details,
-      ...(isAnime
-        ? { absoluteEpisodeNumber: episode }
-        : { seasonNumber: season, episodeNumber: episode }),
+      seasonNumber: season,
+      episodeNumber: episode,
     });
   }
 
   return (
     <form className="episode-picker" onSubmit={handleSubmit}>
-      <span>{isAnime ? "Episode" : "Episode selection"}</span>
+      <span>Episode selection</span>
       <div className="episode-picker__fields">
-        {!isAnime ? (
-          <label className="field">
-            <span>Season</span>
-            <input
-              min="1"
-              onChange={(event) => setSeasonNumber(event.target.value)}
-              type="number"
-              value={seasonNumber}
-            />
-          </label>
-        ) : null}
+        <label className="field">
+          <span>Season</span>
+          <input
+            min="1"
+            onChange={(event) => setSeasonNumber(event.target.value)}
+            type="number"
+            value={seasonNumber}
+          />
+        </label>
         <label className="field">
           <span>Episode</span>
           <input
@@ -568,7 +556,7 @@ function EpisodeAvailabilityControls({
           {loading ? "Loading..." : "Load players"}
         </button>
       </div>
-      <span className="muted">Choose an episode before loading player options.</span>
+      <span className="muted">Optional: load players for a specific episode.</span>
     </form>
   );
 }

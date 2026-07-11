@@ -122,13 +122,15 @@ export class DefaultMergeStrategy implements MergeStrategy {
   // Merges provider details results around a primary provider result.
   // Объединяет details-результаты провайдеров вокруг основного результата.
   mergeDetails(results: ProviderDetailsResult[], context: MergeContext = {}): MediaDetails | null {
+    const mediaType = selectMergedMediaType(results.map((result) => result.details));
+    const priorityType = selectMetadataPriorityType(results.map((result) => result.details));
     const sortedEntries = sortEntriesByPriority(
       results.map((result, index) => ({ result, index })),
       context,
-      results[0]?.details.type,
+      priorityType,
     );
 
-    return mergeDetailsEntries(sortedEntries, context);
+    return mergeDetailsEntries(sortedEntries, context, mediaType);
   }
 }
 
@@ -358,7 +360,8 @@ function normalizedTitleCandidateSet(item: MediaItem): Set<string> {
 // Объединяет одну внутреннюю группу поиска в один публичный результат поиска.
 function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearchResult {
   const mediaType = selectMergedSearchType(group.entries);
-  const sortedEntries = sortEntriesByPriority(group.entries, context, mediaType);
+  const priorityType = selectMetadataPriorityType(group.entries.map((entry) => entry.result.item));
+  const sortedEntries = sortEntriesByPriority(group.entries, context, priorityType);
   const primary = sortedEntries[0]?.result.item;
 
   if (!primary) {
@@ -395,25 +398,34 @@ function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearc
 // Preserves anime semantics when a generic series catalog describes the same animated title.
 // Сохраняет anime-семантику, когда generic series-каталог описывает тот же анимационный тайтл.
 function selectMergedSearchType(entries: SearchEntry[]): MediaType | undefined {
-  const types = new Set(entries.map((entry) => entry.result.item.type));
+  return selectMergedMediaType(entries.map((entry) => entry.result.item));
+}
 
-  if (types.has("anime")) {
-    return "anime";
-  }
+// Uses general-series metadata priority for mixed anime/catalog groups without losing anime type.
+// Использует приоритет metadata сериалов для смешанных anime/catalog групп без потери anime-типа.
+function selectMetadataPriorityType(items: MediaItem[]): MediaType | undefined {
+  const types = new Set(items.map((item) => item.type));
+  return types.has("anime") && types.has("series") ? "series" : items[0]?.type;
+}
 
-  return entries[0]?.result.item.type;
+function selectMergedMediaType(items: MediaItem[]): MediaType | undefined {
+  return items.some((item) => item.type === "anime") ? "anime" : items[0]?.type;
 }
 
 // Merges sorted details entries while keeping unsafe nested fields from primary.
 // Объединяет отсортированные details entries, сохраняя небезопасные вложенные поля из primary.
-function mergeDetailsEntries(entries: DetailsEntry[], context: MergeContext): MediaDetails | null {
+function mergeDetailsEntries(
+  entries: DetailsEntry[],
+  context: MergeContext,
+  mediaType?: MediaType,
+): MediaDetails | null {
   const primary = entries[0]?.result.details;
 
   if (!primary) {
     return null;
   }
 
-  warnDetailsTypeConflicts(entries, context);
+  warnDetailsTypeConflicts(entries, context, mediaType);
 
   const ids = mergeDetailsExternalIds(entries, context);
   const title = selectDetailsTitle(entries, context) ?? primary.title;
@@ -441,14 +453,16 @@ function mergeDetailsEntries(entries: DetailsEntry[], context: MergeContext): Me
     sourceProviders: mergeDetailsSources(entries),
   };
 
-  switch (primary.type) {
+  switch (mediaType ?? primary.type) {
     case "movie":
       return common;
     case "series":
       return {
         ...common,
         type: "series",
-        seasons: primary.seasons,
+        seasons: firstDefinedDetails(entries, (entry) =>
+          entry.result.details.type === "series" ? entry.result.details.seasons : undefined,
+        ),
         episodesCount: firstDefinedDetails(entries, (entry) =>
           entry.result.details.type === "series" ? entry.result.details.episodesCount : undefined,
         ),
@@ -460,9 +474,11 @@ function mergeDetailsEntries(entries: DetailsEntry[], context: MergeContext): Me
       return {
         ...common,
         type: "anime",
-        episodes: primary.episodes,
+        episodes: firstDefinedDetails(entries, (entry) =>
+          entry.result.details.type === "anime" ? entry.result.details.episodes : undefined,
+        ),
         episodesCount: firstDefinedDetails(entries, (entry) =>
-          entry.result.details.type === "anime" ? entry.result.details.episodesCount : undefined,
+          "episodesCount" in entry.result.details ? entry.result.details.episodesCount : undefined,
         ),
       };
   }
@@ -960,15 +976,22 @@ function mergeDetailsImages(entries: DetailsEntry[]): Image[] | undefined {
 
 // Emits warnings when details results contain conflicting media types.
 // Добавляет warnings, когда details-результаты содержат конфликтующие типы медиа.
-function warnDetailsTypeConflicts(entries: DetailsEntry[], context: MergeContext): void {
-  const primaryType = entries[0]?.result.details.type;
+function warnDetailsTypeConflicts(
+  entries: DetailsEntry[],
+  context: MergeContext,
+  selectedType?: MediaType,
+): void {
+  const primaryType = selectedType ?? entries[0]?.result.details.type;
 
   if (!primaryType) {
     return;
   }
 
   for (const entry of entries) {
-    if (entry.result.details.type !== primaryType) {
+    const entryType = entry.result.details.type;
+    const isCompatibleAnimeCatalogType = primaryType === "anime" && entryType === "series";
+
+    if (entryType !== primaryType && !isCompatibleAnimeCatalogType) {
       context.warnings?.push({
         code: "MEDIA_TYPE_CONFLICT",
         message: `Conflicting media types while merging details; kept ${primaryType}.`,

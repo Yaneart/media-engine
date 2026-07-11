@@ -318,6 +318,8 @@ test("merges anime and series title variants while preserving anime semantics", 
         title: "One Piece",
         year: 1999,
         ids: { imdb: "tt0388629" },
+        description: "A complete international synopsis.",
+        poster: { url: "https://images.example/one-piece-modern.jpg", type: "poster" },
         confidence: 0.95,
       }),
       providerResult("shikimori", {
@@ -334,8 +336,10 @@ test("merges anime and series title variants while preserving anime semantics", 
     { query: { title: "one" } },
   );
 
-  assert.equal(results[0]?.item.title, "Ван-Пис");
+  assert.equal(results[0]?.item.title, "One Piece");
   assert.equal(results[0]?.item.type, "anime");
+  assert.equal(results[0]?.item.description, "A complete international synopsis.");
+  assert.equal(results[0]?.item.poster?.url, "https://images.example/one-piece-modern.jpg");
   assert.deepEqual(results[0]?.item.ids, {
     imdb: "tt0388629",
     shikimori: "21",
@@ -346,7 +350,7 @@ test("merges anime and series title variants while preserving anime semantics", 
   );
   assert.deepEqual(
     results[0]?.sources.map((source) => source.provider),
-    ["shikimori", "cinemeta"],
+    ["cinemeta", "shikimori"],
   );
 });
 

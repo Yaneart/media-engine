@@ -143,6 +143,13 @@ async function getFlixHqAvailability(
     return emptyAvailability(query);
   }
 
+  if (
+    query.type === "series" &&
+    (query.seasonNumber === undefined || query.episodeNumber === undefined)
+  ) {
+    return emptyAvailability(query);
+  }
+
   const searchUrl = new URL("/search", config.baseUrl);
   searchUrl.searchParams.set("keyword", query.title.trim());
   const searchHtml = await fetchText(config, searchUrl, context);

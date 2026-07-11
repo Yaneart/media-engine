@@ -187,7 +187,7 @@ async function getKinoBdDetails(
   query: ProviderDetailsQuery,
   context: ProviderContext,
 ): Promise<ProviderDetailsResult | null> {
-  if (query.type === "anime" || (!query.ids?.kinopoisk && !query.ids?.imdb)) {
+  if (!query.ids?.kinopoisk && !query.ids?.imdb) {
     return null;
   }
 

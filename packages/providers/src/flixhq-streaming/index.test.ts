@@ -114,6 +114,10 @@ test("flixHqStreamingProvider respects provider filters and unsupported anime", 
     (await provider.getAvailability({ type: "anime", title: "One Piece" }, {}))?.options,
     [],
   );
+  assert.deepEqual(
+    (await provider.getAvailability({ type: "series", title: "Game of Thrones" }, {}))?.options,
+    [],
+  );
 });
 
 test("flixHqStreamingProvider filters confirmed unavailable players", async () => {

@@ -102,7 +102,11 @@ export class ProviderRegistry {
         return false;
       }
 
-      if (query.type && !provider.capabilities.mediaTypes.includes(query.type)) {
+      if (
+        query.type &&
+        !provider.capabilities.mediaTypes.includes(query.type) &&
+        !(query.type === "anime" && provider.capabilities.mediaTypes.includes("series"))
+      ) {
         return false;
       }
 

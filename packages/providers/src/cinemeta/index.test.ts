@@ -227,6 +227,28 @@ test("cinemetaProvider resolves an untyped IMDb ID across movie and series in pa
   );
 });
 
+test("cinemetaProvider exposes generic series details for an anime IMDb id", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/meta/series/tt0388629.json": {
+        meta: {
+          id: "tt0388629",
+          imdb_id: "tt0388629",
+          type: "series",
+          name: "One Piece",
+          releaseInfo: "1999-",
+          description: "International catalog description.",
+        },
+      },
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { imdb: "tt0388629" }, type: "anime" }, {});
+
+  assert.equal(result?.details.type, "series");
+  assert.equal(result?.details.description, "International catalog description.");
+});
+
 test("cinemetaProvider limits heavy details arrays", async () => {
   const provider = createProvider({
     imageLimit: 1,

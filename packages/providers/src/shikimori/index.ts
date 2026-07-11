@@ -324,7 +324,7 @@ function mapAnimeDetails(
     ...mapAnimeSearchResult(config, item, ids),
     type: "anime",
     alternativeTitles: mapAlternativeTitles(item),
-    description: item.description || undefined,
+    description: normalizeDescription(item.description),
     shortDescription: item.description_source || undefined,
     genres: mapGenres(item.genres),
     ratings: createRatings(item.score, item.rates_scores_stats),
@@ -344,6 +344,17 @@ function mapAnimeDetails(
   };
 
   return details;
+}
+
+// Removes Shikimori BBCode references that should not leak into public text.
+// Убирает BBCode-ссылки Shikimori, которые не должны попадать в публичный текст.
+function normalizeDescription(description: string | null | undefined): string | undefined {
+  const normalized = description
+    ?.replace(/\[(?:character|person|anime|manga)=[^\]]+\]/gi, "")
+    .replace(/\[\/(?:character|person|anime|manga)\]/gi, "")
+    .trim();
+
+  return normalized || undefined;
 }
 
 // Converts details back to provider search result for ID searches.

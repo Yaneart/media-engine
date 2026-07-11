@@ -163,3 +163,20 @@ test("selects details providers with getDetails and matching external ids", () =
     detailsProvider,
   ]);
 });
+
+test("allows generic series details providers to enrich anime by external id", () => {
+  const seriesProvider = createProvider({
+    name: "series-provider",
+    capabilities: {
+      mediaTypes: ["series"],
+      search: { byTitle: true, byExternalIds: ["imdb"] },
+      details: { byExternalIds: ["imdb"] },
+    },
+  });
+
+  const registry = new ProviderRegistry([seriesProvider]);
+
+  assert.deepEqual(registry.selectDetailsProviders({ type: "anime", ids: { imdb: "tt0388629" } }), [
+    seriesProvider,
+  ]);
+});
