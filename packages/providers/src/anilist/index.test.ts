@@ -20,6 +20,7 @@ test("aniListProvider searches English anime titles with popularity", async () =
                 startDate: { year: 2013, month: 4, day: 7 },
                 averageScore: 84,
                 popularity: 4_000_000,
+                description: "First line.<br><br><b>Second line.</b>",
               },
             ],
           },
@@ -34,6 +35,7 @@ test("aniListProvider searches English anime titles with popularity", async () =
   assert.equal(results[0]?.item.originalTitle, "Shingeki no Kyojin");
   assert.equal(results[0]?.item.ids?.aniList, "16498");
   assert.equal(results[0]?.item.ratings?.[0]?.votes, 4_000_000);
+  assert.equal(results[0]?.item.description, "First line.\n\nSecond line.");
   assert.equal(body.variables?.search, "Attack on Titan");
   assert.match(body.query ?? "", /POPULARITY_DESC/);
 });

@@ -389,7 +389,7 @@ function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearc
     alternativeTitles: mergeAlternativeTitles(sortedEntries, title),
     year: selectYear(sortedEntries, context),
     releaseDate: selectReleaseDate(sortedEntries),
-    description: selectDescription(sortedEntries),
+    description: selectDescription(sortedEntries, context),
     shortDescription: selectShortDescription(sortedEntries),
     poster: selectBestImage(sortedEntries, "poster"),
     backdrop: selectBestImage(sortedEntries, "backdrop"),
@@ -449,7 +449,7 @@ function mergeDetailsEntries(
     status: firstMeaningfulDetailsStatus(entries),
     year: selectDetailsYear(entries, context),
     releaseDate: selectDetailsReleaseDate(entries),
-    description: selectDetailsDescription(entries),
+    description: selectDetailsDescription(entries, context),
     shortDescription: firstDefinedDetails(
       entries,
       (entry) => entry.result.details.shortDescription,
@@ -644,6 +644,18 @@ function mergeDetailsExternalIds(
 // Selects a display title, preferring the queried title when it matches.
 // Выбирает отображаемый title, предпочитая title из запроса при совпадении.
 function selectTitle(entries: SearchEntry[], context: MergeContext): string | undefined {
+  const localizedTitle = selectLocalizedText(
+    entries.flatMap((entry) => [
+      entry.result.item.title,
+      ...(entry.result.item.alternativeTitles ?? []),
+    ]),
+    context.language,
+  );
+
+  if (localizedTitle) {
+    return localizedTitle;
+  }
+
   const queryTitle =
     "title" in (context.query ?? {}) ? (context.query as SearchQuery).title : undefined;
 
@@ -664,6 +676,18 @@ function selectTitle(entries: SearchEntry[], context: MergeContext): string | un
 // Selects a details display title, preferring the queried title when it matches.
 // Выбирает отображаемый title деталей, предпочитая title из запроса при совпадении.
 function selectDetailsTitle(entries: DetailsEntry[], context: MergeContext): string | undefined {
+  const localizedTitle = selectLocalizedText(
+    entries.flatMap((entry) => [
+      entry.result.details.title,
+      ...(entry.result.details.alternativeTitles ?? []),
+    ]),
+    context.language,
+  );
+
+  if (localizedTitle) {
+    return localizedTitle;
+  }
+
   const queryTitle =
     "title" in (context.query ?? {}) ? (context.query as SearchQuery).title : undefined;
 
@@ -679,6 +703,41 @@ function selectDetailsTitle(entries: DetailsEntry[], context: MergeContext): str
   }
 
   return firstDefinedDetails(entries, (entry) => entry.result.details.title);
+}
+
+// Selects text matching an explicitly requested language while preserving fallback behavior.
+// Выбирает текст на явно запрошенном языке, сохраняя fallback-поведение.
+function selectLocalizedText(
+  values: Array<string | undefined>,
+  language: string | undefined,
+): string | undefined {
+  return filterLocalizedText(
+    values.filter((value): value is string => Boolean(value?.trim())),
+    language,
+  )[0];
+}
+
+function filterLocalizedText(values: string[], language: string | undefined): string[] {
+  const baseLanguage = language?.split("-")[0]?.toLowerCase();
+
+  if (!baseLanguage) {
+    return [];
+  }
+
+  switch (baseLanguage) {
+    case "ru":
+    case "uk":
+    case "be":
+      return values.filter((value) => /[а-яёіїєґ]/iu.test(value));
+    case "ja":
+      return values.filter((value) => /[\u3040-\u30ff\u3400-\u9fff]/u.test(value));
+    case "en":
+      return values.filter(
+        (value) => /[a-z]/iu.test(value) && !/[а-яёіїєґ\u3040-\u30ff\u3400-\u9fff]/iu.test(value),
+      );
+    default:
+      return [];
+  }
 }
 
 // Selects the primary year and emits warnings for conflicting years.
@@ -745,22 +804,29 @@ function selectDetailsReleaseDate(entries: DetailsEntry[]): string | undefined {
 
 // Selects the longest useful description.
 // Выбирает самое длинное полезное описание.
-function selectDescription(entries: SearchEntry[]): string | undefined {
+function selectDescription(entries: SearchEntry[], context?: MergeContext): string | undefined {
+  const descriptions = entries
+    .map((entry) => entry.result.item.description)
+    .filter((description): description is string => Boolean(description?.trim()));
+  const localized = filterLocalizedText(descriptions, context?.language);
   return maxBy(
-    entries
-      .map((entry) => entry.result.item.description)
-      .filter((description): description is string => Boolean(description?.trim())),
+    localized.length ? localized : descriptions,
     (description) => description.trim().length,
   );
 }
 
 // Selects the longest useful details description.
 // Выбирает самое длинное полезное описание деталей.
-function selectDetailsDescription(entries: DetailsEntry[]): string | undefined {
+function selectDetailsDescription(
+  entries: DetailsEntry[],
+  context?: MergeContext,
+): string | undefined {
+  const descriptions = entries
+    .map((entry) => entry.result.details.description)
+    .filter((description): description is string => Boolean(description?.trim()));
+  const localized = filterLocalizedText(descriptions, context?.language);
   return maxBy(
-    entries
-      .map((entry) => entry.result.details.description)
-      .filter((description): description is string => Boolean(description?.trim())),
+    localized.length ? localized : descriptions,
     (description) => description.trim().length,
   );
 }

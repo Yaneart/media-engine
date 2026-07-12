@@ -50,6 +50,56 @@ test("merges exact external ID matches into one search result", () => {
   assert.deepEqual(warnings, []);
 });
 
+test("selects localized titles and descriptions when language is explicit", () => {
+  const search = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "one-piece-en",
+        type: "anime",
+        title: "One Piece",
+        year: 1999,
+        description: "A much longer English description about pirates and adventure.",
+        ids: { imdb: "tt0388629" },
+      }),
+      providerResult("shikimori", {
+        id: "one-piece-ru",
+        type: "anime",
+        title: "Ван-Пис",
+        originalTitle: "One Piece",
+        year: 1999,
+        description: "Русское описание приключений пиратов.",
+        ids: { imdb: "tt0388629", shikimori: "21" },
+      }),
+    ],
+    { query: { title: "one piece", language: "ru" }, language: "ru" },
+  );
+
+  assert.equal(search[0]?.item.title, "Ван-Пис");
+  assert.equal(search[0]?.item.description, "Русское описание приключений пиратов.");
+
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("cinemeta", {
+        id: "one-piece-en",
+        type: "anime",
+        title: "One Piece",
+        description: "A much longer English description about pirates and adventure.",
+      }),
+      providerDetailsResult("shikimori", {
+        id: "one-piece-ru",
+        type: "anime",
+        title: "Ван-Пис",
+        originalTitle: "One Piece",
+        description: "Русское описание приключений пиратов.",
+      }),
+    ],
+    { query: { type: "anime", language: "ru" }, language: "ru" },
+  );
+
+  assert.equal(details?.title, "Ван-Пис");
+  assert.equal(details?.description, "Русское описание приключений пиратов.");
+});
+
 test("warns on conflicting strong IDs without overwriting provider priority value", () => {
   const warnings: EngineWarning[] = [];
   const results = strategy.mergeSearchResults(

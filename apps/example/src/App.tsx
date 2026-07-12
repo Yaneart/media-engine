@@ -433,7 +433,10 @@ function DetailsPanel({
 
   return (
     <aside className="details-panel details-panel--loaded" aria-live="polite">
-      <MediaPoster item={details} size="large" />
+      <MediaPoster
+        item={{ ...details, poster: state.item.poster ?? details.poster }}
+        size="large"
+      />
 
       <div className="details-panel__content">
         <div>

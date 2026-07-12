@@ -195,12 +195,31 @@ function mapMediaItem(media: AniListMedia): MediaItem | undefined {
     alternativeTitles: alternativeTitles.length ? alternativeTitles : undefined,
     year: media.startDate?.year ?? undefined,
     releaseDate,
-    description: media.description?.trim() || undefined,
+    description: normalizeText(media.description),
     poster: mapPoster(media.coverImage),
     genres: mapGenres(media.genres),
     ratings: mapRating(media),
     ids: { aniList: String(media.id), myAnimeList: media.idMal ? String(media.idMal) : undefined },
   };
+}
+
+// Converts AniList's lightweight HTML descriptions into plain public text.
+// Преобразует HTML-описания AniList в обычный публичный текст.
+function normalizeText(value: string | null | undefined): string | undefined {
+  const normalized = value
+    ?.replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return normalized || undefined;
 }
 
 function mapDetails(item: MediaItem, media: AniListMedia): AnimeDetails {

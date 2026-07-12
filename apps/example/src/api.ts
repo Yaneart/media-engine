@@ -6,6 +6,7 @@ import type {
 } from "@media-engine/sdk";
 
 const DEFAULT_API_URL = "http://127.0.0.1:3000";
+const DEFAULT_DISPLAY_LANGUAGE = "ru";
 
 // EN: Query shape accepted by the example app search form.
 // RU: Форма query, которую принимает search form в example app.
@@ -44,6 +45,7 @@ export function searchMedia(query: SearchFormQuery, signal?: AbortSignal): Promi
       title: query.title,
       type: query.type || undefined,
       limit: 10,
+      language: DEFAULT_DISPLAY_LANGUAGE,
     },
     { signal },
   );
@@ -59,6 +61,7 @@ export function getMediaDetails(
     {
       type: item.type,
       ids: item.ids,
+      language: DEFAULT_DISPLAY_LANGUAGE,
     },
     { signal },
   );
@@ -79,6 +82,7 @@ export function getMediaAvailability(
       seasonNumber: item.seasonNumber,
       episodeNumber: item.episodeNumber,
       absoluteEpisodeNumber: item.absoluteEpisodeNumber,
+      language: DEFAULT_DISPLAY_LANGUAGE,
     },
     { signal },
   );
