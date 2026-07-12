@@ -69,6 +69,33 @@ test("aniListProvider loads details by AniList ID", async () => {
   assert.equal(result?.details.runtimeMinutes, 23);
 });
 
+test("aniListProvider repairs mojibake in titles, aliases, and descriptions", async () => {
+  const provider = aniListProvider({
+    fetch: async () =>
+      Response.json({
+        data: {
+          Page: {
+            media: [
+              {
+                id: 1,
+                title: { english: "POKÃ‰TOON", romaji: "PokÃ©toon" },
+                synonyms: ["PokÃ©mon Cartoon"],
+                description: "A PokÃ©mon short &amp; story.",
+              },
+            ],
+          },
+        },
+      }),
+  });
+
+  const [result] = await provider.search({ title: "Poketoon" }, {});
+
+  assert.equal(result?.item.title, "POKÉTOON");
+  assert.equal(result?.item.originalTitle, "Pokétoon");
+  assert.deepEqual(result?.item.alternativeTitles, ["Pokétoon", "Pokémon Cartoon"]);
+  assert.equal(result?.item.description, "A Pokémon short & story.");
+});
+
 test("aniListProvider ignores non-anime queries and validates limits", async () => {
   const provider = aniListProvider({ fetch: async () => Response.json({ data: {} }) });
   assert.deepEqual(await provider.search({ title: "Interstellar", type: "movie" }, {}), []);

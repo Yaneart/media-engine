@@ -167,6 +167,27 @@ function App() {
         response.details ? { status: "success", item, response } : { status: "empty", item },
       );
 
+      if (response.details?.poster) {
+        setSearchState((currentState) =>
+          currentState.status === "success"
+            ? {
+                ...currentState,
+                response: {
+                  ...currentState.response,
+                  results: currentState.response.results.map((result) =>
+                    result.item.id === item.id
+                      ? {
+                          ...result,
+                          item: { ...result.item, poster: response.details!.poster },
+                        }
+                      : result,
+                  ),
+                },
+              }
+            : currentState,
+        );
+      }
+
       if (!response.details || abortController.signal.aborted) {
         setAvailabilityState({ status: "idle" });
         return;
@@ -433,10 +454,7 @@ function DetailsPanel({
 
   return (
     <aside className="details-panel details-panel--loaded" aria-live="polite">
-      <MediaPoster
-        item={{ ...details, poster: state.item.poster ?? details.poster }}
-        size="large"
-      />
+      <MediaPoster item={details} size="large" />
 
       <div className="details-panel__content">
         <div>

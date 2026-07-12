@@ -644,9 +644,25 @@ function mergeDetailsExternalIds(
 // Selects a display title, preferring the queried title when it matches.
 // Выбирает отображаемый title, предпочитая title из запроса при совпадении.
 function selectTitle(entries: SearchEntry[], context: MergeContext): string | undefined {
+  const queryTitle =
+    "title" in (context.query ?? {}) ? (context.query as SearchQuery).title : undefined;
+  const titleValues = entries.flatMap((entry) => titleCandidates(entry.result.item));
+  const localizedTitleValues = filterLocalizedText(titleValues, context.language);
+  const exactQueryTitle = queryTitle
+    ? selectExactQueryTitle(
+        localizedTitleValues.length ? localizedTitleValues : titleValues,
+        queryTitle,
+      )
+    : undefined;
+
+  if (exactQueryTitle) {
+    return exactQueryTitle;
+  }
+
   const localizedTitle = selectLocalizedText(
     entries.flatMap((entry) => [
       entry.result.item.title,
+      entry.result.item.originalTitle,
       ...(entry.result.item.alternativeTitles ?? []),
     ]),
     context.language,
@@ -656,21 +672,12 @@ function selectTitle(entries: SearchEntry[], context: MergeContext): string | un
     return localizedTitle;
   }
 
-  const queryTitle =
-    "title" in (context.query ?? {}) ? (context.query as SearchQuery).title : undefined;
-
-  if (queryTitle) {
-    const normalizedQueryTitle = normalizeTitle(queryTitle);
-    const queryMatch = entries.find(
-      (entry) => normalizeTitle(entry.result.item.title) === normalizedQueryTitle,
-    );
-
-    if (queryMatch) {
-      return queryMatch.result.item.title;
-    }
-  }
-
   return firstDefined(entries, (entry) => entry.result.item.title);
+}
+
+function selectExactQueryTitle(values: string[], queryTitle: string): string | undefined {
+  const normalizedQueryTitle = normalizeTitle(queryTitle);
+  return values.find((value) => normalizeTitle(value) === normalizedQueryTitle);
 }
 
 // Selects a details display title, preferring the queried title when it matches.
@@ -679,6 +686,7 @@ function selectDetailsTitle(entries: DetailsEntry[], context: MergeContext): str
   const localizedTitle = selectLocalizedText(
     entries.flatMap((entry) => [
       entry.result.details.title,
+      entry.result.details.originalTitle,
       ...(entry.result.details.alternativeTitles ?? []),
     ]),
     context.language,

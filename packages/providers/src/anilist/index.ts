@@ -177,13 +177,20 @@ async function loadDetails(
 
 function mapMediaItem(media: AniListMedia): MediaItem | undefined {
   if (!media.id || (!media.title?.romaji && !media.title?.english)) return undefined;
-  const title = media.title.english?.trim() || media.title.romaji!;
+  const englishTitle = normalizeText(media.title.english);
+  const romajiTitle = normalizeText(media.title.romaji);
+  const title = englishTitle || romajiTitle;
+
+  if (!title) return undefined;
+
   const candidates = [
-    media.title.romaji,
-    media.title.english,
-    media.title.native,
+    romajiTitle,
+    englishTitle,
+    normalizeText(media.title.native),
     ...(media.synonyms ?? []),
-  ].filter((value): value is string => Boolean(value?.trim()));
+  ]
+    .map((value) => normalizeText(value))
+    .filter((value): value is string => Boolean(value));
   const alternativeTitles = [...new Set(candidates)].filter((value) => value !== title);
   const releaseDate = formatDate(media.startDate);
 
@@ -191,7 +198,7 @@ function mapMediaItem(media: AniListMedia): MediaItem | undefined {
     id: `${PROVIDER_NAME}-anime-${media.id}`,
     type: "anime",
     title,
-    originalTitle: media.title.romaji ?? undefined,
+    originalTitle: romajiTitle,
     alternativeTitles: alternativeTitles.length ? alternativeTitles : undefined,
     year: media.startDate?.year ?? undefined,
     releaseDate,
@@ -206,7 +213,8 @@ function mapMediaItem(media: AniListMedia): MediaItem | undefined {
 // Converts AniList's lightweight HTML descriptions into plain public text.
 // Преобразует HTML-описания AniList в обычный публичный текст.
 function normalizeText(value: string | null | undefined): string | undefined {
-  const normalized = value
+  const decoded = repairMojibake(value?.trim());
+  const normalized = decoded
     ?.replace(/<br\s*\/?>/gi, "\n")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/gi, " ")
@@ -215,11 +223,61 @@ function normalizeText(value: string | null | undefined): string | undefined {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_match, code: string) =>
+      String.fromCodePoint(Number.parseInt(code, 16)),
+    )
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return normalized || undefined;
+  return normalized && !normalized.includes("\uFFFD") ? normalized : undefined;
+}
+
+// Repairs the common case where UTF-8 bytes were decoded as Latin-1 upstream.
+function repairMojibake(value: string | undefined): string | undefined {
+  if (!value || !/[ÃÂâ]/u.test(value)) return value;
+
+  const windows1252Bytes = new Map<string, number>([
+    ["€", 0x80],
+    ["‚", 0x82],
+    ["ƒ", 0x83],
+    ["„", 0x84],
+    ["…", 0x85],
+    ["†", 0x86],
+    ["‡", 0x87],
+    ["ˆ", 0x88],
+    ["‰", 0x89],
+    ["Š", 0x8a],
+    ["‹", 0x8b],
+    ["Œ", 0x8c],
+    ["Ž", 0x8e],
+    ["‘", 0x91],
+    ["’", 0x92],
+    ["“", 0x93],
+    ["”", 0x94],
+    ["•", 0x95],
+    ["–", 0x96],
+    ["—", 0x97],
+    ["˜", 0x98],
+    ["™", 0x99],
+    ["š", 0x9a],
+    ["›", 0x9b],
+    ["œ", 0x9c],
+    ["ž", 0x9e],
+    ["Ÿ", 0x9f],
+  ]);
+  const bytes = Uint8Array.from(
+    value,
+    (character) => windows1252Bytes.get(character) ?? character.charCodeAt(0),
+  );
+  const repaired = new TextDecoder("utf-8", { fatal: true });
+
+  try {
+    return repaired.decode(bytes);
+  } catch {
+    return value;
+  }
 }
 
 function mapDetails(item: MediaItem, media: AniListMedia): AnimeDetails {

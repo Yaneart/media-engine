@@ -100,6 +100,43 @@ test("selects localized titles and descriptions when language is explicit", () =
   assert.equal(details?.description, "Русское описание приключений пиратов.");
 });
 
+test("selects an English original title for an English query", () => {
+  const search = strategy.mergeSearchResults(
+    [
+      providerResult("shikimori", {
+        id: "one-piece-ru",
+        type: "anime",
+        title: "Ван-Пис",
+        originalTitle: "One Piece",
+        year: 1999,
+        ids: { shikimori: "21" },
+      }),
+    ],
+    { query: { title: "one piece" }, language: "en" },
+  );
+
+  assert.equal(search[0]?.item.title, "One Piece");
+  assert.deepEqual(search[0]?.item.alternativeTitles, ["Ван-Пис"]);
+});
+
+test("selects an exact English alias before a generic Latin-script title", () => {
+  const search = strategy.mergeSearchResults(
+    [
+      providerResult("anilist", {
+        id: "spirited-away",
+        type: "anime",
+        title: "Sen to Chihiro no Kamikakushi",
+        alternativeTitles: ["Spirited Away"],
+        year: 2001,
+        ids: { aniList: "199" },
+      }),
+    ],
+    { query: { title: "spirited away" }, language: "en" },
+  );
+
+  assert.equal(search[0]?.item.title, "Spirited Away");
+});
+
 test("warns on conflicting strong IDs without overwriting provider priority value", () => {
   const warnings: EngineWarning[] = [];
   const results = strategy.mergeSearchResults(

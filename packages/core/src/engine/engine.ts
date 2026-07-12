@@ -605,7 +605,10 @@ function normalizeSearchQuery(query: SearchQuery): SearchQuery {
 // Infers a provider lookup language only when the caller did not specify one.
 // Определяет язык provider lookup только если caller не передал его явно.
 function inferTitleLanguage(title: string | undefined): string | undefined {
-  return title && /[а-яё]/iu.test(title) ? "ru" : undefined;
+  if (!title) return undefined;
+  if (/[а-яё]/iu.test(title)) return "ru";
+  if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(title)) return "ja";
+  return /[a-z]/iu.test(title) ? "en" : undefined;
 }
 
 // Normalizes top-level external ID shortcuts into a details ids object.

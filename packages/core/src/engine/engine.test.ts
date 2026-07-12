@@ -211,13 +211,13 @@ test("search normalizes top-level external id shortcuts into ids", async () => {
   assert.equal(response.results.length, 1);
 });
 
-test("search infers Russian provider context for Cyrillic titles", async () => {
-  let receivedLanguage: string | undefined;
+test("search infers provider context language from the title script", async () => {
+  const receivedLanguages: Array<string | undefined> = [];
   const engine = new MediaEngine({
     providers: [
       createProvider({
         async search(_query, context): Promise<ProviderSearchResult[]> {
-          receivedLanguage = context.language;
+          receivedLanguages.push(context.language);
           return [];
         },
       }),
@@ -225,8 +225,10 @@ test("search infers Russian provider context for Cyrillic titles", async () => {
   });
 
   await engine.search({ title: "интерстеллар" });
+  await engine.search({ title: "Interstellar" });
+  await engine.search({ title: "進撃の巨人" });
 
-  assert.equal(receivedLanguage, "ru");
+  assert.deepEqual(receivedLanguages, ["ru", "en", "ja"]);
 });
 
 test("search widens provider limit before applying public response limit", async () => {

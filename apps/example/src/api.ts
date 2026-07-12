@@ -6,7 +6,6 @@ import type {
 } from "@media-engine/sdk";
 
 const DEFAULT_API_URL = "http://127.0.0.1:3000";
-const DEFAULT_DISPLAY_LANGUAGE = "ru";
 
 // EN: Query shape accepted by the example app search form.
 // RU: Форма query, которую принимает search form в example app.
@@ -40,12 +39,14 @@ const mediaEngineClient = new MediaEngineClient({
 // EN: Search media through the public SDK instead of hand-written fetch helpers.
 // RU: Ищет media через публичный SDK вместо вручную написанных fetch helpers.
 export function searchMedia(query: SearchFormQuery, signal?: AbortSignal): Promise<SearchResponse> {
+  const language = inferTitleLanguage(query.title);
+
   return mediaEngineClient.search(
     {
       title: query.title,
       type: query.type || undefined,
       limit: 10,
-      language: DEFAULT_DISPLAY_LANGUAGE,
+      language,
     },
     { signal },
   );
@@ -57,11 +58,13 @@ export function getMediaDetails(
   item: MediaSummary,
   signal?: AbortSignal,
 ): Promise<DetailsResponse> {
+  const language = inferTitleLanguage(item.title);
+
   return mediaEngineClient.getDetails(
     {
       type: item.type,
       ids: item.ids,
-      language: DEFAULT_DISPLAY_LANGUAGE,
+      language,
     },
     { signal },
   );
@@ -73,6 +76,8 @@ export function getMediaAvailability(
   item: AvailabilityMediaInput,
   signal?: AbortSignal,
 ): Promise<AvailabilityResponse> {
+  const language = inferTitleLanguage(item.title);
+
   return mediaEngineClient.getAvailability(
     {
       type: item.type,
@@ -82,10 +87,17 @@ export function getMediaAvailability(
       seasonNumber: item.seasonNumber,
       episodeNumber: item.episodeNumber,
       absoluteEpisodeNumber: item.absoluteEpisodeNumber,
-      language: DEFAULT_DISPLAY_LANGUAGE,
+      language,
     },
     { signal },
   );
+}
+
+// Keeps display metadata in the same language as the title entered or selected by the user.
+export function inferTitleLanguage(title: string): "ru" | "ja" | "en" {
+  if (/[а-яё]/iu.test(title)) return "ru";
+  if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(title)) return "ja";
+  return "en";
 }
 
 function getApiBaseUrl(): string {
