@@ -23,6 +23,7 @@ export const DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES = 500;
 export async function createConfiguredProviders(): Promise<MediaProvider[]> {
   const {
     cinemetaProvider,
+    aniListProvider,
     kinobdProvider,
     shikimoriProvider,
     wikidataProvider,
@@ -31,6 +32,7 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
     kinobdProvider(),
     cinemetaProvider(),
     shikimoriProvider(),
+    aniListProvider(),
     wikidataProvider(),
   ];
   return providers;
@@ -64,6 +66,7 @@ export async function createMediaEngine(
     providerTimeouts: {
       kinobd: readProviderTimeoutMs(env),
       shikimori: readProviderTimeoutMs(env),
+      anilist: readProviderTimeoutMs(env),
       cinemeta: readProviderTimeoutMs(env),
       wikidata: readProviderTimeoutMs(env),
       'kinobd-streaming': readStreamingProviderTimeoutMs(env),

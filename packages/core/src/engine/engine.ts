@@ -39,7 +39,7 @@ const EXTERNAL_ID_SHORTCUTS = [
   "aniList",
 ] as const;
 
-const SEARCH_ID_ENRICHMENT_LIMIT = 3;
+const SEARCH_ID_ENRICHMENT_LIMIT = 6;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
 const SEARCH_FALLBACK_MIN_TOKENS = 3;
 const SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH = 4;
@@ -98,6 +98,7 @@ export class MediaEngine {
     const startedAt = Date.now();
     const normalizedQuery = normalizeSearchQuery(query);
     validateSearchQuery(normalizedQuery);
+    const searchLanguage = normalizedQuery.language ?? inferTitleLanguage(normalizedQuery.title);
 
     const cacheKey = createSearchCacheKey(normalizedQuery);
     const cached = await this.cache?.get<SearchResponse>(cacheKey);
@@ -126,7 +127,7 @@ export class MediaEngine {
       providers.map((provider) =>
         callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
           debug: this.debug,
-          language: normalizedQuery.language,
+          language: searchLanguage,
           timeoutMs: this.getProviderTimeoutMs(provider.name),
         }),
       ),
@@ -135,7 +136,7 @@ export class MediaEngine {
     if (outcomes.length > 0 && outcomes.every((outcome) => outcome.failure)) {
       outcomes = await retryFailedSearchProviders(providers, outcomes, normalizedQuery, {
         debug: this.debug,
-        language: normalizedQuery.language,
+        language: searchLanguage,
         getTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
       });
     }
@@ -161,7 +162,7 @@ export class MediaEngine {
 
     let results = this.mergeStrategy.mergeSearchResults(providerResults, {
       query: normalizedQuery,
-      language: normalizedQuery.language,
+      language: searchLanguage,
       debug: this.debug,
       warnings,
       includeIrrelevantSearchResults: true,
@@ -171,7 +172,7 @@ export class MediaEngine {
     const hasRelevantResults = fallbackQuery
       ? this.mergeStrategy.mergeSearchResults(providerResults, {
           query: normalizedQuery,
-          language: normalizedQuery.language,
+          language: searchLanguage,
           debug: this.debug,
         }).length > 0
       : true;
@@ -181,7 +182,7 @@ export class MediaEngine {
         providers.map((provider) =>
           callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
             debug: this.debug,
-            language: normalizedQuery.language,
+            language: searchLanguage,
             timeoutMs: this.getProviderTimeoutMs(provider.name),
           }),
         ),
@@ -192,7 +193,7 @@ export class MediaEngine {
       );
       results = this.mergeStrategy.mergeSearchResults(providerResults, {
         query: normalizedQuery,
-        language: normalizedQuery.language,
+        language: searchLanguage,
         debug: this.debug,
         warnings,
         includeIrrelevantSearchResults: true,
@@ -225,11 +226,11 @@ export class MediaEngine {
               ids: result.item.ids,
               type: enrichmentType,
               limit: 1,
-              language: normalizedQuery.language,
+              language: searchLanguage,
             },
             {
               debug: this.debug,
-              language: normalizedQuery.language,
+              language: searchLanguage,
               timeoutMs: enrichmentTimeoutMs,
             },
           );
@@ -249,7 +250,7 @@ export class MediaEngine {
     ) {
       results = this.mergeStrategy.mergeSearchResults(providerResults, {
         query: normalizedQuery,
-        language: normalizedQuery.language,
+        language: searchLanguage,
         debug: this.debug,
         warnings,
       });
@@ -599,6 +600,12 @@ function normalizeSearchQuery(query: SearchQuery): SearchQuery {
     title: query.title?.trim(),
     ids: hasExternalIds(ids) ? ids : undefined,
   };
+}
+
+// Infers a provider lookup language only when the caller did not specify one.
+// Определяет язык provider lookup только если caller не передал его явно.
+function inferTitleLanguage(title: string | undefined): string | undefined {
+  return title && /[а-яё]/iu.test(title) ? "ru" : undefined;
 }
 
 // Normalizes top-level external ID shortcuts into a details ids object.

@@ -2,7 +2,7 @@
 
 Provider package for Media Engine.
 
-This package contains no-token metadata provider factories such as KinoBD, Cinemeta, Shikimori, Wikidata, and local IMDb datasets, plus the no-token KinoBD streaming provider and local experimental provider.
+This package contains no-token metadata provider factories such as KinoBD, Cinemeta, Shikimori, AniList, Wikidata, and local IMDb datasets, plus the no-token KinoBD streaming provider and local experimental provider.
 
 The package depends on `@media-engine/core` for provider contracts and normalized media types. Core must not import this package.
 
@@ -106,6 +106,20 @@ Supported data:
 - Shikimori and MyAnimeList external IDs in normalized results.
 
 The provider does not store API keys or read environment variables. Tests use mock `fetch` implementations and do not call the real Shikimori API.
+
+## AniList Provider
+
+`aniListProvider` adds public no-token anime search and details through AniList GraphQL. It complements Shikimori with English and international title aliases, AniList/MyAnimeList IDs, popularity counts, ratings, posters, and genres.
+
+```ts
+import { aniListProvider } from "@media-engine/providers";
+
+const engine = new MediaEngine({
+  providers: [aniListProvider()],
+});
+```
+
+Public metadata requests do not require OAuth. The provider excludes adult results by default and can be configured with `includeAdult: true` when appropriate for the host application.
 
 ## Wikidata Provider
 

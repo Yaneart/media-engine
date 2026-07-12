@@ -19,6 +19,7 @@ describe('MediaEngine configuration', () => {
       'kinobd',
       'cinemeta',
       'shikimori',
+      'anilist',
       'wikidata',
     ]);
     expect(

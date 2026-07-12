@@ -39,7 +39,7 @@ The default local API URL is:
 http://127.0.0.1:3000
 ```
 
-Movie and series search works without secrets through KinoBD, Cinemeta, Shikimori, and Wikidata. The engine merges their results to improve metadata completeness.
+Movie, series, and anime search works without secrets through KinoBD, Cinemeta, Shikimori, AniList, and Wikidata. AniList adds international anime titles and popularity signals, while the engine merges matching results to improve metadata completeness.
 
 Streaming availability works without secrets through the default KinoBD/ReYohoho-style and FlixHQ providers. KinoBD supplies Russian and Ukrainian player variants, while FlixHQ adds international movie and series embeds. Anime availability can fall back from a Shikimori ID to Shikimori title lookup and KinoBD player search.
 

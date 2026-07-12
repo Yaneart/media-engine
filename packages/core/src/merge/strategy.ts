@@ -64,7 +64,16 @@ const EXTERNAL_ID_KEYS = [
 const DEFAULT_PRIORITY = ["tmdb", "kinobd", "cinemeta", "imdb", "wikidata", "kinopoisk"];
 // Default provider priority for anime results.
 // Приоритет провайдеров по умолчанию для аниме.
-const ANIME_PRIORITY = ["shikimori", "tmdb", "kinobd", "cinemeta", "imdb", "wikidata", "kinopoisk"];
+const ANIME_PRIORITY = [
+  "shikimori",
+  "anilist",
+  "tmdb",
+  "kinobd",
+  "cinemeta",
+  "imdb",
+  "wikidata",
+  "kinopoisk",
+];
 // Search-level tie-break priority used when results from different media types have equal scores.
 // Search-level priority для tie-break, когда результаты разных media types имеют одинаковый score.
 const SEARCH_RESULT_PRIORITY = [
@@ -75,6 +84,7 @@ const SEARCH_RESULT_PRIORITY = [
   "wikidata",
   "kinopoisk",
   "shikimori",
+  "anilist",
 ];
 
 // Built-in merge strategy used by core when no custom strategy is provided.
@@ -1018,6 +1028,7 @@ function scoreGroup(group: SearchGroup, entries: SearchEntry[], context: MergeCo
 
   const baseScore = baseTextSearchScore(group, entries);
   const titleScore = titleRelevanceScore(entries, queryTitle);
+  const exactPrimaryTitleScore = hasExactPrimaryTitle(entries, queryTitle) ? 1 : 0;
   const popularityScore = ratingVotesScore(entries);
   const ratingScore = normalizedRatingScore(entries);
   const idScore = externalIdCompletenessScore(entries);
@@ -1027,11 +1038,24 @@ function scoreGroup(group: SearchGroup, entries: SearchEntry[], context: MergeCo
   return boundedTextScore(
     baseScore +
       titleScore * 0.2 +
+      exactPrimaryTitleScore * 0.15 +
       popularityScore * 0.15 +
       ratingScore * 0.05 +
       idScore * 0.01 +
       sourceScore * 0.02 +
-      authorityScore * 0.6,
+      authorityScore * 0.15,
+  );
+}
+
+// Distinguishes exact primary/original titles from incidental alternative aliases.
+// Отличает точные основные/оригинальные названия от случайных alternative aliases.
+function hasExactPrimaryTitle(entries: SearchEntry[], queryTitle: string): boolean {
+  const normalizedQuery = normalizeTitle(queryTitle);
+
+  return entries.some((entry) =>
+    [entry.result.item.title, entry.result.item.originalTitle]
+      .filter((title): title is string => Boolean(title))
+      .some((title) => normalizeTitle(title) === normalizedQuery),
   );
 }
 
@@ -1057,9 +1081,9 @@ function baseGroupScore(group: SearchGroup, entries: SearchEntry[]): number {
 function baseTextSearchScore(group: SearchGroup, entries: SearchEntry[]): number {
   switch (group.matchStrength) {
     case "exact_id":
-      return 0.35 + bestProviderConfidence(entries) * 0.18;
+      return 0.44 + bestProviderConfidence(entries) * 0.18;
     case "exact_title_year_type":
-      return 0.58;
+      return 0.62;
     case "normalized_title_year_type":
       return 0.52;
     case "weak":
@@ -1314,19 +1338,21 @@ function sourceAuthorityScore(entries: SearchEntry[]): number {
 function providerAuthority(provider: string): number {
   switch (provider) {
     case "wikidata":
-      return 1;
+      return 0.7;
     case "tmdb":
       return 0.95;
     case "cinemeta":
-      return 0.7;
+      return 0.75;
     case "kinobd":
-      return 0.45;
+      return 0.75;
     case "imdb":
       return 0.65;
     case "kinopoisk":
       return 0.6;
     case "shikimori":
-      return 0.5;
+      return 0.9;
+    case "anilist":
+      return 0.9;
     default:
       return 0.3;
   }

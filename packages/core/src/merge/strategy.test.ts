@@ -233,6 +233,74 @@ test("ranks popular relevant series first for broad any-title search", () => {
   );
 });
 
+test("ranks a popular exact anime above less popular live-action adaptations", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("wikidata", {
+        id: "death-note-movie",
+        type: "movie",
+        title: "Death Note",
+        year: 2017,
+        ratings: [{ source: "imdb", value: 4.5, max: 10, votes: 96_000 }],
+        ids: { imdb: "tt1241317" },
+      }),
+      providerResult("anilist", {
+        id: "death-note-anime",
+        type: "anime",
+        title: "Death Note",
+        year: 2006,
+        ratings: [{ source: "myAnimeList", value: 8.62, max: 10, votes: 2_900_000 }],
+        ids: { myAnimeList: "1535" },
+      }),
+    ],
+    { query: { title: "death note" } },
+  );
+
+  assert.equal(results[0]?.item.type, "anime");
+  assert.equal(results[0]?.item.year, 2006);
+});
+
+test("keeps an exact title above popular prefixed franchise results when metadata is sparse", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "avatar-2009",
+        type: "movie",
+        title: "Avatar",
+        year: 2009,
+        ids: { imdb: "tt0499549" },
+      }),
+      providerResult("wikidata", {
+        id: "avatar-2009-wikidata",
+        type: "movie",
+        title: "Avatar",
+        year: 2009,
+        ids: { imdb: "tt0499549" },
+      }),
+      providerResult("kinobd", {
+        id: "avatar-series-2024",
+        type: "series",
+        title: "Аватар: Легенда об Аанге",
+        originalTitle: "Avatar: The Last Airbender",
+        year: 2024,
+        ratings: [{ source: "imdb", value: 7.2, max: 10, votes: 85_000 }],
+        ids: { imdb: "tt9018736" },
+      }),
+      providerResult("cinemeta", {
+        id: "avatar-series-2024-cinemeta",
+        type: "series",
+        title: "Avatar: The Last Airbender",
+        year: 2024,
+        ids: { imdb: "tt9018736" },
+      }),
+    ],
+    { query: { title: "avatar" } },
+  );
+
+  assert.equal(results[0]?.item.title, "Avatar");
+  assert.equal(results[0]?.item.year, 2009);
+});
+
 test("filters unrelated provider noise from title searches", () => {
   const results = strategy.mergeSearchResults(
     [
