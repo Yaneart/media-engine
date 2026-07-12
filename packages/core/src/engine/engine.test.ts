@@ -620,6 +620,73 @@ test("search throws predictably when all selected providers fail", async () => {
   );
 });
 
+test("search retries transient failures when every selected provider fails together", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "transient-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          calls += 1;
+
+          if (calls === 1) {
+            throw new ProviderError({
+              provider: "transient-provider",
+              code: "PROVIDER_TIMEOUT",
+              retryable: true,
+              message: "Temporary timeout.",
+            });
+          }
+
+          return [
+            {
+              provider: "transient-provider",
+              item: { id: "one-piece", type: "anime", title: "One Piece" },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "one piece" });
+
+  assert.equal(calls, 2);
+  assert.equal(response.results[0]?.item.title, "One Piece");
+  assert.deepEqual(response.meta.providers.failed, []);
+});
+
+test("search broadens an empty multi-word typo and ranks against the original query", async () => {
+  const receivedTitles: string[] = [];
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async search(query): Promise<ProviderSearchResult[]> {
+          receivedTitles.push(query.title ?? "");
+
+          return query.title === "game of"
+            ? [
+                {
+                  provider: "test-provider",
+                  item: {
+                    id: "game-of-thrones",
+                    type: "series",
+                    title: "Game of Thrones",
+                  },
+                },
+              ]
+            : [];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "game of throen" });
+
+  assert.deepEqual(receivedTitles, ["game of throen", "game of"]);
+  assert.equal(response.results[0]?.item.title, "Game of Thrones");
+});
+
 test("search returns empty response when no providers are available", async () => {
   const engine = new MediaEngine();
   const response = await engine.search({ title: "Interstellar" });

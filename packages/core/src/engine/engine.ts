@@ -41,6 +41,8 @@ const EXTERNAL_ID_SHORTCUTS = [
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 3;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
+const SEARCH_FALLBACK_MIN_TOKENS = 3;
+const SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH = 4;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_PROVIDER_SEARCH_LIMIT = 100;
 
@@ -120,7 +122,7 @@ export class MediaEngine {
     const providerResults: ProviderSearchResult[] = [];
     const providerTimings: ProviderTimingMeta[] = [];
 
-    const outcomes = await Promise.all(
+    let outcomes = await Promise.all(
       providers.map((provider) =>
         callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
           debug: this.debug,
@@ -129,6 +131,14 @@ export class MediaEngine {
         }),
       ),
     );
+
+    if (outcomes.length > 0 && outcomes.every((outcome) => outcome.failure)) {
+      outcomes = await retryFailedSearchProviders(providers, outcomes, normalizedQuery, {
+        debug: this.debug,
+        language: normalizedQuery.language,
+        getTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
+      });
+    }
 
     for (const outcome of outcomes) {
       providerTimings.push(outcome.timing);
@@ -156,6 +166,38 @@ export class MediaEngine {
       warnings,
       includeIrrelevantSearchResults: true,
     });
+
+    const fallbackQuery = createSearchFallbackQuery(normalizedQuery);
+    const hasRelevantResults = fallbackQuery
+      ? this.mergeStrategy.mergeSearchResults(providerResults, {
+          query: normalizedQuery,
+          language: normalizedQuery.language,
+          debug: this.debug,
+        }).length > 0
+      : true;
+
+    if (fallbackQuery && !hasRelevantResults) {
+      const fallbackOutcomes = await Promise.all(
+        providers.map((provider) =>
+          callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
+            debug: this.debug,
+            language: normalizedQuery.language,
+            timeoutMs: this.getProviderTimeoutMs(provider.name),
+          }),
+        ),
+      );
+
+      providerResults.push(
+        ...fallbackOutcomes.flatMap((outcome) => (outcome.failure ? [] : outcome.results)),
+      );
+      results = this.mergeStrategy.mergeSearchResults(providerResults, {
+        query: normalizedQuery,
+        language: normalizedQuery.language,
+        debug: this.debug,
+        warnings,
+        includeIrrelevantSearchResults: true,
+      });
+    }
 
     const enrichmentResults = await Promise.all(
       results
@@ -493,6 +535,12 @@ interface ProviderCallContext {
   timeoutMs?: number;
 }
 
+interface SearchRetryContext {
+  debug: boolean;
+  language?: string;
+  getTimeoutMs(providerName: string): number | undefined;
+}
+
 // Values used to build response metadata.
 // Значения, используемые для создания метаданных ответа.
 interface ResponseMetaInput {
@@ -701,6 +749,55 @@ function createProviderSearchQuery(query: SearchQuery): ProviderSearchQuery {
   return {
     ...query,
     limit: getProviderSearchLimit(query),
+  };
+}
+
+// Retries only transient failures when every selected search provider failed together.
+// Повторяет только временные ошибки, когда одновременно упали все выбранные search-провайдеры.
+async function retryFailedSearchProviders(
+  providers: MediaProvider[],
+  outcomes: ProviderSearchCallOutcome[],
+  query: SearchQuery,
+  context: SearchRetryContext,
+): Promise<ProviderSearchCallOutcome[]> {
+  return Promise.all(
+    outcomes.map(async (outcome, index) => {
+      const provider = providers[index];
+
+      if (!provider || !outcome.failure?.retryable) {
+        return outcome;
+      }
+
+      return callTimedProviderSearch(provider, createProviderSearchQuery(query), {
+        debug: context.debug,
+        language: context.language,
+        timeoutMs: context.getTimeoutMs(provider.name),
+      });
+    }),
+  );
+}
+
+// Broadens an empty multi-word search by removing its likely mistyped final word.
+// Расширяет пустой многословный поиск, убирая последнее, вероятно ошибочное слово.
+function createSearchFallbackQuery(query: SearchQuery): SearchQuery | undefined {
+  if (!query.title || hasExternalIds(query.ids)) {
+    return undefined;
+  }
+
+  const tokens = query.title.trim().split(/\s+/);
+  const lastToken = tokens.at(-1);
+
+  if (
+    tokens.length < SEARCH_FALLBACK_MIN_TOKENS ||
+    !lastToken ||
+    lastToken.length < SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...query,
+    title: tokens.slice(0, -1).join(" "),
   };
 }
 

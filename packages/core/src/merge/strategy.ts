@@ -1134,8 +1134,12 @@ function scoreNormalizedTitle(title: string, query: string): number {
   const fuzzyTokenScores = queryTokens.map((queryToken) =>
     Math.max(...titleTokens.map((titleToken) => fuzzyTokenSimilarity(queryToken, titleToken)), 0),
   );
+  const minimumFuzzyScore = queryTokens.length >= 3 ? 0.7 : 0.75;
 
-  if (fuzzyTokenScores.length > 0 && fuzzyTokenScores.every((score) => score >= 0.75)) {
+  if (
+    fuzzyTokenScores.length > 0 &&
+    fuzzyTokenScores.every((score) => score >= minimumFuzzyScore)
+  ) {
     return (
       (fuzzyTokenScores.reduce((sum, score) => sum + score, 0) / fuzzyTokenScores.length) * 0.7
     );
@@ -1155,13 +1159,70 @@ function fuzzyTokenSimilarity(left: string, right: string): number {
     return 0;
   }
 
+  if (isSingleAdjacentTransposition(left, right)) {
+    return 1 - 1 / Math.max(left.length, right.length);
+  }
+
   const variants = [right, ...(right.endsWith("s") ? [right.slice(0, -1)] : [])];
   const distance = Math.min(
     ...variants
       .filter((variant) => Math.abs(left.length - variant.length) <= 1)
       .map((variant) => levenshteinDistance(left, variant, 1)),
   );
-  return distance <= 1 ? 1 - distance / Math.max(left.length, right.length) : 0;
+
+  if (distance <= 1) {
+    return 1 - distance / Math.max(left.length, right.length);
+  }
+
+  if (Math.min(left.length, right.length) >= 6 && isTranspositionPlusOneEdit(left, right)) {
+    return 1 - 2 / Math.max(left.length, right.length);
+  }
+
+  return 0;
+}
+
+// Allows one adjacent swap plus one insertion, deletion, or substitution in long words.
+// Допускает перестановку соседних символов и еще одну правку в длинных словах.
+function isTranspositionPlusOneEdit(left: string, right: string): boolean {
+  for (let index = 0; index < right.length - 1; index += 1) {
+    const swapped =
+      right.slice(0, index) + right[index + 1] + right[index] + right.slice(index + 2);
+
+    if (Math.abs(left.length - swapped.length) <= 1 && levenshteinDistance(left, swapped, 1) <= 1) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Recognizes a single swapped adjacent character, a common typing error Levenshtein counts as two.
+// Распознает перестановку соседних символов, которую Levenshtein считает двумя ошибками.
+function isSingleAdjacentTransposition(left: string, right: string): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  let firstDifference = -1;
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] === right[index]) {
+      continue;
+    }
+
+    if (firstDifference !== -1) {
+      return (
+        index === firstDifference + 1 &&
+        left[firstDifference] === right[index] &&
+        left[index] === right[firstDifference] &&
+        left.slice(index + 1) === right.slice(index + 1)
+      );
+    }
+
+    firstDifference = index;
+  }
+
+  return false;
 }
 
 function levenshteinDistance(left: string, right: string, maxDistance: number): number {
