@@ -3,3 +3,5 @@ packages:
   - "apps/*"
 allowBuilds:
   "@scarf/scarf": false
+overrides:
+  multer: 2.2.0
