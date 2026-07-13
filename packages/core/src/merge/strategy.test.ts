@@ -739,7 +739,7 @@ test("keeps anime episodes from primary provider", () => {
   assert.equal(details.episodes?.[0]?.title, "Primary Episode");
 });
 
-test("warns on details conflicts without overwriting provider priority values", () => {
+test("excludes details whose strong IDs conflict with the primary identity", () => {
   const warnings: EngineWarning[] = [];
   const details = strategy.mergeDetails(
     [
@@ -756,6 +756,8 @@ test("warns on details conflicts without overwriting provider priority values", 
         title: "Conflict Movie",
         year: 2021,
         ids: { imdb: "tt-conflict" },
+        description: "Description from a different movie.",
+        genres: [{ name: "Wrong genre" }],
       }),
     ],
     { warnings },
@@ -763,16 +765,49 @@ test("warns on details conflicts without overwriting provider priority values", 
 
   assert.equal(details?.year, 2020);
   assert.deepEqual(details?.ids, { imdb: "tt-good" });
+  assert.equal(details?.description, undefined);
+  assert.equal(details?.genres, undefined);
+  assert.deepEqual(
+    details?.sourceProviders?.map((source) => source.provider),
+    ["tmdb"],
+  );
   assert.deepEqual(warnings, [
     {
       code: "EXTERNAL_ID_CONFLICT",
-      message: "Conflicting imdb IDs while merging details; kept tt-good.",
+      message: "Conflicting imdb IDs while merging details; excluded tt-conflict.",
       provider: "imdb",
     },
+  ]);
+});
+
+test("uses query strong IDs before provider priority when filtering details", () => {
+  const warnings: EngineWarning[] = [];
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("tmdb", {
+        id: "tmdb-wrong",
+        type: "series",
+        title: "Wrong Series",
+        ids: { imdb: "tt-wrong" },
+      }),
+      providerDetailsResult("imdb", {
+        id: "imdb-correct",
+        type: "series",
+        title: "Correct Series",
+        ids: { imdb: "tt-correct" },
+      }),
+    ],
+    { query: { ids: { imdb: "tt-correct" } }, warnings },
+  );
+
+  assert.equal(details?.id, "imdb-correct");
+  assert.equal(details?.title, "Correct Series");
+  assert.deepEqual(details?.ids, { imdb: "tt-correct" });
+  assert.deepEqual(warnings, [
     {
-      code: "YEAR_CONFLICT",
-      message: "Conflicting years while merging details; kept 2020.",
-      provider: "imdb",
+      code: "EXTERNAL_ID_CONFLICT",
+      message: "Conflicting imdb IDs while merging details; excluded tt-wrong.",
+      provider: "tmdb",
     },
   ]);
 });

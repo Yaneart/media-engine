@@ -132,16 +132,80 @@ export class DefaultMergeStrategy implements MergeStrategy {
   // Merges provider details results around a primary provider result.
   // Объединяет details-результаты провайдеров вокруг основного результата.
   mergeDetails(results: ProviderDetailsResult[], context: MergeContext = {}): MediaDetails | null {
-    const mediaType = selectMergedMediaType(results.map((result) => result.details));
     const priorityType = selectMetadataPriorityType(results.map((result) => result.details));
-    const sortedEntries = sortEntriesByPriority(
-      results.map((result, index) => ({ result, index })),
+    const sortedEntries = filterDetailsEntriesByIdentity(
+      sortEntriesByPriority(
+        results.map((result, index) => ({ result, index })),
+        context,
+        priorityType,
+      ),
       context,
-      priorityType,
+    );
+    const mediaType = selectMergedMediaType(sortedEntries.map((entry) => entry.result.details));
+    const finalEntries = sortEntriesByPriority(
+      sortedEntries,
+      context,
+      selectMetadataPriorityType(sortedEntries.map((entry) => entry.result.details)),
     );
 
-    return mergeDetailsEntries(sortedEntries, context, mediaType);
+    return mergeDetailsEntries(finalEntries, context, mediaType);
   }
+}
+
+// Keeps details attached to one strong-ID identity before any fields are combined.
+// Оставляет details одной strong-ID сущности до объединения любых полей.
+function filterDetailsEntriesByIdentity(
+  entries: DetailsEntry[],
+  context: MergeContext,
+): DetailsEntry[] {
+  const selectedIds: ExternalIds = { ...readQueryExternalIds(context) };
+  const accepted: DetailsEntry[] = [];
+
+  for (const entry of entries) {
+    const ids = entry.result.details.ids;
+    const conflicts = strongIdConflicts(selectedIds, ids);
+
+    if (conflicts.length > 0) {
+      for (const key of conflicts) {
+        context.warnings?.push({
+          code: "EXTERNAL_ID_CONFLICT",
+          message: `Conflicting ${key} IDs while merging details; excluded ${ids?.[key]}.`,
+          provider: entry.result.provider,
+        });
+      }
+      continue;
+    }
+
+    accepted.push(entry);
+
+    for (const key of STRONG_ID_KEYS) {
+      if (!selectedIds[key] && ids?.[key]) {
+        selectedIds[key] = ids[key];
+      }
+    }
+  }
+
+  return accepted;
+}
+
+function readQueryExternalIds(context: MergeContext): ExternalIds | undefined {
+  const query = context.query;
+
+  if (!query) {
+    return undefined;
+  }
+
+  const ids: ExternalIds = { ...query.ids };
+
+  for (const key of STRONG_ID_KEYS) {
+    const value = query[key];
+
+    if (typeof value === "string" && value.trim()) {
+      ids[key] = value.trim();
+    }
+  }
+
+  return Object.keys(ids).length > 0 ? ids : undefined;
 }
 
 // Drops provider noise that has no textual relationship to a title query.
@@ -1536,11 +1600,20 @@ function hasStrongIdConflict(
   left: ExternalIds | undefined,
   right: ExternalIds | undefined,
 ): boolean {
+  return strongIdConflicts(left, right).length > 0;
+}
+
+function strongIdConflicts(
+  left: ExternalIds | undefined,
+  right: ExternalIds | undefined,
+): Array<(typeof STRONG_ID_KEYS)[number]> {
   if (!left || !right) {
-    return false;
+    return [];
   }
 
-  return STRONG_ID_KEYS.some((key) => Boolean(left[key] && right[key] && left[key] !== right[key]));
+  return STRONG_ID_KEYS.filter((key) =>
+    Boolean(left[key] && right[key] && left[key] !== right[key]),
+  );
 }
 
 // Normalizes titles for safe exact automatic grouping.
