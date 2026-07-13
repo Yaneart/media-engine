@@ -30,32 +30,52 @@ const engine = new MediaEngine({
 });
 
 const cases = [
-  latencyCase("series: House of the Dragon", {
-    type: "series",
-    imdb: "tt11198330",
-    tmdb: "94997",
-    kinopoisk: "1316601",
-  }),
-  latencyCase("series: Game of Thrones", {
-    type: "series",
-    imdb: "tt0944947",
-    kinopoisk: "464963",
-  }),
-  latencyCase("movie: Interstellar", {
-    type: "movie",
-    imdb: "tt0816692",
-    kinopoisk: "258687",
-  }),
-  latencyCase("anime: One Piece", {
-    type: "anime",
-    shikimori: "21",
-    kinopoisk: "382731",
-  }),
-  latencyCase("anime: Naruto", {
-    type: "anime",
-    shikimori: "20",
-    kinopoisk: "404900",
-  }),
+  latencyCase(
+    "series: House of the Dragon",
+    {
+      type: "series",
+      imdb: "tt11198330",
+      tmdb: "94997",
+      kinopoisk: "1316601",
+    },
+    ["House of the Dragon", "Дом Дракона"],
+  ),
+  latencyCase(
+    "series: Game of Thrones",
+    {
+      type: "series",
+      imdb: "tt0944947",
+      kinopoisk: "464963",
+    },
+    ["Game of Thrones", "Игра престолов"],
+  ),
+  latencyCase(
+    "movie: Interstellar",
+    {
+      type: "movie",
+      imdb: "tt0816692",
+      kinopoisk: "258687",
+    },
+    ["Interstellar", "Интерстеллар"],
+  ),
+  latencyCase(
+    "anime: One Piece",
+    {
+      type: "anime",
+      shikimori: "21",
+      kinopoisk: "382731",
+    },
+    ["One Piece", "Ван-Пис"],
+  ),
+  latencyCase(
+    "anime: Naruto",
+    {
+      type: "anime",
+      shikimori: "20",
+      kinopoisk: "283290",
+    },
+    ["Naruto", "Наруто"],
+  ),
 ].slice(0, limit);
 
 const results = [];
@@ -70,10 +90,11 @@ if (strict && results.some((result) => result.status === "FAIL")) {
   process.exitCode = 1;
 }
 
-function latencyCase(name, query) {
+function latencyCase(name, query, expectedTitles) {
   return {
     name,
     query,
+    expectedTitles,
   };
 }
 
@@ -86,10 +107,15 @@ async function runLatencyCase(testCase) {
       (failure) => `${failure.provider}:${failure.code}`,
     );
     const missingFields = response.details ? findMissingFields(response.details) : [];
+    const identityMatches = response.details
+      ? testCase.expectedTitles.some((title) => hasTitleMatch(response.details, title))
+      : false;
     const status =
-      !response.details || response.meta.tookMs > thresholdMs || slowTimings.length > 0
-        ? "WARN"
-        : "PASS";
+      !response.details || !identityMatches
+        ? "FAIL"
+        : response.meta.tookMs > thresholdMs || slowTimings.length > 0
+          ? "WARN"
+          : "PASS";
 
     return {
       status,
@@ -100,6 +126,9 @@ async function runLatencyCase(testCase) {
       failedProviders,
       notes: [
         !response.details ? "no merged details" : undefined,
+        response.details && !identityMatches
+          ? `unexpected identity; expected ${testCase.expectedTitles.join(" / ")}`
+          : undefined,
         response.meta.tookMs > thresholdMs ? `total over ${thresholdMs}ms` : undefined,
         slowTimings.length
           ? `slow providers: ${slowTimings
@@ -120,6 +149,24 @@ async function runLatencyCase(testCase) {
       notes: [error instanceof Error ? error.message : String(error)],
     };
   }
+}
+
+function hasTitleMatch(details, expectedTitle) {
+  const expected = normalizeTitle(expectedTitle);
+  return [details.title, details.originalTitle, ...(details.alternativeTitles ?? [])]
+    .filter(Boolean)
+    .map(normalizeTitle)
+    .some((title) => title === expected);
+}
+
+function normalizeTitle(value) {
+  return String(value)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, " ")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function formatDetails(details) {
