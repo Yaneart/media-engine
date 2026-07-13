@@ -122,6 +122,7 @@ test("parseSubtitleInfo rejects malformed, duplicate, and unsafe tracks", () => 
     parseSubtitleInfo(
       JSON.stringify([
         { file: "javascript:alert(1)", label: "Unsafe" },
+        { file: "http://169.254.169.254/latest/meta-data", label: "Private network" },
         { file: "https://captions.test/en.ass", label: "Russian" },
         { file: "https://captions.test/en.ass", label: "Duplicate" },
       ]),
@@ -151,6 +152,7 @@ test("flixHqStreamingProvider maps movie player tokens into embed options", asyn
         "/ajax/ajax.php": JSON.stringify([
           { name: "VidCloud", link: "https://vidcloud.test/embed/inception" },
           { name: "UpCloud", link: "https://upcloud.test/embed/inception" },
+          { name: "Private", link: "http://127.0.0.1:3000/admin" },
           { name: "Broken", link: "javascript:alert(1)" },
         ]),
       },

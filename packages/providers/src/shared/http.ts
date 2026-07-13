@@ -5,6 +5,82 @@ import type { ProviderContext } from "@media-engine/core";
 // Минимальная форма fetch-функции для provider HTTP utilities.
 export type ProviderFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
+// Accepts only remote HTTP targets that cannot directly address the local machine or LAN.
+// Принимает только удаленные HTTP-цели без прямого доступа к локальной машине или LAN.
+export function normalizePublicHttpUrl(value: string | null | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username !== "" ||
+      url.password !== "" ||
+      isPrivateHostname(url.hostname)
+    ) {
+      return undefined;
+    }
+
+    return url.href;
+  } catch {
+    return undefined;
+  }
+}
+
+function isPrivateHostname(value: string): boolean {
+  const hostname = value
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
+
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "0.0.0.0" ||
+    hostname === "::" ||
+    hostname === "::1"
+  ) {
+    return true;
+  }
+
+  if (hostname.includes(":")) {
+    const first = Number.parseInt(hostname.split(":")[0] ?? "", 16);
+
+    return (
+      hostname.startsWith("::ffff:") ||
+      (first >= 0xfc00 && first <= 0xfdff) ||
+      (first >= 0xfe80 && first <= 0xfebf)
+    );
+  }
+
+  const octets = hostname.split(".").map(Number);
+
+  if (
+    octets.length !== 4 ||
+    octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
+  ) {
+    return false;
+  }
+
+  const [first, second] = octets as [number, number, number, number];
+
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 0) ||
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    first >= 224
+  );
+}
+
 // Options used for a provider JSON HTTP request.
 // Опции для JSON HTTP-запроса провайдера.
 export interface FetchJsonOptions {

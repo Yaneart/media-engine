@@ -2,7 +2,31 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ProviderError } from "@media-engine/core";
-import { fetchJson, mapHttpStatusToProviderErrorCode } from "./http.js";
+import { fetchJson, mapHttpStatusToProviderErrorCode, normalizePublicHttpUrl } from "./http.js";
+
+test("normalizePublicHttpUrl rejects local and private network targets", () => {
+  for (const value of [
+    "http://localhost/admin",
+    "http://service.localhost/admin",
+    "http://127.0.0.1/admin",
+    "http://10.0.0.1/admin",
+    "http://169.254.169.254/latest/meta-data",
+    "http://172.16.0.1/admin",
+    "http://192.168.0.1/admin",
+    "http://[::1]/admin",
+    "http://[fd00::1]/admin",
+    "https://user:password@player.test/embed",
+  ]) {
+    assert.equal(normalizePublicHttpUrl(value), undefined, value);
+  }
+});
+
+test("normalizePublicHttpUrl preserves public HTTP targets", () => {
+  assert.equal(
+    normalizePublicHttpUrl("https://player.test/embed?id=1"),
+    "https://player.test/embed?id=1",
+  );
+});
 
 test("fetchJson parses successful JSON responses", async () => {
   const result = await fetchJson<{ title: string }>({

@@ -8,7 +8,7 @@ import type {
   StreamingProviderCapabilities,
   TranslationInfo,
 } from "@media-engine/core";
-import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { fetchJson, normalizePublicHttpUrl, type ProviderFetch } from "../shared/index.js";
 
 const PROVIDER_NAME = "kinobd-streaming";
 const DEFAULT_BASE_URL = "https://kinobd.net";
@@ -1168,20 +1168,20 @@ function extractIframeUrl(
 
 // Normalizes absolute, protocol-relative, or relative URLs.
 // Нормализует absolute, protocol-relative или relative URLs.
-function toAbsoluteUrl(value: string, baseUrl: string | undefined): string {
+function toAbsoluteUrl(value: string, baseUrl: string | undefined): string | undefined {
   if (value.startsWith("http://") || value.startsWith("https://")) {
-    return value;
+    return normalizePublicHttpUrl(value);
   }
 
   if (value.startsWith("//")) {
-    return `https:${value}`;
+    return normalizePublicHttpUrl(`https:${value}`);
   }
 
   if (baseUrl) {
-    return new URL(value, `${baseUrl}/`).toString();
+    return normalizePublicHttpUrl(new URL(value, `${baseUrl}/`).toString());
   }
 
-  return value;
+  return undefined;
 }
 
 // Checks whether query contains episode targeting fields.

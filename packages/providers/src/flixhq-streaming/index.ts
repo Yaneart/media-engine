@@ -7,7 +7,11 @@ import type {
   StreamingProviderCapabilities,
   SubtitleTrack,
 } from "@media-engine/core";
-import { mapProviderHttpError, type ProviderFetch } from "../shared/index.js";
+import {
+  mapProviderHttpError,
+  normalizePublicHttpUrl,
+  type ProviderFetch,
+} from "../shared/index.js";
 
 const DEFAULT_BASE_URL = "https://flixhq.one";
 const DEFAULT_PROVIDER_NAME = "flixhq-streaming";
@@ -665,13 +669,7 @@ function normalizeProviderName(value: string): string {
 }
 
 function normalizeHttpUrl(value: string | null | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
-  } catch {
-    return undefined;
-  }
+  return normalizePublicHttpUrl(value);
 }
 
 function findSubtitleInfoUrl(playerUrl: string): string | undefined {

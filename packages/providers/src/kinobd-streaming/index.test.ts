@@ -43,6 +43,11 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
           iframe: '<iframe data-src="//kodik.test/video/94666"></iframe>',
           quality: "1080p",
         },
+        vk: {
+          translate: "Private network",
+          iframe: "http://127.0.0.1:8080/player",
+          quality: "auto",
+        },
         trailer: {
           translate: "Trailer",
           iframe: "https://youtube.test/embed/trailer",
