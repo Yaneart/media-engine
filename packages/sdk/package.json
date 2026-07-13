@@ -1,6 +1,6 @@
 {
   "name": "@media-engine/sdk",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Typed HTTP SDK for Media Engine API clients.",
   "license": "MIT",
   "homepage": "https://github.com/Yaneart/media-engine#readme",
@@ -22,6 +22,9 @@
     "api-client"
   ],
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

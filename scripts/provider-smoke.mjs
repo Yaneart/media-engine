@@ -2,6 +2,7 @@
 
 import { MediaEngine } from "../packages/core/dist/index.js";
 import {
+  aniListProvider,
   cinemetaProvider,
   kinobdProvider,
   shikimoriProvider,
@@ -19,6 +20,7 @@ const engine = new MediaEngine({
     shikimoriProvider({
       userAgent: "MediaEngineProviderSmoke/0.1.0",
     }),
+    aniListProvider(),
     wikidataProvider(),
   ],
 });

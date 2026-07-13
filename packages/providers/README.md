@@ -2,7 +2,7 @@
 
 Provider package for Media Engine.
 
-This package contains no-token metadata provider factories such as KinoBD, Cinemeta, Shikimori, AniList, Wikidata, and local IMDb datasets, plus the no-token KinoBD streaming provider and local experimental provider.
+This package contains no-token metadata provider factories such as KinoBD, Cinemeta, Shikimori, AniList, Wikidata, and local IMDb datasets, plus no-token KinoBD and FlixHQ streaming providers and a local experimental provider.
 
 The package depends on `@media-engine/core` for provider contracts and normalized media types. Core must not import this package.
 
@@ -22,11 +22,12 @@ src/
   kinobd/
   cinemeta/
   shikimori/
+  anilist/
   wikidata/
   imdb-dataset/
   experimental-streaming/
-  kodik/
   kinobd-streaming/
+  flixhq-streaming/
   index.ts
 ```
 
@@ -258,6 +259,29 @@ Supported behavior:
 This provider does not use a Kodik API token and does not extract direct video files. It returns player/embed URLs for the application UI to render.
 
 For live source-filter audits, pass `onPlayerAudit`. The callback reports discovered and shown player labels plus filtered labels with stable reasons such as `provider_not_allowed`, `missing_iframe`, `known_broken_url`, and `player_validation_failed`. Callback failures are isolated from normal availability behavior.
+
+## FlixHQ Streaming Provider
+
+`flixHqStreamingProvider` discovers international movie embeds and explicitly requested series episodes without user credentials.
+
+```ts
+import { MediaEngine } from "@media-engine/core";
+import { flixHqStreamingProvider } from "@media-engine/providers";
+
+const engine = new MediaEngine({
+  streamingProviders: [flixHqStreamingProvider()],
+});
+
+const availability = await engine.getAvailability({
+  type: "series",
+  title: "House of the Dragon",
+  year: 2022,
+  seasonNumber: 2,
+  episodeNumber: 3,
+});
+```
+
+The provider validates discovered embeds with bounded requests and normalizes public `sub.info` subtitle tracks. If upstream explicitly returns an HLS or MP4 URL, it also normalizes the kind, advertised quality, and unambiguous expiry metadata. It does not reverse-engineer protected embed streams. Series lookup requires both season and episode numbers; anime is intentionally unsupported to avoid matching live-action adaptations.
 
 ## Shared Utilities
 

@@ -6,6 +6,12 @@ It owns the framework-independent engine, public media types, provider contracts
 
 Core does not import concrete providers and does not read API keys from the environment. Providers are passed in from the outside.
 
+## Install
+
+```bash
+npm install @media-engine/core
+```
+
 ## Basic Usage
 
 ```ts

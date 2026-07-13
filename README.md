@@ -6,9 +6,9 @@ It is not a website. It is a reusable engine that can be used from Node.js appli
 
 ## Project Status
 
-Current phase: **v1.0 stabilization**.
+Current phase: **v0.1 pre-release**.
 
-The core engine, metadata providers, streaming availability API, REST API, SDK, React example, smoke checks, and package dry-run checks are implemented. The remaining work before a public release is documentation, final audit, versioning, and changelog polish.
+The core engine, metadata providers, streaming availability API, REST API, SDK, React example, smoke checks, and package dry-run checks are implemented. Version `0.1.0` is the first package pre-release candidate; live no-token providers remain best-effort integrations.
 
 ## Core Idea
 
@@ -65,12 +65,41 @@ npm install @media-engine/sdk
 The publishable npm packages are `packages/core`, `packages/providers`, and `packages/sdk`.
 `apps/api` and `apps/example` are included in the GitHub repository as runnable integration examples, not as npm packages.
 
-## Quickstart
+## Metadata Quickstart
+
+Use only `providers` when player discovery is not needed:
+
+```ts
+import { MediaEngine } from "@media-engine/core";
+import {
+  aniListProvider,
+  cinemetaProvider,
+  kinobdProvider,
+  shikimoriProvider,
+  wikidataProvider,
+} from "@media-engine/providers";
+
+const media = new MediaEngine({
+  providers: [
+    kinobdProvider(),
+    cinemetaProvider(),
+    shikimoriProvider({ userAgent: "MyApp/0.1.0" }),
+    aniListProvider(),
+    wikidataProvider(),
+  ],
+});
+
+const result = await media.search({ title: "Interstellar", type: "movie" });
+console.log(result.results[0]?.item);
+```
+
+## Metadata and Streaming Quickstart
 
 ```ts
 import { MediaEngine } from "@media-engine/core";
 import {
   cinemetaProvider,
+  flixHqStreamingProvider,
   kinobdProvider,
   kinobdStreamingProvider,
   shikimoriProvider,
@@ -86,7 +115,7 @@ const media = new MediaEngine({
     }),
     wikidataProvider(),
   ],
-  streamingProviders: [kinobdStreamingProvider()],
+  streamingProviders: [kinobdStreamingProvider(), flixHqStreamingProvider()],
 });
 
 const search = await media.search({
@@ -106,6 +135,27 @@ const availability = await media.getAvailability({
 ```
 
 Streaming availability is a best-effort player discovery layer. Media Engine returns normalized embed/player options and provider failures; it is not a streaming service, does not host video, and does not extract direct video files by default.
+
+## API Server Quickstart
+
+Run the included NestJS API and React example locally:
+
+```bash
+pnpm install
+pnpm dev:compose
+```
+
+The API is available at `http://127.0.0.1:3000`, with Swagger at `http://127.0.0.1:3000/docs`.
+
+## SDK Client Quickstart
+
+```ts
+import { MediaEngineClient } from "@media-engine/sdk";
+
+const client = new MediaEngineClient({ baseUrl: "http://127.0.0.1:3000" });
+const result = await client.search({ title: "Interstellar", type: "movie" });
+console.log(result.results[0]?.item);
+```
 
 ## Release Checks
 

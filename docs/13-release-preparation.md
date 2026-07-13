@@ -30,19 +30,13 @@ The private workspace packages are:
 
 ## Versioning
 
-Current package versions remain:
-
-```txt
-0.0.0
-```
-
-Before publishing, choose the release version explicitly and update all publishable package versions together.
-
-For a pre-v1 release, use a version such as:
+The first pre-release candidate uses the same version for every public package:
 
 ```txt
 0.1.0
 ```
+
+Future releases must continue to update all publishable package versions together while the packages share one repository release line.
 
 After `v1.0`, follow semantic versioning:
 
@@ -186,7 +180,7 @@ Packages should not contain:
 Before publishing:
 
 - confirm package names and npm scope ownership;
-- choose and update the release version;
+- confirm the release version across all public packages;
 - update `CHANGELOG.md`;
 - run `pnpm release:check`;
 - run `pnpm smoke:providers -- --strict`;

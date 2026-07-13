@@ -4,6 +4,12 @@ Typed HTTP SDK for applications that call the Media Engine REST API.
 
 The SDK is framework-independent. It does not depend on React, NestJS, Express, or provider packages.
 
+## Install
+
+```bash
+npm install @media-engine/sdk
+```
+
 ## Usage
 
 ```ts

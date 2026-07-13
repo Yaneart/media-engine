@@ -1,6 +1,6 @@
 {
   "name": "@media-engine/providers",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Provider implementations for Media Engine.",
   "license": "MIT",
   "homepage": "https://github.com/Yaneart/media-engine#readme",
@@ -27,6 +27,9 @@
     "no-token"
   ],
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -41,6 +44,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js",
     "!dist/**/*.test.js.map",
+    "!dist/kodik",
+    "!dist/tmdb",
     "README.md"
   ],
   "publishConfig": {
