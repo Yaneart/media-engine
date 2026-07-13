@@ -5,6 +5,7 @@ import type {
   StreamOption,
   StreamingProvider,
   StreamingProviderCapabilities,
+  SubtitleTrack,
 } from "@media-engine/core";
 import { mapProviderHttpError, type ProviderFetch } from "../shared/index.js";
 
@@ -15,6 +16,8 @@ const DEFAULT_PLAYER_LIMIT = 8;
 const DEFAULT_PLAYER_VALIDATION_CONCURRENCY = 3;
 const DEFAULT_PLAYER_VALIDATION_TIMEOUT_MS = 2_500;
 const DEFAULT_PLAYER_VALIDATION_MAX_BYTES = 256 * 1024;
+const DEFAULT_SUBTITLE_INFO_MAX_BYTES = 256 * 1024;
+const SUBTITLE_TRACK_LIMIT = 64;
 
 export interface FlixHqStreamingProviderOptions {
   baseUrl?: string;
@@ -26,6 +29,7 @@ export interface FlixHqStreamingProviderOptions {
   playerValidationConcurrency?: number;
   playerValidationTimeoutMs?: number;
   playerValidationMaxBytes?: number;
+  subtitleInfoMaxBytes?: number;
   userAgent?: string;
 }
 
@@ -38,6 +42,7 @@ interface FlixHqConfig {
   playerValidationConcurrency: number;
   playerValidationTimeoutMs: number;
   playerValidationMaxBytes: number;
+  subtitleInfoMaxBytes: number;
   userAgent: string;
 }
 
@@ -56,6 +61,13 @@ interface EpisodeCandidate extends StreamEpisodeRef {
 interface PlayerResponse {
   name?: string | null;
   link?: string | null;
+}
+
+interface SubtitleInfoEntry {
+  file?: unknown;
+  label?: unknown;
+  kind?: unknown;
+  default?: unknown;
 }
 
 export function flixHqStreamingProvider(
@@ -83,6 +95,7 @@ function createConfig(options: FlixHqStreamingProviderOptions): FlixHqConfig {
     options.playerValidationTimeoutMs ?? DEFAULT_PLAYER_VALIDATION_TIMEOUT_MS;
   const playerValidationMaxBytes =
     options.playerValidationMaxBytes ?? DEFAULT_PLAYER_VALIDATION_MAX_BYTES;
+  const subtitleInfoMaxBytes = options.subtitleInfoMaxBytes ?? DEFAULT_SUBTITLE_INFO_MAX_BYTES;
 
   if (!Number.isInteger(maxHtmlBytes) || maxHtmlBytes <= 0) {
     throw new TypeError("FlixHQ streaming maxHtmlBytes must be a positive integer.");
@@ -104,6 +117,10 @@ function createConfig(options: FlixHqStreamingProviderOptions): FlixHqConfig {
     throw new TypeError("FlixHQ streaming playerValidationMaxBytes must be a positive integer.");
   }
 
+  if (!Number.isInteger(subtitleInfoMaxBytes) || subtitleInfoMaxBytes <= 0) {
+    throw new TypeError("FlixHQ streaming subtitleInfoMaxBytes must be a positive integer.");
+  }
+
   return {
     baseUrl: normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL),
     name: normalizeProviderName(options.name ?? DEFAULT_PROVIDER_NAME),
@@ -113,6 +130,7 @@ function createConfig(options: FlixHqStreamingProviderOptions): FlixHqConfig {
     playerValidationConcurrency,
     playerValidationTimeoutMs,
     playerValidationMaxBytes,
+    subtitleInfoMaxBytes,
     userAgent:
       options.userAgent?.trim() || "MediaEngine/0.0 (+https://github.com/Yaneart/media-engine)",
   };
@@ -126,7 +144,16 @@ function createCapabilities(): StreamingProviderCapabilities {
       byExternalIds: [],
       byEpisode: true,
     },
-    features: ["embed", "translations", "episode_mapping", "headers"],
+    features: [
+      "embed",
+      "hls",
+      "mp4",
+      "translations",
+      "subtitles",
+      "qualities",
+      "episode_mapping",
+      "headers",
+    ],
   };
 }
 
@@ -184,7 +211,12 @@ async function getFlixHqAvailability(
     .slice(0, config.playerLimit)
     .map((player, index) => mapPlayer(config, player, episode, index))
     .filter((option): option is StreamOption => option !== null);
-  const options = await filterUnavailablePlayers(config, mappedOptions, context);
+  const availableOptions = await filterUnavailablePlayers(config, mappedOptions, context);
+  const options = await mapWithConcurrency(
+    availableOptions,
+    config.playerValidationConcurrency,
+    async (option) => enrichPlayerOption(config, option, context),
+  );
 
   return {
     query,
@@ -233,11 +265,15 @@ async function isPlayerUnavailable(
   try {
     if (context.signal?.aborted) return false;
 
+    const isDirect = option.player.kind === "hls" || option.player.kind === "mp4";
     const response = await fetchImpl(option.access.url, {
       headers: {
-        Accept: "text/html,application/xhtml+xml",
+        Accept: isDirect
+          ? "application/vnd.apple.mpegurl,video/mp4,*/*;q=0.8"
+          : "text/html,application/xhtml+xml",
         "User-Agent": config.userAgent,
         Referer: `${config.baseUrl}/`,
+        ...(isDirect ? { Range: "bytes=0-0" } : {}),
       },
       signal,
     });
@@ -246,7 +282,12 @@ async function isPlayerUnavailable(
       return true;
     }
 
-    if (!response.ok) return false;
+    if (!response.ok && response.status !== 206) return false;
+
+    if (isDirect) {
+      await response.body?.cancel();
+      return false;
+    }
 
     const html = await readBoundedResponseText(response, config.playerValidationMaxBytes);
     return hasUnavailableMarker(html);
@@ -255,6 +296,40 @@ async function isPlayerUnavailable(
     return false;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function enrichPlayerOption(
+  config: FlixHqConfig,
+  option: StreamOption,
+  context: ProviderContext,
+): Promise<StreamOption> {
+  const subtitleInfoUrl = findSubtitleInfoUrl(option.access.url);
+  if (!subtitleInfoUrl) return option;
+
+  try {
+    const response = await (config.fetch ?? fetch)(subtitleInfoUrl, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": config.userAgent,
+        Referer: option.access.url,
+      },
+      signal: context.signal,
+    });
+    if (!response.ok) return option;
+
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > config.subtitleInfoMaxBytes) {
+      await response.body?.cancel();
+      return option;
+    }
+
+    const text = await readBoundedResponseText(response, config.subtitleInfoMaxBytes);
+    const subtitles = parseSubtitleInfo(text);
+    return subtitles.length > 0 ? { ...option, subtitles } : option;
+  } catch {
+    // Subtitle metadata is optional and must never hide an otherwise working player.
+    return option;
   }
 }
 
@@ -358,11 +433,14 @@ function mapPlayer(
   if (!url) return null;
 
   const label = decodeHtml(player.name ?? "").trim() || `Server ${index + 1}`;
+  const kind = inferPlayerKind(url);
+  const quality = inferQuality(label, url);
+  const expiresAt = inferExpiresAt(url);
 
   return {
     id: `${config.name}:${episode.seasonNumber ?? 0}:${episode.episodeNumber ?? 0}:${index + 1}`,
     provider: config.name,
-    player: { kind: "embed", label },
+    player: { kind, label },
     translation: {
       title: "Original / subtitles",
       type: "unknown",
@@ -377,8 +455,43 @@ function mapPlayer(
       headers: { Referer: `${config.baseUrl}/` },
     },
     availability: "available",
+    ...(quality ? { quality } : {}),
+    ...(expiresAt ? { expiresAt } : {}),
     sourceUrl: episode.url,
   };
+}
+
+export function parseSubtitleInfo(value: string): SubtitleTrack[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return [];
+  }
+
+  const entries = Array.isArray(parsed) ? parsed : [parsed];
+  const tracks: SubtitleTrack[] = [];
+  const seen = new Set<string>();
+
+  for (const rawEntry of entries) {
+    if (tracks.length >= SUBTITLE_TRACK_LIMIT) break;
+    if (!rawEntry || typeof rawEntry !== "object") continue;
+    const entry = rawEntry as SubtitleInfoEntry;
+    const url = typeof entry.file === "string" ? normalizeHttpUrl(entry.file) : undefined;
+    if (!url || seen.has(url)) continue;
+
+    const label = typeof entry.label === "string" ? decodeHtml(entry.label).trim() : "";
+    const language = inferSubtitleLanguage(label);
+    seen.add(url);
+    tracks.push({
+      ...(language ? { language } : {}),
+      ...(label ? { label: entry.default === true ? `${label} (default)` : label } : {}),
+      format: inferSubtitleFormat(url),
+      url,
+    });
+  }
+
+  return tracks;
 }
 
 export function parseSearchCandidates(html: string): SearchCandidate[] {
@@ -559,6 +672,113 @@ function normalizeHttpUrl(value: string | null | undefined): string | undefined 
   } catch {
     return undefined;
   }
+}
+
+function findSubtitleInfoUrl(playerUrl: string): string | undefined {
+  try {
+    const value = new URL(playerUrl).searchParams.get("sub.info");
+    return normalizeHttpUrl(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function inferPlayerKind(url: string): StreamOption["player"]["kind"] {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    if (pathname.endsWith(".m3u8")) return "hls";
+    if (pathname.endsWith(".mp4")) return "mp4";
+  } catch {
+    // The URL was already normalized, so this is only a defensive fallback.
+  }
+  return "embed";
+}
+
+function inferQuality(label: string, url: string): StreamOption["quality"] | undefined {
+  const match = `${label} ${url}`.match(
+    /(?:^|[^\d])(2160|1440|1080|720|576|480|360|240)p?(?:[^\d]|$)/i,
+  );
+  if (!match) return undefined;
+  const height = Number(match[1]);
+  return { label: `${height}p`, height };
+}
+
+function inferExpiresAt(value: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+
+  for (const name of ["expires", "expire", "exp"]) {
+    const rawValue = url.searchParams.get(name)?.trim();
+    if (!rawValue) continue;
+
+    const numeric = Number(rawValue);
+    const date = Number.isFinite(numeric)
+      ? new Date(numeric > 10_000_000_000 ? numeric : numeric * 1_000)
+      : new Date(rawValue);
+    if (!Number.isNaN(date.getTime()) && date.getUTCFullYear() >= 2000) return date.toISOString();
+  }
+  return undefined;
+}
+
+function inferSubtitleFormat(url: string): SubtitleTrack["format"] {
+  try {
+    const extension = new URL(url).pathname.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+    if (extension === "vtt" || extension === "srt" || extension === "ass") return extension;
+  } catch {
+    // The URL was already normalized, so this is only a defensive fallback.
+  }
+  return "unknown";
+}
+
+function inferSubtitleLanguage(label: string): string | undefined {
+  const normalized = normalizeTitle(label);
+  const mappings: Array<[RegExp, string]> = [
+    [/\b(bulgarian|bul)\b/, "bg"],
+    [/\b(czech|ces|cze)\b/, "cs"],
+    [/\b(danish|dan)\b/, "da"],
+    [/\b(dutch|nld|dut)\b/, "nl"],
+    [/\b(english|eng)\b/, "en"],
+    [/\b(estonian|est)\b/, "et"],
+    [/\b(finnish|fin)\b/, "fi"],
+    [/\b(spanish|espanol|spa)\b/, "es"],
+    [/\b(french|francais|fre|fra)\b/, "fr"],
+    [/\b(german|deutsch|ger|deu)\b/, "de"],
+    [/\b(greek|ell|gre)\b/, "el"],
+    [/\b(hebrew|heb)\b/, "he"],
+    [/\b(croatian|hrv)\b/, "hr"],
+    [/\b(hungarian|hun)\b/, "hu"],
+    [/\b(icelandic|isl|ice)\b/, "is"],
+    [/\b(indonesian|ind)\b/, "id"],
+    [/\b(italian|italiano|ita)\b/, "it"],
+    [/\b(latvian|lav)\b/, "lv"],
+    [/\b(lithuanian|lit)\b/, "lt"],
+    [/\b(macedonian|mkd|mac)\b/, "mk"],
+    [/\b(malay|msa|may)\b/, "ms"],
+    [/\b(norwegian|nob)\b/, "nb"],
+    [/\b(polish|pol)\b/, "pl"],
+    [/\b(pob)\b/, "pt-BR"],
+    [/\b(portuguese|portugues|por)\b/, "pt"],
+    [/\b(romanian|ron|rum)\b/, "ro"],
+    [/\b(serbian|srp)\b/, "sr"],
+    [/\b(sinhala|sinhalese|sin)\b/, "si"],
+    [/\b(slovak|slk|slo)\b/, "sk"],
+    [/\b(slovenian|slv)\b/, "sl"],
+    [/\b(swedish|swe)\b/, "sv"],
+    [/\b(thai|tha)\b/, "th"],
+    [/\b(japanese|jpn|jap)\b/, "ja"],
+    [/\b(korean|kor)\b/, "ko"],
+    [/\b(chinese|chi|zho)\b/, "zh"],
+    [/\b(arabic|ara)\b/, "ar"],
+    [/\b(hindi|hin)\b/, "hi"],
+    [/\b(turkish|tur)\b/, "tr"],
+    [/\b(russian|rus)\b|русск/, "ru"],
+    [/\b(ukrainian|ukr)\b|україн|украин/, "uk"],
+  ];
+  return mappings.find(([pattern]) => pattern.test(normalized))?.[1];
 }
 
 function cleanSearchTitle(value: string): string {

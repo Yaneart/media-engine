@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ProviderFetch } from "../shared/index.js";
-import { flixHqStreamingProvider, parseEpisodes, parseSearchCandidates } from "./index.js";
+import {
+  flixHqStreamingProvider,
+  parseEpisodes,
+  parseSearchCandidates,
+  parseSubtitleInfo,
+} from "./index.js";
 
 const BASE_URL = "https://flixhq.test";
 
@@ -13,7 +18,123 @@ test("flixHqStreamingProvider exposes no-token embed capabilities", () => {
   assert.equal(provider.capabilities.lookup.byTitle, true);
   assert.equal(provider.capabilities.lookup.byEpisode, true);
   assert.equal(provider.capabilities.features?.includes("embed"), true);
+  assert.equal(provider.capabilities.features?.includes("hls"), true);
+  assert.equal(provider.capabilities.features?.includes("subtitles"), true);
+  assert.equal(provider.capabilities.features?.includes("qualities"), true);
   assert.equal(provider.capabilities.features?.includes("headers"), true);
+});
+
+test("flixHqStreamingProvider fetches and normalizes sub.info tracks", async () => {
+  const subtitleInfoUrl = "https://captions.test/subtitles/token.json";
+  const embedUrl = `https://player.test/embed/inception?sub.info=${encodeURIComponent(subtitleInfoUrl)}`;
+  const provider = flixHqStreamingProvider({
+    baseUrl: BASE_URL,
+    fetch: async (input) => {
+      const url = new URL(input.toString());
+      if (url.href === subtitleInfoUrl) {
+        return Response.json([
+          {
+            file: "https://captions.test/files/inception-en.vtt",
+            label: "English",
+            kind: "captions",
+            default: true,
+          },
+          {
+            file: "https://captions.test/files/inception-es.srt",
+            label: "Spanish",
+          },
+        ]);
+      }
+      if (url.hostname === "player.test") return new Response("<html>player</html>");
+      if (url.pathname === "/search") {
+        return new Response(
+          searchHtml([["Inception", "/watch-movie/inception-2010-watch-online/"]]),
+        );
+      }
+      if (url.pathname.includes("/watch-movie/")) return new Response(movieHtml("token"));
+      if (url.pathname === "/ajax/ajax.php") {
+        return Response.json({ name: "FlixHQ", link: embedUrl });
+      }
+      return new Response("Not found", { status: 404 });
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "movie", title: "Inception", year: 2010 },
+    {},
+  );
+
+  assert.deepEqual(result?.options[0]?.subtitles, [
+    {
+      language: "en",
+      label: "English (default)",
+      format: "vtt",
+      url: "https://captions.test/files/inception-en.vtt",
+    },
+    {
+      language: "es",
+      label: "Spanish",
+      format: "srt",
+      url: "https://captions.test/files/inception-es.srt",
+    },
+  ]);
+});
+
+test("flixHqStreamingProvider maps explicit direct streams without resolving protected embeds", async () => {
+  const expires = 1_800_000_000;
+  const provider = flixHqStreamingProvider({
+    baseUrl: BASE_URL,
+    fetch: async (input, init) => {
+      const url = new URL(input.toString());
+      if (url.hostname === "media.test") {
+        assert.equal(new Headers(init?.headers).get("range"), "bytes=0-0");
+        return new Response("#EXTM3U", { status: 206 });
+      }
+      if (url.pathname === "/search") {
+        return new Response(
+          searchHtml([["Inception", "/watch-movie/inception-2010-watch-online/"]]),
+        );
+      }
+      if (url.pathname.includes("/watch-movie/")) return new Response(movieHtml("token"));
+      if (url.pathname === "/ajax/ajax.php") {
+        return Response.json({
+          name: "FlixHQ 1080p",
+          link: `https://media.test/inception/master.m3u8?expires=${expires}`,
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "movie", title: "Inception", year: 2010 },
+    {},
+  );
+
+  assert.equal(result?.options[0]?.player.kind, "hls");
+  assert.deepEqual(result?.options[0]?.quality, { label: "1080p", height: 1080 });
+  assert.equal(result?.options[0]?.expiresAt, "2027-01-15T08:00:00.000Z");
+});
+
+test("parseSubtitleInfo rejects malformed, duplicate, and unsafe tracks", () => {
+  assert.deepEqual(parseSubtitleInfo("not json"), []);
+  assert.deepEqual(
+    parseSubtitleInfo(
+      JSON.stringify([
+        { file: "javascript:alert(1)", label: "Unsafe" },
+        { file: "https://captions.test/en.ass", label: "Russian" },
+        { file: "https://captions.test/en.ass", label: "Duplicate" },
+      ]),
+    ),
+    [
+      {
+        language: "ru",
+        label: "Russian",
+        format: "ass",
+        url: "https://captions.test/en.ass",
+      },
+    ],
+  );
 });
 
 test("flixHqStreamingProvider maps movie player tokens into embed options", async () => {
@@ -243,6 +364,10 @@ test("flixHqStreamingProvider validates bounded configuration", () => {
   assert.throws(
     () => flixHqStreamingProvider({ baseUrl: BASE_URL, playerValidationMaxBytes: 0 }),
     /playerValidationMaxBytes/,
+  );
+  assert.throws(
+    () => flixHqStreamingProvider({ baseUrl: BASE_URL, subtitleInfoMaxBytes: 0 }),
+    /subtitleInfoMaxBytes/,
   );
   assert.throws(() => flixHqStreamingProvider({ baseUrl: "file:///tmp/flixhq" }), /HTTP or HTTPS/);
 });

@@ -41,7 +41,7 @@ http://127.0.0.1:3000
 
 Movie, series, and anime search works without secrets through KinoBD, Cinemeta, Shikimori, AniList, and Wikidata. AniList adds international anime titles and popularity signals, while the engine merges matching results to improve metadata completeness.
 
-Streaming availability works without secrets through the default KinoBD/ReYohoho-style and FlixHQ providers. KinoBD supplies Russian and Ukrainian player variants, while FlixHQ adds international movie and series embeds. Anime availability can fall back from a Shikimori ID to Shikimori title lookup and KinoBD player search.
+Streaming availability works without secrets through the default KinoBD/ReYohoho-style and FlixHQ providers. KinoBD supplies Russian and Ukrainian player variants, while FlixHQ adds international movie and series embeds and normalizes public `sub.info` subtitle tracks. When FlixHQ explicitly returns a direct HLS or MP4 URL, the provider also exposes its kind, advertised quality, and URL expiry; it does not reverse-engineer protected embed streams. Anime availability can fall back from a Shikimori ID to Shikimori title lookup and KinoBD player search.
 
 The API loads the nearest `.env` file on local startup without overriding already exported environment variables.
 
