@@ -407,6 +407,51 @@ test("search enriches sparse top results through one external ID provider", asyn
   );
 });
 
+test("search uses the canonical details poster before returning results", async () => {
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "poster-provider",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: true, byExternalIds: ["shikimori"] },
+          details: { byExternalIds: ["shikimori"] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "poster-provider",
+              item: {
+                id: "anime:21",
+                type: "anime",
+                title: "One Piece",
+                poster: { url: "https://images.example/search.jpg", type: "poster" },
+                ids: { shikimori: "21" },
+              },
+            },
+          ];
+        },
+        async getDetails(): Promise<ProviderDetailsResult> {
+          return {
+            provider: "poster-provider",
+            details: {
+              id: "anime:21",
+              type: "anime",
+              title: "One Piece",
+              poster: { url: "https://images.example/details.jpg", type: "poster" },
+              ids: { shikimori: "21" },
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "one", limit: 1 });
+
+  assert.equal(response.results[0]?.item.poster?.url, "https://images.example/details.jpg");
+});
+
 test("search enriches incomplete anime cards through a compatible series catalog", async () => {
   let receivedType: string | undefined = "not-called";
   const engine = new MediaEngine({

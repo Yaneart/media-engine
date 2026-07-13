@@ -167,27 +167,6 @@ function App() {
         response.details ? { status: "success", item, response } : { status: "empty", item },
       );
 
-      if (response.details?.poster) {
-        setSearchState((currentState) =>
-          currentState.status === "success"
-            ? {
-                ...currentState,
-                response: {
-                  ...currentState.response,
-                  results: currentState.response.results.map((result) =>
-                    result.item.id === item.id
-                      ? {
-                          ...result,
-                          item: { ...result.item, poster: response.details!.poster },
-                        }
-                      : result,
-                  ),
-                },
-              }
-            : currentState,
-        );
-      }
-
       if (!response.details || abortController.signal.aborted) {
         setAvailabilityState({ status: "idle" });
         return;

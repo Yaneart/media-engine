@@ -41,6 +41,7 @@ const EXTERNAL_ID_SHORTCUTS = [
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
+const SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT = 3;
 const SEARCH_FALLBACK_MIN_TOKENS = 3;
 const SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH = 4;
 const MAX_SEARCH_LIMIT = 100;
@@ -256,8 +257,29 @@ export class MediaEngine {
       });
     }
 
+    const posterEnrichedResults = await Promise.all(
+      results.map(async (result, index) => {
+        if (index >= SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT || !hasExternalIds(result.item.ids)) {
+          return result;
+        }
+
+        try {
+          const detailsResponse = await this.getDetails({
+            type: result.item.type,
+            ids: result.item.ids,
+            language: searchLanguage,
+          });
+          const poster = detailsResponse.details?.poster;
+          return poster ? { ...result, item: { ...result.item, poster } } : result;
+        } catch {
+          return result;
+        }
+      }),
+    );
     const limitedResults =
-      normalizedQuery.limit === undefined ? results : results.slice(0, normalizedQuery.limit);
+      normalizedQuery.limit === undefined
+        ? posterEnrichedResults
+        : posterEnrichedResults.slice(0, normalizedQuery.limit);
 
     const response: SearchResponse = {
       query: normalizedQuery,
