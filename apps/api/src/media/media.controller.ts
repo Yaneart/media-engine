@@ -45,6 +45,7 @@ export class MediaController {
   @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
   @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
   @ApiQuery({ name: 'ids.aniList', required: false, type: String })
+  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
   @ApiOkResponse({ description: 'Merged search results.' })
   @ApiBadRequestResponse({ description: 'Invalid search query.' })
   @ApiServiceUnavailableResponse({
@@ -77,6 +78,7 @@ export class MediaController {
   @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
   @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
   @ApiQuery({ name: 'ids.aniList', required: false, type: String })
+  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
   @ApiOkResponse({ description: 'Merged details response.' })
   @ApiBadRequestResponse({ description: 'Invalid details query.' })
   @ApiServiceUnavailableResponse({
@@ -116,6 +118,7 @@ export class MediaController {
   @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
   @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
   @ApiQuery({ name: 'ids.aniList', required: false, type: String })
+  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
   @ApiOkResponse({ description: 'Normalized player availability response.' })
   @ApiBadRequestResponse({
     description: 'Invalid streaming availability query.',

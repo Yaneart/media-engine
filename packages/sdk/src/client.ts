@@ -58,6 +58,8 @@ const EXTERNAL_ID_KEYS = [
   "aniList",
 ] as const;
 
+const NESTED_EXTERNAL_ID_KEYS = [...EXTERNAL_ID_KEYS, "worldArt"] as const;
+
 // EN: Typed HTTP client entry point for applications using Media Engine API.
 // RU: Типизированная точка входа HTTP client для приложений, использующих Media Engine API.
 export class MediaEngineClient {
@@ -122,7 +124,7 @@ export class MediaEngineClient {
   // EN: Build an absolute API URL from a relative endpoint path.
   // RU: Собирает абсолютный API URL из относительного endpoint path.
   protected createUrl(path: string): URL {
-    return new URL(path, `${this.baseUrl}/`);
+    return new URL(path.replace(/^\/+/, ""), `${this.baseUrl}/`);
   }
 
   // EN: Execute fetch with JSON defaults and configured client headers.
@@ -194,6 +196,9 @@ function appendQuery(url: URL, query: SearchQuery | DetailsQuery | StreamQuery):
 
   for (const key of EXTERNAL_ID_KEYS) {
     appendParam(url, key, query[key]);
+  }
+
+  for (const key of NESTED_EXTERNAL_ID_KEYS) {
     appendParam(url, `ids.${key}`, query.ids?.[key]);
   }
 }
@@ -231,10 +236,17 @@ function appendArrayParam(url: URL, key: string, values: readonly string[] | und
 // EN: Parse JSON responses and normalize HTTP or payload failures into typed SDK errors.
 // RU: Парсит JSON responses и нормализует HTTP или payload failures в typed SDK errors.
 async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const body = await readJsonBody(response);
+  const { body, invalidJson } = await readResponseBody(response);
 
   if (!response.ok) {
     throw new MediaEngineApiError(readErrorMessage(response, body), {
+      status: response.status,
+      body,
+    });
+  }
+
+  if (invalidJson) {
+    throw new MediaEngineApiError("Media Engine API returned invalid JSON.", {
       status: response.status,
       body,
     });
@@ -251,20 +263,19 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 
 // EN: Read JSON when possible without hiding malformed payloads.
 // RU: Читает JSON когда возможно, не скрывая поврежденные payload.
-async function readJsonBody(response: Response): Promise<unknown> {
+async function readResponseBody(
+  response: Response,
+): Promise<{ body: unknown; invalidJson: boolean }> {
   const text = await response.text();
 
   if (text.trim().length === 0) {
-    return undefined;
+    return { body: undefined, invalidJson: false };
   }
 
   try {
-    return JSON.parse(text) as unknown;
+    return { body: JSON.parse(text) as unknown, invalidJson: false };
   } catch {
-    throw new MediaEngineApiError("Media Engine API returned invalid JSON.", {
-      status: response.status,
-      body: text,
-    });
+    return { body: text, invalidJson: true };
   }
 }
 

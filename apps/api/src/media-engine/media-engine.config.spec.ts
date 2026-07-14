@@ -1,11 +1,9 @@
 import {
-  DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
   createConfiguredStreamingProviders,
   createMediaEngine,
-  readEnrichmentProviderTimeoutMs,
   readFlixHqStreamingProviderTimeoutMs,
   readProviderTimeoutMs,
   readStreamingProviderTimeoutMs,
@@ -56,28 +54,6 @@ describe('MediaEngine configuration', () => {
     expect(() =>
       readProviderTimeoutMs({
         MEDIA_ENGINE_PROVIDER_TIMEOUT_MS: '0',
-      }),
-    ).toThrow(/positive integer/);
-  });
-
-  it('uses a shorter enrichment provider timeout by default', () => {
-    expect(readEnrichmentProviderTimeoutMs({})).toBe(
-      DEFAULT_MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS,
-    );
-  });
-
-  it('allows enrichment provider timeout override from environment', () => {
-    expect(
-      readEnrichmentProviderTimeoutMs({
-        MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS: ' 1800 ',
-      }),
-    ).toBe(1800);
-  });
-
-  it('rejects invalid enrichment provider timeout override values', () => {
-    expect(() =>
-      readEnrichmentProviderTimeoutMs({
-        MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS: 'not-a-number',
       }),
     ).toThrow(/positive integer/);
   });
@@ -139,7 +115,6 @@ describe('MediaEngine configuration', () => {
     try {
       const engine = await createMediaEngine({
         MEDIA_ENGINE_PROVIDER_TIMEOUT_MS: '20',
-        MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS: '10',
         MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: '80',
       });
       const availability = await engine.getAvailability({

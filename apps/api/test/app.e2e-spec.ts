@@ -149,12 +149,14 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.0.0',
+      version: '0.1.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/media/search');
     expect(body.paths).toHaveProperty('/media/details');
+    expect(body.paths).toHaveProperty('/media/availability');
     expect(body.paths).toHaveProperty('/providers');
+    expect(body.paths).toHaveProperty('/providers/streaming');
   });
 
   afterEach(async () => {

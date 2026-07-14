@@ -51,6 +51,7 @@ test("search serializes query params and parses response", async () => {
     type: "movie",
     ids: {
       imdb: "tt0816692",
+      worldArt: "12345",
     },
     limit: 10,
   });
@@ -60,7 +61,20 @@ test("search serializes query params and parses response", async () => {
   assert.equal(mock.calls[0]?.searchParams.get("title"), "Interstellar");
   assert.equal(mock.calls[0]?.searchParams.get("type"), "movie");
   assert.equal(mock.calls[0]?.searchParams.get("ids.imdb"), "tt0816692");
+  assert.equal(mock.calls[0]?.searchParams.get("ids.worldArt"), "12345");
   assert.equal(mock.calls[0]?.searchParams.get("limit"), "10");
+});
+
+test("preserves a path prefix in the API base URL", async () => {
+  const mock = createMockFetch(Response.json({ status: "ok", service: "media-engine-api" }));
+  const client = new MediaEngineClient({
+    baseUrl: "https://example.test/api/v1/",
+    fetch: mock.fetch,
+  });
+
+  await client.getHealth();
+
+  assert.equal(mock.calls[0]?.pathname, "/api/v1/health");
 });
 
 test("getDetails serializes details query params", async () => {
@@ -218,5 +232,22 @@ test("invalid JSON responses throw typed SDK errors", async () => {
       error instanceof MediaEngineApiError &&
       error.status === 200 &&
       error.message === "Media Engine API returned invalid JSON.",
+  );
+});
+
+test("plain-text HTTP failures preserve status and response body", async () => {
+  const mock = createMockFetch(new Response("upstream unavailable", { status: 503 }));
+  const client = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: mock.fetch,
+  });
+
+  await assert.rejects(
+    client.getHealth(),
+    (error: unknown) =>
+      error instanceof MediaEngineApiError &&
+      error.status === 503 &&
+      error.body === "upstream unavailable" &&
+      error.message === "Media Engine API request failed with HTTP 503.",
   );
 });

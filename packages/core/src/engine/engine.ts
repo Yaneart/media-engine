@@ -1,4 +1,4 @@
-import type { Cache } from "../cache/index.js";
+import type { Cache, CacheSetOptions } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError, ProviderError, toProviderFailure } from "../errors/index.js";
 import type { ExternalIds, Image } from "../media/index.js";
@@ -50,6 +50,7 @@ const SEARCH_JOINED_FALLBACK_MAX_LENGTH = 8;
 const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_PROVIDER_SEARCH_LIMIT = 100;
+const EXPIRING_AVAILABILITY_CACHE_SAFETY_MS = 1_000;
 
 // Main entry point for using Media Engine core.
 // Главная точка входа для использования Media Engine core.
@@ -473,7 +474,7 @@ export class MediaEngine {
       timings: providerTimings,
     });
 
-    await this.cache?.set(cacheKey, availability);
+    await this.cache?.set(cacheKey, availability, createAvailabilityCacheOptions(availability));
 
     return availability;
   }
@@ -1267,6 +1268,31 @@ function createDetailsCacheKey(query: DetailsQuery): string {
 // Создает стабильный cache key для нормализованного streaming query.
 function createAvailabilityCacheKey(query: StreamQuery): string {
   return `availability:${JSON.stringify(sortObject(query))}`;
+}
+
+// Keeps cached direct links from outliving the earliest advertised expiration.
+// Не позволяет кешированным прямым ссылкам пережить ближайший заявленный срок действия.
+function createAvailabilityCacheOptions(
+  availability: MediaAvailability,
+): CacheSetOptions | undefined {
+  const expiresAtValues = [
+    ...availability.options,
+    ...(availability.episodes?.flatMap((episode) => episode.options) ?? []),
+  ]
+    .map((option) => option.expiresAt)
+    .filter((value): value is string => value !== undefined)
+    .map((value) => Date.parse(value))
+    .filter(Number.isFinite);
+
+  if (expiresAtValues.length === 0) {
+    return undefined;
+  }
+
+  const earliestExpiration = Math.min(...expiresAtValues);
+
+  return {
+    ttlMs: Math.max(0, earliestExpiration - Date.now() - EXPIRING_AVAILABILITY_CACHE_SAFETY_MS),
+  };
 }
 
 // Checks whether an external ID object contains at least one ID.

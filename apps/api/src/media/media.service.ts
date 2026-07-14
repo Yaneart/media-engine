@@ -50,6 +50,7 @@ const EXTERNAL_ID_KEYS = [
   'myAnimeList',
   'aniList',
 ] as const satisfies readonly (keyof SearchQuery)[];
+const NESTED_ONLY_EXTERNAL_ID_KEYS = ['worldArt'] as const;
 
 @Injectable()
 // EN: Application service that adapts HTTP media requests to the core engine.
@@ -137,6 +138,12 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
     }
   }
 
+  const nestedIds = readNestedOnlyExternalIds(query);
+
+  if (nestedIds !== undefined) {
+    searchQuery.ids = nestedIds;
+  }
+
   return searchQuery;
 }
 
@@ -166,6 +173,12 @@ export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
     if (value !== undefined) {
       detailsQuery[key] = value;
     }
+  }
+
+  const nestedIds = readNestedOnlyExternalIds(query);
+
+  if (nestedIds !== undefined) {
+    detailsQuery.ids = nestedIds;
   }
 
   return detailsQuery;
@@ -227,6 +240,12 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
     }
   }
 
+  const nestedIds = readNestedOnlyExternalIds(query);
+
+  if (nestedIds !== undefined) {
+    streamQuery.ids = nestedIds;
+  }
+
   return streamQuery as StreamQuery;
 }
 
@@ -273,6 +292,24 @@ function readStringList(value: string | string[] | undefined): string[] {
     .flatMap((entry) => entry.split(','))
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
+}
+
+// EN: Preserve external IDs that intentionally have no top-level query shortcut.
+// RU: Сохраняет внешние ID, для которых намеренно нет верхнеуровневого сокращения.
+function readNestedOnlyExternalIds(
+  query: Record<string, string | string[] | undefined>,
+): SearchQuery['ids'] | undefined {
+  const ids: NonNullable<SearchQuery['ids']> = {};
+
+  for (const key of NESTED_ONLY_EXTERNAL_ID_KEYS) {
+    const value = readString(query[`ids.${key}`]);
+
+    if (value !== undefined) {
+      ids[key] = value;
+    }
+  }
+
+  return Object.keys(ids).length > 0 ? ids : undefined;
 }
 
 // EN: Accept only the media type values supported by the public core model.

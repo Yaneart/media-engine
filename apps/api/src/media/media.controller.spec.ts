@@ -199,6 +199,17 @@ describe('MediaController', () => {
     });
   });
 
+  it('preserves nested-only external IDs in search queries', async () => {
+    await request(app.getHttpServer())
+      .get('/media/search')
+      .query({ 'ids.worldArt': ' 12345 ' })
+      .expect(200);
+
+    expect(mediaEngine.search).toHaveBeenCalledWith({
+      ids: { worldArt: '12345' },
+    });
+  });
+
   it('returns 400 for invalid numeric query parameters', async () => {
     await request(app.getHttpServer())
       .get('/media/search')
@@ -264,6 +275,17 @@ describe('MediaController', () => {
 
     expect(mediaEngine.getDetails).toHaveBeenCalledWith({
       tmdb: '157336',
+    });
+  });
+
+  it('preserves nested-only external IDs in details queries', async () => {
+    await request(app.getHttpServer())
+      .get('/media/details')
+      .query({ 'ids.worldArt': '12345' })
+      .expect(200);
+
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith({
+      ids: { worldArt: '12345' },
     });
   });
 
@@ -340,6 +362,18 @@ describe('MediaController', () => {
     expect(mediaEngine.getAvailability).toHaveBeenCalledWith({
       type: 'anime',
       shikimori: '20',
+    });
+  });
+
+  it('preserves nested-only external IDs in availability queries', async () => {
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({ type: 'movie', 'ids.worldArt': '12345' })
+      .expect(200);
+
+    expect(mediaEngine.getAvailability).toHaveBeenCalledWith({
+      type: 'movie',
+      ids: { worldArt: '12345' },
     });
   });
 

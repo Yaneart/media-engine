@@ -49,16 +49,15 @@ Provider call budgets can be adjusted when an upstream is unusually slow:
 
 ```txt
 MEDIA_ENGINE_PROVIDER_TIMEOUT_MS=5000
-MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS=2500
 MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS=10000
 MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS=15000
 ```
 
 Streaming uses a larger default budget because one cold availability lookup may include candidate search, player data loading, and bounded iframe validation. FlixHQ has its own 15-second provider budget because it also resolves series episodes and validates several international embeds.
 
-The general streaming value is the engine-wide default and the KinoBD streaming budget. The FlixHQ value overrides it for that provider. Regular KinoBD and Shikimori metadata calls use the first value, while optional Cinemeta and Wikidata enrichment uses the shorter second value.
+The general streaming value is the engine-wide default and the KinoBD streaming budget. The FlixHQ value overrides it for that provider. All metadata providers use the metadata timeout; bounded search enrichment applies its own smaller internal budget.
 
-Successful search, details, and availability responses are cached in memory for five minutes. The cache is bounded to 500 least-recently-used entries so repeated requests are fast without unbounded process memory growth.
+Successful search, details, and availability responses are cached in memory for up to five minutes. Availability entries with expiring direct links use the earliest advertised expiration as a stricter bound. The cache is limited to 500 least-recently-used entries so repeated requests are fast without unbounded process memory growth.
 
 Swagger UI is available at:
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { MemoryCache } from "../cache/index.js";
+import type { Cache, CacheSetOptions } from "../cache/index.js";
 import { MediaEngineError, ProviderError } from "../errors/index.js";
 import type { MediaDetails } from "../media/index.js";
 import type { MergeContext, MergeStrategy } from "../merge/index.js";
@@ -1745,6 +1746,45 @@ test("getAvailability cache integration keeps response shape", async () => {
   assert.deepEqual(second.options, first.options);
   assert.equal(first.meta?.cached, false);
   assert.equal(second.meta?.cached, true);
+});
+
+test("getAvailability bounds cache lifetime by the earliest stream expiration", async () => {
+  let cacheOptions: CacheSetOptions | undefined;
+  const values = new Map<string, unknown>();
+  const cache: Cache = {
+    get<T>(key: string): T | undefined {
+      return values.get(key) as T | undefined;
+    },
+    set<T>(key: string, value: T, options?: CacheSetOptions): void {
+      values.set(key, value);
+      cacheOptions = options;
+    },
+    delete(key: string): void {
+      values.delete(key);
+    },
+    clear(): void {
+      values.clear();
+    },
+  };
+  const expiresAt = new Date(Date.now() + 10_000).toISOString();
+  const engine = new MediaEngine({
+    cache,
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(query): Promise<MediaAvailability | null> {
+          const availability = createAvailability(query, "expiring-stream");
+          availability.options[0]!.expiresAt = expiresAt;
+          return availability;
+        },
+      }),
+    ],
+  });
+
+  await engine.getAvailability({ type: "anime", title: "Naruto" });
+
+  assert.ok(cacheOptions?.ttlMs !== undefined);
+  assert.ok(cacheOptions.ttlMs > 0);
+  assert.ok(cacheOptions.ttlMs <= 9_000);
 });
 
 function createProvider(

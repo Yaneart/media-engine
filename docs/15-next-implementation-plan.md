@@ -288,7 +288,7 @@ Current implementation status:
 - Search and details provider calls now run concurrently with deterministic merge order and provider timings.
 - The API has a 5-second global provider timeout.
 - `MediaEngineOptions.providerTimeouts` now supports smaller per-provider budgets without exceeding the global limit.
-- API Cinemeta and Wikidata enrichment uses a 2.5-second default budget, configurable through `MEDIA_ENGINE_ENRICHMENT_PROVIDER_TIMEOUT_MS`.
+- API metadata providers use the shared metadata timeout; bounded search enrichment applies its own smaller internal budget.
 - Details latency smoke mirrors these optional enrichment budgets. Continue monitoring primary provider latency separately.
 
 Priority tasks for the next session:
