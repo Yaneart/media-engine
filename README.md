@@ -1,73 +1,20 @@
 # Media Engine
 
-Media Engine is an open source TypeScript engine for searching, aggregating, normalizing, and merging media metadata from multiple sources through one API.
+**English** | [Русский](README.ru.md)
 
-It is not a website. It is a reusable engine that can be used from Node.js applications, APIs, bots, CLI tools, and client applications through an API or SDK.
+Movie data is easy to find. The hard part is that every source names things differently, uses different IDs, and sometimes simply stops responding.
 
-## Project Status
+Media Engine puts those sources behind one TypeScript API. You ask for a movie, series, or anime; the engine calls suitable providers, joins matching results, and tells you honestly when part of the data could not be loaded.
 
-Current phase: **v0.1 pre-release**.
+Version `0.1.0` is available on npm.
 
-The core engine, metadata providers, streaming availability API, REST API, SDK, React example, smoke checks, and package dry-run checks are implemented. Version `0.1.0` is the first package pre-release candidate; live no-token providers remain best-effort integrations.
+## Try it
 
-## Core Idea
-
-Developers should work with Media Engine, not with every provider separately.
-
-Instead of manually integrating IMDb, Kinopoisk, Shikimori, Kodik, Collaps, VideoCDN, and other sources, a developer calls one typed API:
-
-```ts
-const media = new MediaEngine({
-  providers: [
-    kinobdProvider(),
-    cinemetaProvider(),
-    shikimoriProvider(),
-    wikidataProvider(),
-  ],
-});
-
-const result = await media.search({
-  title: "Interstellar",
-});
-```
-
-Search by external IDs is also part of the intended public API:
-
-```ts
-const result = await media.search({
-  imdb: "tt0816692",
-});
-```
-
-Media Engine is responsible for:
-
-- selecting useful providers;
-- calling providers safely;
-- resolving external IDs;
-- normalizing provider responses;
-- merging duplicated results;
-- returning one strongly typed response.
-
-## Install
-
-For direct Node.js usage:
+You need Node.js 20 or newer.
 
 ```bash
 npm install @media-engine/core @media-engine/providers
 ```
-
-For applications that call the REST API:
-
-```bash
-npm install @media-engine/sdk
-```
-
-The publishable npm packages are `packages/core`, `packages/providers`, and `packages/sdk`.
-`apps/api` and `apps/example` are included in the GitHub repository as runnable integration examples, not as npm packages.
-
-## Metadata Quickstart
-
-Use only `providers` when player discovery is not needed:
 
 ```ts
 import { MediaEngine } from "@media-engine/core";
@@ -83,241 +30,63 @@ const media = new MediaEngine({
   providers: [
     kinobdProvider(),
     cinemetaProvider(),
-    shikimoriProvider({ userAgent: "MyApp/0.1.0" }),
+    shikimoriProvider(),
     aniListProvider(),
     wikidataProvider(),
   ],
 });
 
-const result = await media.search({ title: "Interstellar", type: "movie" });
+const result = await media.search({
+  title: "Interstellar",
+  language: "en",
+});
+
 console.log(result.results[0]?.item);
 ```
 
-## Metadata and Streaming Quickstart
+You can search by external ID too:
 
 ```ts
-import { MediaEngine } from "@media-engine/core";
-import {
-  cinemetaProvider,
-  flixHqStreamingProvider,
-  kinobdProvider,
-  kinobdStreamingProvider,
-  shikimoriProvider,
-  wikidataProvider,
-} from "@media-engine/providers";
-
-const media = new MediaEngine({
-  providers: [
-    kinobdProvider(),
-    cinemetaProvider(),
-    shikimoriProvider({
-      userAgent: "MyApp/1.0.0",
-    }),
-    wikidataProvider(),
-  ],
-  streamingProviders: [kinobdStreamingProvider(), flixHqStreamingProvider()],
-});
-
-const search = await media.search({
-  title: "Interstellar",
-  type: "movie",
-});
-
-const details = await media.getDetails({
-  kinopoisk: "258687",
-  type: "movie",
-});
-
-const availability = await media.getAvailability({
-  kinopoisk: "258687",
-  type: "movie",
-});
+const result = await media.search({ imdb: "tt0816692" });
 ```
 
-Streaming availability is a best-effort player discovery layer. Media Engine returns normalized embed/player options and provider failures; it is not a streaming service, does not host video, and does not extract direct video files by default.
+No API keys, private tokens, or account cookies are needed for the built-in providers.
 
-## API Server Quickstart
+## What is included
 
-Run the included NestJS API and React example locally:
+- [`@media-engine/core`](https://www.npmjs.com/package/@media-engine/core) — the engine and public types;
+- [`@media-engine/providers`](https://www.npmjs.com/package/@media-engine/providers) — ready-to-use metadata and player sources;
+- [`@media-engine/sdk`](https://www.npmjs.com/package/@media-engine/sdk) — a typed client for the included REST API;
+- `apps/api` — a runnable NestJS API;
+- `apps/example` — a small React example.
+
+Metadata and player lookup are separate. You can use Media Engine only for search and details, or add streaming providers when your application needs player choices.
+
+## See it in a browser
 
 ```bash
 pnpm install
 pnpm dev:compose
 ```
 
-The API is available at `http://127.0.0.1:3000`, with Swagger at `http://127.0.0.1:3000/docs`.
+Then open <http://127.0.0.1:5173>. The API runs on <http://127.0.0.1:3000>, and its Swagger page is at <http://127.0.0.1:3000/docs>.
 
-## SDK Client Quickstart
+## A small but important warning
 
-```ts
-import { MediaEngineClient } from "@media-engine/sdk";
+Media Engine works with public third-party sources. They can be slow, unavailable, or change without warning. The engine limits failures and returns partial results when it can, but it cannot promise that every source or player will always work.
 
-const client = new MediaEngineClient({ baseUrl: "http://127.0.0.1:3000" });
-const result = await client.search({ title: "Interstellar", type: "movie" });
-console.log(result.results[0]?.item);
-```
+Media Engine does not host video. It only normalizes information and third-party player options for your application.
 
-## Release Checks
+## Learn more
 
-Useful release gates:
+The [documentation index](docs/README.md) links to the architecture, API, data model, providers, and roadmap. Package-specific setup stays in each package README so this page does not repeat it.
+
+For local checks:
 
 ```bash
 pnpm release:check
-pnpm smoke:providers -- --strict
-pnpm smoke:search-quality
-pnpm smoke:latency
-pnpm smoke:details-latency
-pnpm smoke:availability-latency
-pnpm smoke:availability -- --strict
 pnpm pack:check
 ```
-
-Live smoke commands call third-party providers and can fail when an upstream source is rate-limited or temporarily unavailable. `pnpm smoke:search-quality` checks canonical result rank and enrichment for broad queries. `pnpm smoke:latency` prints per-provider search timings for broad-query debugging. `pnpm smoke:details-latency` does the same for details lookups. `pnpm smoke:availability-latency` does the same for player/video availability.
-
-## Products
-
-The project contains three main products.
-
-### 1. Media Engine Core
-
-Package:
-
-```bash
-npm install @media-engine/core
-```
-
-Responsibilities:
-
-- public TypeScript API;
-- media data model;
-- provider contracts;
-- provider registry;
-- search and details orchestration;
-- merge strategy;
-- error model;
-- cache interfaces;
-- test utilities.
-
-Core must stay framework-independent. It must not depend on NestJS, React, Express, or concrete providers.
-
-### 2. Media Engine API
-
-Path:
-
-```txt
-apps/api
-```
-
-Technology: NestJS.
-
-Responsibilities:
-
-- REST endpoints;
-- DTO validation;
-- provider configuration from environment variables;
-- Swagger/OpenAPI;
-- health checks;
-
-API-level cache and rate limiting are future hardening work, not part of the current release baseline.
-
-### 3. Example React App
-
-Path:
-
-```txt
-apps/example
-```
-
-Purpose: demonstrate how to use Media Engine through the API or SDK.
-
-The example app must not contain provider API keys or import provider packages directly.
-
-## Local Docker Compose
-
-Run the API and React example app together for local development:
-
-```bash
-pnpm dev:compose
-```
-
-The command uses the local workspace dependencies mounted into the Node containers, so run `pnpm install` on the host first when dependencies are missing.
-
-The dev stand exposes:
-
-- API: `http://127.0.0.1:3000`
-- Swagger UI: `http://127.0.0.1:3000/docs`
-- React example: `http://127.0.0.1:5173`
-
-Stop the containers:
-
-```bash
-pnpm dev:compose:down
-```
-
-## Repository Structure
-
-```txt
-media-engine/
-  packages/
-    core/
-    providers/
-    plugins/
-    sdk/
-  apps/
-    api/
-    example/
-  docs/
-```
-
-The current monorepo includes `packages/core`, `packages/providers`, `packages/sdk`, `apps/api`, and `apps/example`. `packages/plugins` remains reserved for future plugin contracts.
-
-## Version Roadmap
-
-```txt
-Phase 0  -> Project Design
-v0.1     -> Core Foundation
-v0.2     -> Metadata Providers
-v0.3     -> NestJS API
-v0.4     -> React Example App
-v0.5     -> Streaming Provider Architecture
-v0.6     -> SDK and Client Contracts
-v1.0     -> Stable Release
-```
-
-## Documentation
-
-Current technical documents:
-
-```txt
-docs/README.md
-docs/architecture.md
-docs/public-api.md
-docs/data-model.md
-docs/providers.md
-docs/roadmap.md
-```
-
-## Development Rules
-
-- Documentation comes before code.
-- Only one task is active at a time.
-- Public API changes must be reflected in `docs/public-api.md`.
-- Data model changes must be reflected in `docs/data-model.md`.
-- Provider contract changes must be reflected in `docs/providers.md`.
-- Architecture changes must be reflected in `docs/architecture.md`.
-- Core must not import concrete providers.
-
-## Non Goals
-
-Media Engine is not:
-
-- a streaming service;
-- a movie website;
-- a frontend framework;
-- a media player;
-- a torrent client;
-- a download manager;
-- a database-first application.
 
 ## License
 

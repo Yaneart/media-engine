@@ -1,12 +1,31 @@
-# @media-engine/api
+# Media Engine API
 
-NestJS REST API for Media Engine.
+**English** | [Русский](https://github.com/Yaneart/media-engine/blob/main/apps/api/README.ru.md)
 
-The API owns HTTP routing, DTO/query parsing, provider configuration, health checks, and Swagger/OpenAPI exposure. It must not own provider HTTP clients, merge logic, or core media models.
+A ready-to-run NestJS wrapper around Media Engine. It is useful when a browser or another service needs the engine over HTTP.
 
-## Endpoints
+This app belongs to the GitHub repository and is not an npm package.
 
-```txt
+## Run it
+
+From the repository root:
+
+```bash
+pnpm install
+pnpm dev:api
+```
+
+The API starts at <http://127.0.0.1:3000>. Swagger is at <http://127.0.0.1:3000/docs>.
+
+Try a request:
+
+```bash
+curl 'http://127.0.0.1:3000/media/search?title=Interstellar&language=en'
+```
+
+## Routes
+
+```text
 GET /health
 GET /providers
 GET /providers/streaming
@@ -17,55 +36,9 @@ GET /docs
 GET /docs-json
 ```
 
-`/media/search`, `/media/details`, and `/media/availability` map query parameters to `SearchQuery`, `DetailsQuery`, and `StreamQuery` from `@media-engine/core`.
+Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts.
 
-## Local Development
-
-From the repository root:
-
-```bash
-pnpm dev:api
-```
-
-From this package:
-
-```bash
-pnpm --filter @media-engine/api start:dev
-```
-
-The default local API URL is:
-
-```txt
-http://127.0.0.1:3000
-```
-
-Movie, series, and anime search works without secrets through KinoBD, Cinemeta, Shikimori, AniList, and Wikidata. AniList adds international anime titles and popularity signals, while the engine merges matching results to improve metadata completeness.
-
-Streaming availability works without secrets through the default KinoBD/ReYohoho-style and FlixHQ providers. KinoBD supplies Russian and Ukrainian player variants, while FlixHQ adds international movie and series embeds and normalizes public `sub.info` subtitle tracks. When FlixHQ explicitly returns a direct HLS or MP4 URL, the provider also exposes its kind, advertised quality, and URL expiry; it does not reverse-engineer protected embed streams. Anime availability can fall back from a Shikimori ID to Shikimori title lookup and KinoBD player search.
-
-The API loads the nearest `.env` file on local startup without overriding already exported environment variables.
-
-Provider call budgets can be adjusted when an upstream is unusually slow:
-
-```txt
-MEDIA_ENGINE_PROVIDER_TIMEOUT_MS=5000
-MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS=10000
-MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS=15000
-```
-
-Streaming uses a larger default budget because one cold availability lookup may include candidate search, player data loading, and bounded iframe validation. FlixHQ has its own 15-second provider budget because it also resolves series episodes and validates several international embeds.
-
-The general streaming value is the engine-wide default and the KinoBD streaming budget. The FlixHQ value overrides it for that provider. All metadata providers use the metadata timeout; bounded search enrichment applies its own smaller internal budget.
-
-Successful search, details, and availability responses are cached in memory for up to five minutes. Availability entries with expiring direct links use the earliest advertised expiration as a stricter bound. The cache is limited to 500 least-recently-used entries so repeated requests are fast without unbounded process memory growth.
-
-Swagger UI is available at:
-
-```txt
-http://127.0.0.1:3000/docs
-```
-
-## Checks
+## Check it
 
 ```bash
 pnpm --filter @media-engine/api typecheck
@@ -73,10 +46,8 @@ pnpm --filter @media-engine/api test
 pnpm --filter @media-engine/api test:e2e
 ```
 
-## Boundaries
+Provider code lives in `@media-engine/providers`; merging lives in `@media-engine/core`. This app only connects them to HTTP and keeps secrets out of responses.
 
-- Configure providers through application configuration.
-- Do not expose provider secrets in responses.
-- Do not import React or the SDK.
-- Keep provider-specific HTTP logic inside `@media-engine/providers`.
-- Keep normalization and merge behavior inside `@media-engine/core`.
+## License
+
+MIT

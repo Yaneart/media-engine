@@ -1,43 +1,39 @@
-# @media-engine/example
+# Media Engine React example
 
-React example app for Media Engine.
+**English** | [Русский](https://github.com/Yaneart/media-engine/blob/main/apps/example/README.ru.md)
 
-The app demonstrates browser usage through `@media-engine/sdk`. It calls the NestJS API and does not import provider packages or store provider API keys in the browser.
+This small app lets you try Media Engine in a browser. It can search, open details, choose an episode, and show available player options.
 
-## What It Shows
+## Run it
 
-- metadata search across configured API providers;
-- details loading for a selected result;
-- streaming availability loading through the SDK;
-- player option grouping by normalized translation metadata;
-- embed player preview/open flow for returned player URLs;
-- provider failure and empty-state handling.
-
-The example app is intentionally API-facing. Provider credentials and provider implementation details stay in `apps/api` and `@media-engine/providers`.
-
-## Scripts
+From the repository root:
 
 ```bash
-pnpm --filter @media-engine/example dev
-pnpm --filter @media-engine/example build
-pnpm --filter @media-engine/example typecheck
-```
-
-By default, the development server runs at:
-
-```txt
-http://127.0.0.1:5173
-```
-
-Run it together with the API from the repository root:
-
-```bash
+pnpm install
 pnpm dev:compose
 ```
 
-## Boundaries
+Open <http://127.0.0.1:5173>.
 
-- Do not import `@media-engine/providers` in this app.
-- Do not store provider API keys in browser code.
-- Treat player availability as best-effort data returned by the API.
-- Keep UI behavior focused on demonstrating the SDK and API contract, not hiding provider-quality issues.
+To run only the frontend:
+
+```bash
+pnpm --filter @media-engine/example dev
+```
+
+By default it expects the API at `http://127.0.0.1:3000`. Change `VITE_MEDIA_ENGINE_API_URL` when the API lives elsewhere.
+
+The browser uses `@media-engine/sdk`. Provider code and any server configuration stay outside the frontend.
+
+## Check it
+
+```bash
+pnpm --filter @media-engine/example typecheck
+pnpm --filter @media-engine/example build
+```
+
+This is a demonstration, not a finished movie website. Third-party players may not work in every browser, country, or network.
+
+## License
+
+MIT

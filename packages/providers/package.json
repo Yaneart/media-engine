@@ -46,7 +46,8 @@
     "!dist/**/*.test.js.map",
     "!dist/kodik",
     "!dist/tmdb",
-    "README.md"
+    "README.md",
+    "README.ru.md"
   ],
   "publishConfig": {
     "access": "public"
