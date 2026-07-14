@@ -286,38 +286,26 @@ v1.0     -> Stable Release
 
 ## Documentation
 
-Current design documents:
+Current technical documents:
 
 ```txt
-docs/00-project-charter.md
-docs/01-product-scope.md
-docs/02-architecture.md
-docs/03-public-api.md
-docs/04-data-model.md
-docs/05-provider-system.md
-docs/06-merge-strategy.md
-docs/07-repository-structure.md
-docs/08-roadmap.md
-docs/09-task-backlog.md
-docs/10-execution-rules.md
-docs/11-streaming-data-model.md
-docs/12-public-api-audit.md
-docs/13-release-preparation.md
-docs/14-parser-release-hardening.md
-docs/15-next-implementation-plan.md
+docs/README.md
+docs/architecture.md
+docs/public-api.md
+docs/data-model.md
+docs/providers.md
+docs/roadmap.md
 ```
 
 ## Development Rules
 
 - Documentation comes before code.
-- Work follows the task backlog in order.
 - Only one task is active at a time.
-- Public API changes must be reflected in `docs/03-public-api.md`.
-- Data model changes must be reflected in `docs/04-data-model.md`.
-- Provider contract changes must be reflected in `docs/05-provider-system.md`.
-- Merge logic changes must be reflected in `docs/06-merge-strategy.md`.
+- Public API changes must be reflected in `docs/public-api.md`.
+- Data model changes must be reflected in `docs/data-model.md`.
+- Provider contract changes must be reflected in `docs/providers.md`.
+- Architecture changes must be reflected in `docs/architecture.md`.
 - Core must not import concrete providers.
-- Completed phases should remain documented before follow-up changes are added.
 
 ## Non Goals
 
