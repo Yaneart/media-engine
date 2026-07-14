@@ -452,6 +452,173 @@ test("search uses the canonical details poster before returning results", async 
   assert.equal(response.results[0]?.item.poster?.url, "https://images.example/details.jpg");
 });
 
+test("search runs ID and poster enrichment concurrently", async () => {
+  let resolveIdEnrichment: ((results: ProviderSearchResult[]) => void) | undefined;
+  let resolvePosterEnrichment: ((result: ProviderDetailsResult) => void) | undefined;
+  let markIdEnrichmentStarted: (() => void) | undefined;
+  let markPosterEnrichmentStarted: (() => void) | undefined;
+  const idEnrichmentStarted = new Promise<void>((resolve) => {
+    markIdEnrichmentStarted = resolve;
+  });
+  const posterEnrichmentStarted = new Promise<void>((resolve) => {
+    markPosterEnrichmentStarted = resolve;
+  });
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "title-source",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: [] },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "title-source",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+                ids: { imdb: "tt0816692" },
+              },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "id-enricher",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: false, byExternalIds: ["imdb"] },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          markIdEnrichmentStarted?.();
+          return new Promise((resolve) => {
+            resolveIdEnrichment = resolve;
+          });
+        },
+      }),
+      createProvider({
+        name: "poster-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: false, byExternalIds: [] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async getDetails(): Promise<ProviderDetailsResult> {
+          markPosterEnrichmentStarted?.();
+          return new Promise((resolve) => {
+            resolvePosterEnrichment = resolve;
+          });
+        },
+      }),
+    ],
+  });
+
+  const searchPromise = engine.search({ title: "Interstellar" });
+  const bothStarted = await Promise.race([
+    Promise.all([idEnrichmentStarted, posterEnrichmentStarted]).then(() => true),
+    sleep(20).then(() => false),
+  ]);
+
+  assert.equal(bothStarted, true);
+  resolveIdEnrichment?.([
+    {
+      provider: "id-enricher",
+      item: {
+        id: "movie-1-enriched",
+        type: "movie",
+        title: "Interstellar",
+        description: "Enriched description.",
+        ids: { imdb: "tt0816692" },
+      },
+    },
+  ]);
+  resolvePosterEnrichment?.({
+    provider: "poster-provider",
+    details: {
+      id: "movie-1-details",
+      type: "movie",
+      title: "Interstellar",
+      poster: { url: "https://images.example/poster.jpg", type: "poster" },
+      ids: { imdb: "tt0816692" },
+    },
+  });
+
+  const response = await searchPromise;
+
+  assert.equal(response.results[0]?.item.description, "Enriched description.");
+  assert.equal(response.results[0]?.item.poster?.url, "https://images.example/poster.jpg");
+});
+
+test("search does not retry a failed search provider for poster enrichment", async () => {
+  let failedProviderDetailsCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "failed-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          throw new ProviderError({
+            provider: "failed-provider",
+            code: "PROVIDER_TIMEOUT",
+            retryable: true,
+            message: "Provider timed out.",
+          });
+        },
+        async getDetails(): Promise<ProviderDetailsResult> {
+          failedProviderDetailsCalls += 1;
+          throw new Error("Failed search provider must not be retried for a poster.");
+        },
+      }),
+      createProvider({
+        name: "successful-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "successful-provider",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+                ids: { imdb: "tt0816692" },
+              },
+            },
+          ];
+        },
+        async getDetails(): Promise<ProviderDetailsResult> {
+          return {
+            provider: "successful-provider",
+            details: {
+              id: "movie-1-details",
+              type: "movie",
+              title: "Interstellar",
+              poster: { url: "https://images.example/poster.jpg", type: "poster" },
+              ids: { imdb: "tt0816692" },
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "Interstellar" });
+
+  assert.equal(failedProviderDetailsCalls, 0);
+  assert.equal(response.results[0]?.item.poster?.url, "https://images.example/poster.jpg");
+});
+
 test("search enriches incomplete anime cards through a compatible series catalog", async () => {
   let receivedType: string | undefined = "not-called";
   const engine = new MediaEngine({

@@ -165,7 +165,7 @@ function filterDetailsEntriesByIdentity(
     const ids = entry.result.details.ids;
     const conflicts = strongIdConflicts(selectedIds, ids);
 
-    if (conflicts.length > 0) {
+    if (conflicts.length > 0 && !hasSharedStrongId(selectedIds, ids)) {
       for (const key of conflicts) {
         context.warnings?.push({
           code: "EXTERNAL_ID_CONFLICT",

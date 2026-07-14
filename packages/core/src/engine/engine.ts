@@ -1,7 +1,7 @@
 import type { Cache } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError, ProviderError, toProviderFailure } from "../errors/index.js";
-import type { ExternalIds } from "../media/index.js";
+import type { ExternalIds, Image } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type MediaProvider, type ProviderInfo } from "../providers/index.js";
 import type {
@@ -42,6 +42,7 @@ const EXTERNAL_ID_SHORTCUTS = [
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
 const SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT = 3;
+const SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS = 1_500;
 const SEARCH_FALLBACK_MIN_TOKENS = 3;
 const SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH = 4;
 const MAX_SEARCH_LIMIT = 100;
@@ -201,7 +202,22 @@ export class MediaEngine {
       });
     }
 
-    const enrichmentResults = await Promise.all(
+    const excludedPosterProviders = new Set(failed.map((failure) => failure.provider));
+    const posterEnrichmentPromise = Promise.all(
+      results
+        .slice(0, SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT)
+        .filter((result) => hasExternalIds(result.item.ids))
+        .map(async (result) => ({
+          ids: result.item.ids,
+          poster: await this.loadSearchPoster(
+            result.item.type,
+            result.item.ids,
+            searchLanguage,
+            excludedPosterProviders,
+          ).catch(() => undefined),
+        })),
+    );
+    const enrichmentResultsPromise = Promise.all(
       results
         .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
         .filter((result) => needsSearchEnrichment(result.item) && hasExternalIds(result.item.ids))
@@ -239,6 +255,10 @@ export class MediaEngine {
           return outcome.failure ? [] : outcome.results;
         }),
     );
+    const [enrichmentResults, posterEnrichments] = await Promise.all([
+      enrichmentResultsPromise,
+      posterEnrichmentPromise,
+    ]);
     const flattenedEnrichmentResults = enrichmentResults.flat();
 
     if (flattenedEnrichmentResults.length > 0) {
@@ -257,25 +277,12 @@ export class MediaEngine {
       });
     }
 
-    const posterEnrichedResults = await Promise.all(
-      results.map(async (result, index) => {
-        if (index >= SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT || !hasExternalIds(result.item.ids)) {
-          return result;
-        }
-
-        try {
-          const detailsResponse = await this.getDetails({
-            type: result.item.type,
-            ids: result.item.ids,
-            language: searchLanguage,
-          });
-          const poster = detailsResponse.details?.poster;
-          return poster ? { ...result, item: { ...result.item, poster } } : result;
-        } catch {
-          return result;
-        }
-      }),
-    );
+    const posterEnrichedResults = results.map((result) => {
+      const poster = posterEnrichments.find(
+        (enrichment) => enrichment.poster && hasSharedExternalId(result.item.ids, enrichment.ids),
+      )?.poster;
+      return poster ? { ...result, item: { ...result.item, poster } } : result;
+    });
     const limitedResults =
       normalizedQuery.limit === undefined
         ? posterEnrichedResults
@@ -503,6 +510,47 @@ export class MediaEngine {
     return this.timeoutMs === undefined
       ? providerTimeoutMs
       : Math.min(this.timeoutMs, providerTimeoutMs);
+  }
+
+  // Loads only the canonical poster needed by search without blocking on a full details request.
+  // Загружает только канонический постер для search, не блокируя полный details-запрос.
+  private async loadSearchPoster(
+    type: DetailsQuery["type"],
+    ids: ExternalIds | undefined,
+    language: string | undefined,
+    excludedProviders: ReadonlySet<string>,
+  ): Promise<Image | undefined> {
+    if (!hasExternalIds(ids)) {
+      return undefined;
+    }
+
+    const query: DetailsQuery = { type, ids, language };
+    const providers = this.registry
+      .selectDetailsProviders(query)
+      .filter((provider) => !excludedProviders.has(provider.name));
+    const outcomes = await Promise.all(
+      providers.map((provider) => {
+        const providerTimeoutMs = this.getProviderTimeoutMs(provider.name);
+        return callTimedProviderDetails(provider, query, {
+          debug: this.debug,
+          language,
+          timeoutMs:
+            providerTimeoutMs === undefined
+              ? SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS
+              : Math.min(providerTimeoutMs, SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS),
+        });
+      }),
+    );
+    const providerResults = outcomes.flatMap((outcome) =>
+      outcome.failure || !outcome.result ? [] : [outcome.result],
+    );
+
+    return this.mergeStrategy.mergeDetails(providerResults, {
+      query,
+      language,
+      debug: this.debug,
+      warnings: [],
+    })?.poster;
   }
 
   // Gives future engine methods access to the debug flag.
@@ -1177,6 +1225,19 @@ function createAvailabilityCacheKey(query: StreamQuery): string {
 // Проверяет, содержит ли объект внешних ID хотя бы один ID.
 function hasExternalIds(ids: ExternalIds | undefined): boolean {
   return Boolean(ids && Object.values(ids).some((value) => Boolean(value)));
+}
+
+// Checks whether two normalized media identities share at least one exact external ID.
+// Проверяет, совпадает ли у двух нормализованных media identity хотя бы один внешний ID.
+function hasSharedExternalId(
+  left: ExternalIds | undefined,
+  right: ExternalIds | undefined,
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  return EXTERNAL_ID_SHORTCUTS.some((key) => Boolean(left[key] && left[key] === right[key]));
 }
 
 // Checks whether query ids overlap provider-supported external ID sources.

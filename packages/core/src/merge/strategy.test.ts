@@ -812,6 +812,48 @@ test("uses query strong IDs before provider priority when filtering details", ()
   ]);
 });
 
+test("keeps details that share a strong ID despite another ID conflict", () => {
+  const warnings: EngineWarning[] = [];
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("kinobd", {
+        id: "kinobd-naruto",
+        type: "anime",
+        title: "Наруто",
+        ids: { imdb: "tt0409591", tmdb: "1062485", kinopoisk: "283290" },
+      }),
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-naruto",
+        type: "series",
+        title: "Naruto",
+        ids: { imdb: "tt0409591", tmdb: "46260" },
+        episodesCount: 220,
+      }),
+    ],
+    {
+      query: {
+        ids: { imdb: "tt0409591", tmdb: "1062485", kinopoisk: "283290" },
+        type: "anime",
+      },
+      warnings,
+    },
+  );
+
+  assert.equal(details?.type, "anime");
+  assert.equal(details?.episodesCount, 220);
+  assert.deepEqual(
+    details?.sourceProviders?.map((source) => source.provider),
+    ["kinobd", "cinemeta"],
+  );
+  assert.deepEqual(warnings, [
+    {
+      code: "EXTERNAL_ID_CONFLICT",
+      message: "Conflicting tmdb IDs while merging details; kept 1062485.",
+      provider: "cinemeta",
+    },
+  ]);
+});
+
 function providerResult(
   provider: string,
   item: MediaItem & { confidence?: number },
