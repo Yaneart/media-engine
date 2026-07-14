@@ -347,6 +347,84 @@ test("ranks a popular exact anime above less popular live-action adaptations", (
   assert.equal(results[0]?.item.year, 2006);
 });
 
+test("ranks exact canonical titles above popular prefixed and incidental alias noise", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "dark-series",
+        type: "series",
+        title: "Dark",
+        year: 2017,
+        ratings: [{ source: "imdb", value: 8.7, max: 10, votes: 730_000 }],
+        ids: { imdb: "tt5753856" },
+      }),
+      providerResult("wikidata", {
+        id: "dark-series-wikidata",
+        type: "series",
+        title: "Dark",
+        year: 2017,
+        ids: { imdb: "tt5753856" },
+      }),
+      providerResult("shikimori", {
+        id: "dark-gathering",
+        type: "anime",
+        title: "Dark Gathering",
+        year: 2023,
+        ratings: [{ source: "shikimori", value: 7.85, max: 10, votes: 66_000 }],
+        ids: { shikimori: "52505" },
+      }),
+      providerResult("anilist", {
+        id: "dark-god",
+        type: "anime",
+        title: "Kurokami The Animation",
+        alternativeTitles: ["Dark God"],
+        year: 2009,
+        ratings: [{ source: "myAnimeList", value: 7.1, max: 10, votes: 23_000 }],
+        ids: { myAnimeList: "5079" },
+      }),
+    ],
+    { query: { title: "dark" } },
+  );
+
+  assert.equal(results[0]?.item.title, "Dark");
+  assert.equal(results[0]?.item.type, "series");
+  assert.ok((results[0]?.score ?? 0) > (results[1]?.score ?? 0));
+});
+
+test("keeps sparse exact titles inside the preliminary enrichment window", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "dark-series",
+        type: "series",
+        title: "Dark",
+        year: 2017,
+        ids: { imdb: "tt5753856" },
+      }),
+      providerResult("shikimori", {
+        id: "dark-gathering",
+        type: "anime",
+        title: "Dark Gathering",
+        year: 2023,
+        ratings: [{ source: "shikimori", value: 7.85, max: 10, votes: 66_000 }],
+        ids: { shikimori: "52505" },
+      }),
+      providerResult("anilist", {
+        id: "dark-gathering-anilist",
+        type: "anime",
+        title: "Dark Gathering",
+        year: 2023,
+        ratings: [{ source: "aniList", value: 75, max: 100, votes: 67_000 }],
+        ids: { myAnimeList: "52505" },
+      }),
+    ],
+    { query: { title: "dark" }, includeIrrelevantSearchResults: true },
+  );
+
+  assert.equal(results[0]?.item.title, "Dark");
+  assert.equal(results[0]?.item.year, 2017);
+});
+
 test("keeps an exact title above popular prefixed franchise results when metadata is sparse", () => {
   const results = strategy.mergeSearchResults(
     [
@@ -484,7 +562,25 @@ test("merges anime and series title variants while preserving anime semantics", 
         originalTitle: "One Piece",
         year: 1999,
         ids: { shikimori: "21" },
-        ratings: [{ source: "shikimori", value: 8.73, max: 10 }],
+        ratings: [{ source: "shikimori", value: 8.73, max: 10, votes: 700_000 }],
+        confidence: 1,
+      }),
+      providerResult("anilist", {
+        id: "anilist-one-piece",
+        type: "anime",
+        title: "One Piece",
+        year: 1999,
+        ids: { myAnimeList: "21", aniList: "21" },
+        ratings: [{ source: "aniList", value: 87, max: 100, votes: 728_000 }],
+        confidence: 1,
+      }),
+      providerResult("shikimori", {
+        id: "shikimori-one",
+        type: "anime",
+        title: "One",
+        year: 2020,
+        ids: { shikimori: "56042" },
+        ratings: [{ source: "shikimori", value: 5.8, max: 10 }],
         confidence: 1,
       }),
     ],
@@ -498,14 +594,16 @@ test("merges anime and series title variants while preserving anime semantics", 
   assert.deepEqual(results[0]?.item.ids, {
     imdb: "tt0388629",
     shikimori: "21",
+    myAnimeList: "21",
+    aniList: "21",
   });
   assert.deepEqual(
     results[0]?.item.ratings?.map((rating) => rating.source),
-    ["shikimori"],
+    ["shikimori", "aniList"],
   );
   assert.deepEqual(
     results[0]?.sources.map((source) => source.provider),
-    ["cinemeta", "shikimori"],
+    ["cinemeta", "shikimori", "anilist"],
   );
 });
 

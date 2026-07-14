@@ -102,9 +102,19 @@ export class DefaultMergeStrategy implements MergeStrategy {
       .filter((group) => isSearchGroupRelevant(group, context))
       .map((group, groupIndex) => ({
         groupIndex,
+        exactPrimaryTitleMatch: hasExactPrimaryQueryTitle(group.entries, context),
         result: mergeSearchGroup(group, context),
       }))
       .sort((left, right) => {
+        // The engine's preliminary broad merge feeds a bounded enrichment window. Keep exact
+        // canonical candidates in that window even when their initial provider card is sparse.
+        if (
+          context.includeIrrelevantSearchResults &&
+          left.exactPrimaryTitleMatch !== right.exactPrimaryTitleMatch
+        ) {
+          return left.exactPrimaryTitleMatch ? -1 : 1;
+        }
+
         const scoreDiff = right.result.score - left.result.score;
 
         if (scoreDiff !== 0) {
@@ -150,6 +160,15 @@ export class DefaultMergeStrategy implements MergeStrategy {
 
     return mergeDetailsEntries(finalEntries, context, mediaType);
   }
+}
+
+// Checks exact primary/original query intent for preliminary search enrichment ordering.
+// Проверяет точное основное/original соответствие для предварительного enrichment-порядка.
+function hasExactPrimaryQueryTitle(entries: SearchEntry[], context: MergeContext): boolean {
+  const query = context.query as SearchQuery | undefined;
+  const queryTitle = "title" in (query ?? {}) ? query?.title : undefined;
+
+  return Boolean(queryTitle?.trim() && hasExactPrimaryTitle(entries, queryTitle));
 }
 
 // Keeps details attached to one strong-ID identity before any fields are combined.
@@ -1176,7 +1195,9 @@ function scoreGroup(group: SearchGroup, entries: SearchEntry[], context: MergeCo
   return boundedTextScore(
     baseScore +
       titleScore * 0.2 +
-      exactPrimaryTitleScore * 0.15 +
+      // Prefer exact primary/original intent over prefix and incidental-alias noise while
+      // still allowing overwhelmingly corroborated canonical results for broad short queries.
+      exactPrimaryTitleScore * 0.3 +
       popularityScore * 0.15 +
       ratingScore * 0.05 +
       idScore * 0.01 +

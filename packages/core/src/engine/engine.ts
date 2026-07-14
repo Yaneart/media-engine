@@ -45,6 +45,9 @@ const SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT = 3;
 const SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS = 1_500;
 const SEARCH_FALLBACK_MIN_TOKENS = 3;
 const SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH = 4;
+const SEARCH_JOINED_FALLBACK_MIN_LENGTH = 6;
+const SEARCH_JOINED_FALLBACK_MAX_LENGTH = 8;
+const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_PROVIDER_SEARCH_LIMIT = 100;
 
@@ -190,8 +193,9 @@ export class MediaEngine {
         ),
       );
 
-      providerResults.push(
-        ...fallbackOutcomes.flatMap((outcome) => (outcome.failure ? [] : outcome.results)),
+      appendUniqueSearchResults(
+        providerResults,
+        fallbackOutcomes.flatMap((outcome) => (outcome.failure ? [] : outcome.results)),
       );
       results = this.mergeStrategy.mergeSearchResults(providerResults, {
         query: normalizedQuery,
@@ -857,28 +861,72 @@ async function retryFailedSearchProviders(
   );
 }
 
-// Broadens an empty multi-word search by removing its likely mistyped final word.
-// Расширяет пустой многословный поиск, убирая последнее, вероятно ошибочное слово.
+// Broadens an empty typo search or separates one likely joined compound title.
+// Расширяет пустой поиск с опечаткой или разделяет вероятно слитное составное название.
 function createSearchFallbackQuery(query: SearchQuery): SearchQuery | undefined {
   if (!query.title || hasExternalIds(query.ids)) {
     return undefined;
   }
 
-  const tokens = query.title.trim().split(/\s+/);
+  const title = query.title.trim();
+  const tokens = title.split(/\s+/);
   const lastToken = tokens.at(-1);
 
   if (
-    tokens.length < SEARCH_FALLBACK_MIN_TOKENS ||
-    !lastToken ||
-    lastToken.length < SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH
+    tokens.length >= SEARCH_FALLBACK_MIN_TOKENS &&
+    lastToken &&
+    lastToken.length >= SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH
+  ) {
+    return {
+      ...query,
+      title: tokens.slice(0, -1).join(" "),
+    };
+  }
+
+  const characters = [...title];
+
+  if (
+    tokens.length !== 1 ||
+    characters.length < SEARCH_JOINED_FALLBACK_MIN_LENGTH ||
+    characters.length > SEARCH_JOINED_FALLBACK_MAX_LENGTH ||
+    !/^\p{Script=Cyrillic}+$/u.test(title)
+  ) {
+    return undefined;
+  }
+
+  const splitIndex = Math.floor(characters.length / 2);
+
+  if (
+    splitIndex < SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH ||
+    characters.length - splitIndex < SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH
   ) {
     return undefined;
   }
 
   return {
     ...query,
-    title: tokens.slice(0, -1).join(" "),
+    title: `${characters.slice(0, splitIndex).join("")} ${characters.slice(splitIndex).join("")}`,
   };
+}
+
+// Adds fallback discoveries without duplicating the same provider item and its attribution.
+// Добавляет fallback-результаты без дублирования item и атрибуции одного провайдера.
+function appendUniqueSearchResults(
+  target: ProviderSearchResult[],
+  candidates: ProviderSearchResult[],
+): void {
+  for (const candidate of candidates) {
+    const isDuplicate = target.some(
+      (existing) =>
+        existing.provider === candidate.provider &&
+        existing.item.type === candidate.item.type &&
+        existing.item.id === candidate.item.id,
+    );
+
+    if (!isDuplicate) {
+      target.push(candidate);
+    }
+  }
 }
 
 // Expands broad short queries more because final ranking needs enough cross-provider candidates.

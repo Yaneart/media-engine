@@ -919,6 +919,51 @@ test("search broadens an empty multi-word typo and ranks against the original qu
   assert.equal(response.results[0]?.item.title, "Game of Thrones");
 });
 
+test("search separates an empty joined compound title and ranks against the original query", async () => {
+  const receivedTitles: string[] = [];
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "joined-title-provider",
+        async search(query): Promise<ProviderSearchResult[]> {
+          receivedTitles.push(query.title ?? "");
+
+          return query.title === "ван пис"
+            ? [
+                {
+                  provider: "joined-title-provider",
+                  item: {
+                    id: "one-piece",
+                    type: "anime",
+                    title: "Ван-Пис",
+                    year: 1999,
+                  },
+                },
+                {
+                  provider: "joined-title-provider",
+                  item: {
+                    id: "unrelated",
+                    type: "movie",
+                    title: "Ван Хельсинг",
+                    year: 2004,
+                  },
+                },
+              ]
+            : [];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "ванпис", limit: 10 });
+
+  assert.deepEqual(receivedTitles, ["ванпис", "ван пис"]);
+  assert.deepEqual(
+    response.results.map((result) => result.item.title),
+    ["Ван-Пис"],
+  );
+});
+
 test("search returns empty response when no providers are available", async () => {
   const engine = new MediaEngine();
   const response = await engine.search({ title: "Interstellar" });
