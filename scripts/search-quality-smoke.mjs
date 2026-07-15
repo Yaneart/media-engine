@@ -2,6 +2,7 @@
 
 import { MediaEngine } from "../packages/core/dist/index.js";
 import {
+  aniListProvider,
   cinemetaProvider,
   kinobdProvider,
   shikimoriProvider,
@@ -22,6 +23,7 @@ const engine = new MediaEngine({
   },
   providers: [
     kinobdProvider(),
+    aniListProvider(),
     cinemetaProvider(),
     shikimoriProvider({
       userAgent: "MediaEngineSearchQualitySmoke/0.1.0",
@@ -495,9 +497,9 @@ function darkExpectation() {
 
 function attackOnTitanExpectation() {
   return {
-    type: "series",
+    type: "anime",
     titles: ["Attack on Titan", "Shingeki no Kyojin", "Атака титанов"],
-    ids: { imdb: "tt2560140", tmdb: "1429", kinopoisk: "749374" },
+    ids: { shikimori: "16498", myAnimeList: "16498" },
   };
 }
 
