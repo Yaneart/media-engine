@@ -1,7 +1,6 @@
 import type { Cache } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError } from "../errors/index.js";
-import type { ExternalIds, Image } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type MediaProvider, type ProviderInfo } from "../providers/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
@@ -34,7 +33,6 @@ import {
   createProviderSearchQuery,
   createSearchCacheKey,
   createSearchFallbackQuery,
-  EXTERNAL_ID_SHORTCUTS,
   hasExternalIds,
   inferTitleLanguage,
   normalizeDetailsQuery,
@@ -45,12 +43,16 @@ import {
   validateStreamQuery,
 } from "./query.js";
 import { createResponseMeta, elapsedSince } from "./response-meta.js";
+import {
+  applySearchPosterEnrichments,
+  loadSearchPoster,
+  needsSearchEnrichment,
+} from "./search-enrichment.js";
 import type { MediaEngineOptions } from "./types.js";
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
 const SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT = 3;
-const SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS = 1_500;
 
 // Main entry point for using Media Engine core.
 // Главная точка входа для использования Media Engine core.
@@ -214,12 +216,16 @@ export class MediaEngine {
         .filter((result) => hasExternalIds(result.item.ids))
         .map(async (result) => ({
           ids: result.item.ids,
-          poster: await this.loadSearchPoster(
-            result.item.type,
-            result.item.ids,
-            searchLanguage,
-            excludedPosterProviders,
-          ).catch(() => undefined),
+          poster: await loadSearchPoster({
+            type: result.item.type,
+            ids: result.item.ids,
+            language: searchLanguage,
+            excludedProviders: excludedPosterProviders,
+            registry: this.registry,
+            mergeStrategy: this.mergeStrategy,
+            debug: this.debug,
+            getProviderTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
+          }).catch(() => undefined),
         })),
     );
     const enrichmentResultsPromise = Promise.all(
@@ -282,12 +288,7 @@ export class MediaEngine {
       });
     }
 
-    const posterEnrichedResults = results.map((result) => {
-      const poster = posterEnrichments.find(
-        (enrichment) => enrichment.poster && hasSharedExternalId(result.item.ids, enrichment.ids),
-      )?.poster;
-      return poster ? { ...result, item: { ...result.item, poster } } : result;
-    });
+    const posterEnrichedResults = applySearchPosterEnrichments(results, posterEnrichments);
     const limitedResults =
       normalizedQuery.limit === undefined
         ? posterEnrichedResults
@@ -517,62 +518,11 @@ export class MediaEngine {
       : Math.min(this.timeoutMs, providerTimeoutMs);
   }
 
-  // Loads only the canonical poster needed by search without blocking on a full details request.
-  // Загружает только канонический постер для search, не блокируя полный details-запрос.
-  private async loadSearchPoster(
-    type: DetailsQuery["type"],
-    ids: ExternalIds | undefined,
-    language: string | undefined,
-    excludedProviders: ReadonlySet<string>,
-  ): Promise<Image | undefined> {
-    if (!hasExternalIds(ids)) {
-      return undefined;
-    }
-
-    const query: DetailsQuery = { type, ids, language };
-    const providers = this.registry
-      .selectDetailsProviders(query)
-      .filter((provider) => !excludedProviders.has(provider.name));
-    const outcomes = await Promise.all(
-      providers.map((provider) => {
-        const providerTimeoutMs = this.getProviderTimeoutMs(provider.name);
-        return callTimedProviderDetails(provider, query, {
-          debug: this.debug,
-          language,
-          timeoutMs:
-            providerTimeoutMs === undefined
-              ? SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS
-              : Math.min(providerTimeoutMs, SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS),
-        });
-      }),
-    );
-    const providerResults = outcomes.flatMap((outcome) =>
-      outcome.failure || !outcome.result ? [] : [outcome.result],
-    );
-
-    return this.mergeStrategy.mergeDetails(providerResults, {
-      query,
-      language,
-      debug: this.debug,
-      warnings: [],
-    })?.poster;
-  }
-
   // Gives future engine methods access to the debug flag.
   // Дает будущим методам движка доступ к debug-флагу.
   protected get engineDebug(): boolean {
     return this.debug;
   }
-}
-
-// Enriches compact catalog hits when follow-up cards would otherwise choose different metadata.
-// Обогащает compact catalog hits, чтобы search и details не выбирали разные metadata.
-function needsSearchEnrichment(item: {
-  ratings?: unknown[];
-  description?: string;
-  poster?: unknown;
-}): boolean {
-  return !item.ratings?.length || !item.description?.trim() || !item.poster;
 }
 
 // Validates streaming providers and rejects duplicate public names.
@@ -601,17 +551,4 @@ function validateStreamingProviders(providers: StreamingProvider[]): StreamingPr
   }
 
   return [...providers];
-}
-
-// Checks whether two normalized media identities share at least one exact external ID.
-// Проверяет, совпадает ли у двух нормализованных media identity хотя бы один внешний ID.
-function hasSharedExternalId(
-  left: ExternalIds | undefined,
-  right: ExternalIds | undefined,
-): boolean {
-  if (!left || !right) {
-    return false;
-  }
-
-  return EXTERNAL_ID_SHORTCUTS.some((key) => Boolean(left[key] && left[key] === right[key]));
 }
