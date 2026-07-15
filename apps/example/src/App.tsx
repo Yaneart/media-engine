@@ -2,38 +2,27 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import "./App.css";
 import { getMediaAvailability, getMediaDetails, searchMedia } from "./api";
+import {
+  formatCount,
+  formatMediaMeta,
+  formatPlayerMeta,
+  formatProviderFailure,
+  formatRating,
+  formatRuntime,
+  formatStatus,
+  getAvailabilityOptions,
+  getEpisodesCount,
+  groupAvailabilityOptions,
+  hasDetailsLookup,
+} from "./format";
 import type {
   AvailabilityMediaInput,
-  AvailabilityResponse,
-  DetailsResponse,
   ExternalIds,
   MediaDetails,
   MediaSummary,
   SearchFormQuery,
-  SearchResponse,
 } from "./api";
-
-type SearchState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "success"; response: SearchResponse }
-  | { status: "empty"; response: SearchResponse }
-  | { status: "error"; message: string };
-
-type DetailsState =
-  | { status: "idle" }
-  | { status: "loading"; item: MediaSummary }
-  | { status: "success"; item: MediaSummary; response: DetailsResponse }
-  | { status: "empty"; item: MediaSummary }
-  | { status: "error"; item?: MediaSummary; message: string };
-
-type AvailabilityState =
-  | { status: "idle" }
-  | { status: "loading"; item: MediaSummary }
-  | { status: "success"; item: MediaSummary; response: AvailabilityResponse }
-  | { status: "empty"; item: MediaSummary; response: AvailabilityResponse }
-  | { status: "error"; item?: MediaSummary; message: string };
-type AvailabilityOption = AvailabilityResponse["options"][number];
+import type { AvailabilityOption, AvailabilityState, DetailsState, SearchState } from "./state";
 
 // EN: Root React component for the Media Engine example application shell.
 // RU: Корневой React component для оболочки example приложения Media Engine.
@@ -718,145 +707,6 @@ function MetaList({ ids }: { ids?: ExternalIds }) {
       ))}
     </div>
   );
-}
-
-function hasDetailsLookup(item: MediaSummary): boolean {
-  return Boolean(item.ids && Object.values(item.ids).some((value) => Boolean(value)));
-}
-
-function formatMediaMeta(item: MediaSummary): string {
-  return [item.type, item.year].filter(Boolean).join(" · ");
-}
-
-function formatRating(ratings: MediaSummary["ratings"]): string {
-  const rating = ratings?.[0];
-
-  return rating ? `${rating.value}/${rating.max} ${rating.source}` : "No rating";
-}
-
-function formatRuntime(runtimeMinutes: number | undefined): string | undefined {
-  return runtimeMinutes ? `${runtimeMinutes} min` : undefined;
-}
-
-function formatStatus(status: MediaDetails["status"]): string | undefined {
-  if (!status || status === "unknown") {
-    return undefined;
-  }
-
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function formatCount(value: number | undefined): string | undefined {
-  return value === undefined ? undefined : String(value);
-}
-
-function getAvailabilityOptions(state: AvailabilityState): AvailabilityOption[] {
-  return state.status === "success" || state.status === "empty" ? state.response.options : [];
-}
-
-function groupAvailabilityOptions(
-  options: AvailabilityOption[],
-): Array<{ label: string; options: AvailabilityOption[] }> {
-  const groups = new Map<string, AvailabilityOption[]>();
-
-  for (const option of options) {
-    const label = formatTranslationGroup(option);
-    const group = groups.get(label);
-
-    if (group) {
-      group.push(option);
-    } else {
-      groups.set(label, [option]);
-    }
-  }
-
-  return [...groups.entries()].map(([label, groupOptions]) => ({
-    label,
-    options: groupOptions,
-  }));
-}
-
-function formatTranslationGroup(option: AvailabilityOption): string {
-  return formatTranslationTag(option) ?? "Other translations";
-}
-
-function formatPlayerMeta(option: AvailabilityOption): string {
-  return [
-    option.player.kind,
-    formatTranslationTag(option),
-    option.translation?.title,
-    option.quality?.label,
-    formatEpisodeRef(option),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function formatTranslationTag(option: AvailabilityOption): string | undefined {
-  const language = formatLanguageLabel(option.translation?.language);
-  const type =
-    option.translation?.type && option.translation.type !== "unknown"
-      ? formatTranslationType(option.translation.type)
-      : undefined;
-
-  return [language, type].filter(Boolean).join(" ") || undefined;
-}
-
-function formatLanguageLabel(language: string | undefined): string | undefined {
-  switch (language) {
-    case "ru":
-      return "Russian";
-    case "uk":
-      return "Ukrainian";
-    case "en":
-      return "English";
-    default:
-      return language?.toUpperCase();
-  }
-}
-
-function formatTranslationType(type: string): string {
-  switch (type) {
-    case "dub":
-      return "Dub";
-    case "voiceover":
-      return "Voiceover";
-    case "subtitles":
-      return "Subtitles";
-    case "original":
-      return "Original";
-    default:
-      return type;
-  }
-}
-
-function formatEpisodeRef(option: AvailabilityOption): string | undefined {
-  if (!option.episode) {
-    return undefined;
-  }
-
-  if (option.episode.seasonNumber !== undefined || option.episode.episodeNumber !== undefined) {
-    return `S${option.episode.seasonNumber ?? "?"}E${option.episode.episodeNumber ?? "?"}`;
-  }
-
-  return option.episode.absoluteEpisodeNumber === undefined
-    ? undefined
-    : `Episode ${option.episode.absoluteEpisodeNumber}`;
-}
-
-function formatProviderFailure(
-  failure: NonNullable<AvailabilityResponse["meta"]>["providers"]["failed"][number],
-): string {
-  return `${failure.provider}: ${failure.message}`;
-}
-
-// EN: Read episode counters only from media detail variants that can expose them.
-// RU: Читает счетчики эпизодов только из вариантов media details, где они возможны.
-function getEpisodesCount(details: MediaDetails): number | undefined {
-  return "episodesCount" in details ? details.episodesCount : undefined;
 }
 
 export default App;
