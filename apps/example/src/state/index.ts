@@ -1,4 +1,4 @@
-import type { AvailabilityResponse, DetailsResponse, MediaSummary, SearchResponse } from "./api";
+import type { AvailabilityResponse, DetailsResponse, MediaSummary, SearchResponse } from "../api";
 
 export type SearchState =
   | { status: "idle" }

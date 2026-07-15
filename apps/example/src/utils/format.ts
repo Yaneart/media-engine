@@ -1,5 +1,5 @@
-import type { AvailabilityResponse, MediaDetails, MediaSummary } from "./api";
-import type { AvailabilityOption, AvailabilityState } from "./state";
+import type { AvailabilityResponse, MediaDetails, MediaSummary } from "../api";
+import type { AvailabilityOption, AvailabilityState } from "../state";
 
 export function hasDetailsLookup(item: MediaSummary): boolean {
   return Boolean(item.ids && Object.values(item.ids).some((value) => Boolean(value)));

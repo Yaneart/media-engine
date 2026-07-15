@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import "./App.css";
 import { getMediaAvailability, getMediaDetails, searchMedia } from "./api";
 import { DetailsPanel, SearchPanel } from "./components";
-import { hasDetailsLookup } from "./format";
+import { hasDetailsLookup } from "./utils/format";
 import type { AvailabilityMediaInput, MediaSummary, SearchFormQuery } from "./api";
 import type { AvailabilityState, DetailsState, SearchState } from "./state";
 
