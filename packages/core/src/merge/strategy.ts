@@ -10,8 +10,8 @@ import type {
 } from "../media/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
 import type { MediaSearchResult, SearchQuery } from "../search/index.js";
+import { filterDetailsEntriesByIdentity, warnDetailsTypeConflicts } from "./details-identity.js";
 import { groupSearchResults } from "./grouping.js";
-import { hasSharedStrongId, strongIdConflicts } from "./identity.js";
 import type {
   DetailsEntry,
   ExternalIdKey,
@@ -19,7 +19,12 @@ import type {
   SearchGroup,
   SelectedExternalId,
 } from "./internal.js";
-import { EXTERNAL_ID_KEYS, STRONG_ID_KEYS } from "./internal.js";
+import { EXTERNAL_ID_KEYS } from "./internal.js";
+import {
+  selectMergedMediaType,
+  selectMergedSearchType,
+  selectMetadataPriorityType,
+} from "./media-type.js";
 import { providerRank, SEARCH_RESULT_PRIORITY, sortEntriesByPriority } from "./priority.js";
 import { hasExactPrimaryTitle, scoreGroup, titleRelevanceScore } from "./scoring.js";
 import { normalizeTitle, titleCandidates } from "./title.js";
@@ -109,62 +114,6 @@ function hasExactPrimaryQueryTitle(entries: SearchEntry[], context: MergeContext
   return Boolean(queryTitle?.trim() && hasExactPrimaryTitle(entries, queryTitle));
 }
 
-// Keeps details attached to one strong-ID identity before any fields are combined.
-// Оставляет details одной strong-ID сущности до объединения любых полей.
-function filterDetailsEntriesByIdentity(
-  entries: DetailsEntry[],
-  context: MergeContext,
-): DetailsEntry[] {
-  const selectedIds: ExternalIds = { ...readQueryExternalIds(context) };
-  const accepted: DetailsEntry[] = [];
-
-  for (const entry of entries) {
-    const ids = entry.result.details.ids;
-    const conflicts = strongIdConflicts(selectedIds, ids);
-
-    if (conflicts.length > 0 && !hasSharedStrongId(selectedIds, ids)) {
-      for (const key of conflicts) {
-        context.warnings?.push({
-          code: "EXTERNAL_ID_CONFLICT",
-          message: `Conflicting ${key} IDs while merging details; excluded ${ids?.[key]}.`,
-          provider: entry.result.provider,
-        });
-      }
-      continue;
-    }
-
-    accepted.push(entry);
-
-    for (const key of STRONG_ID_KEYS) {
-      if (!selectedIds[key] && ids?.[key]) {
-        selectedIds[key] = ids[key];
-      }
-    }
-  }
-
-  return accepted;
-}
-
-function readQueryExternalIds(context: MergeContext): ExternalIds | undefined {
-  const query = context.query;
-
-  if (!query) {
-    return undefined;
-  }
-
-  const ids: ExternalIds = { ...query.ids };
-
-  for (const key of STRONG_ID_KEYS) {
-    const value = query[key];
-
-    if (typeof value === "string" && value.trim()) {
-      ids[key] = value.trim();
-    }
-  }
-
-  return Object.keys(ids).length > 0 ? ids : undefined;
-}
-
 // Drops provider noise that has no textual relationship to a title query.
 // Убирает шум провайдеров, который никак текстово не связан с title-запросом.
 function isSearchGroupRelevant(group: SearchGroup, context: MergeContext): boolean {
@@ -225,23 +174,6 @@ function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearc
     score: scoreGroup(group, sortedEntries, context),
     sources: mergeSources(sortedEntries),
   };
-}
-
-// Preserves anime semantics when a generic series catalog describes the same animated title.
-// Сохраняет anime-семантику, когда generic series-каталог описывает тот же анимационный тайтл.
-function selectMergedSearchType(entries: SearchEntry[]): MediaType | undefined {
-  return selectMergedMediaType(entries.map((entry) => entry.result.item));
-}
-
-// Uses general-series metadata priority for mixed anime/catalog groups without losing anime type.
-// Использует приоритет metadata сериалов для смешанных anime/catalog групп без потери anime-типа.
-function selectMetadataPriorityType(items: MediaItem[]): MediaType | undefined {
-  const types = new Set(items.map((item) => item.type));
-  return types.has("anime") && types.has("series") ? "series" : items[0]?.type;
-}
-
-function selectMergedMediaType(items: MediaItem[]): MediaType | undefined {
-  return items.some((item) => item.type === "anime") ? "anime" : items[0]?.type;
 }
 
 // Merges sorted details entries while keeping unsafe nested fields from primary.
@@ -832,33 +764,6 @@ function mergeDetailsImages(entries: DetailsEntry[]): Image[] | undefined {
   }
 
   return images.size > 0 ? [...images.values()] : undefined;
-}
-
-// Emits warnings when details results contain conflicting media types.
-// Добавляет warnings, когда details-результаты содержат конфликтующие типы медиа.
-function warnDetailsTypeConflicts(
-  entries: DetailsEntry[],
-  context: MergeContext,
-  selectedType?: MediaType,
-): void {
-  const primaryType = selectedType ?? entries[0]?.result.details.type;
-
-  if (!primaryType) {
-    return;
-  }
-
-  for (const entry of entries) {
-    const entryType = entry.result.details.type;
-    const isCompatibleAnimeCatalogType = primaryType === "anime" && entryType === "series";
-
-    if (entryType !== primaryType && !isCompatibleAnimeCatalogType) {
-      context.warnings?.push({
-        code: "MEDIA_TYPE_CONFLICT",
-        message: `Conflicting media types while merging details; kept ${primaryType}.`,
-        provider: entry.result.provider,
-      });
-    }
-  }
 }
 
 // Returns the first non-empty selected value from sorted entries.
