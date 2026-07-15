@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  kinobdStreamingProvider,
-  type KinoBdPlayerAudit,
-  type KinoBdStreamingProviderOptions,
-} from "./index.js";
+import { kinobdStreamingProvider, type KinoBdPlayerAudit } from "./index.js";
+import { createMockFetch, createProvider, type RequestRecord } from "./test-helpers.js";
 
 test("kinobdStreamingProvider exposes no-token streaming capabilities", () => {
   const provider = kinobdStreamingProvider();
@@ -943,36 +940,3 @@ test("kinobdStreamingProvider validates numeric options", () => {
     /playerValidationTimeoutMs/,
   );
 });
-
-function createProvider(options: Partial<KinoBdStreamingProviderOptions>) {
-  return kinobdStreamingProvider({
-    baseUrl: "https://kinobd.test",
-    ...options,
-  });
-}
-
-interface RequestRecord {
-  method: string;
-  path: string;
-  search: string;
-  query: URLSearchParams;
-  body: URLSearchParams;
-}
-
-function createMockFetch(requests: RequestRecord[], responses: Record<string, unknown>) {
-  return async (input: string | URL, init?: RequestInit): Promise<Response> => {
-    const url = new URL(String(input));
-    const method = init?.method ?? "GET";
-    const body = new URLSearchParams(String(init?.body ?? ""));
-
-    requests.push({
-      method,
-      path: url.pathname,
-      search: url.search,
-      query: url.searchParams,
-      body,
-    });
-
-    return Response.json(responses[`${method} ${url.pathname}`] ?? {});
-  };
-}
