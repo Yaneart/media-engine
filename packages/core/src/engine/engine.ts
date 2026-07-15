@@ -48,6 +48,7 @@ import {
   loadSearchPoster,
   needsSearchEnrichment,
 } from "./search-enrichment.js";
+import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
 import type { MediaEngineOptions } from "./types.js";
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
@@ -507,15 +508,7 @@ export class MediaEngine {
   // Resolves a provider override without allowing it to exceed the global boundary.
   // Выбирает override провайдера, не позволяя ему превысить глобальную границу.
   private getProviderTimeoutMs(providerName: string): number | undefined {
-    const providerTimeoutMs = this.providerTimeouts[providerName];
-
-    if (providerTimeoutMs === undefined) {
-      return this.timeoutMs;
-    }
-
-    return this.timeoutMs === undefined
-      ? providerTimeoutMs
-      : Math.min(this.timeoutMs, providerTimeoutMs);
+    return resolveProviderTimeoutMs(providerName, this.timeoutMs, this.providerTimeouts);
   }
 
   // Gives future engine methods access to the debug flag.
@@ -523,32 +516,4 @@ export class MediaEngine {
   protected get engineDebug(): boolean {
     return this.debug;
   }
-}
-
-// Validates streaming providers and rejects duplicate public names.
-// Проверяет streaming-провайдеры и отклоняет дубли публичных имен.
-function validateStreamingProviders(providers: StreamingProvider[]): StreamingProvider[] {
-  const names = new Set<string>();
-
-  for (const provider of providers) {
-    const name = provider.name.trim();
-
-    if (!name) {
-      throw new Error("Streaming provider name is required.");
-    }
-
-    if (name !== provider.name) {
-      throw new Error(
-        `Streaming provider name "${provider.name}" must not include leading or trailing whitespace.`,
-      );
-    }
-
-    if (names.has(name)) {
-      throw new Error(`Streaming provider "${name}" is already registered.`);
-    }
-
-    names.add(name);
-  }
-
-  return [...providers];
 }
