@@ -5,12 +5,7 @@ import type { ExternalIds, Image } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type MediaProvider, type ProviderInfo } from "../providers/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
-import type {
-  EngineWarning,
-  ProviderFailure,
-  ProviderTimingMeta,
-  ResponseMeta,
-} from "../response/index.js";
+import type { EngineWarning, ProviderFailure, ProviderTimingMeta } from "../response/index.js";
 import type { SearchQuery, SearchResponse } from "../search/index.js";
 import type {
   MediaAvailability,
@@ -49,6 +44,7 @@ import {
   validateSearchQuery,
   validateStreamQuery,
 } from "./query.js";
+import { createResponseMeta, elapsedSince } from "./response-meta.js";
 import type { MediaEngineOptions } from "./types.js";
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
@@ -607,40 +603,6 @@ function validateStreamingProviders(providers: StreamingProvider[]): StreamingPr
   return [...providers];
 }
 
-// Values used to build response metadata.
-// Значения, используемые для создания метаданных ответа.
-interface ResponseMetaInput {
-  requested: string[];
-  successful: string[];
-  failed: ProviderFailure[];
-  warnings: EngineWarning[];
-  cached: boolean;
-  tookMs: number;
-  debug: boolean;
-  timings?: ProviderTimingMeta[];
-}
-
-// Creates public response metadata for a search call.
-// Создает публичные метаданные ответа для search-вызова.
-function createResponseMeta(input: ResponseMetaInput): ResponseMeta {
-  return {
-    providers: {
-      requested: input.requested,
-      successful: input.successful,
-      failed: input.failed,
-    },
-    cached: input.cached,
-    tookMs: input.tookMs,
-    warnings: input.warnings.length > 0 ? input.warnings : undefined,
-    debug: input.debug
-      ? {
-          providers: input.requested,
-          timings: input.timings ?? [],
-        }
-      : undefined,
-  };
-}
-
 // Checks whether two normalized media identities share at least one exact external ID.
 // Проверяет, совпадает ли у двух нормализованных media identity хотя бы один внешний ID.
 function hasSharedExternalId(
@@ -652,10 +614,4 @@ function hasSharedExternalId(
   }
 
   return EXTERNAL_ID_SHORTCUTS.some((key) => Boolean(left[key] && left[key] === right[key]));
-}
-
-// Returns elapsed milliseconds since a start timestamp.
-// Возвращает количество миллисекунд, прошедших с начального timestamp.
-function elapsedSince(startedAt: number): number {
-  return Date.now() - startedAt;
 }

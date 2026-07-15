@@ -8,6 +8,7 @@ import type {
 import type { ProviderFailure, ProviderTimingMeta } from "../response/index.js";
 import type { MediaAvailability, StreamQuery, StreamingProvider } from "../streaming/index.js";
 import { createProviderSearchQuery } from "./query.js";
+import { elapsedSince } from "./response-meta.js";
 
 // Context passed to a single provider call.
 // Контекст, передаваемый в один вызов провайдера.
@@ -278,10 +279,4 @@ async function withProviderTimeout<T>(
       clearTimeout(timeout);
     }
   }
-}
-
-// Returns elapsed milliseconds since a start timestamp.
-// Возвращает количество миллисекунд, прошедших с начального timestamp.
-function elapsedSince(startedAt: number): number {
-  return Date.now() - startedAt;
 }
