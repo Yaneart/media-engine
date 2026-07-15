@@ -1,15 +1,10 @@
 import type { Cache, CacheSetOptions } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
-import { MediaEngineError, ProviderError, toProviderFailure } from "../errors/index.js";
+import { MediaEngineError } from "../errors/index.js";
 import type { ExternalIds, Image } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type MediaProvider, type ProviderInfo } from "../providers/index.js";
-import type {
-  ProviderDetailsQuery,
-  ProviderDetailsResult,
-  ProviderSearchQuery,
-  ProviderSearchResult,
-} from "../providers/index.js";
+import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
 import type {
   EngineWarning,
   ProviderFailure,
@@ -26,6 +21,15 @@ import type {
   StreamingProviderInfo,
   StreamingProviderSource,
 } from "../streaming/index.js";
+import {
+  callTimedProviderAvailability,
+  callTimedProviderDetails,
+  callTimedProviderSearch,
+  retryFailedSearchProviders,
+  type ProviderAvailabilityCallOutcome,
+  type ProviderDetailsCallOutcome,
+  type ProviderSearchCallOutcome,
+} from "./provider-calls.js";
 import {
   appendUniqueSearchResults,
   createAvailabilityCacheKey,
@@ -603,20 +607,6 @@ function validateStreamingProviders(providers: StreamingProvider[]): StreamingPr
   return [...providers];
 }
 
-// Context passed to a single provider call.
-// Контекст, передаваемый в один вызов провайдера.
-interface ProviderCallContext {
-  debug: boolean;
-  language?: string;
-  timeoutMs?: number;
-}
-
-interface SearchRetryContext {
-  debug: boolean;
-  language?: string;
-  getTimeoutMs(providerName: string): number | undefined;
-}
-
 // Values used to build response metadata.
 // Значения, используемые для создания метаданных ответа.
 interface ResponseMetaInput {
@@ -628,33 +618,6 @@ interface ResponseMetaInput {
   tookMs: number;
   debug: boolean;
   timings?: ProviderTimingMeta[];
-}
-
-// Result of one provider search call after timing and failure normalization.
-// Результат одного search-вызова провайдера после замера времени и нормализации ошибок.
-interface ProviderSearchCallOutcome {
-  provider: string;
-  timing: ProviderTimingMeta;
-  results: ProviderSearchResult[];
-  failure?: ProviderFailure;
-}
-
-// Result of one provider details call after timing and failure normalization.
-// Результат одного details-вызова провайдера после замера времени и нормализации ошибок.
-interface ProviderDetailsCallOutcome {
-  provider: string;
-  timing: ProviderTimingMeta;
-  result: ProviderDetailsResult | null;
-  failure?: ProviderFailure;
-}
-
-// Result of one streaming provider call after timing and failure normalization.
-// Результат одного streaming-вызова провайдера после замера времени и нормализации ошибок.
-interface ProviderAvailabilityCallOutcome {
-  provider: string;
-  timing: ProviderTimingMeta;
-  result: MediaAvailability | null;
-  failure?: ProviderFailure;
 }
 
 // Selects streaming providers that can answer the normalized stream query.
@@ -681,191 +644,6 @@ function selectStreamingProviders(
       hasSupportedExternalId(query.ids, provider.capabilities.lookup.byExternalIds)
     );
   });
-}
-
-// Retries only transient failures when every selected search provider failed together.
-// Повторяет только временные ошибки, когда одновременно упали все выбранные search-провайдеры.
-async function retryFailedSearchProviders(
-  providers: MediaProvider[],
-  outcomes: ProviderSearchCallOutcome[],
-  query: SearchQuery,
-  context: SearchRetryContext,
-): Promise<ProviderSearchCallOutcome[]> {
-  return Promise.all(
-    outcomes.map(async (outcome, index) => {
-      const provider = providers[index];
-
-      if (!provider || !outcome.failure?.retryable) {
-        return outcome;
-      }
-
-      return callTimedProviderSearch(provider, createProviderSearchQuery(query), {
-        debug: context.debug,
-        language: context.language,
-        timeoutMs: context.getTimeoutMs(provider.name),
-      });
-    }),
-  );
-}
-
-// Calls one search provider and returns normalized timing/failure metadata.
-// Вызывает один search-провайдер и возвращает нормализованные timing/failure метаданные.
-async function callTimedProviderSearch(
-  provider: MediaProvider,
-  query: ProviderSearchQuery,
-  context: ProviderCallContext,
-): Promise<ProviderSearchCallOutcome> {
-  const startedAt = Date.now();
-
-  try {
-    const results = await callProviderSearch(provider, query, context);
-
-    return {
-      provider: provider.name,
-      timing: {
-        provider: provider.name,
-        status: "success",
-        tookMs: elapsedSince(startedAt),
-      },
-      results,
-    };
-  } catch (error) {
-    return {
-      provider: provider.name,
-      timing: {
-        provider: provider.name,
-        status: "failed",
-        tookMs: elapsedSince(startedAt),
-      },
-      results: [],
-      failure: toProviderFailure(provider.name, error),
-    };
-  }
-}
-
-// Calls one details provider and returns normalized timing/failure metadata.
-// Вызывает один details-провайдер и возвращает нормализованные timing/failure метаданные.
-async function callTimedProviderDetails(
-  provider: MediaProvider,
-  query: ProviderDetailsQuery,
-  context: ProviderCallContext,
-): Promise<ProviderDetailsCallOutcome> {
-  const startedAt = Date.now();
-
-  try {
-    const result = await callProviderDetails(provider, query, context);
-
-    return {
-      provider: provider.name,
-      timing: {
-        provider: provider.name,
-        status: "success",
-        tookMs: elapsedSince(startedAt),
-      },
-      result,
-    };
-  } catch (error) {
-    return {
-      provider: provider.name,
-      timing: {
-        provider: provider.name,
-        status: "failed",
-        tookMs: elapsedSince(startedAt),
-      },
-      result: null,
-      failure: toProviderFailure(provider.name, error),
-    };
-  }
-}
-
-// Calls one streaming provider and returns normalized timing/failure metadata.
-// Вызывает один streaming-провайдер и возвращает нормализованные timing/failure метаданные.
-async function callTimedProviderAvailability(
-  provider: StreamingProvider,
-  query: StreamQuery,
-  context: ProviderCallContext,
-): Promise<ProviderAvailabilityCallOutcome> {
-  const startedAt = Date.now();
-
-  try {
-    const result = await callProviderAvailability(provider, query, context);
-
-    return {
-      provider: provider.name,
-      timing: {
-        provider: provider.name,
-        status: "success",
-        tookMs: elapsedSince(startedAt),
-      },
-      result,
-    };
-  } catch (error) {
-    return {
-      provider: provider.name,
-      timing: {
-        provider: provider.name,
-        status: "failed",
-        tookMs: elapsedSince(startedAt),
-      },
-      result: null,
-      failure: toProviderFailure(provider.name, error),
-    };
-  }
-}
-
-// Calls one provider search method with timeout and abort signal support.
-// Вызывает search одного провайдера с поддержкой timeout и abort signal.
-async function callProviderSearch(
-  provider: MediaProvider,
-  query: ProviderSearchQuery,
-  context: ProviderCallContext,
-): Promise<ProviderSearchResult[]> {
-  return withProviderTimeout(provider.name, context, (controller) =>
-    provider.search(query, {
-      signal: controller.signal,
-      timeoutMs: context.timeoutMs,
-      debug: context.debug,
-      language: context.language,
-    }),
-  );
-}
-
-// Calls one provider details method with timeout and abort signal support.
-// Вызывает getDetails одного провайдера с поддержкой timeout и abort signal.
-async function callProviderDetails(
-  provider: MediaProvider,
-  query: ProviderDetailsQuery,
-  context: ProviderCallContext,
-): Promise<ProviderDetailsResult | null> {
-  if (!provider.getDetails) {
-    return null;
-  }
-
-  return withProviderTimeout(provider.name, context, (controller) =>
-    provider.getDetails!(query, {
-      signal: controller.signal,
-      timeoutMs: context.timeoutMs,
-      debug: context.debug,
-      language: context.language,
-    }),
-  );
-}
-
-// Calls one streaming provider with timeout and abort signal support.
-// Вызывает один streaming-провайдер с поддержкой timeout и abort signal.
-async function callProviderAvailability(
-  provider: StreamingProvider,
-  query: StreamQuery,
-  context: ProviderCallContext,
-): Promise<MediaAvailability | null> {
-  return withProviderTimeout(provider.name, context, (controller) =>
-    provider.getAvailability(query, {
-      signal: controller.signal,
-      timeoutMs: context.timeoutMs,
-      debug: context.debug,
-      language: context.language,
-    }),
-  );
 }
 
 // Merges availability results without hiding provider attribution.
@@ -938,51 +716,6 @@ function createEpisodeAvailabilityFromOptions(
       absoluteEpisodeNumber: option.episode?.absoluteEpisodeNumber,
       options: [option],
     }));
-}
-
-// Wraps a provider promise with configured timeout behavior.
-// Оборачивает promise провайдера настроенным timeout-поведением.
-async function withProviderTimeout<T>(
-  providerName: string,
-  context: ProviderCallContext,
-  run: (controller: AbortController) => Promise<T>,
-): Promise<T> {
-  const controller = new AbortController();
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    const providerPromise = run(controller);
-
-    if (context.timeoutMs === undefined) {
-      return await providerPromise;
-    }
-
-    const timeoutPromise = new Promise<T>((_, reject) => {
-      const timeoutError = new ProviderError({
-        provider: providerName,
-        code: "PROVIDER_TIMEOUT",
-        message: `Provider "${providerName}" timed out.`,
-        retryable: true,
-      });
-
-      if (context.timeoutMs! <= 0) {
-        controller.abort(timeoutError);
-        reject(timeoutError);
-        return;
-      }
-
-      timeout = setTimeout(() => {
-        controller.abort(timeoutError);
-        reject(timeoutError);
-      }, context.timeoutMs);
-    });
-
-    return await Promise.race([providerPromise, timeoutPromise]);
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-  }
 }
 
 // Creates public response metadata for a search call.
