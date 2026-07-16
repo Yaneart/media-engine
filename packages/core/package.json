@@ -38,6 +38,9 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js",
     "!dist/**/*.test.js.map",
+    "!dist/**/*test-helpers.d.ts",
+    "!dist/**/*test-helpers.js",
+    "!dist/**/*test-helpers.js.map",
     "README.md",
     "README.ru.md"
   ],
@@ -47,6 +50,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/providers/registry.test.js dist/errors/types.test.js dist/merge/strategy.search.test.js dist/merge/strategy.details.test.js dist/cache/memory.test.js dist/engine/engine.config.test.js dist/engine/engine.search.test.js dist/engine/engine.details.test.js dist/engine/engine.availability.test.js dist/testing/providers.test.js dist/streaming/types.test.js"
+    "test": "pnpm build && node --test dist/providers/registry.test.js dist/errors/types.test.js dist/merge/strategy.search.merge.test.js dist/merge/strategy.search.ranking.test.js dist/merge/strategy.details.test.js dist/cache/memory.test.js dist/engine/engine.config.test.js dist/engine/engine.search.query.test.js dist/engine/engine.search.results.test.js dist/engine/engine.search.providers.test.js dist/engine/engine.search.fallback.test.js dist/engine/engine.details.test.js dist/engine/engine.availability.test.js dist/testing/providers.test.js dist/streaming/types.test.js"
   }
 }
