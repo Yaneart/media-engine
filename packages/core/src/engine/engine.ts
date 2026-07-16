@@ -2,7 +2,7 @@ import type { Cache } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError } from "../errors/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
-import { ProviderRegistry, type MediaProvider, type ProviderInfo } from "../providers/index.js";
+import { ProviderRegistry, type ProviderInfo } from "../providers/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
 import type { EngineWarning, ProviderFailure, ProviderTimingMeta } from "../response/index.js";
 import type { SearchQuery, SearchResponse } from "../search/index.js";
@@ -23,9 +23,6 @@ import {
   callTimedProviderDetails,
   callTimedProviderSearch,
   retryFailedSearchProviders,
-  type ProviderAvailabilityCallOutcome,
-  type ProviderDetailsCallOutcome,
-  type ProviderSearchCallOutcome,
 } from "./provider-calls.js";
 import {
   appendUniqueSearchResults,

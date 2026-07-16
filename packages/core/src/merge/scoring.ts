@@ -1,4 +1,3 @@
-import type { MediaItem } from "../media/index.js";
 import type { SearchQuery } from "../search/index.js";
 import { hasSharedStrongId } from "./identity.js";
 import type { SearchEntry, SearchGroup } from "./internal.js";
