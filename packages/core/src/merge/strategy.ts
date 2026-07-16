@@ -4,7 +4,6 @@ import type { MediaSearchResult, SearchQuery } from "../search/index.js";
 import { filterDetailsEntriesByIdentity, warnDetailsTypeConflicts } from "./details-identity.js";
 import {
   firstDefined,
-  firstDefinedDetails,
   firstMeaningfulDetailsStatus,
   mergeAlternativeTitles,
   mergeDetailsAlternativeTitles,
@@ -213,16 +212,13 @@ function mergeDetailsEntries(
     id: primary.id,
     type: primary.type,
     title,
-    originalTitle: firstDefinedDetails(entries, (entry) => entry.result.details.originalTitle),
+    originalTitle: firstDefined(entries, (entry) => entry.result.details.originalTitle),
     alternativeTitles: mergeDetailsAlternativeTitles(entries, title),
     status: firstMeaningfulDetailsStatus(entries),
     year: selectDetailsYear(entries, context),
     releaseDate: selectDetailsReleaseDate(entries),
     description: selectDetailsDescription(entries, context),
-    shortDescription: firstDefinedDetails(
-      entries,
-      (entry) => entry.result.details.shortDescription,
-    ),
+    shortDescription: firstDefined(entries, (entry) => entry.result.details.shortDescription),
     poster: selectBestDetailsImage(entries, "poster"),
     backdrop: selectBestDetailsImage(entries, "backdrop"),
     genres: mergeDetailsGenres(entries),
@@ -239,13 +235,13 @@ function mergeDetailsEntries(
       return {
         ...common,
         type: "series",
-        seasons: firstDefinedDetails(entries, (entry) =>
+        seasons: firstDefined(entries, (entry) =>
           entry.result.details.type === "series" ? entry.result.details.seasons : undefined,
         ),
-        episodesCount: firstDefinedDetails(entries, (entry) =>
+        episodesCount: firstDefined(entries, (entry) =>
           entry.result.details.type === "series" ? entry.result.details.episodesCount : undefined,
         ),
-        seasonsCount: firstDefinedDetails(entries, (entry) =>
+        seasonsCount: firstDefined(entries, (entry) =>
           entry.result.details.type === "series" ? entry.result.details.seasonsCount : undefined,
         ),
       };
@@ -253,10 +249,10 @@ function mergeDetailsEntries(
       return {
         ...common,
         type: "anime",
-        episodes: firstDefinedDetails(entries, (entry) =>
+        episodes: firstDefined(entries, (entry) =>
           entry.result.details.type === "anime" ? entry.result.details.episodes : undefined,
         ),
-        episodesCount: firstDefinedDetails(entries, (entry) =>
+        episodesCount: firstDefined(entries, (entry) =>
           "episodesCount" in entry.result.details ? entry.result.details.episodesCount : undefined,
         ),
       };

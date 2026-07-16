@@ -71,7 +71,7 @@ export function selectDetailsTitle(
     }
   }
 
-  return firstDefinedDetails(entries, (entry) => entry.result.details.title);
+  return firstDefined(entries, (entry) => entry.result.details.title);
 }
 
 // Selects the primary year and emits warnings for conflicting years.
@@ -100,7 +100,7 @@ export function selectDetailsYear(
   entries: DetailsEntry[],
   context: MergeContext,
 ): number | undefined {
-  const primaryYear = firstDefinedDetails(entries, (entry) => entry.result.details.year);
+  const primaryYear = firstDefined(entries, (entry) => entry.result.details.year);
 
   for (const entry of entries) {
     const year = entry.result.details.year;
@@ -183,21 +183,7 @@ export function selectBestImage(
   entries: SearchEntry[],
   field: "poster" | "backdrop",
 ): Image | undefined {
-  const images = entries
-    .map((entry, index) => ({ image: entry.result.item[field], index }))
-    .filter((candidate): candidate is { image: Image; index: number } =>
-      isValidImageUrl(candidate.image),
-    );
-
-  return [...images].sort((left, right) => {
-    const areaDiff = imageArea(right.image) - imageArea(left.image);
-
-    if (areaDiff !== 0) {
-      return areaDiff;
-    }
-
-    return left.index - right.index;
-  })[0]?.image;
+  return selectBestEntryImage(entries, (entry) => entry.result.item[field]);
 }
 
 // Selects the best valid details poster or backdrop image.
@@ -206,21 +192,7 @@ export function selectBestDetailsImage(
   entries: DetailsEntry[],
   field: "poster" | "backdrop",
 ): Image | undefined {
-  const images = entries
-    .map((entry, index) => ({ image: entry.result.details[field], index }))
-    .filter((candidate): candidate is { image: Image; index: number } =>
-      isValidImageUrl(candidate.image),
-    );
-
-  return [...images].sort((left, right) => {
-    const areaDiff = imageArea(right.image) - imageArea(left.image);
-
-    if (areaDiff !== 0) {
-      return areaDiff;
-    }
-
-    return left.index - right.index;
-  })[0]?.image;
+  return selectBestEntryImage(entries, (entry) => entry.result.details[field]);
 }
 
 // Merges unique genres by normalized genre name.
@@ -377,26 +349,9 @@ export function mergeDetailsImages(entries: DetailsEntry[]): Image[] | undefined
 
 // Returns the first non-empty selected value from sorted entries.
 // Возвращает первое непустое выбранное значение из отсортированных entries.
-export function firstDefined<T>(
-  entries: SearchEntry[],
-  pick: (entry: SearchEntry) => T | undefined,
-): T | undefined {
-  for (const entry of entries) {
-    const value = pick(entry);
-
-    if (value !== undefined && value !== "") {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
-// Returns the first non-empty selected value from sorted details entries.
-// Возвращает первое непустое выбранное значение из отсортированных details entries.
-export function firstDefinedDetails<T>(
-  entries: DetailsEntry[],
-  pick: (entry: DetailsEntry) => T | undefined,
+export function firstDefined<Entry, T>(
+  entries: Entry[],
+  pick: (entry: Entry) => T | undefined,
 ): T | undefined {
   for (const entry of entries) {
     const value = pick(entry);
@@ -412,11 +367,32 @@ export function firstDefinedDetails<T>(
 // Returns the first lifecycle status that carries useful provider information.
 // Возвращает первый lifecycle status, который несет полезную информацию от provider.
 export function firstMeaningfulDetailsStatus(entries: DetailsEntry[]): MediaDetails["status"] {
-  return firstDefinedDetails(entries, (entry) => {
+  return firstDefined(entries, (entry) => {
     const status = entry.result.details.status;
 
     return status === "unknown" ? undefined : status;
   });
+}
+
+function selectBestEntryImage<Entry>(
+  entries: Entry[],
+  pick: (entry: Entry) => Image | undefined,
+): Image | undefined {
+  const images = entries
+    .map((entry, index) => ({ image: pick(entry), index }))
+    .filter((candidate): candidate is { image: Image; index: number } =>
+      isValidImageUrl(candidate.image),
+    );
+
+  return [...images].sort((left, right) => {
+    const areaDiff = imageArea(right.image) - imageArea(left.image);
+
+    if (areaDiff !== 0) {
+      return areaDiff;
+    }
+
+    return left.index - right.index;
+  })[0]?.image;
 }
 
 function selectExactQueryTitle(values: string[], queryTitle: string): string | undefined {
