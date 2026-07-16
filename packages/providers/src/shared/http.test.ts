@@ -147,6 +147,34 @@ test("fetchJson returns the last retryable provider failure after retries", asyn
   assert.equal(calls, 3);
 });
 
+test("fetchJson respects Retry-After within the bounded retry delay", async () => {
+  let calls = 0;
+  const startedAt = Date.now();
+
+  const result = await fetchJson<{ ok: true }>({
+    provider: "test-provider",
+    url: "https://example.test/movie",
+    maxRetries: 1,
+    retryDelayMs: 0,
+    maxRetryDelayMs: 15,
+    retryJitterRatio: 0,
+    fetch: async () => {
+      calls += 1;
+      return calls === 1
+        ? new Response("rate limited", {
+            status: 429,
+            headers: { "retry-after": "1" },
+          })
+        : Response.json({ ok: true });
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.deepEqual(result, { ok: true });
+  assert.ok(Date.now() - startedAt >= 10);
+  assert.ok(Date.now() - startedAt < 200);
+});
+
 test("fetchJson stops retry backoff when the provider call is aborted", async () => {
   const controller = new AbortController();
   const timeoutError = new ProviderError({

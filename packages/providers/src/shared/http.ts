@@ -1,5 +1,6 @@
 import { ProviderError, type ProviderErrorCode } from "@media-engine/core";
 import type { ProviderContext } from "@media-engine/core";
+import { calculateRetryDelayMs, parseRetryAfterMs } from "./retry.js";
 
 // Minimal fetch function shape used by provider HTTP utilities.
 // Минимальная форма fetch-функции для provider HTTP utilities.
@@ -91,6 +92,8 @@ export interface FetchJsonOptions {
   fetch?: ProviderFetch;
   maxRetries?: number;
   retryDelayMs?: number;
+  maxRetryDelayMs?: number;
+  retryJitterRatio?: number;
 }
 
 // Reads JSON through fetch and maps failures to ProviderError.
@@ -98,6 +101,8 @@ export interface FetchJsonOptions {
 export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
   const maxRetries = options.maxRetries ?? 1;
   const retryDelayMs = options.retryDelayMs ?? 150;
+  const maxRetryDelayMs = options.maxRetryDelayMs ?? 2_000;
+  const retryJitterRatio = options.retryJitterRatio ?? 0.2;
   const timeout = createProviderTimeout(options.provider, options.context);
   const signal = mergeAbortSignals(options.context?.signal, timeout.controller.signal);
   const boundedOptions: FetchJsonOptions = {
@@ -124,7 +129,17 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
           throw providerError;
         }
 
-        await delay(getRetryDelayMs(retryDelayMs, attempt), signal);
+        await delay(
+          calculateRetryDelayMs({
+            baseDelayMs: retryDelayMs,
+            attempt,
+            maxDelayMs: maxRetryDelayMs,
+            jitterRatio: retryJitterRatio,
+            randomValue: Math.random(),
+            retryAfterMs: getRetryAfterMs(providerError),
+          }),
+          signal,
+        );
         attempt += 1;
       }
     }
@@ -149,7 +164,7 @@ async function fetchJsonAttempt<T>(options: FetchJsonOptions): Promise<T> {
     });
 
     if (!response.ok) {
-      throw createHttpProviderError(options.provider, response.status);
+      throw createHttpProviderError(options.provider, response);
     }
 
     return await parseJsonResponse<T>(options.provider, response);
@@ -230,15 +245,38 @@ export function mapHttpStatusToProviderErrorCode(status: number): ProviderErrorC
 
 // Creates a ProviderError from an HTTP response status.
 // Создает ProviderError из HTTP status ответа.
-function createHttpProviderError(provider: string, status: number): ProviderError {
+function createHttpProviderError(provider: string, response: Response): ProviderError {
+  const status = response.status;
   const code = mapHttpStatusToProviderErrorCode(status);
 
-  return new ProviderError({
+  return new HttpProviderError({
     provider,
     code,
     message: `Provider "${provider}" returned HTTP ${status}.`,
     retryable: code === "PROVIDER_RATE_LIMITED" || code === "PROVIDER_UNAVAILABLE",
+    retryAfterMs: parseRetryAfterMs(response.headers.get("retry-after")),
   });
+}
+
+interface HttpProviderErrorOptions {
+  provider: string;
+  code: ProviderErrorCode;
+  message: string;
+  retryable: boolean;
+  retryAfterMs?: number;
+}
+
+class HttpProviderError extends ProviderError {
+  readonly retryAfterMs: number | undefined;
+
+  constructor(options: HttpProviderErrorOptions) {
+    super(options);
+    this.retryAfterMs = options.retryAfterMs;
+  }
+}
+
+function getRetryAfterMs(error: ProviderError): number | undefined {
+  return error instanceof HttpProviderError ? error.retryAfterMs : undefined;
 }
 
 // Creates a timeout controller for provider HTTP calls.
@@ -304,12 +342,6 @@ function isAbortError(error: unknown): boolean {
     (error instanceof DOMException && error.name === "AbortError") ||
     (error instanceof Error && error.name === "AbortError")
   );
-}
-
-// Calculates a small linear backoff for provider retries.
-// Считает небольшой линейный backoff для provider retry.
-function getRetryDelayMs(baseDelayMs: number, attempt: number): number {
-  return Math.max(0, baseDelayMs * (attempt + 1));
 }
 
 // Waits before the next provider retry.
