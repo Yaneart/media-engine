@@ -220,6 +220,38 @@ test("getDetails calls selected providers concurrently", async () => {
   assert.deepEqual(calls, ["slow-start", "fast-start", "fast-finish", "slow-finish"]);
 });
 
+test("getDetails coalesces concurrent identical requests", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async getDetails(): Promise<ProviderDetailsResult> {
+          calls += 1;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return {
+            provider: "test-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Interstellar",
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const [first, second] = await Promise.all([
+    engine.getDetails({ imdb: "tt0816692" }),
+    engine.getDetails({ imdb: "tt0816692" }),
+  ]);
+
+  assert.equal(calls, 1);
+  assert.notEqual(first, second);
+  first.details!.title = "Changed";
+  assert.equal(second.details?.title, "Interstellar");
+});
+
 test("getDetails applies provider timeout overrides within the global boundary", async () => {
   let slowTimeoutMs: number | undefined;
   let fastTimeoutMs: number | undefined;

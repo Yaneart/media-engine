@@ -48,6 +48,7 @@ import {
   loadSearchPoster,
   needsSearchEnrichment,
 } from "./search-enrichment.js";
+import { InFlightRequestCoalescer } from "./in-flight.js";
 import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
 import type { MediaEngineOptions } from "./types.js";
 
@@ -65,6 +66,7 @@ export class MediaEngine {
   private readonly timeoutMs?: number;
   private readonly providerTimeouts: Readonly<Record<string, number>>;
   private readonly debug: boolean;
+  private readonly inFlightRequests = new InFlightRequestCoalescer();
 
   constructor(options: MediaEngineOptions = {}) {
     this.registry = new ProviderRegistry(options.providers ?? []);
@@ -124,72 +126,18 @@ export class MediaEngine {
       };
     }
 
-    const providers = this.registry.selectSearchProviders(normalizedQuery);
-    const requested = providers.map((provider) => provider.name);
-    const successful: string[] = [];
-    const failed: ProviderFailure[] = [];
-    const warnings: EngineWarning[] = [];
-    const providerResults: ProviderSearchResult[] = [];
-    const providerTimings: ProviderTimingMeta[] = [];
+    return this.inFlightRequests.run(`search:${cacheKey}`, async () => {
+      const providers = this.registry.selectSearchProviders(normalizedQuery);
+      const requested = providers.map((provider) => provider.name);
+      const successful: string[] = [];
+      const failed: ProviderFailure[] = [];
+      const warnings: EngineWarning[] = [];
+      const providerResults: ProviderSearchResult[] = [];
+      const providerTimings: ProviderTimingMeta[] = [];
 
-    let outcomes = await Promise.all(
-      providers.map((provider) =>
-        callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
-          debug: this.debug,
-          language: searchLanguage,
-          timeoutMs: this.getProviderTimeoutMs(provider.name),
-        }),
-      ),
-    );
-
-    if (outcomes.length > 0 && outcomes.every((outcome) => outcome.failure)) {
-      outcomes = await retryFailedSearchProviders(providers, outcomes, normalizedQuery, {
-        debug: this.debug,
-        language: searchLanguage,
-        getTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
-      });
-    }
-
-    for (const outcome of outcomes) {
-      providerTimings.push(outcome.timing);
-
-      if (outcome.failure) {
-        failed.push(outcome.failure);
-      } else {
-        successful.push(outcome.provider);
-        providerResults.push(...outcome.results);
-      }
-    }
-
-    if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
-      throw new MediaEngineError({
-        code: "PROVIDER_ERROR",
-        message: "All search providers failed.",
-        cause: { failed },
-      });
-    }
-
-    let results = this.mergeStrategy.mergeSearchResults(providerResults, {
-      query: normalizedQuery,
-      language: searchLanguage,
-      debug: this.debug,
-      warnings,
-      includeIrrelevantSearchResults: true,
-    });
-
-    const fallbackQuery = createSearchFallbackQuery(normalizedQuery);
-    const hasRelevantResults = fallbackQuery
-      ? this.mergeStrategy.mergeSearchResults(providerResults, {
-          query: normalizedQuery,
-          language: searchLanguage,
-          debug: this.debug,
-        }).length > 0
-      : true;
-
-    if (fallbackQuery && !hasRelevantResults) {
-      const fallbackOutcomes = await Promise.all(
+      let outcomes = await Promise.all(
         providers.map((provider) =>
-          callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
+          callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
             debug: this.debug,
             language: searchLanguage,
             timeoutMs: this.getProviderTimeoutMs(provider.name),
@@ -197,122 +145,178 @@ export class MediaEngine {
         ),
       );
 
-      appendUniqueSearchResults(
-        providerResults,
-        fallbackOutcomes.flatMap((outcome) => (outcome.failure ? [] : outcome.results)),
-      );
-      results = this.mergeStrategy.mergeSearchResults(providerResults, {
+      if (outcomes.length > 0 && outcomes.every((outcome) => outcome.failure)) {
+        outcomes = await retryFailedSearchProviders(providers, outcomes, normalizedQuery, {
+          debug: this.debug,
+          language: searchLanguage,
+          getTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
+        });
+      }
+
+      for (const outcome of outcomes) {
+        providerTimings.push(outcome.timing);
+
+        if (outcome.failure) {
+          failed.push(outcome.failure);
+        } else {
+          successful.push(outcome.provider);
+          providerResults.push(...outcome.results);
+        }
+      }
+
+      if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
+        throw new MediaEngineError({
+          code: "PROVIDER_ERROR",
+          message: "All search providers failed.",
+          cause: { failed },
+        });
+      }
+
+      let results = this.mergeStrategy.mergeSearchResults(providerResults, {
         query: normalizedQuery,
         language: searchLanguage,
         debug: this.debug,
         warnings,
         includeIrrelevantSearchResults: true,
       });
-    }
 
-    const excludedPosterProviders = new Set(failed.map((failure) => failure.provider));
-    const posterEnrichmentPromise = Promise.all(
-      results
-        .slice(0, SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT)
-        .filter((result) => hasExternalIds(result.item.ids))
-        .map(async (result) => ({
-          ids: result.item.ids,
-          poster: await loadSearchPoster({
-            type: result.item.type,
-            ids: result.item.ids,
+      const fallbackQuery = createSearchFallbackQuery(normalizedQuery);
+      const hasRelevantResults = fallbackQuery
+        ? this.mergeStrategy.mergeSearchResults(providerResults, {
+            query: normalizedQuery,
             language: searchLanguage,
-            excludedProviders: excludedPosterProviders,
-            registry: this.registry,
-            mergeStrategy: this.mergeStrategy,
             debug: this.debug,
-            getProviderTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
-          }).catch(() => undefined),
-        })),
-    );
-    const enrichmentResultsPromise = Promise.all(
-      results
-        .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
-        .filter((result) => needsSearchEnrichment(result.item) && hasExternalIds(result.item.ids))
-        .map(async (result) => {
-          const existingProviders = new Set(result.sources.map((source) => source.provider));
-          const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
-          const enrichmentProvider = this.registry
-            .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
-            .find((provider) => !existingProviders.has(provider.name));
+          }).length > 0
+        : true;
 
-          if (!enrichmentProvider) {
-            return [];
-          }
-
-          const providerTimeoutMs = this.getProviderTimeoutMs(enrichmentProvider.name);
-          const enrichmentTimeoutMs =
-            providerTimeoutMs === undefined
-              ? SEARCH_ID_ENRICHMENT_TIMEOUT_MS
-              : Math.min(providerTimeoutMs, SEARCH_ID_ENRICHMENT_TIMEOUT_MS);
-          const outcome = await callTimedProviderSearch(
-            enrichmentProvider,
-            {
-              ids: result.item.ids,
-              type: enrichmentType,
-              limit: 1,
-              language: searchLanguage,
-            },
-            {
+      if (fallbackQuery && !hasRelevantResults) {
+        const fallbackOutcomes = await Promise.all(
+          providers.map((provider) =>
+            callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
               debug: this.debug,
               language: searchLanguage,
-              timeoutMs: enrichmentTimeoutMs,
-            },
-          );
+              timeoutMs: this.getProviderTimeoutMs(provider.name),
+            }),
+          ),
+        );
 
-          return outcome.failure ? [] : outcome.results;
-        }),
-    );
-    const [enrichmentResults, posterEnrichments] = await Promise.all([
-      enrichmentResultsPromise,
-      posterEnrichmentPromise,
-    ]);
-    const flattenedEnrichmentResults = enrichmentResults.flat();
+        appendUniqueSearchResults(
+          providerResults,
+          fallbackOutcomes.flatMap((outcome) => (outcome.failure ? [] : outcome.results)),
+        );
+        results = this.mergeStrategy.mergeSearchResults(providerResults, {
+          query: normalizedQuery,
+          language: searchLanguage,
+          debug: this.debug,
+          warnings,
+          includeIrrelevantSearchResults: true,
+        });
+      }
 
-    if (flattenedEnrichmentResults.length > 0) {
-      providerResults.push(...flattenedEnrichmentResults);
-    }
+      const excludedPosterProviders = new Set(failed.map((failure) => failure.provider));
+      const posterEnrichmentPromise = Promise.all(
+        results
+          .slice(0, SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT)
+          .filter((result) => hasExternalIds(result.item.ids))
+          .map(async (result) => ({
+            ids: result.item.ids,
+            poster: await loadSearchPoster({
+              type: result.item.type,
+              ids: result.item.ids,
+              language: searchLanguage,
+              excludedProviders: excludedPosterProviders,
+              registry: this.registry,
+              mergeStrategy: this.mergeStrategy,
+              debug: this.debug,
+              getProviderTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
+            }).catch(() => undefined),
+          })),
+      );
+      const enrichmentResultsPromise = Promise.all(
+        results
+          .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
+          .filter((result) => needsSearchEnrichment(result.item) && hasExternalIds(result.item.ids))
+          .map(async (result) => {
+            const existingProviders = new Set(result.sources.map((source) => source.provider));
+            const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
+            const enrichmentProvider = this.registry
+              .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
+              .find((provider) => !existingProviders.has(provider.name));
 
-    if (
-      this.mergeStrategy instanceof DefaultMergeStrategy ||
-      flattenedEnrichmentResults.length > 0
-    ) {
-      results = this.mergeStrategy.mergeSearchResults(providerResults, {
+            if (!enrichmentProvider) {
+              return [];
+            }
+
+            const providerTimeoutMs = this.getProviderTimeoutMs(enrichmentProvider.name);
+            const enrichmentTimeoutMs =
+              providerTimeoutMs === undefined
+                ? SEARCH_ID_ENRICHMENT_TIMEOUT_MS
+                : Math.min(providerTimeoutMs, SEARCH_ID_ENRICHMENT_TIMEOUT_MS);
+            const outcome = await callTimedProviderSearch(
+              enrichmentProvider,
+              {
+                ids: result.item.ids,
+                type: enrichmentType,
+                limit: 1,
+                language: searchLanguage,
+              },
+              {
+                debug: this.debug,
+                language: searchLanguage,
+                timeoutMs: enrichmentTimeoutMs,
+              },
+            );
+
+            return outcome.failure ? [] : outcome.results;
+          }),
+      );
+      const [enrichmentResults, posterEnrichments] = await Promise.all([
+        enrichmentResultsPromise,
+        posterEnrichmentPromise,
+      ]);
+      const flattenedEnrichmentResults = enrichmentResults.flat();
+
+      if (flattenedEnrichmentResults.length > 0) {
+        providerResults.push(...flattenedEnrichmentResults);
+      }
+
+      if (
+        this.mergeStrategy instanceof DefaultMergeStrategy ||
+        flattenedEnrichmentResults.length > 0
+      ) {
+        results = this.mergeStrategy.mergeSearchResults(providerResults, {
+          query: normalizedQuery,
+          language: searchLanguage,
+          debug: this.debug,
+          warnings,
+        });
+      }
+
+      const posterEnrichedResults = applySearchPosterEnrichments(results, posterEnrichments);
+      const limitedResults =
+        normalizedQuery.limit === undefined
+          ? posterEnrichedResults
+          : posterEnrichedResults.slice(0, normalizedQuery.limit);
+
+      const response: SearchResponse = {
         query: normalizedQuery,
-        language: searchLanguage,
-        debug: this.debug,
-        warnings,
-      });
-    }
+        results: limitedResults,
+        meta: createResponseMeta({
+          requested,
+          successful,
+          failed,
+          warnings,
+          cached: false,
+          tookMs: elapsedSince(startedAt),
+          debug: this.debug,
+          timings: providerTimings,
+        }),
+      };
 
-    const posterEnrichedResults = applySearchPosterEnrichments(results, posterEnrichments);
-    const limitedResults =
-      normalizedQuery.limit === undefined
-        ? posterEnrichedResults
-        : posterEnrichedResults.slice(0, normalizedQuery.limit);
+      await this.cache?.set(cacheKey, response);
 
-    const response: SearchResponse = {
-      query: normalizedQuery,
-      results: limitedResults,
-      meta: createResponseMeta({
-        requested,
-        successful,
-        failed,
-        warnings,
-        cached: false,
-        tookMs: elapsedSince(startedAt),
-        debug: this.debug,
-        timings: providerTimings,
-      }),
-    };
-
-    await this.cache?.set(cacheKey, response);
-
-    return response;
+      return response;
+    });
   }
 
   // Loads media details through selected providers and merges normalized results.
@@ -337,71 +341,73 @@ export class MediaEngine {
       };
     }
 
-    const providers = this.registry.selectDetailsProviders(normalizedQuery);
-    const requested = providers.map((provider) => provider.name);
-    const successful: string[] = [];
-    const failed: ProviderFailure[] = [];
-    const warnings: EngineWarning[] = [];
-    const providerResults: ProviderDetailsResult[] = [];
-    const providerTimings: ProviderTimingMeta[] = [];
+    return this.inFlightRequests.run(`details:${cacheKey}`, async () => {
+      const providers = this.registry.selectDetailsProviders(normalizedQuery);
+      const requested = providers.map((provider) => provider.name);
+      const successful: string[] = [];
+      const failed: ProviderFailure[] = [];
+      const warnings: EngineWarning[] = [];
+      const providerResults: ProviderDetailsResult[] = [];
+      const providerTimings: ProviderTimingMeta[] = [];
 
-    const outcomes = await Promise.all(
-      providers.map((provider) =>
-        callTimedProviderDetails(provider, normalizedQuery, {
-          debug: this.debug,
-          language: normalizedQuery.language,
-          timeoutMs: this.getProviderTimeoutMs(provider.name),
-        }),
-      ),
-    );
+      const outcomes = await Promise.all(
+        providers.map((provider) =>
+          callTimedProviderDetails(provider, normalizedQuery, {
+            debug: this.debug,
+            language: normalizedQuery.language,
+            timeoutMs: this.getProviderTimeoutMs(provider.name),
+          }),
+        ),
+      );
 
-    for (const outcome of outcomes) {
-      providerTimings.push(outcome.timing);
+      for (const outcome of outcomes) {
+        providerTimings.push(outcome.timing);
 
-      if (outcome.failure) {
-        failed.push(outcome.failure);
-      } else {
-        successful.push(outcome.provider);
+        if (outcome.failure) {
+          failed.push(outcome.failure);
+        } else {
+          successful.push(outcome.provider);
 
-        if (outcome.result) {
-          providerResults.push(outcome.result);
+          if (outcome.result) {
+            providerResults.push(outcome.result);
+          }
         }
       }
-    }
 
-    if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
-      throw new MediaEngineError({
-        code: "PROVIDER_ERROR",
-        message: "All details providers failed.",
-        cause: { failed },
-      });
-    }
+      if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
+        throw new MediaEngineError({
+          code: "PROVIDER_ERROR",
+          message: "All details providers failed.",
+          cause: { failed },
+        });
+      }
 
-    const details = this.mergeStrategy.mergeDetails(providerResults, {
-      query: normalizedQuery,
-      language: normalizedQuery.language,
-      debug: this.debug,
-      warnings,
-    });
-
-    const response: DetailsResponse = {
-      query: normalizedQuery,
-      details,
-      meta: createResponseMeta({
-        requested,
-        successful,
-        failed,
-        warnings,
-        cached: false,
-        tookMs: elapsedSince(startedAt),
+      const details = this.mergeStrategy.mergeDetails(providerResults, {
+        query: normalizedQuery,
+        language: normalizedQuery.language,
         debug: this.debug,
-        timings: providerTimings,
-      }),
-    };
+        warnings,
+      });
 
-    await this.cache?.set(cacheKey, response);
+      const response: DetailsResponse = {
+        query: normalizedQuery,
+        details,
+        meta: createResponseMeta({
+          requested,
+          successful,
+          failed,
+          warnings,
+          cached: false,
+          tookMs: elapsedSince(startedAt),
+          debug: this.debug,
+          timings: providerTimings,
+        }),
+      };
 
-    return response;
+      await this.cache?.set(cacheKey, response);
+
+      return response;
+    });
   }
 
   // Loads normalized player and stream availability through streaming providers.
@@ -428,57 +434,59 @@ export class MediaEngine {
       };
     }
 
-    const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
-    const requested = providers.map((provider) => provider.name);
-    const successful: string[] = [];
-    const failed: ProviderFailure[] = [];
-    const providerResults: MediaAvailability[] = [];
-    const providerTimings: ProviderTimingMeta[] = [];
+    return this.inFlightRequests.run(`availability:${cacheKey}`, async () => {
+      const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
+      const requested = providers.map((provider) => provider.name);
+      const successful: string[] = [];
+      const failed: ProviderFailure[] = [];
+      const providerResults: MediaAvailability[] = [];
+      const providerTimings: ProviderTimingMeta[] = [];
 
-    const outcomes = await Promise.all(
-      providers.map((provider) =>
-        callTimedProviderAvailability(provider, normalizedQuery, {
-          debug: this.debug,
-          language: normalizedQuery.language,
-          timeoutMs: this.getProviderTimeoutMs(provider.name),
-        }),
-      ),
-    );
+      const outcomes = await Promise.all(
+        providers.map((provider) =>
+          callTimedProviderAvailability(provider, normalizedQuery, {
+            debug: this.debug,
+            language: normalizedQuery.language,
+            timeoutMs: this.getProviderTimeoutMs(provider.name),
+          }),
+        ),
+      );
 
-    for (const outcome of outcomes) {
-      providerTimings.push(outcome.timing);
+      for (const outcome of outcomes) {
+        providerTimings.push(outcome.timing);
 
-      if (outcome.failure) {
-        failed.push(outcome.failure);
-      } else if (outcome.result) {
-        successful.push(outcome.provider);
-        providerResults.push(outcome.result);
+        if (outcome.failure) {
+          failed.push(outcome.failure);
+        } else if (outcome.result) {
+          successful.push(outcome.provider);
+          providerResults.push(outcome.result);
+        }
       }
-    }
 
-    if (providers.length > 0 && providerResults.length === 0 && failed.length > 0) {
-      throw new MediaEngineError({
-        code: "PROVIDER_ERROR",
-        message: "All streaming providers failed.",
-        cause: { failed },
+      if (providers.length > 0 && providerResults.length === 0 && failed.length > 0) {
+        throw new MediaEngineError({
+          code: "PROVIDER_ERROR",
+          message: "All streaming providers failed.",
+          cause: { failed },
+        });
+      }
+
+      const availability = mergeAvailabilityResults(normalizedQuery, providerResults);
+      availability.meta = createResponseMeta({
+        requested,
+        successful,
+        failed,
+        warnings: [],
+        cached: false,
+        tookMs: elapsedSince(startedAt),
+        debug: this.debug,
+        timings: providerTimings,
       });
-    }
 
-    const availability = mergeAvailabilityResults(normalizedQuery, providerResults);
-    availability.meta = createResponseMeta({
-      requested,
-      successful,
-      failed,
-      warnings: [],
-      cached: false,
-      tookMs: elapsedSince(startedAt),
-      debug: this.debug,
-      timings: providerTimings,
+      await this.cache?.set(cacheKey, availability, createAvailabilityCacheOptions(availability));
+
+      return availability;
     });
-
-    await this.cache?.set(cacheKey, availability, createAvailabilityCacheOptions(availability));
-
-    return availability;
   }
 
   // Gives future engine methods access to the registered providers.

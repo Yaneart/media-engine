@@ -215,6 +215,36 @@ test("getAvailability starts independent streaming providers concurrently", asyn
   );
 });
 
+test("getAvailability coalesces concurrent identical requests", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(query): Promise<MediaAvailability> {
+          calls += 1;
+          await sleep(10);
+          return createAvailability(query, "test-streaming-provider");
+        },
+      }),
+    ],
+  });
+  const query: StreamQuery = {
+    type: "anime",
+    title: "Naruto",
+    absoluteEpisodeNumber: 1,
+  };
+
+  const [first, second] = await Promise.all([
+    engine.getAvailability(query),
+    engine.getAvailability(query),
+  ]);
+
+  assert.equal(calls, 1);
+  assert.notEqual(first, second);
+  first.options[0]!.player.label = "Changed";
+  assert.equal(second.options[0]?.player.label, "Embedded Player");
+});
+
 test("getAvailability includes provider timings when debug is enabled", async () => {
   const engine = new MediaEngine({
     debug: true,

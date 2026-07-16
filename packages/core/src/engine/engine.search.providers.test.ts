@@ -80,6 +80,40 @@ test("search starts independent providers concurrently", async () => {
   );
 });
 
+test("search coalesces concurrent identical requests", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async search(): Promise<ProviderSearchResult[]> {
+          calls += 1;
+          await sleep(10);
+          return [
+            {
+              provider: "test-provider",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const [first, second] = await Promise.all([
+    engine.search({ title: "Interstellar" }),
+    engine.search({ title: "Interstellar" }),
+  ]);
+
+  assert.equal(calls, 1);
+  assert.notEqual(first, second);
+  first.results[0]!.item.title = "Changed";
+  assert.equal(second.results[0]?.item.title, "Interstellar");
+});
+
 test("search keeps provider result order deterministic after concurrent completion", async () => {
   const receivedProviders: string[] = [];
   const mergeStrategy: MergeStrategy = {
