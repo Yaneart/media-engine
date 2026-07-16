@@ -1,6 +1,5 @@
 import type {
   ExternalIds,
-  Genre,
   Image,
   MediaDetails,
   MediaItem,
@@ -17,6 +16,7 @@ import type {
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { createProviderImage, mapGenreNames } from "../shared/mapping.js";
 
 const PROVIDER_NAME = "cinemeta";
 const DEFAULT_BASE_URL = "https://v3-cinemeta.strem.io";
@@ -299,9 +299,9 @@ function mapMetaToItem(meta: CinemetaMetaSummary, type: "movie" | "series"): Med
     title,
     year: getYear(meta.releaseInfo),
     description: meta.description,
-    poster: createImage(meta.poster, "poster"),
-    backdrop: createImage(meta.background, "backdrop"),
-    genres: mapGenres(meta.genre ?? meta.genres),
+    poster: createProviderImage(meta.poster, "poster", PROVIDER_NAME),
+    backdrop: createProviderImage(meta.background, "backdrop", PROVIDER_NAME),
+    genres: mapGenreNames(meta.genre ?? meta.genres, PROVIDER_NAME),
     ratings: mapRating(meta.imdbRating),
     ids,
   };
@@ -399,15 +399,6 @@ function createProviderSource(ids: ExternalIds | undefined): ProviderSource {
   };
 }
 
-// Maps genre labels into normalized genre objects.
-// Мапит genre labels в normalized genre objects.
-function mapGenres(genres: string[] | undefined): Genre[] | undefined {
-  return genres?.map((genre) => ({
-    name: genre,
-    source: PROVIDER_NAME,
-  }));
-}
-
 // Maps IMDb rating from Cinemeta into normalized rating.
 // Мапит IMDb rating из Cinemeta в normalized rating.
 function mapRating(value: string | undefined): Rating[] | undefined {
@@ -444,16 +435,6 @@ function mapPersons(meta: CinemetaMetaDetails, limit: number): MediaDetails["per
   const persons = [...directors, ...writers, ...actors].slice(0, limit);
 
   return persons.length ? persons : undefined;
-}
-
-function createImage(url: string | undefined, type: Image["type"]): Image | undefined {
-  return url
-    ? {
-        url,
-        type,
-        source: PROVIDER_NAME,
-      }
-    : undefined;
 }
 
 // Requests JSON through the shared provider HTTP helper.

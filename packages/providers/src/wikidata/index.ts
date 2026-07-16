@@ -15,6 +15,7 @@ import type {
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { normalizeProviderSearchText as normalizeSearchText } from "../shared/mapping.js";
 
 const PROVIDER_NAME = "wikidata";
 const DEFAULT_BASE_URL = "https://www.wikidata.org";
@@ -518,15 +519,6 @@ function isRelevantTitleMatch(title: string, queryTitle: string): boolean {
   const normalizedQuery = normalizeSearchText(queryTitle);
 
   return normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle);
-}
-
-// Normalizes text for loose local comparisons.
-// Нормализует текст для мягких локальных сравнений.
-function normalizeSearchText(value: string): string {
-  return value
-    .toLocaleLowerCase()
-    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
 }
 
 // Extracts a four-digit year from an ISO-like date.

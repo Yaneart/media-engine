@@ -19,6 +19,7 @@ import type {
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { createProviderImage, mapKinoBdMediaType as mapMediaType } from "../shared/mapping.js";
 
 const PROVIDER_NAME = "kinobd";
 const DEFAULT_BASE_URL = "https://kinobd.net";
@@ -283,7 +284,7 @@ function mapTitleToItem(title: KinoBdTitle): MediaItem | undefined {
     year: parseNumber(title.year ?? title.year_start),
     releaseDate: title.premiere_ru ?? title.premiere_world ?? undefined,
     description: title.description ?? undefined,
-    poster: createImage(title.big_poster ?? title.small_poster, "poster"),
+    poster: createProviderImage(title.big_poster ?? title.small_poster, "poster", PROVIDER_NAME),
     genres: mapGenres(title.genres),
     ratings: mapRatings(title),
     ids: createIds(title),
@@ -372,20 +373,6 @@ function scoreTitle(
   return score;
 }
 
-// Maps KinoBD type strings into Media Engine media types.
-// Мапит type strings KinoBD в Media Engine media types.
-function mapMediaType(type: string | null | undefined): MediaType | undefined {
-  if (type === "film") {
-    return "movie";
-  }
-
-  if (type === "serial" || type === "series") {
-    return "series";
-  }
-
-  return undefined;
-}
-
 // Checks whether a mapped type satisfies an optional query type.
 // Проверяет, подходит ли mapped type под optional query type.
 function matchesType(itemType: MediaType, queryType: MediaType | undefined): boolean {
@@ -472,7 +459,7 @@ function mapCountries(title: KinoBdTitle): string[] | undefined {
 // Мапит KinoBD image records и poster fallbacks в normalized images.
 function mapImages(title: KinoBdTitle, limit: number): Image[] | undefined {
   const images = [
-    createImage(title.big_poster, "poster"),
+    createProviderImage(title.big_poster, "poster", PROVIDER_NAME),
     ...(title.images ?? []).map(mapKinoBdImage),
   ]
     .filter((image): image is Image => Boolean(image))
@@ -546,18 +533,6 @@ function mapPersonRole(profession: string | null | undefined): PersonRole {
   }
 
   return "unknown";
-}
-
-// Creates a normalized image from a direct URL.
-// Создает normalized image из direct URL.
-function createImage(url: string | null | undefined, type: Image["type"]): Image | undefined {
-  return url
-    ? {
-        url,
-        type,
-        source: PROVIDER_NAME,
-      }
-    : undefined;
 }
 
 // Adds original and localized titles when they differ.

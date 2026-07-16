@@ -1,6 +1,5 @@
 import type {
   ExternalIds,
-  Genre,
   MediaDetails,
   MediaItem,
   MovieDetails,
@@ -12,6 +11,10 @@ import type {
   Rating,
   SeriesDetails,
 } from "@media-engine/core";
+import {
+  mapGenreNames,
+  normalizeProviderSearchText as normalizeSearchText,
+} from "../shared/mapping.js";
 import { type MediaProvider } from "@media-engine/core";
 
 const PROVIDER_NAME = "imdb-dataset";
@@ -217,7 +220,7 @@ function recordToItem(config: ImdbDatasetConfig, record: ImdbTitleRecord): Media
     title: record.primaryTitle,
     originalTitle: record.originalTitle,
     year: record.startYear,
-    genres: mapGenres(record.genres),
+    genres: mapGenreNames(record.genres, PROVIDER_NAME),
     ratings: mapRating(config.ratingsById.get(record.tconst)),
     ids: createIds(record),
   };
@@ -365,15 +368,6 @@ function createProviderSource(record: ImdbTitleRecord): ProviderSource {
   };
 }
 
-// Maps IMDb genres into normalized genre labels.
-// Мапит IMDb genres в нормализованные genre labels.
-function mapGenres(genres: string[] | undefined): Genre[] | undefined {
-  return genres?.map((genre) => ({
-    name: genre,
-    source: PROVIDER_NAME,
-  }));
-}
-
 // Maps IMDb rating row into normalized rating.
 // Мапит IMDb rating row в нормализованный rating.
 function mapRating(rating: ImdbRatingRecord | undefined): Rating[] | undefined {
@@ -408,13 +402,6 @@ function scoreTitle(record: ImdbTitleRecord, normalizedQuery: string): number {
 
 function matchesType(record: ImdbTitleRecord, type: ProviderSearchQuery["type"]): boolean {
   return type === undefined || type === record.type;
-}
-
-function normalizeSearchText(value: string): string {
-  return value
-    .toLocaleLowerCase()
-    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
 }
 
 function parseList(value: string | undefined): string[] | undefined {

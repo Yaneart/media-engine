@@ -1,10 +1,6 @@
-import type {
-  ExternalIds,
-  MediaAvailability,
-  MediaType,
-  ProviderContext,
-} from "@media-engine/core";
+import type { ExternalIds, MediaAvailability, ProviderContext } from "@media-engine/core";
 import { fetchJson } from "../shared/index.js";
+import { mapKinoBdMediaType as mapCandidateMediaType } from "../shared/mapping.js";
 import type { KinoBdStreamingConfig } from "./config.js";
 
 // Search response returned by KinoBD-style player lookup.
@@ -249,18 +245,6 @@ function hasExactCandidateId(candidate: PlayerCandidate, ids: ExternalIds | unde
     (ids?.kinopoisk && candidateIds?.kinopoisk === ids.kinopoisk) ||
     (ids?.imdb && candidateIds?.imdb === ids.imdb),
   );
-}
-
-function mapCandidateMediaType(type: string | null | undefined): MediaType | undefined {
-  if (type === "film") {
-    return "movie";
-  }
-
-  if (type === "serial" || type === "series") {
-    return "series";
-  }
-
-  return undefined;
 }
 
 // Creates the best supported player search input from a stream query.
