@@ -1,4 +1,5 @@
 import type { MediaAvailability, ProviderContext, StreamOption } from "@media-engine/core";
+import { rethrowIfProviderAborted } from "../shared/abort.js";
 import type { KinoBdFilteredPlayerAuditEntry, KinoBdStreamingConfig } from "./config.js";
 import { normalizeSearchText } from "./candidates.js";
 import { extractIframeUrl } from "./players.js";
@@ -116,7 +117,8 @@ async function isBrokenPlayerUrl(
     const nestedUrl = depth < PLAYER_VALIDATION_MAX_DEPTH ? extractIframeUrl(html, url) : undefined;
 
     return nestedUrl ? isBrokenPlayerUrl(config, nestedUrl, context, depth + 1) : false;
-  } catch {
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
     return isKnownBrokenPlayerUrl(url);
   } finally {
     clearTimeout(timeout);

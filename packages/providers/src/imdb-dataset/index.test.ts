@@ -11,6 +11,13 @@ const TITLE_BASICS_TSV = [
   "tt9999999\tmovie\tHidden Adult\tHidden Adult\t1\t2020\t\\N\t90\tDrama",
 ].join("\n");
 
+test("imdbDatasetProvider validates bounded numeric options", () => {
+  assert.throws(
+    () => imdbDatasetProvider({ titleBasicsTsv: TITLE_BASICS_TSV, searchLimit: 0 }),
+    /IMDb dataset searchLimit/,
+  );
+});
+
 const TITLE_RATINGS_TSV = [
   "tconst\taverageRating\tnumVotes",
   "tt0816692\t8.7\t2300000",

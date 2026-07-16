@@ -3,6 +3,11 @@ import { test } from "node:test";
 
 import { wikidataProvider, type WikidataProviderOptions } from "./index.js";
 
+test("wikidataProvider validates bounded numeric options", () => {
+  assert.throws(() => wikidataProvider({ searchLimit: 0 }), /Wikidata searchLimit/);
+  assert.throws(() => wikidataProvider({ searchLimit: 51 }), /Wikidata searchLimit/);
+});
+
 test("wikidataProvider exposes safe no-token metadata capabilities", () => {
   const provider = wikidataProvider();
 

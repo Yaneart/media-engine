@@ -3,6 +3,11 @@ import { test } from "node:test";
 
 import { kinobdProvider, type KinoBdProviderOptions } from "./index.js";
 
+test("kinobdProvider validates bounded numeric options", () => {
+  assert.throws(() => kinobdProvider({ searchLimit: 0 }), /KinoBD searchLimit/);
+  assert.throws(() => kinobdProvider({ personLimit: 101 }), /KinoBD personLimit/);
+});
+
 test("kinobdProvider exposes no-token movie and series capabilities", () => {
   const provider = kinobdProvider();
 

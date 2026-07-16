@@ -4,6 +4,11 @@ import { test } from "node:test";
 import { ProviderError } from "@media-engine/core";
 import { shikimoriProvider, type ShikimoriProviderOptions } from "./index.js";
 
+test("shikimoriProvider validates bounded numeric options", () => {
+  assert.throws(() => shikimoriProvider({ searchLimit: 51 }), /Shikimori searchLimit/);
+  assert.throws(() => shikimoriProvider({ personLimit: -1 }), /Shikimori personLimit/);
+});
+
 test("shikimoriProvider exposes safe anime metadata capabilities", () => {
   const provider = shikimoriProvider({
     userAgent: "MediaEngineTest/0.0.0",

@@ -187,7 +187,6 @@ export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
 // EN: Build the public core streaming query from GET /media/availability parameters.
 // RU: Собирает публичный core streaming query из параметров GET /media/availability.
 export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
-  const streamQuery: Partial<StreamQuery> = {};
   const title = readString(query.title);
   const language = readString(query.language);
   const type = readMediaType(query.type);
@@ -200,16 +199,18 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
   );
   const providers = readStringList(query.providers);
 
+  if (type === undefined) {
+    throw new BadRequestException('type is required.');
+  }
+
+  const streamQuery: StreamQuery = { type };
+
   if (title !== undefined) {
     streamQuery.title = title;
   }
 
   if (language !== undefined) {
     streamQuery.language = language;
-  }
-
-  if (type !== undefined) {
-    streamQuery.type = type;
   }
 
   if (year !== undefined) {
@@ -246,7 +247,7 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
     streamQuery.ids = nestedIds;
   }
 
-  return streamQuery as StreamQuery;
+  return streamQuery;
 }
 
 // EN: Read the first string query value and treat blanks as absent.
@@ -323,11 +324,15 @@ function readMediaType(
     return undefined;
   }
 
-  if (MEDIA_TYPES.includes(raw as MediaType)) {
-    return raw as MediaType;
+  if (isMediaType(raw)) {
+    return raw;
   }
 
   throw new BadRequestException('type must be movie, series, or anime.');
+}
+
+function isMediaType(value: string): value is MediaType {
+  return MEDIA_TYPES.some((mediaType) => mediaType === value);
 }
 
 // EN: Keep core-to-HTTP error mapping consistent across media endpoints.

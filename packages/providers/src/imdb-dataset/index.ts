@@ -15,6 +15,7 @@ import {
   mapGenreNames,
   normalizeProviderSearchText as normalizeSearchText,
 } from "../shared/mapping.js";
+import { resolveBoundedIntegerOption } from "../shared/options.js";
 import { type MediaProvider } from "@media-engine/core";
 
 const PROVIDER_NAME = "imdb-dataset";
@@ -101,7 +102,13 @@ function createImdbDatasetConfig(options: ImdbDatasetProviderOptions): ImdbDatas
   return {
     recordsById,
     ratingsById: parseRatings(options.titleRatingsTsv),
-    searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
+    searchLimit: resolveBoundedIntegerOption(
+      options.searchLimit,
+      DEFAULT_SEARCH_LIMIT,
+      "IMDb dataset searchLimit",
+      1,
+      100,
+    ),
   };
 }
 

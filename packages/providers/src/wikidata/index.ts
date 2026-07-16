@@ -16,6 +16,7 @@ import type {
 import { type MediaProvider } from "@media-engine/core";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
 import { normalizeProviderSearchText as normalizeSearchText } from "../shared/mapping.js";
+import { resolveBoundedIntegerOption } from "../shared/options.js";
 
 const PROVIDER_NAME = "wikidata";
 const DEFAULT_BASE_URL = "https://www.wikidata.org";
@@ -134,7 +135,13 @@ function createWikidataConfig(options: WikidataProviderOptions): WikidataConfig 
     language: normalizeLanguage(options.language ?? DEFAULT_LANGUAGE),
     userAgent: options.userAgent ?? DEFAULT_USER_AGENT,
     fetch: options.fetch,
-    searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
+    searchLimit: resolveBoundedIntegerOption(
+      options.searchLimit,
+      DEFAULT_SEARCH_LIMIT,
+      "Wikidata searchLimit",
+      1,
+      50,
+    ),
   };
 }
 

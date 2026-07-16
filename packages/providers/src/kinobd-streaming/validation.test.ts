@@ -310,7 +310,7 @@ test("kinobdStreamingProvider aborts live validation with the provider context",
   );
   setTimeout(() => controller.abort(), 5);
 
-  await availabilityPromise;
+  await assert.rejects(availabilityPromise, { name: "AbortError" });
 
   assert.equal(validationAborted, true);
 });

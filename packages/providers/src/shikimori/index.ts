@@ -15,7 +15,9 @@ import type {
   Rating,
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
+import { rethrowIfProviderAborted } from "../shared/abort.js";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { resolveBoundedIntegerOption } from "../shared/options.js";
 
 const PROVIDER_NAME = "shikimori";
 const DEFAULT_BASE_URL = "https://shikimori.one";
@@ -150,8 +152,20 @@ function createShikimoriConfig(options: ShikimoriProviderOptions): ShikimoriConf
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
-    searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
-    personLimit: options.personLimit ?? DEFAULT_PERSON_LIMIT,
+    searchLimit: resolveBoundedIntegerOption(
+      options.searchLimit,
+      DEFAULT_SEARCH_LIMIT,
+      "Shikimori searchLimit",
+      1,
+      50,
+    ),
+    personLimit: resolveBoundedIntegerOption(
+      options.personLimit,
+      DEFAULT_PERSON_LIMIT,
+      "Shikimori personLimit",
+      0,
+      100,
+    ),
     userAgent: options.userAgent,
     censored: options.censored ?? false,
   };
@@ -242,13 +256,19 @@ async function getAnimeById(
       `/api/animes/${encodedId}/roles`,
       {},
       context,
-    ).catch(() => []),
+    ).catch((error: unknown) => {
+      rethrowIfProviderAborted(context, error);
+      return [];
+    }),
     requestShikimori<ShikimoriImageResponse[]>(
       config,
       `/api/animes/${encodedId}/screenshots`,
       {},
       context,
-    ).catch(() => []),
+    ).catch((error: unknown) => {
+      rethrowIfProviderAborted(context, error);
+      return [];
+    }),
   ]);
 
   return mapAnimeDetails(config, data, roles, screenshots);

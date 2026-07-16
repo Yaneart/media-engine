@@ -1,4 +1,5 @@
 import type { ExternalIds, MediaAvailability, ProviderContext } from "@media-engine/core";
+import { rethrowIfProviderAborted } from "../shared/abort.js";
 import { fetchJson } from "../shared/index.js";
 import { mapKinoBdMediaType as mapCandidateMediaType } from "../shared/mapping.js";
 import type { KinoBdStreamingConfig } from "./config.js";
@@ -302,7 +303,8 @@ async function tryLookupShikimoriAnime(
         headers,
       },
     });
-  } catch {
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
     return undefined;
   }
 }

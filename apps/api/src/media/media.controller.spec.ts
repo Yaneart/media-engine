@@ -390,6 +390,15 @@ describe('MediaController', () => {
     expect(mediaEngine.getAvailability).not.toHaveBeenCalled();
   });
 
+  it('returns 400 when availability type is missing', async () => {
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({ title: 'Naruto' })
+      .expect(400);
+
+    expect(mediaEngine.getAvailability).not.toHaveBeenCalled();
+  });
+
   it('returns 400 for invalid core availability queries', async () => {
     mediaEngine.getAvailability.mockRejectedValueOnce(
       new MediaEngineError({

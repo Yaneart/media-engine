@@ -3,6 +3,11 @@ import { test } from "node:test";
 
 import { cinemetaProvider, type CinemetaProviderOptions } from "./index.js";
 
+test("cinemetaProvider validates bounded numeric options", () => {
+  assert.throws(() => cinemetaProvider({ searchLimit: 0 }), /Cinemeta searchLimit/);
+  assert.throws(() => cinemetaProvider({ imageLimit: 101 }), /Cinemeta imageLimit/);
+});
+
 test("cinemetaProvider exposes no-token movie and series capabilities", () => {
   const provider = cinemetaProvider();
 

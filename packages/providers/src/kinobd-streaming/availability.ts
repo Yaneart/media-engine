@@ -1,4 +1,5 @@
 import type { MediaAvailability, ProviderContext, StreamOption } from "@media-engine/core";
+import { rethrowIfProviderAborted } from "../shared/abort.js";
 import { fetchJson } from "../shared/index.js";
 import type { KinoBdStreamingConfig } from "./config.js";
 import {
@@ -130,7 +131,8 @@ async function loadPlayerOptions(
     emitPlayerAudit(config, query, mapping.discovered, fallbackOptions, mapping.filtered);
 
     return fallbackOptions;
-  } catch {
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
     // KinoBD/ReYohoho-style /playerdata can be rate-limited or temporarily unavailable.
     // KinoBD/ReYohoho-style /playerdata может быть rate-limited или временно недоступен.
   }
@@ -213,7 +215,8 @@ async function tryGetShikimoriCacheAvailability(
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch {
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
     return undefined;
   }
 }

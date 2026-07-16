@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import type { Cache } from "../cache/index.js";
 import { MemoryCache } from "../cache/index.js";
 import { MediaEngineError, ProviderError } from "../errors/index.js";
 import type { ProviderSearchResult } from "../providers/index.js";
@@ -162,6 +163,57 @@ test("search cache integration keeps response shape", async () => {
   assert.deepEqual(Object.keys(first).sort(), ["meta", "query", "results"]);
   assert.deepEqual(Object.keys(second).sort(), ["meta", "query", "results"]);
   assert.deepEqual(second.results, first.results);
+});
+
+test("search isolates responses from a reference-based custom cache", async () => {
+  let calls = 0;
+  const values = new Map<string, unknown>();
+  const cache: Cache = {
+    get<T>(key: string): T | undefined {
+      return values.get(key) as T | undefined;
+    },
+    set<T>(key: string, value: T): void {
+      values.set(key, value);
+    },
+    delete(key: string): void {
+      values.delete(key);
+    },
+    clear(): void {
+      values.clear();
+    },
+  };
+  const engine = new MediaEngine({
+    cache,
+    providers: [
+      createProvider({
+        async search(): Promise<ProviderSearchResult[]> {
+          calls += 1;
+          return [
+            {
+              provider: "test-provider",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.search({ title: "Interstellar" });
+  first.results[0]!.item.title = "Changed first response";
+  const second = await engine.search({ title: "Interstellar" });
+  assert.equal(second.results[0]?.item.title, "Interstellar");
+  second.results[0]!.item.title = "Changed cached response";
+  const third = await engine.search({ title: "Interstellar" });
+
+  assert.equal(calls, 1);
+  assert.equal(second.meta.cached, true);
+  assert.equal(third.meta.cached, true);
+  assert.equal(third.results[0]?.item.title, "Interstellar");
 });
 
 test("search returns stale cached data after retryable provider failure", async () => {

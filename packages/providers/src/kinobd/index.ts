@@ -20,6 +20,7 @@ import type {
 import { type MediaProvider } from "@media-engine/core";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
 import { createProviderImage, mapKinoBdMediaType as mapMediaType } from "../shared/mapping.js";
+import { resolveBoundedIntegerOption } from "../shared/options.js";
 
 const PROVIDER_NAME = "kinobd";
 const DEFAULT_BASE_URL = "https://kinobd.net";
@@ -145,9 +146,27 @@ function createKinoBdConfig(options: KinoBdProviderOptions): KinoBdConfig {
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
-    searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
-    imageLimit: options.imageLimit ?? DEFAULT_IMAGE_LIMIT,
-    personLimit: options.personLimit ?? DEFAULT_PERSON_LIMIT,
+    searchLimit: resolveBoundedIntegerOption(
+      options.searchLimit,
+      DEFAULT_SEARCH_LIMIT,
+      "KinoBD searchLimit",
+      1,
+      100,
+    ),
+    imageLimit: resolveBoundedIntegerOption(
+      options.imageLimit,
+      DEFAULT_IMAGE_LIMIT,
+      "KinoBD imageLimit",
+      0,
+      100,
+    ),
+    personLimit: resolveBoundedIntegerOption(
+      options.personLimit,
+      DEFAULT_PERSON_LIMIT,
+      "KinoBD personLimit",
+      0,
+      100,
+    ),
   };
 }
 

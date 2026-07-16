@@ -12,6 +12,7 @@ import {
   normalizePublicHttpUrl,
   type ProviderFetch,
 } from "../shared/index.js";
+import { rethrowIfProviderAborted } from "../shared/abort.js";
 
 const DEFAULT_BASE_URL = "https://flixhq.one";
 const DEFAULT_PROVIDER_NAME = "flixhq-streaming";
@@ -267,7 +268,9 @@ async function isPlayerUnavailable(
     : controller.signal;
 
   try {
-    if (context.signal?.aborted) return false;
+    if (context.signal?.aborted) {
+      throw context.signal.reason;
+    }
 
     const isDirect = option.player.kind === "hls" || option.player.kind === "mp4";
     const response = await fetchImpl(option.access.url, {
@@ -295,7 +298,8 @@ async function isPlayerUnavailable(
 
     const html = await readBoundedResponseText(response, config.playerValidationMaxBytes);
     return hasUnavailableMarker(html);
-  } catch {
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
     // A validation timeout or transient network failure must not hide a discovered player.
     return false;
   } finally {
@@ -331,7 +335,8 @@ async function enrichPlayerOption(
     const text = await readBoundedResponseText(response, config.subtitleInfoMaxBytes);
     const subtitles = parseSubtitleInfo(text);
     return subtitles.length > 0 ? { ...option, subtitles } : option;
-  } catch {
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
     // Subtitle metadata is optional and must never hide an otherwise working player.
     return option;
   }

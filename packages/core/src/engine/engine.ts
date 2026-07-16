@@ -133,11 +133,13 @@ export class MediaEngine {
     const cached = await this.cache?.get<SearchResponse>(cacheKey);
 
     if (cached) {
+      const response = structuredClone(cached);
+
       return {
-        ...cached,
+        ...response,
         query: normalizedQuery,
         meta: {
-          ...cached.meta,
+          ...response.meta,
           cached: true,
           tookMs: elapsedSince(startedAt),
         },
@@ -337,7 +339,7 @@ export class MediaEngine {
         }),
       };
 
-      await this.cache?.set(cacheKey, response);
+      await this.cache?.set(cacheKey, structuredClone(response));
 
       return response;
     });
@@ -360,11 +362,13 @@ export class MediaEngine {
     const cached = await this.cache?.get<DetailsResponse>(cacheKey);
 
     if (cached) {
+      const response = structuredClone(cached);
+
       return {
-        ...cached,
+        ...response,
         query: normalizedQuery,
         meta: {
-          ...cached.meta,
+          ...response.meta,
           cached: true,
           tookMs: elapsedSince(startedAt),
         },
@@ -437,7 +441,7 @@ export class MediaEngine {
         }),
       };
 
-      await this.cache?.set(cacheKey, response);
+      await this.cache?.set(cacheKey, structuredClone(response));
 
       return response;
     });
@@ -460,12 +464,14 @@ export class MediaEngine {
     const cached = await this.cache?.get<MediaAvailability>(cacheKey);
 
     if (cached) {
+      const response = structuredClone(cached);
+
       return {
-        ...cached,
+        ...response,
         query: normalizedQuery,
-        meta: cached.meta
+        meta: response.meta
           ? {
-              ...cached.meta,
+              ...response.meta,
               cached: true,
               tookMs: elapsedSince(startedAt),
             }
@@ -524,7 +530,11 @@ export class MediaEngine {
         timings: providerTimings,
       });
 
-      await this.cache?.set(cacheKey, availability, createAvailabilityCacheOptions(availability));
+      await this.cache?.set(
+        cacheKey,
+        structuredClone(availability),
+        createAvailabilityCacheOptions(availability),
+      );
 
       return availability;
     });

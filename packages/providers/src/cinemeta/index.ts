@@ -15,8 +15,10 @@ import type {
   SeriesDetails,
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
+import { rethrowIfProviderAborted } from "../shared/abort.js";
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
 import { createProviderImage, mapGenreNames } from "../shared/mapping.js";
+import { resolveBoundedIntegerOption } from "../shared/options.js";
 
 const PROVIDER_NAME = "cinemeta";
 const DEFAULT_BASE_URL = "https://v3-cinemeta.strem.io";
@@ -123,10 +125,34 @@ function createCinemetaConfig(options: CinemetaProviderOptions): CinemetaConfig 
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
-    searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
-    enrichSearchLimit: options.enrichSearchLimit ?? DEFAULT_ENRICH_SEARCH_LIMIT,
-    imageLimit: options.imageLimit ?? DEFAULT_IMAGE_LIMIT,
-    personLimit: options.personLimit ?? DEFAULT_PERSON_LIMIT,
+    searchLimit: resolveBoundedIntegerOption(
+      options.searchLimit,
+      DEFAULT_SEARCH_LIMIT,
+      "Cinemeta searchLimit",
+      1,
+      100,
+    ),
+    enrichSearchLimit: resolveBoundedIntegerOption(
+      options.enrichSearchLimit,
+      DEFAULT_ENRICH_SEARCH_LIMIT,
+      "Cinemeta enrichSearchLimit",
+      0,
+      100,
+    ),
+    imageLimit: resolveBoundedIntegerOption(
+      options.imageLimit,
+      DEFAULT_IMAGE_LIMIT,
+      "Cinemeta imageLimit",
+      0,
+      100,
+    ),
+    personLimit: resolveBoundedIntegerOption(
+      options.personLimit,
+      DEFAULT_PERSON_LIMIT,
+      "Cinemeta personLimit",
+      0,
+      100,
+    ),
   };
 }
 
@@ -232,7 +258,8 @@ async function enrichSearchItems(
         const details = await getDetailsByImdbId(config, item.ids.imdb, type, context);
 
         return details ? detailsToItem(details) : item;
-      } catch {
+      } catch (error) {
+        rethrowIfProviderAborted(context, error);
         return item;
       }
     }),
@@ -275,7 +302,12 @@ async function getDetailsByImdbId(
   }
 
   const results = await Promise.all(
-    types.map((currentType) => loadType(currentType).catch(() => null)),
+    types.map((currentType) =>
+      loadType(currentType).catch((error: unknown) => {
+        rethrowIfProviderAborted(context, error);
+        return null;
+      }),
+    ),
   );
 
   return results.find((details): details is MediaDetails => details !== null) ?? null;
