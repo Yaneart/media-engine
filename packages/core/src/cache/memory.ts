@@ -5,6 +5,7 @@ import type { Cache, CacheSetOptions } from "./types.js";
 export interface MemoryCacheOptions {
   now?: () => number;
   defaultTtlMs?: number;
+  defaultStaleTtlMs?: number;
   maxEntries?: number;
 }
 
@@ -13,6 +14,7 @@ export interface MemoryCacheOptions {
 interface MemoryCacheEntry<T> {
   value: T;
   expiresAt?: number;
+  staleUntil?: number;
 }
 
 // Simple synchronous in-memory cache with optional TTL support.
@@ -21,6 +23,7 @@ export class MemoryCache implements Cache {
   private readonly entries = new Map<string, MemoryCacheEntry<unknown>>();
   private readonly now: () => number;
   private readonly defaultTtlMs?: number;
+  private readonly defaultStaleTtlMs?: number;
   private readonly maxEntries?: number;
 
   constructor(options: MemoryCacheOptions = {}) {
@@ -31,8 +34,16 @@ export class MemoryCache implements Cache {
       throw new TypeError("MemoryCache maxEntries must be a positive integer.");
     }
 
+    if (
+      options.defaultStaleTtlMs !== undefined &&
+      (!Number.isInteger(options.defaultStaleTtlMs) || options.defaultStaleTtlMs < 0)
+    ) {
+      throw new TypeError("MemoryCache defaultStaleTtlMs must be a non-negative integer.");
+    }
+
     this.now = options.now ?? Date.now;
     this.defaultTtlMs = options.defaultTtlMs;
+    this.defaultStaleTtlMs = options.defaultStaleTtlMs;
     this.maxEntries = options.maxEntries;
   }
 
@@ -46,6 +57,28 @@ export class MemoryCache implements Cache {
     }
 
     if (this.isExpired(entry)) {
+      this.deleteIfBeyondStaleWindow(key, entry);
+      return undefined;
+    }
+
+    if (this.maxEntries !== undefined) {
+      this.entries.delete(key);
+      this.entries.set(key, entry);
+    }
+
+    return cloneCacheValue(entry.value as T);
+  }
+
+  // Reads a value only after normal TTL expiration and before its stale window closes.
+  // Читает значение только после обычного TTL и до завершения stale-окна.
+  getStale<T>(key: string): T | undefined {
+    const entry = this.entries.get(key);
+
+    if (!entry || !this.isExpired(entry)) {
+      return undefined;
+    }
+
+    if (this.isBeyondStaleWindow(entry)) {
       this.entries.delete(key);
       return undefined;
     }
@@ -62,10 +95,20 @@ export class MemoryCache implements Cache {
   // Сохраняет значение с опциональным TTL в миллисекундах.
   set<T>(key: string, value: T, options: CacheSetOptions = {}): void {
     const ttlMs = options.ttlMs ?? this.defaultTtlMs;
+    const staleTtlMs = options.staleTtlMs ?? this.defaultStaleTtlMs;
+
+    if (staleTtlMs !== undefined && (!Number.isInteger(staleTtlMs) || staleTtlMs < 0)) {
+      throw new TypeError("MemoryCache staleTtlMs must be a non-negative integer.");
+    }
+
     const expiresAt = ttlMs === undefined || ttlMs < 0 ? undefined : this.now() + ttlMs;
+    const staleUntil =
+      expiresAt === undefined || staleTtlMs === undefined || staleTtlMs <= 0
+        ? undefined
+        : expiresAt + staleTtlMs;
 
     this.entries.delete(key);
-    this.entries.set(key, { value: cloneCacheValue(value), expiresAt });
+    this.entries.set(key, { value: cloneCacheValue(value), expiresAt, staleUntil });
     this.evictOverflow();
   }
 
@@ -87,6 +130,16 @@ export class MemoryCache implements Cache {
     return entry.expiresAt !== undefined && entry.expiresAt <= this.now();
   }
 
+  private isBeyondStaleWindow(entry: MemoryCacheEntry<unknown>): boolean {
+    return entry.staleUntil === undefined || entry.staleUntil <= this.now();
+  }
+
+  private deleteIfBeyondStaleWindow(key: string, entry: MemoryCacheEntry<unknown>): void {
+    if (this.isBeyondStaleWindow(entry)) {
+      this.entries.delete(key);
+    }
+  }
+
   // Evicts expired entries first, then least-recently-used entries until the bound is met.
   // Сначала удаляет истекшие записи, затем давно не использованные до соблюдения лимита.
   private evictOverflow(): void {
@@ -95,7 +148,7 @@ export class MemoryCache implements Cache {
     }
 
     for (const [key, entry] of this.entries) {
-      if (this.isExpired(entry)) {
+      if (this.isExpired(entry) && this.isBeyondStaleWindow(entry)) {
         this.entries.delete(key);
       }
     }

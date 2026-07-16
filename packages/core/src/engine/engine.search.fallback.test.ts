@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { MemoryCache } from "../cache/index.js";
-import { MediaEngineError } from "../errors/index.js";
+import { MediaEngineError, ProviderError } from "../errors/index.js";
 import type { ProviderSearchResult } from "../providers/index.js";
 import { MediaEngine } from "./engine.js";
 import { createProvider } from "./test-helpers.js";
@@ -162,4 +162,50 @@ test("search cache integration keeps response shape", async () => {
   assert.deepEqual(Object.keys(first).sort(), ["meta", "query", "results"]);
   assert.deepEqual(Object.keys(second).sort(), ["meta", "query", "results"]);
   assert.deepEqual(second.results, first.results);
+});
+
+test("search returns stale cached data after retryable provider failure", async () => {
+  let now = 1_000;
+  let available = true;
+  const cache = new MemoryCache({
+    now: () => now,
+    defaultTtlMs: 100,
+    defaultStaleTtlMs: 1_000,
+  });
+  const engine = new MediaEngine({
+    cache,
+    providers: [
+      createProvider({
+        async search(): Promise<ProviderSearchResult[]> {
+          if (!available) {
+            throw new ProviderError({
+              provider: "test-provider",
+              code: "PROVIDER_TIMEOUT",
+              retryable: true,
+              message: "Provider timed out.",
+            });
+          }
+
+          return [
+            {
+              provider: "test-provider",
+              item: { id: "movie-1", type: "movie", title: "Interstellar" },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  await engine.search({ title: "Interstellar" });
+  available = false;
+  now = 1_101;
+  const response = await engine.search({ title: "Interstellar" });
+
+  assert.equal(response.results[0]?.item.title, "Interstellar");
+  assert.equal(response.meta.cached, true);
+  assert.equal(response.meta.stale, true);
+  assert.deepEqual(response.meta.providers.successful, []);
+  assert.equal(response.meta.providers.failed[0]?.code, "PROVIDER_TIMEOUT");
+  assert.equal(response.meta.warnings?.[0]?.code, "STALE_CACHE_FALLBACK");
 });

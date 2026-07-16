@@ -14,6 +14,7 @@ export const DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS = 5_000;
 export const DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS = 10_000;
 export const DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS = 15_000;
 export const DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS = 5 * 60_000;
+export const DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS = 30 * 60_000;
 export const DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES = 500;
 
 // EN: Build providers from environment without requiring secrets for local boot.
@@ -58,6 +59,7 @@ export async function createMediaEngine(
     streamingProviders: await createConfiguredStreamingProviders(),
     cache: new MemoryCache({
       defaultTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
+      defaultStaleTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS,
       maxEntries: DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES,
     }),
     timeoutMs: readStreamingProviderTimeoutMs(env),

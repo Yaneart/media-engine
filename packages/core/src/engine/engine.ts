@@ -50,6 +50,7 @@ import {
 } from "./search-enrichment.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
 import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
+import { loadWithStaleFallback } from "./stale-fallback.js";
 import type { MediaEngineOptions } from "./types.js";
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
@@ -126,7 +127,8 @@ export class MediaEngine {
       };
     }
 
-    return this.inFlightRequests.run(`search:${cacheKey}`, async () => {
+    const stale = await this.cache?.getStale?.<SearchResponse>(cacheKey);
+    const pending = this.inFlightRequests.run(`search:${cacheKey}`, async () => {
       const providers = this.registry.selectSearchProviders(normalizedQuery);
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
@@ -317,6 +319,12 @@ export class MediaEngine {
 
       return response;
     });
+
+    return loadWithStaleFallback({
+      stale,
+      pending,
+      tookMs: () => elapsedSince(startedAt),
+    });
   }
 
   // Loads media details through selected providers and merges normalized results.
@@ -341,7 +349,8 @@ export class MediaEngine {
       };
     }
 
-    return this.inFlightRequests.run(`details:${cacheKey}`, async () => {
+    const stale = await this.cache?.getStale?.<DetailsResponse>(cacheKey);
+    const pending = this.inFlightRequests.run(`details:${cacheKey}`, async () => {
       const providers = this.registry.selectDetailsProviders(normalizedQuery);
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
@@ -407,6 +416,12 @@ export class MediaEngine {
       await this.cache?.set(cacheKey, response);
 
       return response;
+    });
+
+    return loadWithStaleFallback({
+      stale,
+      pending,
+      tookMs: () => elapsedSince(startedAt),
     });
   }
 

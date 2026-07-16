@@ -389,6 +389,42 @@ test("getAvailability cache integration keeps response shape", async () => {
   assert.equal(second.meta?.cached, true);
 });
 
+test("getAvailability does not return stale streaming links", async () => {
+  let now = 1_000;
+  let available = true;
+  const cache = new MemoryCache({
+    now: () => now,
+    defaultTtlMs: 100,
+    defaultStaleTtlMs: 1_000,
+  });
+  const engine = new MediaEngine({
+    cache,
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(query): Promise<MediaAvailability> {
+          if (!available) {
+            throw new ProviderError({
+              provider: "test-streaming-provider",
+              code: "PROVIDER_UNAVAILABLE",
+              retryable: true,
+              message: "Streaming provider is unavailable.",
+            });
+          }
+
+          return createAvailability(query, "test-streaming-provider");
+        },
+      }),
+    ],
+  });
+  const query: StreamQuery = { type: "anime", title: "Naruto" };
+
+  await engine.getAvailability(query);
+  available = false;
+  now = 1_101;
+
+  await assert.rejects(engine.getAvailability(query), MediaEngineError);
+});
+
 test("getAvailability bounds cache lifetime by the earliest stream expiration", async () => {
   let cacheOptions: CacheSetOptions | undefined;
   const values = new Map<string, unknown>();
@@ -426,4 +462,5 @@ test("getAvailability bounds cache lifetime by the earliest stream expiration", 
   assert.ok(cacheOptions?.ttlMs !== undefined);
   assert.ok(cacheOptions.ttlMs > 0);
   assert.ok(cacheOptions.ttlMs <= 9_000);
+  assert.equal(cacheOptions.staleTtlMs, 0);
 });

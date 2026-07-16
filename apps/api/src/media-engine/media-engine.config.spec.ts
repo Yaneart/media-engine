@@ -1,4 +1,6 @@
 import {
+  DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS,
+  DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
   DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
@@ -10,6 +12,13 @@ import {
 } from './media-engine.config';
 
 describe('MediaEngine configuration', () => {
+  it('keeps metadata in a bounded stale window after normal cache expiry', () => {
+    expect(DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS).toBeGreaterThan(0);
+    expect(DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS).toBeGreaterThan(
+      DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
+    );
+  });
+
   it('creates an engine with the no-secret providers by default', async () => {
     const engine = await createMediaEngine({});
 

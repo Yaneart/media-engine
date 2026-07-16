@@ -45,6 +45,35 @@ test("keeps entries before ttl expires", () => {
   assert.equal(cache.get("movie"), "Interstellar");
 });
 
+test("returns expired entries only inside the configured stale window", () => {
+  let now = 1_000;
+  const cache = new MemoryCache({ now: () => now, defaultStaleTtlMs: 500 });
+
+  cache.set("movie", "Interstellar", { ttlMs: 100 });
+  assert.equal(cache.getStale("movie"), undefined);
+
+  now = 1_101;
+  assert.equal(cache.get("movie"), undefined);
+  assert.equal(cache.getStale("movie"), "Interstellar");
+
+  now = 1_600;
+  assert.equal(cache.getStale("movie"), undefined);
+});
+
+test("isolates stale values and supports disabling stale per entry", () => {
+  let now = 1_000;
+  const cache = new MemoryCache({ now: () => now, defaultStaleTtlMs: 500 });
+
+  cache.set("stale", { title: "Interstellar" }, { ttlMs: 100 });
+  cache.set("fresh-only", "Dune", { ttlMs: 100, staleTtlMs: 0 });
+  now = 1_101;
+
+  const stale = cache.getStale<{ title: string }>("stale")!;
+  stale.title = "Changed";
+  assert.equal(cache.getStale<{ title: string }>("stale")?.title, "Interstellar");
+  assert.equal(cache.getStale("fresh-only"), undefined);
+});
+
 test("expires zero ttl entries immediately", () => {
   const cache = new MemoryCache({ now: () => 1_000 });
 
@@ -108,4 +137,9 @@ test("evicts the least recently used entry when bounded", () => {
 
 test("rejects invalid max entry bounds", () => {
   assert.throws(() => new MemoryCache({ maxEntries: 0 }), /positive integer/);
+  assert.throws(() => new MemoryCache({ defaultStaleTtlMs: -1 }), /non-negative integer/);
+  assert.throws(
+    () => new MemoryCache().set("movie", "Interstellar", { staleTtlMs: -1 }),
+    /non-negative integer/,
+  );
 });

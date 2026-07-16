@@ -43,6 +43,7 @@ export interface ResponseDebugMeta {
 export interface ResponseMeta {
   providers: ProviderExecutionMeta;
   cached: boolean;
+  stale?: boolean;
   tookMs: number;
   warnings?: EngineWarning[];
   debug?: ResponseDebugMeta;

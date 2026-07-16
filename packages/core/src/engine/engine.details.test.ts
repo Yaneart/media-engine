@@ -389,3 +389,53 @@ test("getDetails cache integration keeps response shape", async () => {
   assert.deepEqual(Object.keys(second).sort(), ["details", "meta", "query"]);
   assert.deepEqual(second.details, first.details);
 });
+
+test("getDetails uses stale cache only for retryable provider failures", async () => {
+  let now = 1_000;
+  let failure: ProviderError | undefined;
+  const cache = new MemoryCache({
+    now: () => now,
+    defaultTtlMs: 100,
+    defaultStaleTtlMs: 1_000,
+  });
+  const engine = new MediaEngine({
+    cache,
+    providers: [
+      createProvider({
+        async getDetails(): Promise<ProviderDetailsResult> {
+          if (failure) {
+            throw failure;
+          }
+
+          return {
+            provider: "test-provider",
+            details: { id: "movie-1", type: "movie", title: "Interstellar" },
+          };
+        },
+      }),
+    ],
+  });
+
+  await engine.getDetails({ imdb: "tt0816692" });
+  now = 1_101;
+  failure = new ProviderError({
+    provider: "test-provider",
+    code: "PROVIDER_UNAUTHORIZED",
+    retryable: false,
+    message: "Provider rejected the request.",
+  });
+  await assert.rejects(engine.getDetails({ imdb: "tt0816692" }), MediaEngineError);
+
+  failure = new ProviderError({
+    provider: "test-provider",
+    code: "PROVIDER_UNAVAILABLE",
+    retryable: true,
+    message: "Provider is unavailable.",
+  });
+  const response = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.equal(response.details?.title, "Interstellar");
+  assert.equal(response.meta.cached, true);
+  assert.equal(response.meta.stale, true);
+  assert.equal(response.meta.providers.failed[0]?.code, "PROVIDER_UNAVAILABLE");
+});

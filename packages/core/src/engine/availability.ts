@@ -75,13 +75,14 @@ export function createAvailabilityCacheOptions(
     .filter(Number.isFinite);
 
   if (expiresAtValues.length === 0) {
-    return undefined;
+    return { staleTtlMs: 0 };
   }
 
   const earliestExpiration = Math.min(...expiresAtValues);
 
   return {
     ttlMs: Math.max(0, earliestExpiration - Date.now() - EXPIRING_AVAILABILITY_CACHE_SAFETY_MS),
+    staleTtlMs: 0,
   };
 }
 
