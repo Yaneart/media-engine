@@ -103,9 +103,17 @@ test("accepts custom cache merge strategy timeout and debug options", () => {
         cache,
         mergeStrategy,
         timeoutMs: 1_000,
+        circuitBreaker: {
+          failureThreshold: 5,
+          recoveryTimeoutMs: 10_000,
+        },
         debug: true,
       }),
   );
+});
+
+test("allows disabling the provider circuit breaker", () => {
+  assert.doesNotThrow(() => new MediaEngine({ circuitBreaker: false }));
 });
 
 test("returns safe streaming provider info", () => {

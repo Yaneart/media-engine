@@ -17,6 +17,7 @@ import {
   mergeAvailabilityResults,
   selectStreamingProviders,
 } from "./availability.js";
+import { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import {
   callTimedProviderAvailability,
   callTimedProviderDetails,
@@ -67,6 +68,7 @@ export class MediaEngine {
   private readonly timeoutMs?: number;
   private readonly providerTimeouts: Readonly<Record<string, number>>;
   private readonly debug: boolean;
+  private readonly circuitBreaker?: ProviderCircuitBreaker;
   private readonly inFlightRequests = new InFlightRequestCoalescer();
 
   constructor(options: MediaEngineOptions = {}) {
@@ -77,6 +79,10 @@ export class MediaEngine {
     this.timeoutMs = options.timeoutMs;
     this.providerTimeouts = { ...options.providerTimeouts };
     this.debug = options.debug ?? false;
+    this.circuitBreaker =
+      options.circuitBreaker === false
+        ? undefined
+        : new ProviderCircuitBreaker(options.circuitBreaker);
   }
 
   // Returns safe registered provider metadata without provider internals.
@@ -143,6 +149,7 @@ export class MediaEngine {
             debug: this.debug,
             language: searchLanguage,
             timeoutMs: this.getProviderTimeoutMs(provider.name),
+            circuitBreaker: this.circuitBreaker,
           }),
         ),
       );
@@ -151,6 +158,7 @@ export class MediaEngine {
         outcomes = await retryFailedSearchProviders(providers, outcomes, normalizedQuery, {
           debug: this.debug,
           language: searchLanguage,
+          circuitBreaker: this.circuitBreaker,
           getTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
         });
       }
@@ -198,6 +206,7 @@ export class MediaEngine {
               debug: this.debug,
               language: searchLanguage,
               timeoutMs: this.getProviderTimeoutMs(provider.name),
+              circuitBreaker: this.circuitBreaker,
             }),
           ),
         );
@@ -230,6 +239,7 @@ export class MediaEngine {
               registry: this.registry,
               mergeStrategy: this.mergeStrategy,
               debug: this.debug,
+              circuitBreaker: this.circuitBreaker,
               getProviderTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
             }).catch(() => undefined),
           })),
@@ -266,6 +276,7 @@ export class MediaEngine {
                 debug: this.debug,
                 language: searchLanguage,
                 timeoutMs: enrichmentTimeoutMs,
+                circuitBreaker: this.circuitBreaker,
               },
             );
 
@@ -365,6 +376,7 @@ export class MediaEngine {
             debug: this.debug,
             language: normalizedQuery.language,
             timeoutMs: this.getProviderTimeoutMs(provider.name),
+            circuitBreaker: this.circuitBreaker,
           }),
         ),
       );
@@ -463,6 +475,7 @@ export class MediaEngine {
             debug: this.debug,
             language: normalizedQuery.language,
             timeoutMs: this.getProviderTimeoutMs(provider.name),
+            circuitBreaker: this.circuitBreaker,
           }),
         ),
       );

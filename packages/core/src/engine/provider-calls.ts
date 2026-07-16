@@ -7,6 +7,7 @@ import type {
 } from "../providers/index.js";
 import type { ProviderFailure, ProviderTimingMeta } from "../response/index.js";
 import type { MediaAvailability, StreamQuery, StreamingProvider } from "../streaming/index.js";
+import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import { createProviderSearchQuery } from "./query.js";
 import { elapsedSince } from "./response-meta.js";
 
@@ -16,11 +17,13 @@ export interface ProviderCallContext {
   debug: boolean;
   language?: string;
   timeoutMs?: number;
+  circuitBreaker?: ProviderCircuitBreaker | undefined;
 }
 
 export interface SearchRetryContext {
   debug: boolean;
   language?: string;
+  circuitBreaker?: ProviderCircuitBreaker | undefined;
   getTimeoutMs(providerName: string): number | undefined;
 }
 
@@ -71,6 +74,7 @@ export async function retryFailedSearchProviders(
         debug: context.debug,
         language: context.language,
         timeoutMs: context.getTimeoutMs(provider.name),
+        circuitBreaker: context.circuitBreaker,
       });
     }),
   );
@@ -86,7 +90,12 @@ export async function callTimedProviderSearch(
   const startedAt = Date.now();
 
   try {
-    const results = await callProviderSearch(provider, query, context);
+    const results = await runWithCircuitBreaker(
+      context,
+      `metadata:${provider.name}`,
+      provider.name,
+      () => callProviderSearch(provider, query, context),
+    );
 
     return {
       provider: provider.name,
@@ -121,7 +130,12 @@ export async function callTimedProviderDetails(
   const startedAt = Date.now();
 
   try {
-    const result = await callProviderDetails(provider, query, context);
+    const result = await runWithCircuitBreaker(
+      context,
+      `metadata:${provider.name}`,
+      provider.name,
+      () => callProviderDetails(provider, query, context),
+    );
 
     return {
       provider: provider.name,
@@ -156,7 +170,12 @@ export async function callTimedProviderAvailability(
   const startedAt = Date.now();
 
   try {
-    const result = await callProviderAvailability(provider, query, context);
+    const result = await runWithCircuitBreaker(
+      context,
+      `streaming:${provider.name}`,
+      provider.name,
+      () => callProviderAvailability(provider, query, context),
+    );
 
     return {
       provider: provider.name,
@@ -179,6 +198,17 @@ export async function callTimedProviderAvailability(
       failure: toProviderFailure(provider.name, error),
     };
   }
+}
+
+function runWithCircuitBreaker<T>(
+  context: ProviderCallContext,
+  key: string,
+  provider: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return context.circuitBreaker
+    ? context.circuitBreaker.run(key, provider, operation)
+    : operation();
 }
 
 // Calls one provider search method with timeout and abort signal support.

@@ -46,6 +46,7 @@ Provider methods receive request context with an abort signal, timeout, language
 
 - Independent providers run concurrently behind engine timeouts.
 - Retryable failures use bounded exponential backoff with jitter, respect `Retry-After`, and stay inside the provider timeout budget.
+- Repeated transient failures open a per-provider circuit, suppressing wasteful calls until one recovery probe is allowed after cooldown.
 - Optional provider failures do not erase successful results from other providers.
 - HTTP response sizes and player validation concurrency are bounded where needed.
 - Upstream-discovered URLs reject credentials and local/private/reserved network targets before server-side use or public exposure.

@@ -245,3 +245,29 @@ test("search retries transient failures when every selected provider fails toget
   assert.equal(response.results[0]?.item.title, "One Piece");
   assert.deepEqual(response.meta.providers.failed, []);
 });
+
+test("search circuit breaker stops calling a repeatedly failing provider", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    circuitBreaker: { failureThreshold: 1, recoveryTimeoutMs: 60_000 },
+    providers: [
+      createProvider({
+        name: "unstable-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          calls += 1;
+          throw new ProviderError({
+            provider: "unstable-provider",
+            code: "PROVIDER_TIMEOUT",
+            retryable: true,
+            message: "Temporary timeout.",
+          });
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(() => engine.search({ title: "First title" }), MediaEngineError);
+  await assert.rejects(() => engine.search({ title: "Second title" }), MediaEngineError);
+
+  assert.equal(calls, 1);
+});
