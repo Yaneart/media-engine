@@ -2,6 +2,7 @@ import type { DetailsResponse } from "@media-engine/core";
 import type { DetailsQuery } from "@media-engine/core";
 import type { MediaAvailability } from "@media-engine/core";
 import type { ProviderInfo } from "@media-engine/core";
+import type { ProviderHealthStatus } from "@media-engine/core";
 import type { SearchResponse } from "@media-engine/core";
 import type { SearchQuery } from "@media-engine/core";
 import type { StreamQuery } from "@media-engine/core";
@@ -31,6 +32,7 @@ export interface MediaEngineRequestOptions {
 export interface MediaEngineHealthResponse {
   status: "ok";
   service: "media-engine-api";
+  providers: ProviderHealthStatus[];
 }
 
 // EN: Error thrown by the SDK for failed API responses or invalid payloads.

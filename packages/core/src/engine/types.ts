@@ -10,6 +10,19 @@ export interface CircuitBreakerOptions {
   recoveryTimeoutMs?: number;
 }
 
+export interface ProviderHealthStatus {
+  provider: string;
+  kind: "metadata" | "streaming";
+  circuitState: "closed" | "open" | "half-open" | "disabled";
+  consecutiveFailures: number;
+  totalRequests: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  lastSuccessAt?: string;
+  lastFailureAt?: string;
+  retryAfterMs?: number;
+}
+
 // Options accepted by the MediaEngine constructor.
 // Опции, которые принимает constructor MediaEngine.
 export interface MediaEngineOptions {

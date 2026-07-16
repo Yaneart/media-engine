@@ -48,7 +48,7 @@ const response = await engine.search({
 
 A search query may use a title, media type, year, external IDs, language, and limit. Common external IDs can be passed inside `ids` or through shortcut fields such as `imdb`, `kinopoisk`, and `shikimori`.
 
-Each result contains a normalized item, a score, and source attribution. Response metadata reports requested, successful, and failed providers, cache state, total elapsed time, and optional warnings/debug timings.
+Each result contains a normalized item, a score, and source attribution. Response metadata reports requested, successful, and failed providers, cache state, total elapsed time, and optional warnings/debug timings. Retries, fallback queries, and enrichment share one timeout budget per provider within the operation.
 
 ## Details
 
@@ -101,6 +101,8 @@ GET /media/availability
 ```
 
 Query parameters mirror the core query objects. The API also exposes generated OpenAPI documentation when running locally.
+
+`GET /health` includes process-local provider counters and circuit states. These diagnostics contain provider names, success/failure counts, timestamps, and recovery delay only; they do not expose credentials or provider internals.
 
 ## SDK
 

@@ -174,6 +174,7 @@ test("getProviders and getHealth parse typed responses", async () => {
   const health = {
     status: "ok",
     service: "media-engine-api",
+    providers: [],
   } as const;
   const healthMock = createMockFetch(Response.json(health));
   const healthClient = new MediaEngineClient({

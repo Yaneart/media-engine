@@ -16,7 +16,10 @@ import { setupOpenApi } from './../src/openapi';
 describe('Media Engine API (e2e)', () => {
   let app: INestApplication<App>;
   let mediaEngine: jest.Mocked<
-    Pick<MediaEngine, 'search' | 'getDetails' | 'getProviders'>
+    Pick<
+      MediaEngine,
+      'search' | 'getDetails' | 'getProviders' | 'getProviderHealth'
+    >
   >;
 
   const searchResponse: SearchResponse = {
@@ -80,6 +83,7 @@ describe('Media Engine API (e2e)', () => {
       search: jest.fn().mockResolvedValue(searchResponse),
       getDetails: jest.fn().mockResolvedValue(detailsResponse),
       getProviders: jest.fn().mockReturnValue(providersResponse),
+      getProviderHealth: jest.fn().mockReturnValue([]),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -98,6 +102,7 @@ describe('Media Engine API (e2e)', () => {
     return request(app.getHttpServer()).get('/health').expect(200).expect({
       status: 'ok',
       service: 'media-engine-api',
+      providers: [],
     });
   });
 

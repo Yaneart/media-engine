@@ -277,6 +277,18 @@ async function withProviderTimeout<T>(
   let timeout: ReturnType<typeof setTimeout> | undefined;
 
   try {
+    const timeoutError = new ProviderError({
+      provider: providerName,
+      code: "PROVIDER_TIMEOUT",
+      message: `Provider "${providerName}" timed out.`,
+      retryable: true,
+    });
+
+    if (context.timeoutMs !== undefined && context.timeoutMs <= 0) {
+      controller.abort(timeoutError);
+      throw timeoutError;
+    }
+
     const providerPromise = run(controller);
 
     if (context.timeoutMs === undefined) {
@@ -284,19 +296,6 @@ async function withProviderTimeout<T>(
     }
 
     const timeoutPromise = new Promise<T>((_, reject) => {
-      const timeoutError = new ProviderError({
-        provider: providerName,
-        code: "PROVIDER_TIMEOUT",
-        message: `Provider "${providerName}" timed out.`,
-        retryable: true,
-      });
-
-      if (context.timeoutMs! <= 0) {
-        controller.abort(timeoutError);
-        reject(timeoutError);
-        return;
-      }
-
       timeout = setTimeout(() => {
         controller.abort(timeoutError);
         reject(timeoutError);

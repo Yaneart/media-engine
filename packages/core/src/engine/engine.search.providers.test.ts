@@ -271,3 +271,39 @@ test("search circuit breaker stops calling a repeatedly failing provider", async
 
   assert.equal(calls, 1);
 });
+
+test("search retries share one provider timeout budget", async () => {
+  const receivedTimeouts: Array<number | undefined> = [];
+  let calls = 0;
+  const engine = new MediaEngine({
+    timeoutMs: 100,
+    providers: [
+      createProvider({
+        name: "transient-provider",
+        async search(_, context): Promise<ProviderSearchResult[]> {
+          calls += 1;
+          receivedTimeouts.push(context.timeoutMs);
+
+          if (calls === 1) {
+            await sleep(15);
+            throw new ProviderError({
+              provider: "transient-provider",
+              code: "PROVIDER_TIMEOUT",
+              retryable: true,
+              message: "Temporary timeout.",
+            });
+          }
+
+          return [];
+        },
+      }),
+    ],
+  });
+
+  await engine.search({ title: "Dune" });
+
+  assert.equal(calls, 2);
+  assert.equal(receivedTimeouts[0], 100);
+  assert.ok((receivedTimeouts[1] ?? 100) < 100);
+  assert.ok((receivedTimeouts[1] ?? 0) > 0);
+});

@@ -10,6 +10,25 @@ interface CircuitState {
   probeInFlight: boolean;
 }
 
+interface ProviderObservation {
+  totalRequests: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  lastSuccessAt?: number;
+  lastFailureAt?: number;
+}
+
+export interface CircuitBreakerSnapshot {
+  state: "closed" | "open" | "half-open";
+  consecutiveFailures: number;
+  totalRequests: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  lastSuccessAt?: number;
+  lastFailureAt?: number;
+  retryAfterMs?: number;
+}
+
 // Tracks transient provider failures and allows one recovery probe after cooldown.
 // Отслеживает временные сбои провайдера и разрешает одну пробу после cooldown.
 export class ProviderCircuitBreaker {
@@ -17,6 +36,7 @@ export class ProviderCircuitBreaker {
   private readonly recoveryTimeoutMs: number;
   private readonly now: () => number;
   private readonly states = new Map<string, CircuitState>();
+  private readonly observations = new Map<string, ProviderObservation>();
 
   constructor(options: CircuitBreakerOptions = {}, now: () => number = Date.now) {
     this.failureThreshold = validatePositiveInteger(
@@ -34,15 +54,44 @@ export class ProviderCircuitBreaker {
 
   async run<T>(key: string, provider: string, operation: () => Promise<T>): Promise<T> {
     this.acquire(key, provider);
+    this.recordRequest(key);
 
     try {
       const result = await operation();
       this.states.delete(key);
+      this.recordSuccess(key);
       return result;
     } catch (error) {
       this.recordFailure(key, error);
+      this.recordObservedFailure(key);
       throw error;
     }
+  }
+
+  getSnapshot(key: string): CircuitBreakerSnapshot {
+    const now = this.now();
+    const state = this.states.get(key);
+    const observation = this.observations.get(key);
+    const circuitState = state?.probeInFlight
+      ? "half-open"
+      : state?.openedAt !== undefined
+        ? "open"
+        : "closed";
+    const retryAfterMs =
+      state?.openedAt === undefined
+        ? undefined
+        : Math.max(0, this.recoveryTimeoutMs - (now - state.openedAt));
+
+    return {
+      state: circuitState,
+      consecutiveFailures: state?.failures ?? 0,
+      totalRequests: observation?.totalRequests ?? 0,
+      totalSuccesses: observation?.totalSuccesses ?? 0,
+      totalFailures: observation?.totalFailures ?? 0,
+      lastSuccessAt: observation?.lastSuccessAt,
+      lastFailureAt: observation?.lastFailureAt,
+      retryAfterMs,
+    };
   }
 
   private acquire(key: string, provider: string): void {
@@ -82,6 +131,39 @@ export class ProviderCircuitBreaker {
       openedAt: failures >= this.failureThreshold ? this.now() : undefined,
       probeInFlight: false,
     });
+  }
+
+  private recordRequest(key: string): void {
+    const observation = this.getObservation(key);
+    observation.totalRequests += 1;
+  }
+
+  private recordSuccess(key: string): void {
+    const observation = this.getObservation(key);
+    observation.totalSuccesses += 1;
+    observation.lastSuccessAt = this.now();
+  }
+
+  private recordObservedFailure(key: string): void {
+    const observation = this.getObservation(key);
+    observation.totalFailures += 1;
+    observation.lastFailureAt = this.now();
+  }
+
+  private getObservation(key: string): ProviderObservation {
+    const existing = this.observations.get(key);
+
+    if (existing) {
+      return existing;
+    }
+
+    const observation: ProviderObservation = {
+      totalRequests: 0,
+      totalSuccesses: 0,
+      totalFailures: 0,
+    };
+    this.observations.set(key, observation);
+    return observation;
   }
 }
 

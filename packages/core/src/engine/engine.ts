@@ -52,7 +52,8 @@ import {
 import { InFlightRequestCoalescer } from "./in-flight.js";
 import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
-import type { MediaEngineOptions } from "./types.js";
+import { ProviderTimeoutBudget } from "./timeout-budget.js";
+import type { MediaEngineOptions, ProviderHealthStatus } from "./types.js";
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
@@ -110,6 +111,19 @@ export class MediaEngine {
     }));
   }
 
+  // Returns process-local provider reliability counters without exposing provider internals.
+  // Возвращает локальные health-счетчики провайдеров без раскрытия их внутренностей.
+  getProviderHealth(): ProviderHealthStatus[] {
+    const metadata = this.registry
+      .getProviders()
+      .map((provider) => this.createProviderHealthStatus(provider.name, "metadata"));
+    const streaming = this.streamingProviders.map((provider) =>
+      this.createProviderHealthStatus(provider.name, "streaming"),
+    );
+
+    return [...metadata, ...streaming];
+  }
+
   // Searches media through selected providers and merges normalized results.
   // Ищет медиа через выбранных провайдеров и объединяет нормализованные результаты.
   async search(query: SearchQuery): Promise<SearchResponse> {
@@ -135,6 +149,7 @@ export class MediaEngine {
 
     const stale = await this.cache?.getStale?.<SearchResponse>(cacheKey);
     const pending = this.inFlightRequests.run(`search:${cacheKey}`, async () => {
+      const timeoutBudget = this.createProviderTimeoutBudget();
       const providers = this.registry.selectSearchProviders(normalizedQuery);
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
@@ -148,7 +163,7 @@ export class MediaEngine {
           callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
             debug: this.debug,
             language: searchLanguage,
-            timeoutMs: this.getProviderTimeoutMs(provider.name),
+            timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
           }),
         ),
@@ -159,7 +174,7 @@ export class MediaEngine {
           debug: this.debug,
           language: searchLanguage,
           circuitBreaker: this.circuitBreaker,
-          getTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
+          getTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
         });
       }
 
@@ -205,7 +220,7 @@ export class MediaEngine {
             callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
               debug: this.debug,
               language: searchLanguage,
-              timeoutMs: this.getProviderTimeoutMs(provider.name),
+              timeoutMs: timeoutBudget.getRemainingMs(provider.name),
               circuitBreaker: this.circuitBreaker,
             }),
           ),
@@ -240,7 +255,7 @@ export class MediaEngine {
               mergeStrategy: this.mergeStrategy,
               debug: this.debug,
               circuitBreaker: this.circuitBreaker,
-              getProviderTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
+              getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
             }).catch(() => undefined),
           })),
       );
@@ -259,11 +274,10 @@ export class MediaEngine {
               return [];
             }
 
-            const providerTimeoutMs = this.getProviderTimeoutMs(enrichmentProvider.name);
-            const enrichmentTimeoutMs =
-              providerTimeoutMs === undefined
-                ? SEARCH_ID_ENRICHMENT_TIMEOUT_MS
-                : Math.min(providerTimeoutMs, SEARCH_ID_ENRICHMENT_TIMEOUT_MS);
+            const enrichmentTimeoutMs = timeoutBudget.getRemainingMs(
+              enrichmentProvider.name,
+              SEARCH_ID_ENRICHMENT_TIMEOUT_MS,
+            );
             const outcome = await callTimedProviderSearch(
               enrichmentProvider,
               {
@@ -362,6 +376,7 @@ export class MediaEngine {
 
     const stale = await this.cache?.getStale?.<DetailsResponse>(cacheKey);
     const pending = this.inFlightRequests.run(`details:${cacheKey}`, async () => {
+      const timeoutBudget = this.createProviderTimeoutBudget();
       const providers = this.registry.selectDetailsProviders(normalizedQuery);
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
@@ -375,7 +390,7 @@ export class MediaEngine {
           callTimedProviderDetails(provider, normalizedQuery, {
             debug: this.debug,
             language: normalizedQuery.language,
-            timeoutMs: this.getProviderTimeoutMs(provider.name),
+            timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
           }),
         ),
@@ -462,6 +477,7 @@ export class MediaEngine {
     }
 
     return this.inFlightRequests.run(`availability:${cacheKey}`, async () => {
+      const timeoutBudget = this.createProviderTimeoutBudget();
       const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
@@ -474,7 +490,7 @@ export class MediaEngine {
           callTimedProviderAvailability(provider, normalizedQuery, {
             debug: this.debug,
             language: normalizedQuery.language,
-            timeoutMs: this.getProviderTimeoutMs(provider.name),
+            timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
           }),
         ),
@@ -545,6 +561,48 @@ export class MediaEngine {
   // Выбирает override провайдера, не позволяя ему превысить глобальную границу.
   private getProviderTimeoutMs(providerName: string): number | undefined {
     return resolveProviderTimeoutMs(providerName, this.timeoutMs, this.providerTimeouts);
+  }
+
+  private createProviderTimeoutBudget(): ProviderTimeoutBudget {
+    return new ProviderTimeoutBudget((providerName) => this.getProviderTimeoutMs(providerName));
+  }
+
+  private createProviderHealthStatus(
+    provider: string,
+    kind: ProviderHealthStatus["kind"],
+  ): ProviderHealthStatus {
+    if (!this.circuitBreaker) {
+      return {
+        provider,
+        kind,
+        circuitState: "disabled",
+        consecutiveFailures: 0,
+        totalRequests: 0,
+        totalSuccesses: 0,
+        totalFailures: 0,
+      };
+    }
+
+    const snapshot = this.circuitBreaker.getSnapshot(`${kind}:${provider}`);
+
+    return {
+      provider,
+      kind,
+      circuitState: snapshot.state,
+      consecutiveFailures: snapshot.consecutiveFailures,
+      totalRequests: snapshot.totalRequests,
+      totalSuccesses: snapshot.totalSuccesses,
+      totalFailures: snapshot.totalFailures,
+      lastSuccessAt:
+        snapshot.lastSuccessAt === undefined
+          ? undefined
+          : new Date(snapshot.lastSuccessAt).toISOString(),
+      lastFailureAt:
+        snapshot.lastFailureAt === undefined
+          ? undefined
+          : new Date(snapshot.lastFailureAt).toISOString(),
+      retryAfterMs: snapshot.retryAfterMs,
+    };
   }
 
   // Gives future engine methods access to the debug flag.
