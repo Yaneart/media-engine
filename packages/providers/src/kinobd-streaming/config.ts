@@ -1,5 +1,5 @@
 import type { MediaAvailability, StreamingProviderCapabilities } from "@media-engine/core";
-import type { ProviderFetch } from "../shared/index.js";
+import { ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
 
 const PROVIDER_NAME = "kinobd-streaming";
 const DEFAULT_BASE_URL = "https://kinobd.net";
@@ -93,6 +93,7 @@ export interface KinoBdStreamingConfig {
   animeCacheBaseUrl?: string;
   shikimoriBaseUrl: string;
   fetch?: ProviderFetch;
+  rateLimitGate: ProviderRateLimitGate;
   searchLimit: number;
   shikimoriLookupTimeoutMs: number;
   playerValidationLimit: number;
@@ -147,6 +148,7 @@ export function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStr
         : trimTrailingSlash(options.animeCacheBaseUrl),
     shikimoriBaseUrl: trimTrailingSlash(options.shikimoriBaseUrl ?? DEFAULT_SHIKIMORI_BASE_URL),
     fetch: options.fetch,
+    rateLimitGate: new ProviderRateLimitGate(),
     searchLimit,
     shikimoriLookupTimeoutMs,
     playerValidationLimit,

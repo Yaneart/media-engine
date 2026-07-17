@@ -1,5 +1,6 @@
 import { ProviderError, type ProviderErrorCode } from "@media-engine/core";
 import type { ProviderContext } from "@media-engine/core";
+import type { ProviderRateLimitGate } from "./rate-limit.js";
 import { calculateRetryDelayMs, parseRetryAfterMs } from "./retry.js";
 
 // Minimal fetch function shape used by provider HTTP utilities.
@@ -94,6 +95,7 @@ export interface FetchJsonOptions {
   retryDelayMs?: number;
   maxRetryDelayMs?: number;
   retryJitterRatio?: number;
+  rateLimitGate?: ProviderRateLimitGate;
 }
 
 // Reads JSON through fetch and maps failures to ProviderError.
@@ -119,27 +121,27 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
   try {
     while (attempt <= maxRetries) {
       try {
+        await options.rateLimitGate?.wait(signal);
         return await fetchJsonAttempt<T>(boundedOptions);
       } catch (error) {
         const providerError = mapProviderHttpError(options.provider, error);
+        const retryDelay = calculateRetryDelayMs({
+          baseDelayMs: retryDelayMs,
+          attempt,
+          maxDelayMs: maxRetryDelayMs,
+          jitterRatio: retryJitterRatio,
+          randomValue: Math.random(),
+          retryAfterMs: getRetryAfterMs(providerError),
+        });
 
         lastError = providerError;
+        deferSharedRateLimit(options.rateLimitGate, providerError, retryDelay);
 
         if (!providerError.retryable || attempt >= maxRetries) {
           throw providerError;
         }
 
-        await delay(
-          calculateRetryDelayMs({
-            baseDelayMs: retryDelayMs,
-            attempt,
-            maxDelayMs: maxRetryDelayMs,
-            jitterRatio: retryJitterRatio,
-            randomValue: Math.random(),
-            retryAfterMs: getRetryAfterMs(providerError),
-          }),
-          signal,
-        );
+        await delay(retryDelay, signal);
         attempt += 1;
       }
     }
@@ -164,7 +166,7 @@ async function fetchJsonAttempt<T>(options: FetchJsonOptions): Promise<T> {
     });
 
     if (!response.ok) {
-      throw createHttpProviderError(options.provider, response);
+      throw mapHttpResponseToProviderError(options.provider, response);
     }
 
     return await parseJsonResponse<T>(options.provider, response);
@@ -245,7 +247,10 @@ export function mapHttpStatusToProviderErrorCode(status: number): ProviderErrorC
 
 // Creates a ProviderError from an HTTP response status.
 // Создает ProviderError из HTTP status ответа.
-function createHttpProviderError(provider: string, response: Response): ProviderError {
+export function mapHttpResponseToProviderError(
+  provider: string,
+  response: Response,
+): ProviderError {
   const status = response.status;
   const code = mapHttpStatusToProviderErrorCode(status);
 
@@ -277,6 +282,25 @@ class HttpProviderError extends ProviderError {
 
 function getRetryAfterMs(error: ProviderError): number | undefined {
   return error instanceof HttpProviderError ? error.retryAfterMs : undefined;
+}
+
+function deferSharedRateLimit(
+  gate: ProviderRateLimitGate | undefined,
+  error: ProviderError,
+  fallbackDelayMs: number,
+): void {
+  if (!gate || !(error instanceof HttpProviderError)) {
+    return;
+  }
+
+  if (error.code === "PROVIDER_RATE_LIMITED") {
+    gate.defer(error.retryAfterMs ?? fallbackDelayMs);
+    return;
+  }
+
+  if (error.retryAfterMs !== undefined) {
+    gate.defer(error.retryAfterMs);
+  }
 }
 
 // Creates a timeout controller for provider HTTP calls.

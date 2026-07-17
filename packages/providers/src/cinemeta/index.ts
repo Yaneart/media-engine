@@ -16,7 +16,7 @@ import type {
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
-import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
 import { createProviderImage, mapGenreNames } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
@@ -74,6 +74,7 @@ export function cinemetaProvider(options: CinemetaProviderOptions = {}): MediaPr
 interface CinemetaConfig {
   baseUrl: string;
   fetch?: ProviderFetch;
+  rateLimitGate: ProviderRateLimitGate;
   searchLimit: number;
   enrichSearchLimit: number;
   imageLimit: number;
@@ -126,6 +127,7 @@ function createCinemetaConfig(options: CinemetaProviderOptions): CinemetaConfig 
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
+    rateLimitGate: new ProviderRateLimitGate(),
     searchLimit: resolveBoundedIntegerOption(
       options.searchLimit,
       DEFAULT_SEARCH_LIMIT,
@@ -478,6 +480,7 @@ function requestJson<T>(config: CinemetaConfig, url: URL, context: ProviderConte
     url,
     context,
     fetch: config.fetch,
+    rateLimitGate: config.rateLimitGate,
     init: {
       headers: {
         accept: "application/json",

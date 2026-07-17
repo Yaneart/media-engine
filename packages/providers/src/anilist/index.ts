@@ -15,7 +15,7 @@ import type {
   ProviderSource,
   Rating,
 } from "@media-engine/core";
-import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
 
 const PROVIDER_NAME = "anilist";
 const DEFAULT_BASE_URL = "https://graphql.anilist.co";
@@ -37,6 +37,7 @@ export interface AniListProviderOptions {
 interface AniListConfig {
   baseUrl: string;
   fetch?: ProviderFetch;
+  rateLimitGate: ProviderRateLimitGate;
   searchLimit: number;
   includeAdult: boolean;
 }
@@ -79,6 +80,7 @@ export function aniListProvider(options: AniListProviderOptions = {}): MediaProv
   const config: AniListConfig = {
     baseUrl: options.baseUrl ?? DEFAULT_BASE_URL,
     fetch: options.fetch,
+    rateLimitGate: new ProviderRateLimitGate(),
     searchLimit: options.searchLimit ?? DEFAULT_SEARCH_LIMIT,
     includeAdult: options.includeAdult ?? false,
   };
@@ -373,6 +375,7 @@ async function request(
     url: config.baseUrl,
     context,
     fetch: config.fetch,
+    rateLimitGate: config.rateLimitGate,
     init: {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },

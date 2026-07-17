@@ -16,7 +16,7 @@ import type {
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
-import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
 const PROVIDER_NAME = "shikimori";
@@ -71,6 +71,7 @@ export function shikimoriProvider(options: ShikimoriProviderOptions = {}): Media
 interface ShikimoriConfig {
   baseUrl: string;
   fetch?: ProviderFetch;
+  rateLimitGate: ProviderRateLimitGate;
   searchLimit: number;
   personLimit: number;
   userAgent?: string;
@@ -153,6 +154,7 @@ function createShikimoriConfig(options: ShikimoriProviderOptions): ShikimoriConf
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
+    rateLimitGate: new ProviderRateLimitGate(),
     searchLimit: resolveBoundedIntegerOption(
       options.searchLimit,
       DEFAULT_SEARCH_LIMIT,
@@ -296,6 +298,7 @@ async function requestShikimori<T>(
     url,
     context,
     fetch: config.fetch,
+    rateLimitGate: config.rateLimitGate,
     init: {
       headers: createHeaders(config),
     },

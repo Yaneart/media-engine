@@ -97,6 +97,7 @@ export async function searchPlayerCandidates(
     url,
     context,
     fetch: config.fetch,
+    rateLimitGate: config.rateLimitGate,
     init: {
       headers: {
         accept: "application/json",
@@ -298,6 +299,7 @@ async function tryLookupShikimoriAnime(
         timeoutMs: getBoundedTimeoutMs(context.timeoutMs, config.shikimoriLookupTimeoutMs),
       },
       fetch: config.fetch,
+      rateLimitGate: config.rateLimitGate,
       maxRetries: 0,
       init: {
         headers,

@@ -81,6 +81,7 @@ export async function loadPlayerData(
     url,
     context,
     fetch: config.fetch,
+    rateLimitGate: config.rateLimitGate,
     init: {
       method: "POST",
       headers,

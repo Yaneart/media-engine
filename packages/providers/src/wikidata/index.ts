@@ -14,7 +14,7 @@ import type {
   SeriesDetails,
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
-import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
 import { normalizeProviderSearchText as normalizeSearchText } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
@@ -78,6 +78,7 @@ interface WikidataConfig {
   language: string;
   userAgent: string;
   fetch?: ProviderFetch;
+  rateLimitGate: ProviderRateLimitGate;
   searchLimit: number;
 }
 
@@ -136,6 +137,7 @@ function createWikidataConfig(options: WikidataProviderOptions): WikidataConfig 
     language: normalizeLanguage(options.language ?? DEFAULT_LANGUAGE),
     userAgent: options.userAgent ?? DEFAULT_USER_AGENT,
     fetch: options.fetch,
+    rateLimitGate: new ProviderRateLimitGate(),
     searchLimit: resolveBoundedIntegerOption(
       options.searchLimit,
       DEFAULT_SEARCH_LIMIT,
@@ -505,6 +507,7 @@ function requestJson<T>(config: WikidataConfig, url: URL, context: ProviderConte
     url,
     context,
     fetch: config.fetch,
+    rateLimitGate: config.rateLimitGate,
     init: {
       headers: {
         accept: "application/json",

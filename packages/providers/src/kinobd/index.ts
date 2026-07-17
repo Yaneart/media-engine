@@ -18,7 +18,7 @@ import type {
   SeriesDetails,
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
-import { fetchJson, type ProviderFetch } from "../shared/index.js";
+import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
 import { createProviderImage, mapKinoBdMediaType as mapMediaType } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
@@ -74,6 +74,7 @@ export function kinobdProvider(options: KinoBdProviderOptions = {}): MediaProvid
 interface KinoBdConfig {
   baseUrl: string;
   fetch?: ProviderFetch;
+  rateLimitGate: ProviderRateLimitGate;
   searchLimit: number;
   imageLimit: number;
   personLimit: number;
@@ -147,6 +148,7 @@ function createKinoBdConfig(options: KinoBdProviderOptions): KinoBdConfig {
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     fetch: options.fetch,
+    rateLimitGate: new ProviderRateLimitGate(),
     searchLimit: resolveBoundedIntegerOption(
       options.searchLimit,
       DEFAULT_SEARCH_LIMIT,
@@ -275,6 +277,7 @@ async function requestSearch(
     url,
     context,
     fetch: config.fetch,
+    rateLimitGate: config.rateLimitGate,
     init: {
       headers: {
         accept: "application/json",

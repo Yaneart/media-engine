@@ -8,8 +8,11 @@ import type {
   SubtitleTrack,
 } from "@media-engine/core";
 import {
+  deferProviderRateLimitFromResponse,
   mapProviderHttpError,
+  mapHttpResponseToProviderError,
   normalizePublicHttpUrl,
+  ProviderRateLimitGate,
   type ProviderFetch,
 } from "../shared/index.js";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
@@ -42,6 +45,7 @@ interface FlixHqConfig {
   baseUrl: string;
   name: string;
   fetch?: ProviderFetch;
+  rateLimitGate: ProviderRateLimitGate;
   maxHtmlBytes: number;
   playerLimit: number;
   playerValidationConcurrency: number;
@@ -130,6 +134,7 @@ function createConfig(options: FlixHqStreamingProviderOptions): FlixHqConfig {
     baseUrl: normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL),
     name: normalizeProviderName(options.name ?? DEFAULT_PROVIDER_NAME),
     fetch: options.fetch,
+    rateLimitGate: new ProviderRateLimitGate(),
     maxHtmlBytes,
     playerLimit,
     playerValidationConcurrency,
@@ -622,13 +627,15 @@ async function fetchText(
   const fetchImpl = config.fetch ?? fetch;
 
   try {
+    await config.rateLimitGate.wait(context.signal);
     const response = await fetchImpl(url, {
       ...init,
       headers: init.headers ?? createHeaders(config),
       signal: context.signal,
     });
+    deferProviderRateLimitFromResponse(config.rateLimitGate, response);
     if (!response.ok) {
-      throw new Error(`Provider "${config.name}" returned HTTP ${response.status}.`);
+      throw mapHttpResponseToProviderError(config.name, response);
     }
 
     const declaredLength = Number(response.headers.get("content-length"));

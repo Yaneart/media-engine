@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { ProviderError } from "@media-engine/core";
 import { fetchJson, mapHttpStatusToProviderErrorCode, normalizePublicHttpUrl } from "./http.js";
+import { ProviderRateLimitGate } from "./rate-limit.js";
 
 test("normalizePublicHttpUrl rejects local and private network targets", () => {
   for (const value of [
@@ -173,6 +174,90 @@ test("fetchJson respects Retry-After within the bounded retry delay", async () =
   assert.deepEqual(result, { ok: true });
   assert.ok(Date.now() - startedAt >= 10);
   assert.ok(Date.now() - startedAt < 200);
+});
+
+test("fetchJson shares a bounded Retry-After cooldown with later requests", async () => {
+  const rateLimitGate = new ProviderRateLimitGate({ maxCooldownMs: 25 });
+
+  await assert.rejects(
+    () =>
+      fetchJson({
+        provider: "test-provider",
+        url: "https://example.test/first",
+        maxRetries: 0,
+        rateLimitGate,
+        fetch: async () =>
+          new Response("rate limited", {
+            status: 429,
+            headers: { "retry-after": "60" },
+          }),
+      }),
+    { code: "PROVIDER_RATE_LIMITED" },
+  );
+
+  const startedAt = Date.now();
+  let fetchedAt = 0;
+  const result = await fetchJson<{ ok: true }>({
+    provider: "test-provider",
+    url: "https://example.test/second",
+    rateLimitGate,
+    fetch: async () => {
+      fetchedAt = Date.now();
+      return Response.json({ ok: true });
+    },
+  });
+
+  assert.deepEqual(result, { ok: true });
+  assert.ok(fetchedAt - startedAt >= 15);
+});
+
+test("fetchJson applies a shared fallback cooldown for 429 without Retry-After", async () => {
+  const rateLimitGate = new ProviderRateLimitGate({ maxCooldownMs: 25 });
+
+  await assert.rejects(() =>
+    fetchJson({
+      provider: "test-provider",
+      url: "https://example.test/first",
+      maxRetries: 0,
+      retryDelayMs: 25,
+      retryJitterRatio: 0,
+      rateLimitGate,
+      fetch: async () => new Response("rate limited", { status: 429 }),
+    }),
+  );
+
+  const startedAt = Date.now();
+  await fetchJson({
+    provider: "test-provider",
+    url: "https://example.test/second",
+    rateLimitGate,
+    fetch: async () => Response.json({ ok: true }),
+  });
+
+  assert.ok(Date.now() - startedAt >= 15);
+});
+
+test("fetchJson stops shared cooldown waiting at the total provider timeout", async () => {
+  const rateLimitGate = new ProviderRateLimitGate({ maxCooldownMs: 1_000 });
+  let calls = 0;
+
+  rateLimitGate.defer(1_000);
+
+  await assert.rejects(
+    () =>
+      fetchJson({
+        provider: "test-provider",
+        url: "https://example.test/movie",
+        context: { timeoutMs: 10 },
+        rateLimitGate,
+        fetch: async () => {
+          calls += 1;
+          return Response.json({ ok: true });
+        },
+      }),
+    { code: "PROVIDER_TIMEOUT" },
+  );
+  assert.equal(calls, 0);
 });
 
 test("fetchJson stops retry backoff when the provider call is aborted", async () => {
