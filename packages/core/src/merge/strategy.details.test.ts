@@ -31,6 +31,35 @@ test("selects localized details titles and descriptions when language is explici
   assert.equal(details?.description, "Русское описание приключений пиратов.");
 });
 
+test("prefers a localized details title corroborated by multiple providers", () => {
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("kinobd", {
+        id: "kinobd-death-note",
+        type: "anime",
+        title: "Тетрадь смерти",
+        originalTitle: "Desu noto",
+        alternativeTitles: ["Desu noto"],
+      }),
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-death-note",
+        type: "anime",
+        title: "Death Note",
+      }),
+      providerDetailsResult("shikimori", {
+        id: "shikimori-death-note",
+        type: "anime",
+        title: "Тетрадь смерти",
+        originalTitle: "Death Note",
+        alternativeTitles: ["Death Note", "デスノート"],
+      }),
+    ],
+    { query: { type: "anime", language: "en" }, language: "en" },
+  );
+
+  assert.equal(details?.title, "Death Note");
+});
+
 test("returns null when there are no details results", () => {
   assert.equal(strategy.mergeDetails([], {}), null);
 });

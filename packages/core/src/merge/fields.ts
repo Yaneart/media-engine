@@ -44,14 +44,7 @@ export function selectDetailsTitle(
   entries: DetailsEntry[],
   context: MergeContext,
 ): string | undefined {
-  const localizedTitle = selectLocalizedText(
-    entries.flatMap((entry) => [
-      entry.result.details.title,
-      entry.result.details.originalTitle,
-      ...(entry.result.details.alternativeTitles ?? []),
-    ]),
-    context.language,
-  );
+  const localizedTitle = selectMostSupportedDetailsTitle(entries, context.language);
 
   if (localizedTitle) {
     return localizedTitle;
@@ -72,6 +65,51 @@ export function selectDetailsTitle(
   }
 
   return firstDefined(entries, (entry) => entry.result.details.title);
+}
+
+// Selects the localized title corroborated by the most independent providers.
+// Выбирает локализованный title, подтвержденный большинством независимых провайдеров.
+function selectMostSupportedDetailsTitle(
+  entries: DetailsEntry[],
+  language: string | undefined,
+): string | undefined {
+  const candidates = new Map<string, { value: string; support: number; order: number }>();
+  let order = 0;
+
+  for (const entry of entries) {
+    const localizedTitles = filterLocalizedText(
+      [
+        entry.result.details.title,
+        entry.result.details.originalTitle,
+        ...(entry.result.details.alternativeTitles ?? []),
+      ].filter((value): value is string => Boolean(value?.trim())),
+      language,
+    );
+    const providerTitles = new Set<string>();
+
+    for (const value of localizedTitles) {
+      const key = normalizeTitle(value);
+
+      if (!key || providerTitles.has(key)) {
+        continue;
+      }
+
+      providerTitles.add(key);
+      const existing = candidates.get(key);
+
+      if (existing) {
+        existing.support += 1;
+      } else {
+        candidates.set(key, { value, support: 1, order });
+      }
+
+      order += 1;
+    }
+  }
+
+  return [...candidates.values()].sort(
+    (left, right) => right.support - left.support || left.order - right.order,
+  )[0]?.value;
 }
 
 // Selects the primary year and emits warnings for conflicting years.
