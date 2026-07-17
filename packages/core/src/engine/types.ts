@@ -10,6 +10,14 @@ export interface CircuitBreakerOptions {
   recoveryTimeoutMs?: number;
 }
 
+// Tuning for bounded process-local concurrency per provider.
+// Настройки ограниченной process-local параллельности для каждого провайдера.
+export interface ProviderConcurrencyOptions {
+  defaultMaxConcurrent?: number;
+  maxQueueSize?: number;
+  providerLimits?: Readonly<Record<string, number>>;
+}
+
 export interface ProviderHealthStatus {
   provider: string;
   kind: "metadata" | "streaming";
@@ -33,5 +41,6 @@ export interface MediaEngineOptions {
   timeoutMs?: number;
   providerTimeouts?: Readonly<Record<string, number>>;
   circuitBreaker?: CircuitBreakerOptions | false;
+  providerConcurrency?: ProviderConcurrencyOptions | false;
   debug?: boolean;
 }

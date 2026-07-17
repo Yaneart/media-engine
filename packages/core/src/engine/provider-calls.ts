@@ -8,6 +8,7 @@ import type {
 import type { ProviderFailure, ProviderTimingMeta } from "../response/index.js";
 import type { MediaAvailability, StreamQuery, StreamingProvider } from "../streaming/index.js";
 import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
+import type { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
 import { createProviderSearchQuery } from "./query.js";
 import { elapsedSince } from "./response-meta.js";
 
@@ -18,12 +19,14 @@ export interface ProviderCallContext {
   language?: string;
   timeoutMs?: number;
   circuitBreaker?: ProviderCircuitBreaker | undefined;
+  concurrencyLimiter?: ProviderConcurrencyLimiter | undefined;
 }
 
 export interface SearchRetryContext {
   debug: boolean;
   language?: string;
   circuitBreaker?: ProviderCircuitBreaker | undefined;
+  concurrencyLimiter?: ProviderConcurrencyLimiter | undefined;
   getTimeoutMs(providerName: string): number | undefined;
 }
 
@@ -75,6 +78,7 @@ export async function retryFailedSearchProviders(
         language: context.language,
         timeoutMs: context.getTimeoutMs(provider.name),
         circuitBreaker: context.circuitBreaker,
+        concurrencyLimiter: context.concurrencyLimiter,
       });
     }),
   );
@@ -90,11 +94,17 @@ export async function callTimedProviderSearch(
   const startedAt = Date.now();
 
   try {
-    const results = await runWithCircuitBreaker(
+    const results = await runProviderOperation(
       context,
       `metadata:${provider.name}`,
       provider.name,
-      () => callProviderSearch(provider, query, context),
+      (signal) =>
+        provider.search(query, {
+          signal,
+          timeoutMs: context.timeoutMs,
+          debug: context.debug,
+          language: context.language,
+        }),
     );
 
     return {
@@ -130,11 +140,19 @@ export async function callTimedProviderDetails(
   const startedAt = Date.now();
 
   try {
-    const result = await runWithCircuitBreaker(
+    const result = await runProviderOperation(
       context,
       `metadata:${provider.name}`,
       provider.name,
-      () => callProviderDetails(provider, query, context),
+      (signal) =>
+        provider.getDetails
+          ? provider.getDetails(query, {
+              signal,
+              timeoutMs: context.timeoutMs,
+              debug: context.debug,
+              language: context.language,
+            })
+          : Promise.resolve(null),
     );
 
     return {
@@ -170,11 +188,17 @@ export async function callTimedProviderAvailability(
   const startedAt = Date.now();
 
   try {
-    const result = await runWithCircuitBreaker(
+    const result = await runProviderOperation(
       context,
       `streaming:${provider.name}`,
       provider.name,
-      () => callProviderAvailability(provider, query, context),
+      (signal) =>
+        provider.getAvailability(query, {
+          signal,
+          timeoutMs: context.timeoutMs,
+          debug: context.debug,
+          language: context.language,
+        }),
     );
 
     return {
@@ -200,70 +224,39 @@ export async function callTimedProviderAvailability(
   }
 }
 
-function runWithCircuitBreaker<T>(
+function runProviderOperation<T>(
   context: ProviderCallContext,
   key: string,
   provider: string,
-  operation: () => Promise<T>,
+  operation: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
-  return context.circuitBreaker
-    ? context.circuitBreaker.run(key, provider, operation)
-    : operation();
+  return withProviderTimeout(provider, context, (controller) => {
+    const execute = () => runUntilAborted(controller.signal, () => operation(controller.signal));
+    const run = () =>
+      context.circuitBreaker ? context.circuitBreaker.run(key, provider, execute) : execute();
+
+    return context.concurrencyLimiter
+      ? context.concurrencyLimiter.run(key, provider, controller.signal, run)
+      : run();
+  });
 }
 
-// Calls one provider search method with timeout and abort signal support.
-// Вызывает search одного провайдера с поддержкой timeout и abort signal.
-async function callProviderSearch(
-  provider: MediaProvider,
-  query: ProviderSearchQuery,
-  context: ProviderCallContext,
-): Promise<ProviderSearchResult[]> {
-  return withProviderTimeout(provider.name, context, (controller) =>
-    provider.search(query, {
-      signal: controller.signal,
-      timeoutMs: context.timeoutMs,
-      debug: context.debug,
-      language: context.language,
-    }),
-  );
-}
-
-// Calls one provider details method with timeout and abort signal support.
-// Вызывает getDetails одного провайдера с поддержкой timeout и abort signal.
-async function callProviderDetails(
-  provider: MediaProvider,
-  query: ProviderDetailsQuery,
-  context: ProviderCallContext,
-): Promise<ProviderDetailsResult | null> {
-  if (!provider.getDetails) {
-    return null;
+// Makes caller timeout visible to the circuit breaker even if provider code ignores abort.
+// Делает timeout вызывающей стороны видимым circuit breaker, даже если провайдер игнорирует abort.
+function runUntilAborted<T>(signal: AbortSignal, operation: () => Promise<T>): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(signal.reason);
   }
 
-  return withProviderTimeout(provider.name, context, (controller) =>
-    provider.getDetails!(query, {
-      signal: controller.signal,
-      timeoutMs: context.timeoutMs,
-      debug: context.debug,
-      language: context.language,
-    }),
-  );
-}
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
 
-// Calls one streaming provider with timeout and abort signal support.
-// Вызывает один streaming-провайдер с поддержкой timeout и abort signal.
-async function callProviderAvailability(
-  provider: StreamingProvider,
-  query: StreamQuery,
-  context: ProviderCallContext,
-): Promise<MediaAvailability | null> {
-  return withProviderTimeout(provider.name, context, (controller) =>
-    provider.getAvailability(query, {
-      signal: controller.signal,
-      timeoutMs: context.timeoutMs,
-      debug: context.debug,
-      language: context.language,
-    }),
-  );
+    Promise.resolve()
+      .then(operation)
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", onAbort));
+  });
 }
 
 // Wraps a provider promise with configured timeout behavior.

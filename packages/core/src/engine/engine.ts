@@ -18,6 +18,7 @@ import {
   selectStreamingProviders,
 } from "./availability.js";
 import { ProviderCircuitBreaker } from "./circuit-breaker.js";
+import { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
 import {
   callTimedProviderAvailability,
   callTimedProviderDetails,
@@ -67,6 +68,7 @@ export class MediaEngine {
   private readonly providerTimeouts: Readonly<Record<string, number>>;
   private readonly debug: boolean;
   private readonly circuitBreaker?: ProviderCircuitBreaker;
+  private readonly concurrencyLimiter?: ProviderConcurrencyLimiter;
   private readonly inFlightRequests = new InFlightRequestCoalescer();
 
   constructor(options: MediaEngineOptions = {}) {
@@ -81,6 +83,10 @@ export class MediaEngine {
       options.circuitBreaker === false
         ? undefined
         : new ProviderCircuitBreaker(options.circuitBreaker);
+    this.concurrencyLimiter =
+      options.providerConcurrency === false
+        ? undefined
+        : new ProviderConcurrencyLimiter(options.providerConcurrency);
   }
 
   // Returns safe registered provider metadata without provider internals.
@@ -164,6 +170,7 @@ export class MediaEngine {
             language: searchLanguage,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
+            concurrencyLimiter: this.concurrencyLimiter,
           }),
         ),
       );
@@ -173,6 +180,7 @@ export class MediaEngine {
           debug: this.debug,
           language: searchLanguage,
           circuitBreaker: this.circuitBreaker,
+          concurrencyLimiter: this.concurrencyLimiter,
           getTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
         });
       }
@@ -221,6 +229,7 @@ export class MediaEngine {
               language: searchLanguage,
               timeoutMs: timeoutBudget.getRemainingMs(provider.name),
               circuitBreaker: this.circuitBreaker,
+              concurrencyLimiter: this.concurrencyLimiter,
             }),
           ),
         );
@@ -254,6 +263,7 @@ export class MediaEngine {
               mergeStrategy: this.mergeStrategy,
               debug: this.debug,
               circuitBreaker: this.circuitBreaker,
+              concurrencyLimiter: this.concurrencyLimiter,
               getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
             }).catch(() => undefined),
           })),
@@ -290,6 +300,7 @@ export class MediaEngine {
                 language: searchLanguage,
                 timeoutMs: enrichmentTimeoutMs,
                 circuitBreaker: this.circuitBreaker,
+                concurrencyLimiter: this.concurrencyLimiter,
               },
             );
 
@@ -393,6 +404,7 @@ export class MediaEngine {
             language: normalizedQuery.language,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
+            concurrencyLimiter: this.concurrencyLimiter,
           }),
         ),
       );
@@ -495,6 +507,7 @@ export class MediaEngine {
             language: normalizedQuery.language,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
+            concurrencyLimiter: this.concurrencyLimiter,
           }),
         ),
       );

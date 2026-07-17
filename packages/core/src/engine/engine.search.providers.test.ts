@@ -9,6 +9,47 @@ import type { MediaSearchResult } from "../search/index.js";
 import { MediaEngine } from "./engine.js";
 import { createProvider, sleep } from "./test-helpers.js";
 
+test("search bounds concurrent calls to the same provider across distinct queries", async () => {
+  let active = 0;
+  let maximum = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "bounded-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: [] },
+          details: { byExternalIds: [] },
+        },
+        async search(query): Promise<ProviderSearchResult[]> {
+          active += 1;
+          maximum = Math.max(maximum, active);
+          await sleep(10);
+          active -= 1;
+          return [
+            {
+              provider: "bounded-provider",
+              item: {
+                id: query.title ?? "unknown",
+                type: "movie",
+                title: query.title ?? "Unknown",
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  await Promise.all([
+    engine.search({ title: "First" }),
+    engine.search({ title: "Second" }),
+    engine.search({ title: "Third" }),
+  ]);
+
+  assert.equal(maximum, 2);
+});
+
 test("search starts independent providers concurrently", async () => {
   let resolveSlowProvider: ((results: ProviderSearchResult[]) => void) | undefined;
   let markFastProviderStarted: (() => void) | undefined;
@@ -261,6 +302,29 @@ test("search circuit breaker stops calling a repeatedly failing provider", async
             retryable: true,
             message: "Temporary timeout.",
           });
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(() => engine.search({ title: "First title" }), MediaEngineError);
+  await assert.rejects(() => engine.search({ title: "Second title" }), MediaEngineError);
+
+  assert.equal(calls, 1);
+});
+
+test("search circuit breaker observes engine timeouts when provider ignores abort", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    timeoutMs: 2,
+    circuitBreaker: { failureThreshold: 1, recoveryTimeoutMs: 60_000 },
+    providers: [
+      createProvider({
+        name: "hanging-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          calls += 1;
+          await new Promise(() => undefined);
+          return [];
         },
       }),
     ],

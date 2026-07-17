@@ -4,6 +4,7 @@ import type { MergeStrategy } from "../merge/index.js";
 import type { ProviderRegistry, ProviderDetailsResult } from "../providers/index.js";
 import type { MediaSearchResult } from "../search/index.js";
 import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
+import type { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
 import { callTimedProviderDetails } from "./provider-calls.js";
 import { EXTERNAL_ID_SHORTCUTS, hasExternalIds } from "./query.js";
 
@@ -18,6 +19,7 @@ export interface SearchPosterLookupInput {
   mergeStrategy: MergeStrategy;
   debug: boolean;
   circuitBreaker?: ProviderCircuitBreaker | undefined;
+  concurrencyLimiter?: ProviderConcurrencyLimiter | undefined;
   getProviderTimeoutMs(providerName: string): number | undefined;
 }
 
@@ -58,6 +60,7 @@ export async function loadSearchPoster(input: SearchPosterLookupInput): Promise<
         debug: input.debug,
         language: input.language,
         circuitBreaker: input.circuitBreaker,
+        concurrencyLimiter: input.concurrencyLimiter,
         timeoutMs:
           providerTimeoutMs === undefined
             ? SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS

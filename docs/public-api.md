@@ -35,6 +35,8 @@ const engine = new MediaEngine({
 
 `MediaEngineOptions` also accepts streaming providers, a cache, a custom merge strategy, a global timeout, provider-specific timeouts, debug mode, and optional circuit-breaker tuning. The circuit breaker is enabled by default, opens after three consecutive retryable failures, and permits one recovery probe after 30 seconds. Use `failureThreshold` and `recoveryTimeoutMs` to tune it, or pass `circuitBreaker: false` to disable it.
 
+Provider work is also limited to two concurrent calls per provider by default, with a bounded cancellable queue. Configure `providerConcurrency.defaultMaxConcurrent`, `maxQueueSize`, and `providerLimits` for local overrides, or pass `providerConcurrency: false` to disable the gate. Queue waiting consumes the same provider timeout budget as network work.
+
 ## Search
 
 ```ts

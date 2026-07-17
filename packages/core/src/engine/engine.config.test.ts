@@ -107,6 +107,11 @@ test("accepts custom cache merge strategy timeout and debug options", () => {
           failureThreshold: 5,
           recoveryTimeoutMs: 10_000,
         },
+        providerConcurrency: {
+          defaultMaxConcurrent: 3,
+          maxQueueSize: 50,
+          providerLimits: { "slow-provider": 1 },
+        },
         debug: true,
       }),
   );
@@ -114,6 +119,10 @@ test("accepts custom cache merge strategy timeout and debug options", () => {
 
 test("allows disabling the provider circuit breaker", () => {
   assert.doesNotThrow(() => new MediaEngine({ circuitBreaker: false }));
+});
+
+test("allows disabling provider concurrency limits", () => {
+  assert.doesNotThrow(() => new MediaEngine({ providerConcurrency: false }));
 });
 
 test("returns safe streaming provider info", () => {
