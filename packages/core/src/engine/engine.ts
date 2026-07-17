@@ -620,6 +620,8 @@ export class MediaEngine {
         snapshot.lastFailureAt === undefined
           ? undefined
           : new Date(snapshot.lastFailureAt).toISOString(),
+      lastFailureCode: snapshot.lastFailureCode,
+      failureCounts: snapshot.totalFailures > 0 ? snapshot.failureCounts : undefined,
       retryAfterMs: snapshot.retryAfterMs,
     };
   }

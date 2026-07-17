@@ -53,6 +53,9 @@ export async function createMediaEngine(
   env: MediaEngineEnv = process.env,
 ): Promise<MediaEngine> {
   const { MediaEngine, MemoryCache } = await import('@media-engine/core');
+  const metadataTimeoutMs = readProviderTimeoutMs(env);
+  const streamingTimeoutMs = readStreamingProviderTimeoutMs(env);
+  const flixHqTimeoutMs = readFlixHqStreamingProviderTimeoutMs(env);
 
   return new MediaEngine({
     providers: await createConfiguredProviders(),
@@ -62,15 +65,15 @@ export async function createMediaEngine(
       defaultStaleTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS,
       maxEntries: DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES,
     }),
-    timeoutMs: readStreamingProviderTimeoutMs(env),
+    timeoutMs: Math.max(metadataTimeoutMs, streamingTimeoutMs, flixHqTimeoutMs),
     providerTimeouts: {
-      kinobd: readProviderTimeoutMs(env),
-      shikimori: readProviderTimeoutMs(env),
-      anilist: readProviderTimeoutMs(env),
-      cinemeta: readProviderTimeoutMs(env),
-      wikidata: readProviderTimeoutMs(env),
-      'kinobd-streaming': readStreamingProviderTimeoutMs(env),
-      'flixhq-streaming': readFlixHqStreamingProviderTimeoutMs(env),
+      kinobd: metadataTimeoutMs,
+      shikimori: metadataTimeoutMs,
+      anilist: metadataTimeoutMs,
+      cinemeta: metadataTimeoutMs,
+      wikidata: metadataTimeoutMs,
+      'kinobd-streaming': streamingTimeoutMs,
+      'flixhq-streaming': flixHqTimeoutMs,
     },
   });
 }

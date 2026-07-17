@@ -36,7 +36,7 @@ GET /docs
 GET /docs-json
 ```
 
-Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts.
+Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts. Metadata, KinoBD streaming, and FlixHQ keep independent timeout budgets; the larger FlixHQ value is not capped by the shorter generic streaming timeout.
 
 ## Check it
 

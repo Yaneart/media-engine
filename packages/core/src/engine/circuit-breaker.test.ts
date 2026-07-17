@@ -107,3 +107,39 @@ test("ProviderCircuitBreaker validates its limits", () => {
   assert.throws(() => new ProviderCircuitBreaker({ failureThreshold: 0 }), /failureThreshold/);
   assert.throws(() => new ProviderCircuitBreaker({ recoveryTimeoutMs: -1 }), /recoveryTimeoutMs/);
 });
+
+test("ProviderCircuitBreaker classifies failure telemetry by stable provider code", async () => {
+  const breaker = new ProviderCircuitBreaker({ failureThreshold: 10 });
+  const failures = [
+    new ProviderError({
+      provider: "unstable",
+      code: "PROVIDER_TIMEOUT",
+      message: "Timed out.",
+      retryable: true,
+    }),
+    new ProviderError({
+      provider: "unstable",
+      code: "PROVIDER_RATE_LIMITED",
+      message: "Rate limited.",
+      retryable: true,
+    }),
+    new Error("Unexpected failure."),
+  ];
+
+  for (const failure of failures) {
+    await assert.rejects(() =>
+      breaker.run("metadata:unstable", "unstable", async () => {
+        throw failure;
+      }),
+    );
+  }
+
+  const snapshot = breaker.getSnapshot("metadata:unstable");
+  assert.equal(snapshot.lastFailureCode, "PROVIDER_ERROR");
+  assert.deepEqual(snapshot.failureCounts, {
+    timeout: 1,
+    rateLimited: 1,
+    unavailable: 0,
+    other: 1,
+  });
+});

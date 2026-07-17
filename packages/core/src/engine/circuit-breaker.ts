@@ -16,6 +16,15 @@ interface ProviderObservation {
   totalFailures: number;
   lastSuccessAt?: number;
   lastFailureAt?: number;
+  lastFailureCode?: string;
+  failureCounts: ProviderFailureCounts;
+}
+
+interface ProviderFailureCounts {
+  timeout: number;
+  rateLimited: number;
+  unavailable: number;
+  other: number;
 }
 
 export interface CircuitBreakerSnapshot {
@@ -26,6 +35,8 @@ export interface CircuitBreakerSnapshot {
   totalFailures: number;
   lastSuccessAt?: number;
   lastFailureAt?: number;
+  lastFailureCode?: string;
+  failureCounts: ProviderFailureCounts;
   retryAfterMs?: number;
 }
 
@@ -63,7 +74,7 @@ export class ProviderCircuitBreaker {
       return result;
     } catch (error) {
       this.recordFailure(key, error);
-      this.recordObservedFailure(key);
+      this.recordObservedFailure(key, error);
       throw error;
     }
   }
@@ -90,6 +101,8 @@ export class ProviderCircuitBreaker {
       totalFailures: observation?.totalFailures ?? 0,
       lastSuccessAt: observation?.lastSuccessAt,
       lastFailureAt: observation?.lastFailureAt,
+      lastFailureCode: observation?.lastFailureCode,
+      failureCounts: observation?.failureCounts ?? createEmptyFailureCounts(),
       retryAfterMs,
     };
   }
@@ -144,10 +157,23 @@ export class ProviderCircuitBreaker {
     observation.lastSuccessAt = this.now();
   }
 
-  private recordObservedFailure(key: string): void {
+  private recordObservedFailure(key: string, error: unknown): void {
     const observation = this.getObservation(key);
     observation.totalFailures += 1;
     observation.lastFailureAt = this.now();
+    observation.lastFailureCode = error instanceof ProviderError ? error.code : "PROVIDER_ERROR";
+
+    if (!(error instanceof ProviderError)) {
+      observation.failureCounts.other += 1;
+    } else if (error.code === "PROVIDER_TIMEOUT") {
+      observation.failureCounts.timeout += 1;
+    } else if (error.code === "PROVIDER_RATE_LIMITED") {
+      observation.failureCounts.rateLimited += 1;
+    } else if (error.code === "PROVIDER_UNAVAILABLE") {
+      observation.failureCounts.unavailable += 1;
+    } else {
+      observation.failureCounts.other += 1;
+    }
   }
 
   private getObservation(key: string): ProviderObservation {
@@ -161,10 +187,20 @@ export class ProviderCircuitBreaker {
       totalRequests: 0,
       totalSuccesses: 0,
       totalFailures: 0,
+      failureCounts: createEmptyFailureCounts(),
     };
     this.observations.set(key, observation);
     return observation;
   }
+}
+
+function createEmptyFailureCounts(): ProviderFailureCounts {
+  return {
+    timeout: 0,
+    rateLimited: 0,
+    unavailable: 0,
+    other: 0,
+  };
 }
 
 function createOpenCircuitError(provider: string): ProviderError {

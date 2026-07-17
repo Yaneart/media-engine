@@ -47,6 +47,8 @@ test("getProviderHealth reports isolated metadata and streaming observations", a
     totalFailures: 0,
     lastSuccessAt: metadata?.lastSuccessAt,
     lastFailureAt: undefined,
+    lastFailureCode: undefined,
+    failureCounts: undefined,
     retryAfterMs: undefined,
   });
   assert.match(metadata?.lastSuccessAt ?? "", /^\d{4}-\d{2}-\d{2}T/);
@@ -55,6 +57,13 @@ test("getProviderHealth reports isolated metadata and streaming observations", a
   assert.equal(streaming?.totalRequests, 1);
   assert.equal(streaming?.totalSuccesses, 0);
   assert.equal(streaming?.totalFailures, 1);
+  assert.equal(streaming?.lastFailureCode, "PROVIDER_UNAVAILABLE");
+  assert.deepEqual(streaming?.failureCounts, {
+    timeout: 0,
+    rateLimited: 0,
+    unavailable: 1,
+    other: 0,
+  });
   assert.match(streaming?.lastFailureAt ?? "", /^\d{4}-\d{2}-\d{2}T/);
   assert.ok((streaming?.retryAfterMs ?? 0) > 0);
 });

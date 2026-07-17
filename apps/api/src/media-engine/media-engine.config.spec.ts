@@ -137,4 +137,36 @@ describe('MediaEngine configuration', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('does not cap the configured FlixHQ timeout at the shorter streaming default', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      return Response.json({ data: [] });
+    }) as typeof fetch;
+
+    try {
+      const engine = await createMediaEngine({
+        MEDIA_ENGINE_PROVIDER_TIMEOUT_MS: '10',
+        MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: '20',
+        MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS: '60',
+      });
+      const availability = await engine.getAvailability({
+        type: 'movie',
+        title: 'Interstellar',
+      });
+
+      expect(availability.meta?.providers.successful).toContain(
+        'flixhq-streaming',
+      );
+      expect(availability.meta?.providers.failed).toEqual([
+        expect.objectContaining({
+          provider: 'kinobd-streaming',
+          code: 'PROVIDER_TIMEOUT',
+        }),
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -28,6 +28,13 @@ export interface ProviderHealthStatus {
   totalFailures: number;
   lastSuccessAt?: string;
   lastFailureAt?: string;
+  lastFailureCode?: string;
+  failureCounts?: {
+    timeout: number;
+    rateLimited: number;
+    unavailable: number;
+    other: number;
+  };
   retryAfterMs?: number;
 }
 
