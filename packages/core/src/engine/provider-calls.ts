@@ -231,14 +231,47 @@ function runProviderOperation<T>(
   operation: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   return withProviderTimeout(provider, context, (controller) => {
-    const execute = () => runUntilAborted(controller.signal, () => operation(controller.signal));
-    const run = () =>
-      context.circuitBreaker ? context.circuitBreaker.run(key, provider, execute) : execute();
+    const start = () => {
+      let providerPromise: Promise<T> | undefined;
+      const observe = () => {
+        const running = Promise.resolve().then(() => operation(controller.signal));
+        providerPromise = running;
+        return runUntilAborted(controller.signal, () => running);
+      };
+      const resultPromise = context.circuitBreaker
+        ? context.circuitBreaker.run(key, provider, observe)
+        : observe();
 
-    return context.concurrencyLimiter
-      ? context.concurrencyLimiter.run(key, provider, controller.signal, run)
-      : run();
+      return { providerPromise, resultPromise };
+    };
+
+    if (!context.concurrencyLimiter) {
+      return start().resultPromise;
+    }
+
+    return context.concurrencyLimiter.run(key, provider, controller.signal, () => {
+      const started = start();
+      return started.providerPromise
+        ? holdProviderSlotUntilSettled(started.providerPromise, started.resultPromise)
+        : started.resultPromise;
+    });
   });
+}
+
+// Keeps the concurrency slot while aborted provider code finishes unwinding.
+// Удерживает concurrency-слот, пока отмененный provider завершает фактическую работу.
+async function holdProviderSlotUntilSettled<T>(
+  providerPromise: Promise<T>,
+  resultPromise: Promise<T>,
+): Promise<T> {
+  try {
+    const result = await resultPromise;
+    await providerPromise.catch(() => undefined);
+    return result;
+  } catch (error) {
+    await providerPromise.catch(() => undefined);
+    throw error;
+  }
 }
 
 // Makes caller timeout visible to the circuit breaker even if provider code ignores abort.

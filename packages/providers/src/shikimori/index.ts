@@ -45,6 +45,7 @@ export function shikimoriProvider(options: ShikimoriProviderOptions = {}): Media
     name: PROVIDER_NAME,
     version: options.version,
     kind: "metadata",
+    searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["anime"],
       search: {

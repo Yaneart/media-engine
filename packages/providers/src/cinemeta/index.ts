@@ -48,6 +48,7 @@ export function cinemetaProvider(options: CinemetaProviderOptions = {}): MediaPr
     name: PROVIDER_NAME,
     version: options.version,
     kind: "metadata",
+    searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["movie", "series"],
       search: {

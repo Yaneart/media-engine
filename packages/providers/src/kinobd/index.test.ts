@@ -13,6 +13,7 @@ test("kinobdProvider exposes no-token movie and series capabilities", () => {
 
   assert.equal(provider.name, "kinobd");
   assert.equal(provider.kind, "metadata");
+  assert.equal(provider.searchPosterMatchesDetails, true);
   assert.deepEqual(provider.capabilities.mediaTypes, ["movie", "series"]);
   assert.deepEqual(provider.capabilities.search.byExternalIds, ["imdb", "kinopoisk"]);
   assert.deepEqual(provider.capabilities.details.byExternalIds, ["imdb", "kinopoisk"]);

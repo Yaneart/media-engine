@@ -170,6 +170,81 @@ test("search uses the canonical details poster before returning results", async 
   assert.equal(response.results[0]?.item.poster?.url, "https://images.example/details.jpg");
 });
 
+test("search reuses a provider-guaranteed poster while loading missing sources", async () => {
+  let canonicalDetailsCalls = 0;
+  let missingDetailsCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "canonical-source",
+        searchPosterMatchesDetails: true,
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "canonical-source",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+                description: "Complete search card.",
+                poster: {
+                  url: "https://images.example/search.jpg",
+                  type: "poster",
+                  source: "canonical-source",
+                  width: 300,
+                },
+                ratings: [{ source: "imdb", value: 8.7, max: 10 }],
+                ids: { imdb: "tt0816692" },
+              },
+            },
+          ];
+        },
+        async getDetails(): Promise<ProviderDetailsResult> {
+          canonicalDetailsCalls += 1;
+          throw new Error("Canonical search poster should be reused.");
+        },
+      }),
+      createProvider({
+        name: "missing-source",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: false, byExternalIds: [] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async getDetails(): Promise<ProviderDetailsResult> {
+          missingDetailsCalls += 1;
+          return {
+            provider: "missing-source",
+            details: {
+              id: "movie-1-details",
+              type: "movie",
+              title: "Interstellar",
+              poster: {
+                url: "https://images.example/missing-details.jpg",
+                type: "poster",
+                source: "missing-source",
+                width: 900,
+              },
+              ids: { imdb: "tt0816692" },
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "Interstellar", limit: 1 });
+
+  assert.equal(canonicalDetailsCalls, 0);
+  assert.equal(missingDetailsCalls, 1);
+  assert.equal(response.results[0]?.item.poster?.url, "https://images.example/missing-details.jpg");
+});
+
 test("search runs ID and poster enrichment concurrently", async () => {
   let resolveIdEnrichment: ((results: ProviderSearchResult[]) => void) | undefined;
   let resolvePosterEnrichment: ((result: ProviderDetailsResult) => void) | undefined;

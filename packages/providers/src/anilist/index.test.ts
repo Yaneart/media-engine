@@ -3,6 +3,10 @@ import { test } from "node:test";
 
 import { aniListProvider } from "./index.js";
 
+test("aniListProvider guarantees stable search and details posters", () => {
+  assert.equal(aniListProvider().searchPosterMatchesDetails, true);
+});
+
 test("aniListProvider searches English anime titles with popularity", async () => {
   let body: { query?: string; variables?: Record<string, unknown> } = {};
   const provider = aniListProvider({

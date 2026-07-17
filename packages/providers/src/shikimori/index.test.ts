@@ -16,6 +16,7 @@ test("shikimoriProvider exposes safe anime metadata capabilities", () => {
 
   assert.equal(provider.name, "shikimori");
   assert.equal(provider.kind, "metadata");
+  assert.equal(provider.searchPosterMatchesDetails, true);
   assert.deepEqual(provider.capabilities.mediaTypes, ["anime"]);
   assert.deepEqual(provider.capabilities.search.byExternalIds, ["shikimori"]);
   assert.deepEqual(provider.capabilities.details.byExternalIds, ["shikimori"]);

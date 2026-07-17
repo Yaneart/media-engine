@@ -49,6 +49,7 @@ export function wikidataProvider(options: WikidataProviderOptions = {}): MediaPr
     name: PROVIDER_NAME,
     version: options.version,
     kind: "metadata",
+    searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["movie", "series"],
       search: {

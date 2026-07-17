@@ -36,6 +36,7 @@ A metadata provider declares:
 - title and external-ID search capabilities;
 - detail lookup capabilities;
 - optional features such as posters, ratings, people, seasons, or episodes;
+- optional `searchPosterMatchesDetails` when the provider guarantees that its normalized search and details poster fields are identical;
 - `search` and optional `getDetails` methods.
 
 A streaming provider declares supported media types, external IDs, player kinds, and whether it supports movies, series, episodes, subtitles, translations, and direct streams. It implements `getAvailability`.
@@ -48,6 +49,7 @@ Provider methods receive request context with an abort signal, timeout, language
 - Retryable failures use bounded exponential backoff with jitter, respect `Retry-After`, and stay inside the provider timeout budget.
 - Repeated transient failures open a per-provider circuit, suppressing wasteful calls until one recovery probe is allowed after cooldown.
 - Search retries, fallback queries, and enrichment consume one shared timeout budget per provider instead of restarting the full timeout for every call.
+- Providers that explicitly guarantee identical normalized search/details posters reuse the search poster during canonical poster enrichment, avoiding duplicate upstream details calls. Providers without the guarantee keep the full lookup behavior.
 - Optional provider failures do not erase successful results from other providers.
 - HTTP response sizes and player validation concurrency are bounded where needed.
 - Upstream-discovered URLs reject credentials and local/private/reserved network targets before server-side use or public exposure.

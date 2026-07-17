@@ -106,6 +106,9 @@ export interface MediaProvider {
   version?: string;
   kind: "metadata";
   capabilities: ProviderCapabilities;
+  // Opt-in guarantee used to reuse a returned search poster during details-poster enrichment.
+  // Opt-in гарантия для переиспользования search poster при обогащении poster из details.
+  searchPosterMatchesDetails?: boolean;
 
   search(query: ProviderSearchQuery, context: ProviderContext): Promise<ProviderSearchResult[]>;
 

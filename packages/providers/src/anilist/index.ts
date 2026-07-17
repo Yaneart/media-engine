@@ -90,6 +90,7 @@ export function aniListProvider(options: AniListProviderOptions = {}): MediaProv
   return {
     name: PROVIDER_NAME,
     kind: "metadata",
+    searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["anime"],
       search: { byTitle: true, byExternalIds: ["aniList", "myAnimeList"] },

@@ -255,8 +255,7 @@ export class MediaEngine {
           .map(async (result) => ({
             ids: result.item.ids,
             poster: await loadSearchPoster({
-              type: result.item.type,
-              ids: result.item.ids,
+              result,
               language: searchLanguage,
               excludedProviders: excludedPosterProviders,
               registry: this.registry,
