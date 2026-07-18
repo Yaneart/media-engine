@@ -162,6 +162,13 @@ describe('Media Engine API (e2e)', () => {
     expect(body.paths).toHaveProperty('/media/availability');
     expect(body.paths).toHaveProperty('/providers');
     expect(body.paths).toHaveProperty('/providers/streaming');
+
+    const detailsParameterNames = getOpenApiParameterNames(
+      body.paths,
+      '/media/details',
+    );
+    expect(detailsParameterNames).toContain('imdb');
+    expect(detailsParameterNames).not.toContain('id');
   });
 
   afterEach(async () => {
@@ -191,4 +198,29 @@ function isOpenApiDocument(value: unknown): value is {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+// EN: Read documented query parameter names from one OpenAPI operation.
+// RU: Читает имена задокументированных query параметров одной OpenAPI operation.
+function getOpenApiParameterNames(
+  paths: Record<string, unknown>,
+  path: string,
+): string[] {
+  const pathItem = paths[path];
+
+  if (!isRecord(pathItem) || !isRecord(pathItem.get)) {
+    return [];
+  }
+
+  const parameters = pathItem.get.parameters;
+
+  if (!Array.isArray(parameters)) {
+    return [];
+  }
+
+  return parameters.flatMap((parameter) =>
+    isRecord(parameter) && typeof parameter.name === 'string'
+      ? [parameter.name]
+      : [],
+  );
 }

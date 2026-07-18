@@ -36,6 +36,8 @@ GET /docs
 GET /docs-json
 ```
 
+`GET /media/details` requires a namespaced external ID such as `imdb`, `kinopoisk`, or `ids.shikimori`. A plain `id` is ambiguous across providers and returns HTTP 400.
+
 Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts. Metadata, KinoBD streaming, and FlixHQ keep independent timeout budgets; the larger FlixHQ value is not capped by the shorter generic streaming timeout.
 
 ## Check it

@@ -4,6 +4,12 @@ All notable project changes are recorded here.
 
 This project follows semantic versioning after the first stable release. Before v1.0, breaking changes are allowed when they are documented in the public API audit and release notes.
 
+## Unreleased
+
+### Changed
+
+- Details lookup now requires a namespaced external ID. The ambiguous `DetailsQuery.id` field is deprecated, and id-only core/API/SDK requests return `INVALID_QUERY` or HTTP 400 instead of a cacheable successful null response.
+
 ## 0.1.1 - 2026-07-18
 
 ### Added

@@ -29,6 +29,8 @@ console.log(search.results[0]?.item);
 console.log(details.details);
 ```
 
+Details lookup requires a namespaced external ID through `ids` or a shortcut such as `imdb`. The plain `id` field is deprecated because provider-native IDs are not globally unique.
+
 The engine also has `getAvailability()` for optional streaming providers.
 
 ## What comes from core

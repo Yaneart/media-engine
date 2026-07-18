@@ -90,8 +90,8 @@ export class MediaEngineClient {
     return this.requestJson<SearchResponse>("/media/search", query, options);
   }
 
-  // EN: Load merged media details through GET /media/details.
-  // RU: Загружает объединенные media details через GET /media/details.
+  // EN: Load merged media details through GET /media/details using namespaced external IDs.
+  // RU: Загружает объединенные media details через GET /media/details по внешним ID с namespace.
   getDetails(query: DetailsQuery, options?: MediaEngineRequestOptions): Promise<DetailsResponse> {
     return this.requestJson<DetailsResponse>("/media/details", query, options);
   }

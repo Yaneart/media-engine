@@ -58,8 +58,11 @@ export class MediaController {
 
   // EN: Expose merged metadata details for one media item.
   // RU: Открываем объединенные metadata details для одного media item.
-  @ApiOperation({ summary: 'Get merged metadata details for one media item.' })
-  @ApiQuery({ name: 'id', required: false, type: String })
+  @ApiOperation({
+    summary: 'Get merged metadata details for one media item.',
+    description:
+      'Use a named external ID such as imdb or kinopoisk, or an ids.* parameter. Plain provider-native IDs do not share a global namespace.',
+  })
   @ApiQuery({
     name: 'type',
     required: false,
@@ -80,7 +83,9 @@ export class MediaController {
   @ApiQuery({ name: 'ids.aniList', required: false, type: String })
   @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
   @ApiOkResponse({ description: 'Merged details response.' })
-  @ApiBadRequestResponse({ description: 'Invalid details query.' })
+  @ApiBadRequestResponse({
+    description: 'Invalid details query or unsupported id-only lookup.',
+  })
   @ApiServiceUnavailableResponse({
     description: 'All selected providers failed.',
   })

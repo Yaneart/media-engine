@@ -13,8 +13,30 @@ test("getDetails rejects empty queries predictably", async () => {
   await assert.rejects(() => engine.getDetails({}), {
     name: "MediaEngineError",
     code: "INVALID_QUERY",
-    message: "Details query must include id or external ids.",
+    message: "Details query must include external ids.",
   });
+});
+
+test("getDetails rejects ambiguous id-only queries before provider selection", async () => {
+  let detailsCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          detailsCalls += 1;
+          return null;
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(() => engine.getDetails({ id: "movie-1" }), {
+    name: "MediaEngineError",
+    code: "INVALID_QUERY",
+    message:
+      "Details query id is not a supported global lookup. Use ids or a named external ID shortcut.",
+  });
+  assert.equal(detailsCalls, 0);
 });
 
 test("getDetails normalizes top-level external id shortcuts into ids", async () => {

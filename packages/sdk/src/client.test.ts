@@ -110,6 +110,32 @@ test("getDetails serializes details query params", async () => {
   assert.equal(mock.calls[0]?.searchParams.get("type"), "movie");
 });
 
+test("getDetails exposes id-only migration errors returned by the API", async () => {
+  const message =
+    "Details query id is not a supported global lookup. Use ids or a named external ID shortcut.";
+  const mock = createMockFetch(
+    Response.json(
+      {
+        statusCode: 400,
+        message,
+        error: "Bad Request",
+      },
+      { status: 400 },
+    ),
+  );
+  const client = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: mock.fetch,
+  });
+
+  await assert.rejects(
+    client.getDetails({ id: "movie-1" }),
+    (error: unknown) =>
+      error instanceof MediaEngineApiError && error.status === 400 && error.message === message,
+  );
+  assert.equal(mock.calls[0]?.searchParams.get("id"), "movie-1");
+});
+
 test("getAvailability serializes streaming query params", async () => {
   const body = {
     query: {

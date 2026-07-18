@@ -22,6 +22,8 @@ const details = await media.getDetails({ imdb: "tt0816692" });
 const health = await media.getHealth();
 ```
 
+Pass a namespaced external ID to `getDetails()`, through `ids` or a shortcut such as `imdb`. The API rejects the deprecated plain `id` lookup with HTTP 400.
+
 The client has six methods:
 
 - `search()`;

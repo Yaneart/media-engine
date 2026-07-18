@@ -62,7 +62,7 @@ const response = await engine.getDetails({
 });
 ```
 
-Details merge compatible provider responses into one movie, series, or anime object. A valid request can return `details: null` when no provider has a matching item.
+Details queries require at least one namespaced external ID, either inside `ids` or through a shortcut such as `imdb`, `kinopoisk`, or `shikimori`. The plain `DetailsQuery.id` field is deprecated because provider-native IDs do not share a global namespace; an id-only query throws `INVALID_QUERY`. A valid external-ID request can return `details: null` when selected providers have no matching item.
 
 ## Availability
 
@@ -102,7 +102,7 @@ GET /media/details
 GET /media/availability
 ```
 
-Query parameters mirror the core query objects. The API also exposes generated OpenAPI documentation when running locally.
+Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
 
 `GET /health` includes process-local provider counters and circuit states. These diagnostics contain provider names, success/failure counts, timestamps, and recovery delay only; they do not expose credentials or provider internals.
 

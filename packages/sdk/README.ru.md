@@ -22,6 +22,8 @@ const details = await media.getDetails({ imdb: "tt0816692" });
 const health = await media.getHealth();
 ```
 
+В `getDetails()` передавайте внешний ID с указанием источника — через `ids` или сокращение вроде `imdb`. API отклоняет устаревший запрос с одним обычным `id` и возвращает HTTP 400.
+
 У клиента шесть методов:
 
 - `search()`;

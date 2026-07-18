@@ -122,13 +122,21 @@ export function validateSearchQuery(query: SearchQuery): void {
 // Validates that a details query has at least one supported lookup input.
 // Проверяет, что details query содержит хотя бы один поддерживаемый вход для поиска.
 export function validateDetailsQuery(query: DetailsQuery): void {
-  if (query.id?.trim() || hasExternalIds(query.ids)) {
+  if (hasExternalIds(query.ids)) {
     return;
+  }
+
+  if (query.id?.trim()) {
+    throw new MediaEngineError({
+      code: "INVALID_QUERY",
+      message:
+        "Details query id is not a supported global lookup. Use ids or a named external ID shortcut.",
+    });
   }
 
   throw new MediaEngineError({
     code: "INVALID_QUERY",
-    message: "Details query must include id or external ids.",
+    message: "Details query must include external ids.",
   });
 }
 

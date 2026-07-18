@@ -155,6 +155,8 @@ export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
   const language = readString(query.language);
   const type = readMediaType(query.type);
 
+  // EN: Forward the deprecated value so core can return its explicit migration error.
+  // RU: Передаем устаревшее значение, чтобы core вернул явную migration-ошибку.
   if (id !== undefined) {
     detailsQuery.id = id;
   }

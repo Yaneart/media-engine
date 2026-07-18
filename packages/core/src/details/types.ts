@@ -4,6 +4,12 @@ import type { ResponseMeta } from "../response/index.js";
 // Public query shape for media details lookup.
 // Публичная форма запроса для получения деталей медиа.
 export interface DetailsQuery {
+  /**
+   * @deprecated Provider-native IDs do not share a global namespace. Use `ids`
+   * or a named external ID shortcut such as `imdb` or `kinopoisk`.
+   * RU: внутренние ID провайдеров не имеют общего namespace; используйте `ids`
+   * или именованное сокращение внешнего ID.
+   */
   id?: string;
   ids?: ExternalIds;
   imdb?: string;

@@ -305,11 +305,33 @@ describe('MediaController', () => {
     mediaEngine.getDetails.mockRejectedValueOnce(
       new MediaEngineError({
         code: 'INVALID_QUERY',
-        message: 'Details query must include id or external ids.',
+        message: 'Details query must include external ids.',
       }),
     );
 
     await request(app.getHttpServer()).get('/media/details').expect(400);
+  });
+
+  it('returns 400 for unsupported id-only details lookup', async () => {
+    mediaEngine.getDetails.mockRejectedValueOnce(
+      new MediaEngineError({
+        code: 'INVALID_QUERY',
+        message:
+          'Details query id is not a supported global lookup. Use ids or a named external ID shortcut.',
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/media/details')
+      .query({ id: 'movie-1' })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe(
+          'Details query id is not a supported global lookup. Use ids or a named external ID shortcut.',
+        );
+      });
+
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith({ id: 'movie-1' });
   });
 
   it('returns 503 when all selected details providers fail', async () => {
