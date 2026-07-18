@@ -45,32 +45,50 @@ interface ShikimoriAnimeLookup {
   aired_on?: string | null;
 }
 
-// Builds an anime fallback query that KinoBD player search can understand.
-// Собирает anime fallback query, который понимает KinoBD player search.
-export async function createAnimeTitleFallbackQuery(
+const MAX_ANIME_TITLE_FALLBACKS = 3;
+
+// Builds bounded anime title fallbacks that KinoBD player search can understand.
+// Собирает ограниченные anime title fallbacks, которые понимает KinoBD player search.
+export async function createAnimeTitleFallbackQueries(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
   context: ProviderContext,
-): Promise<MediaAvailability["query"]> {
-  if (query.title) {
-    return query;
+): Promise<MediaAvailability["query"][]> {
+  const lookup = query.ids?.shikimori
+    ? await tryLookupShikimoriAnime(config, query.ids.shikimori, context)
+    : undefined;
+  const lookupTitles = [lookup?.russian, lookup?.name, ...(lookup?.english ?? [])];
+  const candidates = query.title
+    ? [
+        ...createBroaderAnimeTitles(query.title),
+        ...lookupTitles.flatMap((title) => createBroaderAnimeTitles(title)),
+        ...lookupTitles,
+      ]
+    : lookupTitles.flatMap((title) => [title, ...createBroaderAnimeTitles(title)]);
+  const seen = new Set(query.title ? [normalizeSearchText(query.title)] : []);
+  const fallbacks: MediaAvailability["query"][] = [];
+
+  for (const candidate of candidates) {
+    const title = candidate?.trim();
+    const normalized = normalizeSearchText(title ?? "");
+
+    if (!title || !normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    fallbacks.push({
+      ...query,
+      title,
+      year: query.year ?? parseYear(lookup?.aired_on),
+    });
+
+    if (fallbacks.length === MAX_ANIME_TITLE_FALLBACKS) {
+      break;
+    }
   }
 
-  if (!query.ids?.shikimori) {
-    return query;
-  }
-
-  const lookup = await tryLookupShikimoriAnime(config, query.ids.shikimori, context);
-  const title =
-    lookup?.russian?.trim() ||
-    lookup?.name?.trim() ||
-    lookup?.english?.find((value) => value.trim())?.trim();
-
-  return {
-    ...query,
-    title,
-    year: query.year ?? parseYear(lookup?.aired_on),
-  };
+  return fallbacks;
 }
 
 // Searches KinoBD player candidates by Kinopoisk ID or title.
@@ -171,7 +189,12 @@ function scorePlayerCandidate(
   normalizedTitle: string,
 ): number {
   const candidateType = mapCandidateMediaType(candidate.type);
-  const queryType = query.type === "movie" || query.type === "series" ? query.type : undefined;
+  const queryType =
+    query.type === "anime"
+      ? "series"
+      : query.type === "movie" || query.type === "series"
+        ? query.type
+        : undefined;
 
   if (queryType && candidateType && candidateType !== queryType) {
     return Number.NEGATIVE_INFINITY;
@@ -186,9 +209,14 @@ function scorePlayerCandidate(
     }
 
     if (queryType === "series") {
-      const lastYear = endYear ?? startYear;
+      const outsideKnownRange =
+        endYear !== undefined
+          ? query.year < startYear || query.year > endYear
+          : isOpenEndedYear(candidate.year_end)
+            ? query.year < startYear
+            : query.year !== startYear;
 
-      if (query.year < startYear || query.year > lastYear) {
+      if (outsideKnownRange) {
         return Number.NEGATIVE_INFINITY;
       }
     } else if (startYear !== query.year) {
@@ -344,6 +372,59 @@ function parseYear(value: string | null | undefined): number | undefined {
   const year = Number.parseInt(value.slice(0, 4), 10);
 
   return Number.isInteger(year) ? year : undefined;
+}
+
+// Produces conservative franchise/base-title variants for separately catalogued anime seasons.
+// Создает консервативные варианты франшизы/base title для отдельно каталогизированных сезонов anime.
+function createBroaderAnimeTitles(value: string | null | undefined): string[] {
+  const title = value?.trim();
+
+  if (!title) {
+    return [];
+  }
+
+  const variants: string[] = [];
+  const franchisePrefix = title.split(/\.\s+|\s+[-–—]\s*/u, 1)[0]?.trim();
+
+  if (
+    franchisePrefix &&
+    franchisePrefix.length >= 5 &&
+    franchisePrefix.length <= 48 &&
+    /[:!?]/u.test(franchisePrefix) &&
+    normalizeSearchText(franchisePrefix) !== normalizeSearchText(title)
+  ) {
+    variants.push(franchisePrefix);
+  }
+
+  const withoutEnglishSeason = title
+    .replace(
+      /\s+(?:(?:\d+(?:st|nd|rd|th)\s+season)|(?:season\s+\d+))(?:\s+(?:part|cour)\s+\d+)?\s*$/iu,
+      "",
+    )
+    .trim();
+  const withoutRussianSeason = withoutEnglishSeason
+    .replace(/\s+\d+(?:-?[а-я]+)?\s+сезон\s*$/iu, "")
+    .trim();
+  const withoutTrailingSeasonNumber =
+    withoutRussianSeason.split(/\s+/u).length >= 5
+      ? withoutRussianSeason.replace(/\s+\d+\s*$/u, "").trim()
+      : withoutRussianSeason;
+
+  if (normalizeSearchText(withoutTrailingSeasonNumber) !== normalizeSearchText(title)) {
+    variants.push(withoutTrailingSeasonNumber);
+  }
+
+  return variants;
+}
+
+// Distinguishes an explicitly ongoing range from a record that only has one known year.
+// Отличает явно продолжающийся диапазон от записи, у которой известен только один год.
+function isOpenEndedYear(value: string | number | null | undefined): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return /^(?:\.{3}|…|present|ongoing|now|н\.?\s*в\.?)$/iu.test(value.trim());
 }
 
 export function normalizeSearchText(value: string): string {

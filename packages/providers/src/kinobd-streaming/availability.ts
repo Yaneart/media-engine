@@ -4,7 +4,7 @@ import { fetchJson } from "../shared/index.js";
 import type { KinoBdStreamingConfig } from "./config.js";
 import {
   collectCandidateIds,
-  createAnimeTitleFallbackQuery,
+  createAnimeTitleFallbackQueries,
   getCandidateStartYear,
   type PlayerCandidate,
   searchPlayerCandidates,
@@ -37,8 +37,8 @@ export async function getKinoBdAvailability(
   return getMovieOrSeriesAvailability(config, query, context);
 }
 
-// Resolves anime availability through optional cache_shiki first, then KinoBD title fallback.
-// Получает anime availability через опциональный cache_shiki, затем через KinoBD title fallback.
+// Resolves anime availability through optional cache_shiki, direct title, then bounded fallbacks.
+// Получает anime availability через cache_shiki, прямой title, затем ограниченные fallbacks.
 async function getAnimeAvailability(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
@@ -52,13 +52,43 @@ async function getAnimeAvailability(
     }
   }
 
-  const fallbackQuery = await createAnimeTitleFallbackQuery(config, query, context);
+  let bestEmptyAvailability: MediaAvailability | undefined;
 
-  if (!fallbackQuery.title && !fallbackQuery.ids?.kinopoisk) {
-    return createEmptyAvailability(query);
+  if (query.title || query.ids?.kinopoisk) {
+    const direct = await getMovieOrSeriesAvailability(config, query, context);
+
+    if (direct.options.length > 0) {
+      return direct;
+    }
+
+    if (direct.sourceProviders.length > 0) {
+      bestEmptyAvailability = direct;
+    }
   }
 
-  return getMovieOrSeriesAvailability(config, fallbackQuery, context);
+  const fallbackQueries = await createAnimeTitleFallbackQueries(config, query, context);
+
+  for (const fallbackQuery of fallbackQueries) {
+    const fallback = await getMovieOrSeriesAvailability(config, fallbackQuery, context);
+
+    if (fallback.options.length > 0) {
+      return {
+        ...fallback,
+        query,
+      };
+    }
+
+    if (!bestEmptyAvailability && fallback.sourceProviders.length > 0) {
+      bestEmptyAvailability = fallback;
+    }
+  }
+
+  return bestEmptyAvailability
+    ? {
+        ...bestEmptyAvailability,
+        query,
+      }
+    : createEmptyAvailability(query);
 }
 
 // Resolves movie or series players through /api/player/search and /playerdata.

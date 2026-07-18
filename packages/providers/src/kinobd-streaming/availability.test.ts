@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { selectBestPlayerCandidate } from "./candidates.js";
 import { createMockFetch, createProvider, type RequestRecord } from "./test-helpers.js";
 
 test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
@@ -282,6 +283,182 @@ test("kinobdStreamingProvider falls back from Shikimori ID to KinoBD title searc
   assert.equal(availability?.options.length, 1);
   assert.equal(availability?.options[0]?.player.label, "KODIK");
   assert.equal(availability?.options[0]?.episode?.absoluteEpisodeNumber, 1);
+});
+
+test("kinobdStreamingProvider broadens a seasonal anime title only after direct lookup misses", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    shikimoriBaseUrl: "https://shikimori.test",
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+      const body = new URLSearchParams(String(init?.body ?? ""));
+
+      requests.push({
+        method,
+        path: url.pathname,
+        search: url.search,
+        query: url.searchParams,
+        body,
+      });
+
+      if (url.pathname === "/api/animes/61316") {
+        return Response.json({
+          name: "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season",
+          russian: "Re:Zero. Жизнь с нуля в альтернативном мире 4",
+          english: ["Re:ZERO -Starting Life in Another World- Season 4"],
+          aired_on: "2026-04-08",
+        });
+      }
+
+      if (url.pathname === "/api/player/search") {
+        const title = url.searchParams.get("q");
+
+        if (title === "Re:Zero") {
+          return Response.json({
+            data: [
+              {
+                id: 133701,
+                inid: 133701,
+                kinopoisk_id: 971114,
+                imdb_id: "tt5607616",
+                name_original: "Re:Zero kara Hajimeru Isekai Seikatsu",
+                name_russian: "Re:Zero. Жизнь с нуля в альтернативном мире",
+                year_start: 2016,
+                year_end: "...",
+                type: "serial",
+              },
+            ],
+          });
+        }
+
+        return Response.json({ data: [] });
+      }
+
+      if (url.pathname === "/playerdata") {
+        return Response.json({
+          kodik: {
+            translate: "AniDUB",
+            iframe: "//kodik.test/anime/133701",
+            quality: "720p",
+          },
+        });
+      }
+
+      return Response.json({});
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "anime",
+      title: "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season",
+      year: 2026,
+      ids: {
+        shikimori: "61316",
+      },
+    },
+    {},
+  );
+
+  const searchedTitles = requests
+    .filter((request) => request.path === "/api/player/search")
+    .map((request) => request.query.get("q"));
+
+  assert.equal(searchedTitles[0], "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season");
+  assert.deepEqual(searchedTitles, [
+    "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season",
+    "Re:Zero kara Hajimeru Isekai Seikatsu",
+    "Re:Zero",
+  ]);
+  assert.equal(requests.filter((request) => request.path === "/api/animes/61316").length, 1);
+  const playerDataRequest = requests.find((request) => request.path === "/playerdata");
+
+  assert.equal(playerDataRequest?.body.get("inid"), "133701");
+  assert.equal(availability?.query.title, "Re:Zero kara Hajimeru Isekai Seikatsu 4th Season");
+  assert.equal(availability?.query.year, 2026);
+  assert.equal(availability?.item?.type, "anime");
+  assert.equal(availability?.options.length, 1);
+});
+
+test("kinobdStreamingProvider does not expand anime titles when direct lookup succeeds", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    shikimoriBaseUrl: "https://shikimori.test",
+    fetch: createMockFetch(requests, {
+      "GET /api/player/search": {
+        data: [
+          {
+            id: 42,
+            name_original: "New Anime",
+            year: 2026,
+            type: "serial",
+            iframe: '<iframe src="//kinobd.test/player/42"></iframe>',
+          },
+        ],
+      },
+      "POST /playerdata": {
+        kodik: {
+          translate: "AniDUB",
+          iframe: "//kodik.test/anime/42",
+          quality: "720p",
+        },
+      },
+    }),
+  });
+
+  const availability = await provider.getAvailability(
+    {
+      type: "anime",
+      title: "New Anime",
+      year: 2026,
+      ids: {
+        shikimori: "99999",
+      },
+    },
+    {},
+  );
+
+  assert.equal(requests.filter((request) => request.path === "/api/player/search").length, 1);
+  assert.equal(requests.filter((request) => request.path === "/api/animes/99999").length, 0);
+  assert.equal(availability?.options.length, 1);
+});
+
+test("selectBestPlayerCandidate accepts open-ended anime series for a later season year", () => {
+  const candidate = {
+    id: 133701,
+    name_original: "Re:Zero kara Hajimeru Isekai Seikatsu",
+    year_start: 2016,
+    year_end: "...",
+    type: "serial",
+  };
+
+  assert.equal(
+    selectBestPlayerCandidate([candidate], {
+      type: "anime",
+      title: "Re:Zero",
+      year: 2026,
+    }),
+    candidate,
+  );
+});
+
+test("selectBestPlayerCandidate rejects a single-year anime record from another year", () => {
+  const candidate = {
+    id: 99,
+    name_original: "Unrelated Reboot",
+    year: 2016,
+    type: "serial",
+  };
+
+  assert.equal(
+    selectBestPlayerCandidate([candidate], {
+      type: "anime",
+      title: "Unrelated Reboot",
+      year: 2026,
+    }),
+    undefined,
+  );
 });
 
 test("kinobdStreamingProvider bounds slow Shikimori fallback lookup", async () => {
