@@ -6,7 +6,7 @@ Movie data is easy to find. The hard part is that every source names things diff
 
 Media Engine puts those sources behind one TypeScript API. You ask for a movie, series, or anime; the engine calls suitable providers, joins matching results, and tells you honestly when part of the data could not be loaded.
 
-Version `0.1.0` is available on npm.
+Version `0.1.1` is available on npm.
 
 ## Try it
 
