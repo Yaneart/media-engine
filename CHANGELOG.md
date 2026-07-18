@@ -4,6 +4,41 @@ All notable project changes are recorded here.
 
 This project follows semantic versioning after the first stable release. Before v1.0, breaking changes are allowed when they are documented in the public API audit and release notes.
 
+## 0.1.1 - 2026-07-18
+
+### Added
+
+- Process-local provider health telemetry, per-provider circuit breaking with recovery probes, bounded provider concurrency, and provider-specific timeout budgets.
+- Optional stale metadata cache retention for retryable upstream outages. Availability links remain fresh-only.
+- Adaptive HTTP retry delays with jitter, `Retry-After` support, and shared per-provider rate-limit cooldowns.
+- English and Russian package documentation covering the current engine, provider, SDK, API, and Docker workflows.
+
+### Changed
+
+- Identical in-flight search, details, and availability requests are coalesced while preserving isolated response objects for each caller.
+- Search performs fewer poster-enrichment requests, keeps canonical search/details posters consistent, and applies bounded provider work throughout fallback and enrichment paths.
+- Engine, merge, KinoBD streaming, and example-app internals were split into responsibility-focused modules without changing package entrypoints.
+- Cache ownership and provider cancellation boundaries were hardened; numeric provider options are validated and direct streaming cache lifetimes respect advertised expiration.
+
+### Fixed
+
+- Partial search, details, and availability responses containing retryable provider failures are no longer stored as complete cache entries; a repeated request can recover missing metadata or players.
+- Provider-specific streaming timeouts are no longer silently capped by a shorter global default.
+- English details titles prefer independently corroborated localized values, fixing mixed-ID results such as Death Note.
+- Provider failures now retain bounded timeout, rate-limit, unavailable, and other diagnostic counters.
+
+### Performance
+
+- Cold representative searches reduced upstream request amplification by up to roughly half while keeping per-provider concurrency at or below the configured limit.
+- The final `0.1.1` strict title matrix passed all 17 canonical English, Russian, typo, and anime cases with no warnings or deterministic failures, compared with 3 passes and 14 upstream warnings before the performance work.
+
+### Public API
+
+- No existing package exports or method signatures were removed.
+- `MediaEngineOptions` gained optional circuit-breaker and provider-concurrency tuning, and `MediaEngine` gained `getProviderHealth()`.
+- The cache contract gained optional stale-read support, response metadata gained an optional stale marker, and metadata providers gained an optional poster-consistency capability flag.
+- Provider HTTP utilities gained bounded retry tuning and the exported `ProviderRateLimitGate`; SDK health responses now expose provider health data.
+
 ## 0.1.0 - 2026-07-13
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "@media-engine/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core TypeScript engine for Media Engine.",
   "license": "MIT",
   "homepage": "https://github.com/Yaneart/media-engine#readme",
