@@ -165,6 +165,75 @@ test("search cache integration keeps response shape", async () => {
   assert.deepEqual(second.results, first.results);
 });
 
+test("search does not cache partial results after a retryable provider failure", async () => {
+  let stableCalls = 0;
+  let recoveringCalls = 0;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    providers: [
+      createProvider({
+        name: "stable-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          stableCalls += 1;
+
+          return [
+            {
+              provider: "stable-provider",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+              },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "recovering-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          recoveringCalls += 1;
+
+          if (recoveringCalls === 1) {
+            throw new ProviderError({
+              provider: "recovering-provider",
+              code: "PROVIDER_TIMEOUT",
+              retryable: true,
+              message: "Provider timed out.",
+            });
+          }
+
+          return [
+            {
+              provider: "recovering-provider",
+              item: {
+                id: "movie-2",
+                type: "movie",
+                title: "Interstellar: The Missing Film",
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.search({ title: "Interstellar", limit: 10 });
+  const second = await engine.search({ title: "Interstellar", limit: 10 });
+  const third = await engine.search({ title: "Interstellar", limit: 10 });
+
+  assert.deepEqual(
+    first.results.map((result) => result.item.id),
+    ["movie-1"],
+  );
+  assert.equal(first.meta.cached, false);
+  assert.equal(first.meta.providers.failed[0]?.code, "PROVIDER_TIMEOUT");
+  assert.deepEqual(second.results.map((result) => result.item.id).sort(), ["movie-1", "movie-2"]);
+  assert.equal(second.meta.cached, false);
+  assert.equal(third.meta.cached, true);
+  assert.equal(stableCalls, 2);
+  assert.equal(recoveringCalls, 2);
+});
+
 test("search isolates responses from a reference-based custom cache", async () => {
   let calls = 0;
   const values = new Map<string, unknown>();

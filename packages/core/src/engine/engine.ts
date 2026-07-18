@@ -349,7 +349,9 @@ export class MediaEngine {
         }),
       };
 
-      await this.cache?.set(cacheKey, structuredClone(response));
+      if (!failed.some((failure) => failure.retryable)) {
+        await this.cache?.set(cacheKey, structuredClone(response));
+      }
 
       return response;
     });
