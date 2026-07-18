@@ -3,6 +3,7 @@ import type {
   ProviderFailure,
   ProviderTimingMeta,
   ResponseMeta,
+  SearchEnrichmentDebugMeta,
 } from "../response/index.js";
 
 // Values used to build response metadata.
@@ -16,6 +17,7 @@ export interface ResponseMetaInput {
   tookMs: number;
   debug: boolean;
   timings?: ProviderTimingMeta[];
+  enrichment?: SearchEnrichmentDebugMeta;
 }
 
 // Creates public response metadata for engine calls.
@@ -32,8 +34,14 @@ export function createResponseMeta(input: ResponseMetaInput): ResponseMeta {
     warnings: input.warnings.length > 0 ? input.warnings : undefined,
     debug: input.debug
       ? {
-          providers: input.requested,
+          providers: [
+            ...new Set([
+              ...input.requested,
+              ...(input.timings ?? []).map((timing) => timing.provider),
+            ]),
+          ],
           timings: input.timings ?? [],
+          enrichment: input.enrichment,
         }
       : undefined,
   };

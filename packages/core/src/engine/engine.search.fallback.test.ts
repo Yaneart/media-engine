@@ -148,11 +148,15 @@ test("search reports retryable fallback failures and retries before caching a re
       code: "PROVIDER_TIMEOUT",
       retryable: true,
       message: "Fallback timed out.",
+      phase: "fallback",
     },
   ]);
   assert.deepEqual(
-    first.meta.debug?.timings.map((timing) => timing.status),
-    ["success", "failed"],
+    first.meta.debug?.timings.map(({ phase, status }) => ({ phase, status })),
+    [
+      { phase: "primary", status: "success" },
+      { phase: "fallback", status: "failed" },
+    ],
   );
   assert.equal(second.results[0]?.item.title, "Game of Thrones");
   assert.equal(second.meta.cached, false);
@@ -206,12 +210,71 @@ test("search exposes and caches non-retryable fallback failures", async () => {
       code: "PROVIDER_INVALID_RESPONSE",
       retryable: false,
       message: "Fallback response was invalid.",
+      phase: "fallback",
     },
   ]);
   assert.equal(first.meta.cached, false);
   assert.equal(second.meta.cached, true);
   assert.deepEqual(second.meta.providers.failed, first.meta.providers.failed);
   assert.equal(calls, 2);
+});
+
+test("search keeps one phase-aware public failure per fallback provider", async () => {
+  const engine = new MediaEngine({
+    debug: true,
+    providers: [
+      createProvider({
+        name: "unstable-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          throw new ProviderError({
+            provider: "unstable-provider",
+            code: "PROVIDER_TIMEOUT",
+            retryable: true,
+            message: "Provider timed out.",
+          });
+        },
+      }),
+      createProvider({
+        name: "stable-provider",
+        async search(query): Promise<ProviderSearchResult[]> {
+          return query.title === "game of throen"
+            ? [
+                {
+                  provider: "stable-provider",
+                  item: {
+                    id: "unrelated",
+                    type: "movie",
+                    title: "Throne of Elves",
+                    year: 2016,
+                  },
+                },
+              ]
+            : [];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "game of throen" });
+
+  assert.deepEqual(response.meta.providers.failed, [
+    {
+      provider: "unstable-provider",
+      code: "PROVIDER_TIMEOUT",
+      retryable: true,
+      message: "Provider timed out.",
+      phase: "fallback",
+    },
+  ]);
+  assert.deepEqual(
+    response.meta.debug?.timings
+      .filter((timing) => timing.provider === "unstable-provider")
+      .map(({ phase, status }) => ({ phase, status })),
+    [
+      { phase: "primary", status: "failed" },
+      { phase: "fallback", status: "failed" },
+    ],
+  );
 });
 
 test("search returns empty response when no providers are available", async () => {
@@ -253,6 +316,7 @@ test("search applies timeout to providers that do not finish", async () => {
           code: "PROVIDER_TIMEOUT",
           retryable: true,
           message: 'Provider "slow-provider" timed out.',
+          phase: "retry",
         },
       ]);
       return true;

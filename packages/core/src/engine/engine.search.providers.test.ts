@@ -243,6 +243,7 @@ test("search throws predictably when all selected providers fail", async () => {
             code: "PROVIDER_ERROR",
             retryable: false,
             message: "Network failed.",
+            phase: "primary",
           },
         ],
       });
@@ -254,6 +255,7 @@ test("search throws predictably when all selected providers fail", async () => {
 test("search retries transient failures when every selected provider fails together", async () => {
   let calls = 0;
   const engine = new MediaEngine({
+    debug: true,
     providers: [
       createProvider({
         name: "transient-provider",
@@ -285,6 +287,13 @@ test("search retries transient failures when every selected provider fails toget
   assert.equal(calls, 2);
   assert.equal(response.results[0]?.item.title, "One Piece");
   assert.deepEqual(response.meta.providers.failed, []);
+  assert.deepEqual(
+    response.meta.debug?.timings.map(({ phase, status }) => ({ phase, status })),
+    [
+      { phase: "primary", status: "failed" },
+      { phase: "retry", status: "success" },
+    ],
+  );
 });
 
 test("search circuit breaker stops calling a repeatedly failing provider", async () => {

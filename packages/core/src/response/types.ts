@@ -1,10 +1,14 @@
 // Public provider failure summary included in response metadata.
 // Публичное описание ошибки провайдера в метаданных ответа.
+export type ProviderExecutionPhase =
+  "primary" | "retry" | "fallback" | "id_enrichment" | "poster_enrichment";
+
 export interface ProviderFailure {
   provider: string;
   code: string;
   retryable: boolean;
   message: string;
+  phase?: ProviderExecutionPhase;
 }
 
 // Provider execution summary for one engine request.
@@ -21,6 +25,7 @@ export interface ProviderTimingMeta {
   provider: string;
   status: "success" | "failed";
   tookMs: number;
+  phase?: ProviderExecutionPhase;
 }
 
 // Non-fatal engine warning returned with a response.
@@ -31,11 +36,28 @@ export interface EngineWarning {
   provider?: string;
 }
 
+// Bounded counters for optional search enrichment provider calls.
+// Ограниченные счетчики опциональных provider-вызовов search enrichment.
+export interface SearchEnrichmentCounters {
+  attempted: number;
+  skipped: number;
+  succeeded: number;
+  failed: number;
+}
+
+// Search-only enrichment diagnostics exposed in debug response metadata.
+// Search-only диагностика enrichment в debug-метаданных ответа.
+export interface SearchEnrichmentDebugMeta {
+  id: SearchEnrichmentCounters;
+  poster: SearchEnrichmentCounters;
+}
+
 // Extra diagnostics returned when the engine is created with debug enabled.
 // Дополнительная диагностика, возвращаемая при включенном debug у движка.
 export interface ResponseDebugMeta {
   providers: string[];
   timings: ProviderTimingMeta[];
+  enrichment?: SearchEnrichmentDebugMeta;
 }
 
 // Shared metadata returned with search and details responses.

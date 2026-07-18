@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { MemoryCache } from "../cache/index.js";
 import { ProviderError } from "../errors/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
 import { MediaEngine } from "./engine.js";
@@ -49,6 +50,7 @@ test("search tolerates one provider failure when another provider succeeds", asy
       code: "PROVIDER_UNAVAILABLE",
       retryable: true,
       message: "Provider is unavailable.",
+      phase: "primary",
     },
   ]);
 });
@@ -56,6 +58,7 @@ test("search tolerates one provider failure when another provider succeeds", asy
 test("search enriches sparse top results through one external ID provider", async () => {
   let enrichmentQueries = 0;
   const engine = new MediaEngine({
+    debug: true,
     providers: [
       createProvider({
         name: "title-source",
@@ -123,10 +126,178 @@ test("search enriches sparse top results through one external ID provider", asyn
     response.results[0]?.sources.map((source) => source.provider),
     ["title-source", "id-enricher"],
   );
+  assert.deepEqual(response.meta.debug?.enrichment?.id, {
+    attempted: 1,
+    skipped: 0,
+    succeeded: 1,
+    failed: 0,
+  });
+});
+
+test("search exposes ID enrichment failures and caches the warned base response", async () => {
+  let enrichmentCalls = 0;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    debug: true,
+    providers: [
+      createProvider({
+        name: "title-source",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: ["imdb"] },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "title-source",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+                poster: { url: "https://images.example/search.jpg", type: "poster" },
+                ratings: [{ source: "imdb", value: 8.7, max: 10 }],
+                ids: { imdb: "tt0816692" },
+              },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "id-enricher",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: false, byExternalIds: ["imdb"] },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          enrichmentCalls += 1;
+          throw new ProviderError({
+            provider: "id-enricher",
+            code: "PROVIDER_TIMEOUT",
+            retryable: true,
+            message: "ID enrichment timed out.",
+          });
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.search({ title: "Interstellar" });
+  const second = await engine.search({ title: "Interstellar" });
+
+  assert.equal(first.results[0]?.item.title, "Interstellar");
+  assert.deepEqual(first.meta.providers.failed, []);
+  assert.deepEqual(first.meta.warnings, [
+    {
+      code: "SEARCH_ID_ENRICHMENT_FAILED",
+      message: "Optional search ID enrichment failed for 1 provider call.",
+    },
+  ]);
+  assert.deepEqual(first.meta.debug?.enrichment?.id, {
+    attempted: 1,
+    skipped: 0,
+    succeeded: 0,
+    failed: 1,
+  });
+  assert.deepEqual(
+    first.meta.debug?.timings.map(({ provider, phase, status }) => ({ provider, phase, status })),
+    [
+      { provider: "title-source", phase: "primary", status: "success" },
+      { provider: "id-enricher", phase: "id_enrichment", status: "failed" },
+    ],
+  );
+  assert.equal(first.meta.cached, false);
+  assert.equal(second.meta.cached, true);
+  assert.deepEqual(second.meta.warnings, first.meta.warnings);
+  assert.equal(enrichmentCalls, 1);
+});
+
+test("search exposes poster enrichment failures and caches the existing poster", async () => {
+  let posterCalls = 0;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    debug: true,
+    providers: [
+      createProvider({
+        name: "title-source",
+        searchPosterMatchesDetails: true,
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "title-source",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Interstellar",
+                description: "Complete search card.",
+                poster: {
+                  url: "https://images.example/search.jpg",
+                  type: "poster",
+                  source: "title-source",
+                },
+                ratings: [{ source: "imdb", value: 8.7, max: 10 }],
+                ids: { imdb: "tt0816692" },
+              },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "poster-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: false, byExternalIds: [] },
+          details: { byExternalIds: ["imdb"] },
+        },
+        async getDetails(): Promise<ProviderDetailsResult> {
+          posterCalls += 1;
+          throw new ProviderError({
+            provider: "poster-provider",
+            code: "PROVIDER_UNAVAILABLE",
+            retryable: true,
+            message: "Poster provider is unavailable.",
+          });
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.search({ title: "Interstellar" });
+  const second = await engine.search({ title: "Interstellar" });
+
+  assert.equal(first.results[0]?.item.poster?.url, "https://images.example/search.jpg");
+  assert.deepEqual(first.meta.providers.failed, []);
+  assert.deepEqual(first.meta.warnings, [
+    {
+      code: "SEARCH_POSTER_ENRICHMENT_FAILED",
+      message: "Optional search poster enrichment failed for 1 provider call.",
+    },
+  ]);
+  assert.deepEqual(first.meta.debug?.enrichment?.poster, {
+    attempted: 1,
+    skipped: 1,
+    succeeded: 0,
+    failed: 1,
+  });
+  assert.equal(
+    first.meta.debug?.timings.find((timing) => timing.provider === "poster-provider")?.phase,
+    "poster_enrichment",
+  );
+  assert.equal(first.meta.cached, false);
+  assert.equal(second.meta.cached, true);
+  assert.deepEqual(second.meta.warnings, first.meta.warnings);
+  assert.equal(posterCalls, 1);
 });
 
 test("search uses the canonical details poster before returning results", async () => {
   const engine = new MediaEngine({
+    debug: true,
     providers: [
       createProvider({
         name: "poster-provider",
@@ -168,6 +339,12 @@ test("search uses the canonical details poster before returning results", async 
   const response = await engine.search({ title: "one", limit: 1 });
 
   assert.equal(response.results[0]?.item.poster?.url, "https://images.example/details.jpg");
+  assert.deepEqual(response.meta.debug?.enrichment?.poster, {
+    attempted: 1,
+    skipped: 0,
+    succeeded: 1,
+    failed: 0,
+  });
 });
 
 test("search reuses a provider-guaranteed poster while loading missing sources", async () => {

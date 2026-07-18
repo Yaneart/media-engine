@@ -50,7 +50,7 @@ const response = await engine.search({
 
 A search query may use a title, media type, year, external IDs, language, and limit. Common external IDs can be passed inside `ids` or through shortcut fields such as `imdb`, `kinopoisk`, and `shikimori`.
 
-Each result contains a normalized item, a score, and source attribution. Response metadata reports requested, successful, and failed providers, cache state, total elapsed time, and optional warnings/debug timings. Retries, fallback queries, and enrichment share one timeout budget per provider within the operation.
+Each result contains a normalized item, a score, and source attribution. Response metadata reports requested, successful, and failed providers, cache state, total elapsed time, and optional warnings/debug timings. Search failures and timings may identify their primary, retry, fallback, ID-enrichment, or poster-enrichment phase. Optional enrichment failures preserve base results and normal cache behavior while returning bounded warnings and debug counters; mandatory retryable degradation prevents a normal cache write. Retries, fallback queries, and enrichment share one timeout budget per provider within the operation.
 
 ## Details
 

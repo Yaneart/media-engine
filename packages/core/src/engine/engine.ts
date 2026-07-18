@@ -46,7 +46,7 @@ import {
   loadSearchPoster,
   needsSearchEnrichment,
 } from "./search-enrichment.js";
-import { appendSearchCallOutcomes } from "./search-outcomes.js";
+import { SearchOutcomeAccumulator } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
 import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
@@ -162,8 +162,15 @@ export class MediaEngine {
       const warnings: EngineWarning[] = [];
       const providerResults: ProviderSearchResult[] = [];
       const providerTimings: ProviderTimingMeta[] = [];
+      const searchOutcomes = new SearchOutcomeAccumulator({
+        successful,
+        failed,
+        results: providerResults,
+        timings: providerTimings,
+        warnings,
+      });
 
-      let outcomes = await Promise.all(
+      const outcomes = await Promise.all(
         providers.map((provider) =>
           callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
             debug: this.debug,
@@ -174,24 +181,23 @@ export class MediaEngine {
           }),
         ),
       );
+      searchOutcomes.appendMandatory(outcomes, "primary");
 
       if (outcomes.length > 0 && outcomes.every((outcome) => outcome.failure)) {
-        outcomes = await retryFailedSearchProviders(providers, outcomes, normalizedQuery, {
-          debug: this.debug,
-          language: searchLanguage,
-          circuitBreaker: this.circuitBreaker,
-          concurrencyLimiter: this.concurrencyLimiter,
-          getTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
-        });
+        const retryOutcomes = await retryFailedSearchProviders(
+          providers,
+          outcomes,
+          normalizedQuery,
+          {
+            debug: this.debug,
+            language: searchLanguage,
+            circuitBreaker: this.circuitBreaker,
+            concurrencyLimiter: this.concurrencyLimiter,
+            getTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
+          },
+        );
+        searchOutcomes.appendMandatory(retryOutcomes, "retry");
       }
-
-      const searchOutcomes = {
-        successful,
-        failed,
-        results: providerResults,
-        timings: providerTimings,
-      };
-      appendSearchCallOutcomes(searchOutcomes, outcomes);
 
       if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
         throw new MediaEngineError({
@@ -231,7 +237,7 @@ export class MediaEngine {
           ),
         );
 
-        appendSearchCallOutcomes(searchOutcomes, fallbackOutcomes, {
+        searchOutcomes.appendMandatory(fallbackOutcomes, "fallback", {
           deduplicateResults: true,
         });
         results = this.mergeStrategy.mergeSearchResults(providerResults, {
@@ -244,73 +250,89 @@ export class MediaEngine {
       }
 
       const excludedPosterProviders = new Set(failed.map((failure) => failure.provider));
+      const posterEnrichmentCandidates = results
+        .slice(0, SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT)
+        .filter((result) => hasExternalIds(result.item.ids));
       const posterEnrichmentPromise = Promise.all(
-        results
-          .slice(0, SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT)
-          .filter((result) => hasExternalIds(result.item.ids))
-          .map(async (result) => ({
+        posterEnrichmentCandidates.map(async (result) => {
+          const lookup = await loadSearchPoster({
+            result,
+            language: searchLanguage,
+            excludedProviders: excludedPosterProviders,
+            registry: this.registry,
+            mergeStrategy: this.mergeStrategy,
+            debug: this.debug,
+            circuitBreaker: this.circuitBreaker,
+            concurrencyLimiter: this.concurrencyLimiter,
+            getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
+          });
+
+          return {
             ids: result.item.ids,
-            poster: await loadSearchPoster({
-              result,
+            poster: lookup.poster,
+            outcomes: lookup.outcomes,
+            skipped: lookup.skipped,
+          };
+        }),
+      );
+      const idEnrichmentCandidates = results
+        .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
+        .filter((result) => needsSearchEnrichment(result.item) && hasExternalIds(result.item.ids));
+      const enrichmentResultsPromise = Promise.all(
+        idEnrichmentCandidates.map(async (result) => {
+          const existingProviders = new Set(result.sources.map((source) => source.provider));
+          const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
+          const enrichmentProvider = this.registry
+            .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
+            .find((provider) => !existingProviders.has(provider.name));
+
+          if (!enrichmentProvider) {
+            return undefined;
+          }
+
+          const enrichmentTimeoutMs = timeoutBudget.getRemainingMs(
+            enrichmentProvider.name,
+            SEARCH_ID_ENRICHMENT_TIMEOUT_MS,
+          );
+          const outcome = await callTimedProviderSearch(
+            enrichmentProvider,
+            {
+              ids: result.item.ids,
+              type: enrichmentType,
+              limit: 1,
               language: searchLanguage,
-              excludedProviders: excludedPosterProviders,
-              registry: this.registry,
-              mergeStrategy: this.mergeStrategy,
+            },
+            {
               debug: this.debug,
+              language: searchLanguage,
+              timeoutMs: enrichmentTimeoutMs,
               circuitBreaker: this.circuitBreaker,
               concurrencyLimiter: this.concurrencyLimiter,
-              getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
-            }).catch(() => undefined),
-          })),
-      );
-      const enrichmentResultsPromise = Promise.all(
-        results
-          .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
-          .filter((result) => needsSearchEnrichment(result.item) && hasExternalIds(result.item.ids))
-          .map(async (result) => {
-            const existingProviders = new Set(result.sources.map((source) => source.provider));
-            const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
-            const enrichmentProvider = this.registry
-              .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
-              .find((provider) => !existingProviders.has(provider.name));
+            },
+          );
 
-            if (!enrichmentProvider) {
-              return [];
-            }
-
-            const enrichmentTimeoutMs = timeoutBudget.getRemainingMs(
-              enrichmentProvider.name,
-              SEARCH_ID_ENRICHMENT_TIMEOUT_MS,
-            );
-            const outcome = await callTimedProviderSearch(
-              enrichmentProvider,
-              {
-                ids: result.item.ids,
-                type: enrichmentType,
-                limit: 1,
-                language: searchLanguage,
-              },
-              {
-                debug: this.debug,
-                language: searchLanguage,
-                timeoutMs: enrichmentTimeoutMs,
-                circuitBreaker: this.circuitBreaker,
-                concurrencyLimiter: this.concurrencyLimiter,
-              },
-            );
-
-            return outcome.failure ? [] : outcome.results;
-          }),
+          return outcome;
+        }),
       );
       const [enrichmentResults, posterEnrichments] = await Promise.all([
         enrichmentResultsPromise,
         posterEnrichmentPromise,
       ]);
-      const flattenedEnrichmentResults = enrichmentResults.flat();
-
-      if (flattenedEnrichmentResults.length > 0) {
-        providerResults.push(...flattenedEnrichmentResults);
-      }
+      const idEnrichmentOutcomes = enrichmentResults.filter(
+        (outcome): outcome is NonNullable<typeof outcome> => outcome !== undefined,
+      );
+      const skippedIdEnrichments = idEnrichmentCandidates.length - idEnrichmentOutcomes.length;
+      const posterOutcomes = posterEnrichments.flatMap((enrichment) => enrichment.outcomes);
+      const skippedPosterEnrichments = posterEnrichments.reduce(
+        (total, enrichment) => total + enrichment.skipped,
+        0,
+      );
+      searchOutcomes.appendIdEnrichment(idEnrichmentOutcomes, skippedIdEnrichments);
+      searchOutcomes.observePosterEnrichment(posterOutcomes, skippedPosterEnrichments);
+      searchOutcomes.appendEnrichmentWarnings();
+      const flattenedEnrichmentResults = idEnrichmentOutcomes.flatMap((outcome) =>
+        outcome.failure ? [] : outcome.results,
+      );
 
       if (
         this.mergeStrategy instanceof DefaultMergeStrategy ||
@@ -342,10 +364,11 @@ export class MediaEngine {
           tookMs: elapsedSince(startedAt),
           debug: this.debug,
           timings: providerTimings,
+          enrichment: searchOutcomes.getEnrichmentDebugMeta(),
         }),
       };
 
-      if (!hasRetryableProviderFailure(failed)) {
+      if (!searchOutcomes.hasRetryableMandatoryFailure()) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
 

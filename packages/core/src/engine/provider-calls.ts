@@ -65,22 +65,20 @@ export async function retryFailedSearchProviders(
   query: ProviderSearchQuery,
   context: SearchRetryContext,
 ): Promise<ProviderSearchCallOutcome[]> {
+  const retryProviders = outcomes.flatMap((outcome, index) => {
+    const provider = providers[index];
+    return provider && outcome.failure?.retryable ? [provider] : [];
+  });
   return Promise.all(
-    outcomes.map(async (outcome, index) => {
-      const provider = providers[index];
-
-      if (!provider || !outcome.failure?.retryable) {
-        return outcome;
-      }
-
-      return callTimedProviderSearch(provider, createProviderSearchQuery(query), {
+    retryProviders.map((provider) =>
+      callTimedProviderSearch(provider, createProviderSearchQuery(query), {
         debug: context.debug,
         language: context.language,
         timeoutMs: context.getTimeoutMs(provider.name),
         circuitBreaker: context.circuitBreaker,
         concurrencyLimiter: context.concurrencyLimiter,
-      });
-    }),
+      }),
+    ),
   );
 }
 

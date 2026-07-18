@@ -5,7 +5,7 @@ import type { ProviderRegistry, ProviderDetailsResult } from "../providers/index
 import type { MediaSearchResult } from "../search/index.js";
 import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import type { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
-import { callTimedProviderDetails } from "./provider-calls.js";
+import { callTimedProviderDetails, type ProviderDetailsCallOutcome } from "./provider-calls.js";
 import { EXTERNAL_ID_SHORTCUTS, hasExternalIds } from "./query.js";
 
 const SEARCH_DETAILS_POSTER_ENRICHMENT_TIMEOUT_MS = 1_500;
@@ -25,6 +25,14 @@ export interface SearchPosterLookupInput {
 export interface SearchPosterEnrichment {
   ids: ExternalIds | undefined;
   poster: Image | undefined;
+  outcomes: ProviderDetailsCallOutcome[];
+  skipped: number;
+}
+
+export interface SearchPosterLookupResult {
+  poster: Image | undefined;
+  outcomes: ProviderDetailsCallOutcome[];
+  skipped: number;
 }
 
 // Enriches compact catalog hits when follow-up cards would otherwise choose different metadata.
@@ -39,9 +47,11 @@ export function needsSearchEnrichment(item: {
 
 // Loads only the canonical poster needed by search without blocking on a full details request.
 // Загружает только канонический постер для search, не блокируя полный details-запрос.
-export async function loadSearchPoster(input: SearchPosterLookupInput): Promise<Image | undefined> {
+export async function loadSearchPoster(
+  input: SearchPosterLookupInput,
+): Promise<SearchPosterLookupResult> {
   if (!hasExternalIds(input.result.item.ids)) {
-    return undefined;
+    return { poster: undefined, outcomes: [], skipped: 0 };
   }
 
   const query: DetailsQuery = {
@@ -50,9 +60,10 @@ export async function loadSearchPoster(input: SearchPosterLookupInput): Promise<
     language: input.language,
   };
   const searchProviders = new Set(input.result.sources.map((source) => source.provider));
-  const providers = input.registry
-    .selectDetailsProviders(query)
-    .filter((provider) => !input.excludedProviders.has(provider.name));
+  const selectedProviders = input.registry.selectDetailsProviders(query);
+  const providers = selectedProviders.filter(
+    (provider) => !input.excludedProviders.has(provider.name),
+  );
   const reusablePosterProvider = providers.find(
     (provider) =>
       provider.searchPosterMatchesDetails === true &&
@@ -99,12 +110,16 @@ export async function loadSearchPoster(input: SearchPosterLookupInput): Promise<
     return loaded ? [loaded] : [];
   });
 
-  return input.mergeStrategy.mergeDetails(providerResults, {
-    query,
-    language: input.language,
-    debug: input.debug,
-    warnings: [],
-  })?.poster;
+  return {
+    poster: input.mergeStrategy.mergeDetails(providerResults, {
+      query,
+      language: input.language,
+      debug: input.debug,
+      warnings: [],
+    })?.poster,
+    outcomes,
+    skipped: selectedProviders.length - providersToLoad.length,
+  };
 }
 
 // Reuses only compact fields; every details-only field remains absent by construction.
