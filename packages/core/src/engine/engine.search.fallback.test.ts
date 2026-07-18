@@ -84,6 +84,136 @@ test("search separates an empty joined compound title and ranks against the orig
   );
 });
 
+test("search reports retryable fallback failures and retries before caching a recovery", async () => {
+  let primaryCalls = 0;
+  let fallbackCalls = 0;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    debug: true,
+    providers: [
+      createProvider({
+        name: "fallback-provider",
+        async search(query): Promise<ProviderSearchResult[]> {
+          if (query.title === "game of") {
+            fallbackCalls += 1;
+
+            if (fallbackCalls === 1) {
+              throw new ProviderError({
+                provider: "fallback-provider",
+                code: "PROVIDER_TIMEOUT",
+                retryable: true,
+                message: "Fallback timed out.",
+              });
+            }
+
+            return [
+              {
+                provider: "fallback-provider",
+                item: {
+                  id: "game-of-thrones",
+                  type: "series",
+                  title: "Game of Thrones",
+                  year: 2011,
+                },
+              },
+            ];
+          }
+
+          primaryCalls += 1;
+          return [
+            {
+              provider: "fallback-provider",
+              item: {
+                id: "unrelated",
+                type: "movie",
+                title: "Throne of Elves",
+                year: 2016,
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.search({ title: "game of throen" });
+  const second = await engine.search({ title: "game of throen" });
+  const third = await engine.search({ title: "game of throen" });
+
+  assert.deepEqual(first.results, []);
+  assert.equal(first.meta.cached, false);
+  assert.deepEqual(first.meta.providers.failed, [
+    {
+      provider: "fallback-provider",
+      code: "PROVIDER_TIMEOUT",
+      retryable: true,
+      message: "Fallback timed out.",
+    },
+  ]);
+  assert.deepEqual(
+    first.meta.debug?.timings.map((timing) => timing.status),
+    ["success", "failed"],
+  );
+  assert.equal(second.results[0]?.item.title, "Game of Thrones");
+  assert.equal(second.meta.cached, false);
+  assert.deepEqual(second.meta.providers.failed, []);
+  assert.equal(third.meta.cached, true);
+  assert.equal(primaryCalls, 2);
+  assert.equal(fallbackCalls, 2);
+});
+
+test("search exposes and caches non-retryable fallback failures", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    providers: [
+      createProvider({
+        name: "fallback-provider",
+        async search(query): Promise<ProviderSearchResult[]> {
+          calls += 1;
+
+          if (query.title === "game of") {
+            throw new ProviderError({
+              provider: "fallback-provider",
+              code: "PROVIDER_INVALID_RESPONSE",
+              retryable: false,
+              message: "Fallback response was invalid.",
+            });
+          }
+
+          return [
+            {
+              provider: "fallback-provider",
+              item: {
+                id: "unrelated",
+                type: "movie",
+                title: "Throne of Elves",
+                year: 2016,
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.search({ title: "game of throen" });
+  const second = await engine.search({ title: "game of throen" });
+
+  assert.deepEqual(first.meta.providers.failed, [
+    {
+      provider: "fallback-provider",
+      code: "PROVIDER_INVALID_RESPONSE",
+      retryable: false,
+      message: "Fallback response was invalid.",
+    },
+  ]);
+  assert.equal(first.meta.cached, false);
+  assert.equal(second.meta.cached, true);
+  assert.deepEqual(second.meta.providers.failed, first.meta.providers.failed);
+  assert.equal(calls, 2);
+});
+
 test("search returns empty response when no providers are available", async () => {
   const engine = new MediaEngine();
   const response = await engine.search({ title: "Interstellar" });

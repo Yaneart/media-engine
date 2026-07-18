@@ -26,7 +26,6 @@ import {
   retryFailedSearchProviders,
 } from "./provider-calls.js";
 import {
-  appendUniqueSearchResults,
   createAvailabilityCacheKey,
   createDetailsCacheKey,
   createProviderSearchQuery,
@@ -47,6 +46,7 @@ import {
   loadSearchPoster,
   needsSearchEnrichment,
 } from "./search-enrichment.js";
+import { appendSearchCallOutcomes } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
 import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
@@ -185,16 +185,13 @@ export class MediaEngine {
         });
       }
 
-      for (const outcome of outcomes) {
-        providerTimings.push(outcome.timing);
-
-        if (outcome.failure) {
-          failed.push(outcome.failure);
-        } else {
-          successful.push(outcome.provider);
-          providerResults.push(...outcome.results);
-        }
-      }
+      const searchOutcomes = {
+        successful,
+        failed,
+        results: providerResults,
+        timings: providerTimings,
+      };
+      appendSearchCallOutcomes(searchOutcomes, outcomes);
 
       if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
         throw new MediaEngineError({
@@ -234,10 +231,9 @@ export class MediaEngine {
           ),
         );
 
-        appendUniqueSearchResults(
-          providerResults,
-          fallbackOutcomes.flatMap((outcome) => (outcome.failure ? [] : outcome.results)),
-        );
+        appendSearchCallOutcomes(searchOutcomes, fallbackOutcomes, {
+          deduplicateResults: true,
+        });
         results = this.mergeStrategy.mergeSearchResults(providerResults, {
           query: normalizedQuery,
           language: searchLanguage,
