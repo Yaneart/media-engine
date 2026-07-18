@@ -349,7 +349,7 @@ export class MediaEngine {
         }),
       };
 
-      if (!failed.some((failure) => failure.retryable)) {
+      if (!hasRetryableProviderFailure(failed)) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
 
@@ -454,7 +454,9 @@ export class MediaEngine {
         }),
       };
 
-      await this.cache?.set(cacheKey, structuredClone(response));
+      if (!hasRetryableProviderFailure(failed)) {
+        await this.cache?.set(cacheKey, structuredClone(response));
+      }
 
       return response;
     });
@@ -544,11 +546,13 @@ export class MediaEngine {
         timings: providerTimings,
       });
 
-      await this.cache?.set(
-        cacheKey,
-        structuredClone(availability),
-        createAvailabilityCacheOptions(availability),
-      );
+      if (!hasRetryableProviderFailure(failed)) {
+        await this.cache?.set(
+          cacheKey,
+          structuredClone(availability),
+          createAvailabilityCacheOptions(availability),
+        );
+      }
 
       return availability;
     });
@@ -633,4 +637,8 @@ export class MediaEngine {
   protected get engineDebug(): boolean {
     return this.debug;
   }
+}
+
+function hasRetryableProviderFailure(failures: ProviderFailure[]): boolean {
+  return failures.some((failure) => failure.retryable);
 }

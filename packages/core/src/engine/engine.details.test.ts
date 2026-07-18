@@ -390,6 +390,71 @@ test("getDetails cache integration keeps response shape", async () => {
   assert.deepEqual(second.details, first.details);
 });
 
+test("getDetails does not cache partial results after a retryable provider failure", async () => {
+  let stableCalls = 0;
+  let recoveringCalls = 0;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    providers: [
+      createProvider({
+        name: "stable-provider",
+        async getDetails(): Promise<ProviderDetailsResult> {
+          stableCalls += 1;
+
+          return {
+            provider: "stable-provider",
+            details: {
+              id: "movie-1",
+              type: "movie",
+              title: "Interstellar",
+              ids: { imdb: "tt0816692" },
+            },
+          };
+        },
+      }),
+      createProvider({
+        name: "recovering-provider",
+        async getDetails(): Promise<ProviderDetailsResult> {
+          recoveringCalls += 1;
+
+          if (recoveringCalls === 1) {
+            throw new ProviderError({
+              provider: "recovering-provider",
+              code: "PROVIDER_TIMEOUT",
+              retryable: true,
+              message: "Provider timed out.",
+            });
+          }
+
+          return {
+            provider: "recovering-provider",
+            details: {
+              id: "movie-2",
+              type: "movie",
+              title: "Interstellar",
+              description: "Recovered provider description.",
+              ids: { imdb: "tt0816692" },
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.getDetails({ imdb: "tt0816692" });
+  const second = await engine.getDetails({ imdb: "tt0816692" });
+  const third = await engine.getDetails({ imdb: "tt0816692" });
+
+  assert.equal(first.details?.description, undefined);
+  assert.equal(first.meta.cached, false);
+  assert.equal(first.meta.providers.failed[0]?.code, "PROVIDER_TIMEOUT");
+  assert.equal(second.details?.description, "Recovered provider description.");
+  assert.equal(second.meta.cached, false);
+  assert.equal(third.meta.cached, true);
+  assert.equal(stableCalls, 2);
+  assert.equal(recoveringCalls, 2);
+});
+
 test("getDetails uses stale cache only for retryable provider failures", async () => {
   let now = 1_000;
   let failure: ProviderError | undefined;

@@ -389,6 +389,60 @@ test("getAvailability cache integration keeps response shape", async () => {
   assert.equal(second.meta?.cached, true);
 });
 
+test("getAvailability does not cache partial results after a retryable provider failure", async () => {
+  let stableCalls = 0;
+  let recoveringCalls = 0;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    streamingProviders: [
+      createStreamingProvider({
+        name: "stable-stream",
+        async getAvailability(query): Promise<MediaAvailability> {
+          stableCalls += 1;
+          return createAvailability(query, "stable-stream");
+        },
+      }),
+      createStreamingProvider({
+        name: "recovering-stream",
+        async getAvailability(query): Promise<MediaAvailability> {
+          recoveringCalls += 1;
+
+          if (recoveringCalls === 1) {
+            throw new ProviderError({
+              provider: "recovering-stream",
+              code: "PROVIDER_TIMEOUT",
+              retryable: true,
+              message: "Streaming provider timed out.",
+            });
+          }
+
+          return createAvailability(query, "recovering-stream");
+        },
+      }),
+    ],
+  });
+  const query: StreamQuery = { type: "anime", title: "Naruto" };
+
+  const first = await engine.getAvailability(query);
+  const second = await engine.getAvailability(query);
+  const third = await engine.getAvailability(query);
+
+  assert.deepEqual(
+    first.options.map((option) => option.provider),
+    ["stable-stream"],
+  );
+  assert.equal(first.meta?.cached, false);
+  assert.equal(first.meta?.providers.failed[0]?.code, "PROVIDER_TIMEOUT");
+  assert.deepEqual(
+    second.options.map((option) => option.provider),
+    ["stable-stream", "recovering-stream"],
+  );
+  assert.equal(second.meta?.cached, false);
+  assert.equal(third.meta?.cached, true);
+  assert.equal(stableCalls, 2);
+  assert.equal(recoveringCalls, 2);
+});
+
 test("getAvailability does not return stale streaming links", async () => {
   let now = 1_000;
   let available = true;
