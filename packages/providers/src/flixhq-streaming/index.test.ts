@@ -346,6 +346,37 @@ test("FlixHQ parsers recognize current movie, series, season, and episode URLs",
   );
 });
 
+test("FlixHQ parsers keep relative and absolute navigation on the configured origin", () => {
+  const html = [
+    `<a href="/watch-movie/relative-2020-watch-online/" title="Relative Watch Online Full Movie HD">Relative</a>`,
+    `<a href="${BASE_URL}/watch-movie/absolute-2021-watch-online/" title="Absolute Watch Online Full Movie HD">Absolute</a>`,
+    `<a href="http://127.0.0.1/watch-movie/external-2022-watch-online/" title="External Watch Online Full Movie HD">External</a>`,
+  ].join("\n");
+
+  assert.deepEqual(
+    parseSearchCandidates(html, BASE_URL).map(({ title, mediaUrl }) => ({ title, mediaUrl })),
+    [
+      { title: "Relative", mediaUrl: `${BASE_URL}/watch-movie/relative-2020-watch-online/` },
+      { title: "Absolute", mediaUrl: `${BASE_URL}/watch-movie/absolute-2021-watch-online/` },
+    ],
+  );
+
+  assert.deepEqual(
+    parseEpisodes(
+      [
+        `<a href="/episode/show/s01-e01/" title="Episode 1">Episode 1</a>`,
+        `<a href="${BASE_URL}/episode/show/s01-e02/" title="Episode 2">Episode 2</a>`,
+        `<a href="https://evil.test/episode/show/s01-e03/" title="Episode 3">Episode 3</a>`,
+      ].join("\n"),
+      BASE_URL,
+    ).map(({ url, episodeNumber }) => ({ url, episodeNumber })),
+    [
+      { url: `${BASE_URL}/episode/show/s01-e01/`, episodeNumber: 1 },
+      { url: `${BASE_URL}/episode/show/s01-e02/`, episodeNumber: 2 },
+    ],
+  );
+});
+
 test("flixHqStreamingProvider validates bounded configuration", () => {
   assert.throws(
     () => flixHqStreamingProvider({ baseUrl: BASE_URL, playerLimit: 0 }),
@@ -415,7 +446,7 @@ function searchHtml(entries: Array<[title: string, path: string]>): string {
   return entries
     .map(
       ([title, path]) =>
-        `<article class="flw-item"><h3 class="film-name"><a href="${BASE_URL}${path}" title="${title} Watch Online ${path.includes("watch-series") ? "full TV Show" : "Full Movie HD"}">${title}</a></h3></article>`,
+        `<article class="flw-item"><h3 class="film-name"><a href="${path.startsWith("http") ? path : `${BASE_URL}${path}`}" title="${title} Watch Online ${path.includes("watch-series") ? "full TV Show" : "Full Movie HD"}">${title}</a></h3></article>`,
     )
     .join("\n");
 }

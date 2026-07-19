@@ -90,7 +90,7 @@ async function validatePlayerUrl(
   context: ProviderContext,
   depth = 0,
 ): Promise<PlayerValidationOutcome> {
-  const fetchImpl = config.fetch ?? fetch;
+  const fetchImpl = config.externalFetch;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.playerValidationTimeoutMs);
   const signal = context.signal

@@ -12,6 +12,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Search provider metadata now distinguishes primary, retry, fallback, ID-enrichment, and poster-enrichment phases. Mandatory retryable fallback degradation remains cache-safe, while optional enrichment failures return bounded warnings and debug counters without discarding base results.
 - Shared provider HTTP errors retain their response status through `getProviderHttpStatus`, allowing adapters to distinguish confirmed absence from other non-retryable responses.
 - Provider JSON and FlixHQ HTML responses are read through a streaming byte limit instead of being fully buffered first. Oversized bodies now fail with `PROVIDER_RESPONSE_TOO_LARGE`, distinct from invalid JSON, and `fetchJson` accepts a bounded `maxResponseBytes` override.
+- FlixHQ navigation is confined to its configured origin with manual bounded redirects. Server-side player and subtitle checks now reject private/reserved literal or DNS targets, mixed public/private answers, and unsafe redirect hops while pinning each connection to its validated address.
 
 ### Fixed
 

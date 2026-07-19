@@ -72,6 +72,8 @@ These are third-party player targets, not videos hosted by Media Engine. Availab
 
 Live player validation removes an option only after HTTP 404/410 or a stable deletion marker. Rate limits, server errors, network failures, and validation timeouts keep the discovered option with `availability: "unknown"`, allowing the engine to expose the degradation and retry it instead of caching a transiently reduced result.
 
+FlixHQ site navigation cannot leave its configured origin, including through redirects. External player and subtitle checks resolve every A/AAAA answer, reject private, local, reserved, multicast, or mixed public/private destinations, validate every bounded redirect hop, and pin the connection to the approved address. A custom provider `fetch` is an explicit trusted transport injection intended for controlled tests or self-hosted environments; it is responsible for equivalent network policy.
+
 Provider options, limitations, and safety rules are summarized in the [provider guide](https://github.com/Yaneart/media-engine/blob/main/docs/providers.md).
 
 ## License

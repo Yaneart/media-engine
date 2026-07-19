@@ -3,6 +3,7 @@ import type { ProviderContext } from "@media-engine/core";
 import type { ProviderRateLimitGate } from "./rate-limit.js";
 import { readBoundedResponseText } from "./response-body.js";
 import { calculateRetryDelayMs, parseRetryAfterMs } from "./retry.js";
+import { isPublicIpAddress } from "./safe-fetch.js";
 
 const DEFAULT_MAX_JSON_RESPONSE_BYTES = 4 * 1024 * 1024;
 
@@ -52,13 +53,7 @@ function isPrivateHostname(value: string): boolean {
   }
 
   if (hostname.includes(":")) {
-    const first = Number.parseInt(hostname.split(":")[0] ?? "", 16);
-
-    return (
-      hostname.startsWith("::ffff:") ||
-      (first >= 0xfc00 && first <= 0xfdff) ||
-      (first >= 0xfe80 && first <= 0xfebf)
-    );
+    return !isPublicIpAddress(hostname);
   }
 
   const octets = hostname.split(".").map(Number);
@@ -70,20 +65,7 @@ function isPrivateHostname(value: string): boolean {
     return false;
   }
 
-  const [first, second] = octets as [number, number, number, number];
-
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 0) ||
-    (first === 192 && second === 168) ||
-    (first === 198 && (second === 18 || second === 19)) ||
-    first >= 224
-  );
+  return !isPublicIpAddress(hostname);
 }
 
 // Options used for a provider JSON HTTP request.

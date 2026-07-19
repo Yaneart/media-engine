@@ -21,6 +21,8 @@ test("normalizePublicHttpUrl rejects local and private network targets", () => {
     "http://172.16.0.1/admin",
     "http://192.168.0.1/admin",
     "http://[::1]/admin",
+    "http://[::7f00:1]/admin",
+    "http://[::ffff:127.0.0.1]/admin",
     "http://[fd00::1]/admin",
     "https://user:password@player.test/embed",
   ]) {

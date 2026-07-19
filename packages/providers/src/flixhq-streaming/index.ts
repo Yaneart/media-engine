@@ -8,15 +8,15 @@ import type {
   SubtitleTrack,
 } from "@media-engine/core";
 import {
-  deferProviderRateLimitFromResponse,
   mapProviderHttpError,
-  mapHttpResponseToProviderError,
   normalizePublicHttpUrl,
   ProviderRateLimitGate,
   type ProviderFetch,
 } from "../shared/index.js";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
 import { readBoundedResponseText } from "../shared/response-body.js";
+import { createHardenedProviderFetch } from "../shared/safe-fetch.js";
+import { fetchFlixHqText, normalizeFlixHqNavigationUrl } from "./client.js";
 
 const DEFAULT_BASE_URL = "https://flixhq.one";
 const DEFAULT_PROVIDER_NAME = "flixhq-streaming";
@@ -46,6 +46,7 @@ interface FlixHqConfig {
   baseUrl: string;
   name: string;
   fetch?: ProviderFetch;
+  externalFetch: ProviderFetch;
   rateLimitGate: ProviderRateLimitGate;
   maxHtmlBytes: number;
   playerLimit: number;
@@ -97,6 +98,7 @@ export function flixHqStreamingProvider(
 }
 
 function createConfig(options: FlixHqStreamingProviderOptions): FlixHqConfig {
+  const name = normalizeProviderName(options.name ?? DEFAULT_PROVIDER_NAME);
   const maxHtmlBytes = options.maxHtmlBytes ?? DEFAULT_MAX_HTML_BYTES;
   const playerLimit = options.playerLimit ?? DEFAULT_PLAYER_LIMIT;
   const playerValidationConcurrency =
@@ -133,8 +135,9 @@ function createConfig(options: FlixHqStreamingProviderOptions): FlixHqConfig {
 
   return {
     baseUrl: normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL),
-    name: normalizeProviderName(options.name ?? DEFAULT_PROVIDER_NAME),
+    name,
     fetch: options.fetch,
+    externalFetch: options.fetch ?? createHardenedProviderFetch({ provider: name }),
     rateLimitGate: new ProviderRateLimitGate(),
     maxHtmlBytes,
     playerLimit,
@@ -190,18 +193,22 @@ async function getFlixHqAvailability(
 
   const searchUrl = new URL("/search", config.baseUrl);
   searchUrl.searchParams.set("keyword", query.title.trim());
-  const searchHtml = await fetchText(config, searchUrl, context);
-  const candidate = selectBestCandidate(parseSearchCandidates(searchHtml), query);
+  const searchHtml = await fetchFlixHqText(config, searchUrl, context);
+  const candidate = selectBestCandidate(parseSearchCandidates(searchHtml, config.baseUrl), query);
 
   if (!candidate) {
     return emptyAvailability(query);
   }
 
-  const mediaHtml = await fetchText(config, new URL(candidate.mediaUrl), context);
+  const mediaHtml = await fetchFlixHqText(config, new URL(candidate.mediaUrl), context);
   const episode =
     candidate.type === "movie"
       ? { url: candidate.mediaUrl, title: candidate.title }
-      : selectEpisode(parseEpisodes(mediaHtml), query.seasonNumber ?? 1, query.episodeNumber ?? 1);
+      : selectEpisode(
+          parseEpisodes(mediaHtml, config.baseUrl),
+          query.seasonNumber ?? 1,
+          query.episodeNumber ?? 1,
+        );
 
   if (!episode) {
     return emptyAvailability(query);
@@ -210,7 +217,7 @@ async function getFlixHqAvailability(
   const playerHtml =
     episode.url === candidate.mediaUrl
       ? mediaHtml
-      : await fetchText(config, new URL(episode.url), context);
+      : await fetchFlixHqText(config, new URL(episode.url), context);
   const token = findPlayerToken(playerHtml, candidate.type);
 
   if (!token) {
@@ -274,7 +281,7 @@ async function validatePlayer(
   option: StreamOption,
   context: ProviderContext,
 ): Promise<PlayerValidationOutcome> {
-  const fetchImpl = config.fetch ?? fetch;
+  const fetchImpl = config.externalFetch;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.playerValidationTimeoutMs);
   const signal = context.signal
@@ -339,7 +346,7 @@ async function enrichPlayerOption(
   if (!subtitleInfoUrl) return option;
 
   try {
-    const response = await (config.fetch ?? fetch)(subtitleInfoUrl, {
+    const response = await config.externalFetch(subtitleInfoUrl, {
       headers: {
         Accept: "application/json",
         "User-Agent": config.userAgent,
@@ -402,14 +409,18 @@ async function fetchPlayers(
 ): Promise<PlayerResponse[]> {
   const body = new URLSearchParams();
   body.set(type === "movie" ? "players" : "players_show", token);
-  const responseText = await fetchText(config, new URL("/ajax/ajax.php", config.baseUrl), context, {
-    method: "POST",
-    headers: {
-      ...createHeaders(config),
-      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+  const responseText = await fetchFlixHqText(
+    config,
+    new URL("/ajax/ajax.php", config.baseUrl),
+    context,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: body.toString(),
     },
-    body: body.toString(),
-  });
+  );
 
   try {
     const parsed: unknown = JSON.parse(responseText);
@@ -491,12 +502,12 @@ export function parseSubtitleInfo(value: string): SubtitleTrack[] {
   return tracks;
 }
 
-export function parseSearchCandidates(html: string): SearchCandidate[] {
+export function parseSearchCandidates(html: string, baseUrl?: string): SearchCandidate[] {
   const candidates: SearchCandidate[] = [];
   const seen = new Set<string>();
 
   for (const anchor of parseAnchors(html)) {
-    const href = normalizeHttpUrl(getAttribute(anchor.attributes, "href"));
+    const href = normalizeFlixHqNavigationUrl(getAttribute(anchor.attributes, "href"), baseUrl);
     const type = href?.includes("/watch-movie/")
       ? "movie"
       : href?.includes("/watch-series/")
@@ -517,9 +528,9 @@ export function parseSearchCandidates(html: string): SearchCandidate[] {
   return candidates;
 }
 
-export function parseEpisodes(html: string): EpisodeCandidate[] {
+export function parseEpisodes(html: string, baseUrl?: string): EpisodeCandidate[] {
   return parseAnchors(html).flatMap((anchor) => {
-    const href = normalizeHttpUrl(getAttribute(anchor.attributes, "href"));
+    const href = normalizeFlixHqNavigationUrl(getAttribute(anchor.attributes, "href"), baseUrl);
     const match = href?.match(/\/s(\d+)-e(\d+)\/?$/i);
     if (!href || !match) return [];
 
@@ -601,43 +612,6 @@ function getAttribute(attributes: string, name: string): string | undefined {
   return attributes.match(expression)?.[2];
 }
 
-async function fetchText(
-  config: FlixHqConfig,
-  url: URL,
-  context: ProviderContext,
-  init: RequestInit = {},
-): Promise<string> {
-  const fetchImpl = config.fetch ?? fetch;
-
-  try {
-    await config.rateLimitGate.wait(context.signal);
-    const response = await fetchImpl(url, {
-      ...init,
-      headers: init.headers ?? createHeaders(config),
-      signal: context.signal,
-    });
-    deferProviderRateLimitFromResponse(config.rateLimitGate, response);
-    if (!response.ok) {
-      throw mapHttpResponseToProviderError(config.name, response);
-    }
-
-    return await readBoundedResponseText(config.name, response, config.maxHtmlBytes, {
-      signal: context.signal,
-    });
-  } catch (error) {
-    throw mapProviderHttpError(config.name, error);
-  }
-}
-
-function createHeaders(config: FlixHqConfig): Record<string, string> {
-  return {
-    Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
-    "User-Agent": config.userAgent,
-    Referer: `${config.baseUrl}/`,
-    "X-Requested-With": "XMLHttpRequest",
-  };
-}
-
 function isPlayerResponse(value: unknown): value is PlayerResponse {
   return typeof value === "object" && value !== null;
 }
@@ -646,6 +620,9 @@ function normalizeBaseUrl(value: string): string {
   const url = new URL(value);
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new TypeError("FlixHQ streaming baseUrl must use HTTP or HTTPS.");
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw new TypeError("FlixHQ streaming baseUrl must not include credentials.");
   }
   return url.href.replace(/\/$/, "");
 }

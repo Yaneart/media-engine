@@ -52,7 +52,8 @@ Provider methods receive request context with an abort signal, timeout, language
 - Providers that explicitly guarantee identical normalized search/details posters reuse the search poster during canonical poster enrichment, avoiding duplicate upstream details calls. Providers without the guarantee keep the full lookup behavior.
 - Optional provider failures do not erase successful results from other providers.
 - HTTP response sizes and player validation concurrency are bounded where needed.
-- Upstream-discovered URLs reject credentials and local/private/reserved network targets before server-side use or public exposure.
+- FlixHQ navigation stays on its explicitly configured origin, so local self-hosted origins remain possible without allowing upstream HTML or redirects to select another destination.
+- Server-side player/subtitle checks resolve and validate every DNS address and redirect hop, reject local/private/reserved or mixed DNS sets, and pin fresh connections to validated addresses. A custom provider `fetch` is a trusted transport boundary and must enforce an equivalent policy.
 - Secrets, cookies, and private account tokens are not exposed through provider metadata.
 
 Live integrations are best-effort. Their parsers and mappings are covered by fixtures and live smoke checks, but upstream HTML and APIs can change without notice.

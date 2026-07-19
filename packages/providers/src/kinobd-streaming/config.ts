@@ -1,5 +1,6 @@
 import type { MediaAvailability, StreamingProviderCapabilities } from "@media-engine/core";
 import { ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
+import { createHardenedProviderFetch } from "../shared/safe-fetch.js";
 
 const PROVIDER_NAME = "kinobd-streaming";
 const DEFAULT_BASE_URL = "https://kinobd.net";
@@ -93,6 +94,7 @@ export interface KinoBdStreamingConfig {
   animeCacheBaseUrl?: string;
   shikimoriBaseUrl: string;
   fetch?: ProviderFetch;
+  externalFetch: ProviderFetch;
   rateLimitGate: ProviderRateLimitGate;
   searchLimit: number;
   shikimoriLookupTimeoutMs: number;
@@ -108,6 +110,7 @@ export interface KinoBdStreamingConfig {
 // Builds provider config with ReYohoho-compatible defaults.
 // Собирает provider config с ReYohoho-compatible defaults.
 export function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingConfig {
+  const name = normalizeProviderName(options.name ?? PROVIDER_NAME);
   const searchLimit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT;
   const shikimoriLookupTimeoutMs =
     options.shikimoriLookupTimeoutMs ?? DEFAULT_SHIKIMORI_LOOKUP_TIMEOUT_MS;
@@ -140,7 +143,7 @@ export function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStr
   }
 
   return {
-    name: normalizeProviderName(options.name ?? PROVIDER_NAME),
+    name,
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     animeCacheBaseUrl:
       options.animeCacheBaseUrl === undefined
@@ -148,6 +151,7 @@ export function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStr
         : trimTrailingSlash(options.animeCacheBaseUrl),
     shikimoriBaseUrl: trimTrailingSlash(options.shikimoriBaseUrl ?? DEFAULT_SHIKIMORI_BASE_URL),
     fetch: options.fetch,
+    externalFetch: options.fetch ?? createHardenedProviderFetch({ provider: name }),
     rateLimitGate: new ProviderRateLimitGate(),
     searchLimit,
     shikimoriLookupTimeoutMs,
