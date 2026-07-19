@@ -16,6 +16,7 @@ import {
   type ProviderFetch,
 } from "../shared/index.js";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
+import { readBoundedResponseText } from "../shared/response-body.js";
 
 const DEFAULT_BASE_URL = "https://flixhq.one";
 const DEFAULT_PROVIDER_NAME = "flixhq-streaming";
@@ -313,7 +314,12 @@ async function validatePlayer(
       return "available";
     }
 
-    const html = await readBoundedResponseText(response, config.playerValidationMaxBytes);
+    const html = await readBoundedResponseText(
+      config.name,
+      response,
+      config.playerValidationMaxBytes,
+      { signal, overflow: "truncate" },
+    );
     return hasUnavailableMarker(html) ? "unavailable" : "available";
   } catch (error) {
     rethrowIfProviderAborted(context, error);
@@ -343,13 +349,9 @@ async function enrichPlayerOption(
     });
     if (!response.ok) return option;
 
-    const declaredLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(declaredLength) && declaredLength > config.subtitleInfoMaxBytes) {
-      await response.body?.cancel();
-      return option;
-    }
-
-    const text = await readBoundedResponseText(response, config.subtitleInfoMaxBytes);
+    const text = await readBoundedResponseText(config.name, response, config.subtitleInfoMaxBytes, {
+      signal: context.signal,
+    });
     const subtitles = parseSubtitleInfo(text);
     return subtitles.length > 0 ? { ...option, subtitles } : option;
   } catch (error) {
@@ -379,37 +381,6 @@ async function mapWithConcurrency<T, R>(
     Array.from({ length: Math.min(concurrency, values.length) }, async () => worker()),
   );
   return results;
-}
-
-async function readBoundedResponseText(response: Response, maxBytes: number): Promise<string> {
-  if (!response.body) return "";
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (totalBytes <= maxBytes) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > maxBytes) {
-        await reader.cancel();
-        break;
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0));
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(body);
 }
 
 function hasUnavailableMarker(html: string): boolean {
@@ -650,16 +621,9 @@ async function fetchText(
       throw mapHttpResponseToProviderError(config.name, response);
     }
 
-    const declaredLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(declaredLength) && declaredLength > config.maxHtmlBytes) {
-      throw new Error(`Provider "${config.name}" returned an oversized response.`);
-    }
-
-    const body = await response.arrayBuffer();
-    if (body.byteLength > config.maxHtmlBytes) {
-      throw new Error(`Provider "${config.name}" returned an oversized response.`);
-    }
-    return new TextDecoder().decode(body);
+    return await readBoundedResponseText(config.name, response, config.maxHtmlBytes, {
+      signal: context.signal,
+    });
   } catch (error) {
     throw mapProviderHttpError(config.name, error);
   }

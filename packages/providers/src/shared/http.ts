@@ -1,7 +1,10 @@
 import { ProviderError, type ProviderErrorCode } from "@media-engine/core";
 import type { ProviderContext } from "@media-engine/core";
 import type { ProviderRateLimitGate } from "./rate-limit.js";
+import { readBoundedResponseText } from "./response-body.js";
 import { calculateRetryDelayMs, parseRetryAfterMs } from "./retry.js";
+
+const DEFAULT_MAX_JSON_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 // Minimal fetch function shape used by provider HTTP utilities.
 // Минимальная форма fetch-функции для provider HTTP utilities.
@@ -95,6 +98,7 @@ export interface FetchJsonOptions {
   retryDelayMs?: number;
   maxRetryDelayMs?: number;
   retryJitterRatio?: number;
+  maxResponseBytes?: number;
   rateLimitGate?: ProviderRateLimitGate;
 }
 
@@ -105,10 +109,17 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
   const retryDelayMs = options.retryDelayMs ?? 150;
   const maxRetryDelayMs = options.maxRetryDelayMs ?? 2_000;
   const retryJitterRatio = options.retryJitterRatio ?? 0.2;
+  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_JSON_RESPONSE_BYTES;
+
+  if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes <= 0) {
+    throw new TypeError("fetchJson maxResponseBytes must be a positive safe integer.");
+  }
+
   const timeout = createProviderTimeout(options.provider, options.context);
   const signal = mergeAbortSignals(options.context?.signal, timeout.controller.signal);
   const boundedOptions: FetchJsonOptions = {
     ...options,
+    maxResponseBytes,
     context: {
       ...options.context,
       signal,
@@ -169,7 +180,12 @@ async function fetchJsonAttempt<T>(options: FetchJsonOptions): Promise<T> {
       throw mapHttpResponseToProviderError(options.provider, response);
     }
 
-    return await parseJsonResponse<T>(options.provider, response);
+    return await parseJsonResponse<T>(
+      options.provider,
+      response,
+      options.maxResponseBytes ?? DEFAULT_MAX_JSON_RESPONSE_BYTES,
+      signal,
+    );
   } finally {
     timeout.clear();
   }
@@ -177,9 +193,16 @@ async function fetchJsonAttempt<T>(options: FetchJsonOptions): Promise<T> {
 
 // Parses response JSON and maps invalid bodies to ProviderError.
 // Парсит JSON ответа и преобразует невалидное тело в ProviderError.
-export async function parseJsonResponse<T>(provider: string, response: Response): Promise<T> {
+export async function parseJsonResponse<T>(
+  provider: string,
+  response: Response,
+  maxResponseBytes = DEFAULT_MAX_JSON_RESPONSE_BYTES,
+  signal?: AbortSignal,
+): Promise<T> {
+  const text = await readBoundedResponseText(provider, response, maxResponseBytes, { signal });
+
   try {
-    return (await response.json()) as T;
+    return JSON.parse(text) as T;
   } catch (error) {
     throw new ProviderError({
       provider,

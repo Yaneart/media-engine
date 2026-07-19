@@ -65,6 +65,39 @@ test("fetchJson maps invalid JSON to provider invalid response", async () => {
   );
 });
 
+test("fetchJson rejects oversized JSON with a distinct provider error", async () => {
+  await assert.rejects(
+    () =>
+      fetchJson({
+        provider: "test-provider",
+        url: "https://example.test/movie",
+        maxResponseBytes: 8,
+        fetch: async () =>
+          new Response('{"title":"Interstellar"}', {
+            headers: { "content-length": "4" },
+          }),
+      }),
+    {
+      name: "ProviderError",
+      code: "PROVIDER_RESPONSE_TOO_LARGE",
+      retryable: false,
+    },
+  );
+});
+
+test("fetchJson validates provider-specific response limits", async () => {
+  await assert.rejects(
+    () =>
+      fetchJson({
+        provider: "test-provider",
+        url: "https://example.test/movie",
+        maxResponseBytes: 0,
+        fetch: async () => Response.json({ ok: true }),
+      }),
+    TypeError,
+  );
+});
+
 test("fetchJson maps HTTP status failures to provider errors", async () => {
   await assert.rejects(
     () =>

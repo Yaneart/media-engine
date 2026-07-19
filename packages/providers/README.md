@@ -44,6 +44,8 @@ None of these built-in providers needs your API key. TMDB IDs may appear in resu
 
 Expected upstream failures are reported as typed `ProviderError` values, and shared HTTP errors expose their originating status through `getProviderHttpStatus`. An untyped Cinemeta IMDb lookup returns `null` only after both movie and series candidates confirm absence; a temporary branch outage remains retryable unless the other branch returned usable details. AniList similarly distinguishes GraphQL rate limits and server outages from validation errors or malformed payloads, allowing Media Engine to avoid caching incomplete metadata as a healthy response.
 
+Shared `fetchJson` calls stream at most 4 MiB by default before parsing and accept a positive `maxResponseBytes` override for provider-specific limits. A declared or chunked oversized body is cancelled and reported as the non-retryable `PROVIDER_RESPONSE_TOO_LARGE`; malformed JSON within the limit remains `PROVIDER_INVALID_RESPONSE`.
+
 ## Player sources
 
 - `kinobdStreamingProvider()` — movie, series, and anime player options;

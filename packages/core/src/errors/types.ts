@@ -13,6 +13,7 @@ export type ProviderErrorCode =
   | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_UNAVAILABLE"
   | "PROVIDER_INVALID_RESPONSE"
+  | "PROVIDER_RESPONSE_TOO_LARGE"
   | "PROVIDER_NOT_SUPPORTED";
 
 // Options used to construct a provider error.

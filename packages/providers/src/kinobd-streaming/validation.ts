@@ -1,5 +1,6 @@
 import type { MediaAvailability, ProviderContext, StreamOption } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
+import { readBoundedResponseText } from "../shared/response-body.js";
 import type { KinoBdFilteredPlayerAuditEntry, KinoBdStreamingConfig } from "./config.js";
 import { normalizeSearchText } from "./candidates.js";
 import { extractIframeUrl } from "./players.js";
@@ -118,7 +119,12 @@ async function validatePlayerUrl(
       return "unknown";
     }
 
-    const html = await readBoundedResponseText(response, PLAYER_VALIDATION_MAX_BODY_BYTES);
+    const html = await readBoundedResponseText(
+      config.name,
+      response,
+      PLAYER_VALIDATION_MAX_BODY_BYTES,
+      { signal, overflow: "truncate" },
+    );
 
     if (hasBrokenPlayerMarker(html)) {
       return "broken";
@@ -133,47 +139,6 @@ async function validatePlayerUrl(
   } finally {
     clearTimeout(timeout);
   }
-}
-
-async function readBoundedResponseText(response: Response, maxBytes: number): Promise<string> {
-  if (!response.body) {
-    return "";
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (totalBytes <= maxBytes) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      totalBytes += value.byteLength;
-
-      if (totalBytes > maxBytes) {
-        await reader.cancel();
-        break;
-      }
-
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0));
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return new TextDecoder().decode(body);
 }
 
 function isKnownBrokenPlayerUrl(url: string): boolean {

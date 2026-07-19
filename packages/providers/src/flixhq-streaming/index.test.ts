@@ -374,6 +374,43 @@ test("flixHqStreamingProvider validates bounded configuration", () => {
   assert.throws(() => flixHqStreamingProvider({ baseUrl: "file:///tmp/flixhq" }), /HTTP or HTTPS/);
 });
 
+test("FlixHQ stops reading chunked primary HTML after the configured limit", async () => {
+  let enqueuedBytes = 0;
+  let cancelled = false;
+  const provider = flixHqStreamingProvider({
+    baseUrl: BASE_URL,
+    maxHtmlBytes: 10,
+    fetch: async () => {
+      const chunks = [new Uint8Array(6), new Uint8Array(6), new Uint8Array(6)];
+      return new Response(
+        new ReadableStream<Uint8Array>(
+          {
+            pull(controller) {
+              const chunk = chunks.shift();
+              if (!chunk) {
+                controller.close();
+                return;
+              }
+              enqueuedBytes += chunk.byteLength;
+              controller.enqueue(chunk);
+            },
+            cancel() {
+              cancelled = true;
+            },
+          },
+          { highWaterMark: 0 },
+        ),
+      );
+    },
+  });
+
+  await assert.rejects(() => provider.getAvailability({ type: "movie", title: "Inception" }, {}), {
+    code: "PROVIDER_RESPONSE_TOO_LARGE",
+  });
+  assert.ok(enqueuedBytes <= 16, `FlixHQ enqueued ${enqueuedBytes} bytes`);
+  assert.equal(cancelled, true);
+});
+
 function searchHtml(entries: Array<[title: string, path: string]>): string {
   return entries
     .map(
