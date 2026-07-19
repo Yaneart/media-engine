@@ -86,6 +86,15 @@ export function createAvailabilityCacheOptions(
   };
 }
 
+// Detects player options kept after validation could not reach a reliable conclusion.
+// Находит player options, сохраненные после неопределенного результата validation.
+export function hasUnknownStreamValidation(availability: MediaAvailability): boolean {
+  return [
+    ...availability.options,
+    ...(availability.episodes?.flatMap((episode) => episode.options) ?? []),
+  ].some((option) => option.availability === "unknown");
+}
+
 // Merges episode-level availability blocks by episode identity.
 // Объединяет episode-level availability блоки по идентичности эпизода.
 function mergeEpisodeAvailability(

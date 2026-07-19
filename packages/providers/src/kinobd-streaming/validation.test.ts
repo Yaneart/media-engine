@@ -191,6 +191,76 @@ test("kinobdStreamingProvider filters known broken HDVB hosts when validation fe
   assert.deepEqual(availability?.options, []);
 });
 
+test("kinobdStreamingProvider removes confirmed missing players and keeps transient failures unknown", async () => {
+  const provider = createProvider({
+    playerProviders: "collaps,flixcdn,alloha,kodik,kinotochka,turbo,videocdn",
+    playerValidationTimeoutMs: 5,
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [
+            {
+              id: 94666,
+              kinopoisk_id: 258687,
+              title: "Интерстеллар",
+              name_original: "Interstellar",
+              year: 2014,
+            },
+          ],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json({
+          collaps: { translate: "Missing", iframe: "https://missing.test/embed" },
+          flixcdn: { translate: "Gone", iframe: "https://gone.test/embed" },
+          alloha: { translate: "Server", iframe: "https://server.test/embed" },
+          kodik: { translate: "Limited", iframe: "https://limited.test/embed" },
+          kinotochka: { translate: "Network", iframe: "https://network.test/embed" },
+          turbo: { translate: "Timeout", iframe: "https://timeout.test/embed" },
+          videocdn: { translate: "Working", iframe: "https://working.test/embed" },
+        });
+      }
+
+      if (url.hostname === "missing.test") return new Response("Not found", { status: 404 });
+      if (url.hostname === "gone.test") return new Response("Gone", { status: 410 });
+      if (url.hostname === "server.test") return new Response("Unavailable", { status: 503 });
+      if (url.hostname === "limited.test") return new Response("Limited", { status: 429 });
+      if (url.hostname === "network.test") throw new TypeError("fetch failed");
+      if (url.hostname === "timeout.test") {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason ?? new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      }
+
+      return new Response("<html>player</html>");
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    { type: "movie", ids: { kinopoisk: "258687" } },
+    {},
+  );
+
+  assert.deepEqual(
+    availability?.options.map((option) => [option.access.url, option.availability]),
+    [
+      ["https://server.test/embed", "unknown"],
+      ["https://limited.test/embed", "unknown"],
+      ["https://network.test/embed", "unknown"],
+      ["https://timeout.test/embed", "unknown"],
+      ["https://working.test/embed", "available"],
+    ],
+  );
+});
+
 test("kinobdStreamingProvider limits live player validation fan-out", async () => {
   const validatedUrls: string[] = [];
   const provider = createProvider({

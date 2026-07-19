@@ -253,18 +253,26 @@ async function filterUnavailablePlayers(
     config.playerValidationConcurrency,
     async (option) => ({
       option,
-      unavailable: await isPlayerUnavailable(config, option, context),
+      outcome: await validatePlayer(config, option, context),
     }),
   );
 
-  return results.filter((result) => !result.unavailable).map((result) => result.option);
+  return results
+    .filter((result) => result.outcome !== "unavailable")
+    .map((result) =>
+      result.outcome === "unknown"
+        ? { ...result.option, availability: "unknown" as const }
+        : result.option,
+    );
 }
 
-async function isPlayerUnavailable(
+type PlayerValidationOutcome = "available" | "unavailable" | "unknown";
+
+async function validatePlayer(
   config: FlixHqConfig,
   option: StreamOption,
   context: ProviderContext,
-): Promise<boolean> {
+): Promise<PlayerValidationOutcome> {
   const fetchImpl = config.fetch ?? fetch;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.playerValidationTimeoutMs);
@@ -290,23 +298,27 @@ async function isPlayerUnavailable(
       signal,
     });
 
-    if (response.status === 404 || response.status === 410 || response.status >= 500) {
-      return true;
+    if (response.status === 404 || response.status === 410) {
+      await response.body?.cancel();
+      return "unavailable";
     }
 
-    if (!response.ok && response.status !== 206) return false;
+    if (!response.ok && response.status !== 206) {
+      await response.body?.cancel();
+      return "unknown";
+    }
 
     if (isDirect) {
       await response.body?.cancel();
-      return false;
+      return "available";
     }
 
     const html = await readBoundedResponseText(response, config.playerValidationMaxBytes);
-    return hasUnavailableMarker(html);
+    return hasUnavailableMarker(html) ? "unavailable" : "available";
   } catch (error) {
     rethrowIfProviderAborted(context, error);
     // A validation timeout or transient network failure must not hide a discovered player.
-    return false;
+    return "unknown";
   } finally {
     clearTimeout(timeout);
   }

@@ -12,6 +12,8 @@ interface PlayerOptionFilterResult {
   filtered: KinoBdFilteredPlayerAuditEntry[];
 }
 
+type PlayerValidationOutcome = "available" | "broken" | "unknown";
+
 export async function filterBrokenPlayerOptions(
   config: KinoBdStreamingConfig,
   options: StreamOption[],
@@ -26,13 +28,19 @@ export async function filterBrokenPlayerOptions(
   const checks = await Promise.all(
     optionsToValidate.map(async (option) => ({
       option,
-      broken: await isBrokenPlayerUrl(config, option.access.url, context),
+      outcome: await validatePlayerUrl(config, option.access.url, context),
     })),
   );
 
   return {
     options: [
-      ...checks.filter((check) => !check.broken).map((check) => check.option),
+      ...checks
+        .filter((check) => check.outcome !== "broken")
+        .map((check) =>
+          check.outcome === "unknown"
+            ? { ...check.option, availability: "unknown" as const }
+            : check.option,
+        ),
       ...optionsSkippedByLimit,
     ],
     filtered: [
@@ -42,7 +50,7 @@ export async function filterBrokenPlayerOptions(
         url: option.access.url,
       })),
       ...checks
-        .filter((check) => check.broken)
+        .filter((check) => check.outcome === "broken")
         .map((check) => ({
           player: check.option.player.label,
           reason: "player_validation_failed" as const,
@@ -75,12 +83,12 @@ export function emitPlayerAudit(
   }
 }
 
-async function isBrokenPlayerUrl(
+async function validatePlayerUrl(
   config: KinoBdStreamingConfig,
   url: string,
   context: ProviderContext,
   depth = 0,
-): Promise<boolean> {
+): Promise<PlayerValidationOutcome> {
   const fetchImpl = config.fetch ?? fetch;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.playerValidationTimeoutMs);
@@ -90,7 +98,7 @@ async function isBrokenPlayerUrl(
 
   try {
     if (context.signal?.aborted) {
-      return false;
+      throw context.signal.reason;
     }
 
     const response = await fetchImpl(url, {
@@ -100,26 +108,28 @@ async function isBrokenPlayerUrl(
       signal,
     });
 
-    if (response.status === 404 || response.status === 410 || response.status >= 500) {
-      return true;
+    if (response.status === 404 || response.status === 410) {
+      await response.body?.cancel();
+      return "broken";
     }
 
     if (!response.ok) {
-      return false;
+      await response.body?.cancel();
+      return "unknown";
     }
 
     const html = await readBoundedResponseText(response, PLAYER_VALIDATION_MAX_BODY_BYTES);
 
     if (hasBrokenPlayerMarker(html)) {
-      return true;
+      return "broken";
     }
 
     const nestedUrl = depth < PLAYER_VALIDATION_MAX_DEPTH ? extractIframeUrl(html, url) : undefined;
 
-    return nestedUrl ? isBrokenPlayerUrl(config, nestedUrl, context, depth + 1) : false;
+    return nestedUrl ? validatePlayerUrl(config, nestedUrl, context, depth + 1) : "available";
   } catch (error) {
     rethrowIfProviderAborted(context, error);
-    return isKnownBrokenPlayerUrl(url);
+    return isKnownBrokenPlayerUrl(url) ? "broken" : "unknown";
   } finally {
     clearTimeout(timeout);
   }

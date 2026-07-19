@@ -68,6 +68,8 @@ const result = await media.getAvailability({
 
 These are third-party player targets, not videos hosted by Media Engine. Availability depends on the upstream source and the user's environment.
 
+Live player validation removes an option only after HTTP 404/410 or a stable deletion marker. Rate limits, server errors, network failures, and validation timeouts keep the discovered option with `availability: "unknown"`, allowing the engine to expose the degradation and retry it instead of caching a transiently reduced result.
+
 Provider options, limitations, and safety rules are summarized in the [provider guide](https://github.com/Yaneart/media-engine/blob/main/docs/providers.md).
 
 ## License

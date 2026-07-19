@@ -16,6 +16,8 @@ This project follows semantic versioning after the first stable release. Before 
 
 - Cinemeta untyped IMDb details lookups no longer turn movie/series branch outages into cacheable successful null responses.
 - AniList HTTP-200 GraphQL rate-limit and server errors now remain retryable provider failures, while validation errors and malformed payloads receive non-retryable typed categories.
+- Streaming providers that resolve `null` now count as successful no-result responses, so a separate provider failure no longer causes a false all-failed error.
+- Player validation removes options only after 404/410 or a stable deletion marker. Transient HTTP, network, and timeout failures keep the discovered option as `unknown`, add a bounded warning, and prevent normal availability caching until validation recovers.
 
 ## 0.1.1 - 2026-07-18
 

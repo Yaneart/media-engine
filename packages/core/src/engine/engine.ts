@@ -14,6 +14,7 @@ import type {
 } from "../streaming/index.js";
 import {
   createAvailabilityCacheOptions,
+  hasUnknownStreamValidation,
   mergeAvailabilityResults,
   selectStreamingProviders,
 } from "./availability.js";
@@ -539,13 +540,16 @@ export class MediaEngine {
 
         if (outcome.failure) {
           failed.push(outcome.failure);
-        } else if (outcome.result) {
+        } else {
           successful.push(outcome.provider);
-          providerResults.push(outcome.result);
+
+          if (outcome.result) {
+            providerResults.push(outcome.result);
+          }
         }
       }
 
-      if (providers.length > 0 && providerResults.length === 0 && failed.length > 0) {
+      if (providers.length > 0 && failed.length === providers.length) {
         throw new MediaEngineError({
           code: "PROVIDER_ERROR",
           message: "All streaming providers failed.",
@@ -554,18 +558,26 @@ export class MediaEngine {
       }
 
       const availability = mergeAvailabilityResults(normalizedQuery, providerResults);
+      const hasUnknownValidation = hasUnknownStreamValidation(availability);
       availability.meta = createResponseMeta({
         requested,
         successful,
         failed,
-        warnings: [],
+        warnings: hasUnknownValidation
+          ? [
+              {
+                code: "STREAM_VALIDATION_DEGRADED",
+                message: "One or more discovered player options could not be validated reliably.",
+              },
+            ]
+          : [],
         cached: false,
         tookMs: elapsedSince(startedAt),
         debug: this.debug,
         timings: providerTimings,
       });
 
-      if (!hasRetryableProviderFailure(failed)) {
+      if (!hasRetryableProviderFailure(failed) && !hasUnknownValidation) {
         await this.cache?.set(
           cacheKey,
           structuredClone(availability),
