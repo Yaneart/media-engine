@@ -16,6 +16,7 @@ import type {
   Rating,
 } from "@media-engine/core";
 import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
+import { parseAniListGraphQlData } from "./graphql.js";
 
 const PROVIDER_NAME = "anilist";
 const DEFAULT_BASE_URL = "https://graphql.anilist.co";
@@ -43,8 +44,7 @@ interface AniListConfig {
 }
 
 interface GraphQlResponse {
-  data?: { Page?: { media?: AniListMedia[] }; Media?: AniListMedia | null };
-  errors?: Array<{ message?: string }>;
+  data: { Page?: { media?: AniListMedia[] }; Media?: AniListMedia | null };
 }
 
 interface AniListMedia {
@@ -370,7 +370,7 @@ async function request(
   variables: Record<string, unknown>,
   context: ProviderContext,
 ): Promise<GraphQlResponse> {
-  const response = await fetchJson<GraphQlResponse>({
+  const response = await fetchJson<unknown>({
     provider: PROVIDER_NAME,
     url: config.baseUrl,
     context,
@@ -383,7 +383,7 @@ async function request(
     },
   });
 
-  if (response.errors?.length)
-    throw new Error(response.errors[0]?.message ?? "AniList GraphQL error.");
-  return response;
+  return {
+    data: parseAniListGraphQlData<GraphQlResponse["data"]>(response, config.rateLimitGate),
+  };
 }

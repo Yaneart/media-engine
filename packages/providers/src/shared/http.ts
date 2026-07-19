@@ -259,8 +259,15 @@ export function mapHttpResponseToProviderError(
     code,
     message: `Provider "${provider}" returned HTTP ${status}.`,
     retryable: code === "PROVIDER_RATE_LIMITED" || code === "PROVIDER_UNAVAILABLE",
+    status,
     retryAfterMs: parseRetryAfterMs(response.headers.get("retry-after")),
   });
+}
+
+// Returns the HTTP status retained by errors created from provider responses.
+// Возвращает HTTP status, сохраненный в ошибках из provider response.
+export function getProviderHttpStatus(error: unknown): number | undefined {
+  return error instanceof HttpProviderError ? error.status : undefined;
 }
 
 interface HttpProviderErrorOptions {
@@ -268,14 +275,17 @@ interface HttpProviderErrorOptions {
   code: ProviderErrorCode;
   message: string;
   retryable: boolean;
+  status: number;
   retryAfterMs?: number;
 }
 
 class HttpProviderError extends ProviderError {
+  readonly status: number;
   readonly retryAfterMs: number | undefined;
 
   constructor(options: HttpProviderErrorOptions) {
     super(options);
+    this.status = options.status;
     this.retryAfterMs = options.retryAfterMs;
   }
 }

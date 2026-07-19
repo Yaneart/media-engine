@@ -58,7 +58,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/shared/abort.test.js dist/shared/options.test.js dist/shared/http.test.js dist/shared/rate-limit.test.js dist/shared/retry.test.js dist/kinobd/index.test.js dist/cinemeta/index.test.js dist/shikimori/index.test.js dist/anilist/index.test.js dist/wikidata/index.test.js dist/imdb-dataset/index.test.js dist/experimental-streaming/index.test.js dist/kinobd-streaming/config.test.js dist/kinobd-streaming/players.test.js dist/kinobd-streaming/validation.test.js dist/kinobd-streaming/availability.test.js dist/flixhq-streaming/index.test.js"
+    "test": "pnpm build && node --test dist/shared/abort.test.js dist/shared/options.test.js dist/shared/http.test.js dist/shared/rate-limit.test.js dist/shared/retry.test.js dist/kinobd/index.test.js dist/cinemeta/index.test.js dist/cinemeta/error-semantics.test.js dist/shikimori/index.test.js dist/anilist/index.test.js dist/anilist/error-semantics.test.js dist/wikidata/index.test.js dist/imdb-dataset/index.test.js dist/experimental-streaming/index.test.js dist/kinobd-streaming/config.test.js dist/kinobd-streaming/players.test.js dist/kinobd-streaming/validation.test.js dist/kinobd-streaming/availability.test.js dist/flixhq-streaming/index.test.js"
   },
   "dependencies": {
     "@media-engine/core": "workspace:*"

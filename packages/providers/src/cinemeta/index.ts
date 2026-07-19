@@ -14,9 +14,14 @@ import type {
   Rating,
   SeriesDetails,
 } from "@media-engine/core";
-import { type MediaProvider } from "@media-engine/core";
+import { ProviderError, type MediaProvider } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
-import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
+import {
+  fetchJson,
+  getProviderHttpStatus,
+  ProviderRateLimitGate,
+  type ProviderFetch,
+} from "../shared/index.js";
 import { createProviderImage, mapGenreNames } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
@@ -293,27 +298,73 @@ async function getDetailsByImdbId(
       : type === "anime"
         ? (["series"] as const)
         : (["movie", "series"] as const);
-  const loadType = async (currentType: "movie" | "series"): Promise<MediaDetails | null> => {
-    const url = new URL(`${config.baseUrl}/meta/${toCinemetaType(currentType)}/${imdbId}.json`);
-    const response = await requestJson<CinemetaMetaResponse>(config, url, context);
-
-    return response.meta ? metaToDetails(config, response.meta, currentType) : null;
-  };
+  const loadType = (currentType: "movie" | "series") =>
+    loadDetailsType(config, imdbId, currentType, context);
 
   if (types.length === 1) {
-    return loadType(types[0]!);
+    return resolveDetailsOutcomes([await loadType(types[0]!)]);
   }
 
-  const results = await Promise.all(
-    types.map((currentType) =>
-      loadType(currentType).catch((error: unknown) => {
-        rethrowIfProviderAborted(context, error);
-        return null;
-      }),
-    ),
+  const outcomes = await Promise.all(types.map(loadType));
+
+  return resolveDetailsOutcomes(outcomes);
+}
+
+type CinemetaDetailsOutcome =
+  | { status: "found"; details: MediaDetails }
+  | { status: "not_found" }
+  | { status: "failed"; error: unknown };
+
+// Loads one Cinemeta type while keeping confirmed absence distinct from request failures.
+// Загружает один тип Cinemeta, не смешивая подтвержденное отсутствие со сбоем запроса.
+async function loadDetailsType(
+  config: CinemetaConfig,
+  imdbId: string,
+  type: "movie" | "series",
+  context: ProviderContext,
+): Promise<CinemetaDetailsOutcome> {
+  const url = new URL(`${config.baseUrl}/meta/${toCinemetaType(type)}/${imdbId}.json`);
+
+  try {
+    const response = await requestJson<CinemetaMetaResponse>(config, url, context);
+    const details = response.meta ? metaToDetails(config, response.meta, type) : null;
+
+    return details ? { status: "found", details } : { status: "not_found" };
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
+
+    return getProviderHttpStatus(error) === 404
+      ? { status: "not_found" }
+      : { status: "failed", error };
+  }
+}
+
+// Returns any available details and propagates degradation only when nothing was found.
+// Возвращает найденные details и пробрасывает деградацию, только если результата нет.
+function resolveDetailsOutcomes(outcomes: CinemetaDetailsOutcome[]): MediaDetails | null {
+  const found = outcomes.find(
+    (outcome): outcome is Extract<CinemetaDetailsOutcome, { status: "found" }> =>
+      outcome.status === "found",
   );
 
-  return results.find((details): details is MediaDetails => details !== null) ?? null;
+  if (found) {
+    return found.details;
+  }
+
+  const failures = outcomes.filter(
+    (outcome): outcome is Extract<CinemetaDetailsOutcome, { status: "failed" }> =>
+      outcome.status === "failed",
+  );
+  const retryable = failures.find(
+    (outcome) => outcome.error instanceof ProviderError && outcome.error.retryable,
+  );
+  const failure = retryable ?? failures[0];
+
+  if (failure) {
+    throw failure.error;
+  }
+
+  return null;
 }
 
 // Maps Cinemeta summary into compact MediaItem.

@@ -10,6 +10,12 @@ This project follows semantic versioning after the first stable release. Before 
 
 - Details lookup now requires a namespaced external ID. The ambiguous `DetailsQuery.id` field is deprecated, and id-only core/API/SDK requests return `INVALID_QUERY` or HTTP 400 instead of a cacheable successful null response.
 - Search provider metadata now distinguishes primary, retry, fallback, ID-enrichment, and poster-enrichment phases. Mandatory retryable fallback degradation remains cache-safe, while optional enrichment failures return bounded warnings and debug counters without discarding base results.
+- Shared provider HTTP errors retain their response status through `getProviderHttpStatus`, allowing adapters to distinguish confirmed absence from other non-retryable responses.
+
+### Fixed
+
+- Cinemeta untyped IMDb details lookups no longer turn movie/series branch outages into cacheable successful null responses.
+- AniList HTTP-200 GraphQL rate-limit and server errors now remain retryable provider failures, while validation errors and malformed payloads receive non-retryable typed categories.
 
 ## 0.1.1 - 2026-07-18
 

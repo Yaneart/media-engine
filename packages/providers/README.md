@@ -42,6 +42,8 @@ Add only the providers that make sense for your application. Media Engine will c
 
 None of these built-in providers needs your API key. TMDB IDs may appear in results, but this package does not call the TMDB API.
 
+Expected upstream failures are reported as typed `ProviderError` values, and shared HTTP errors expose their originating status through `getProviderHttpStatus`. An untyped Cinemeta IMDb lookup returns `null` only after both movie and series candidates confirm absence; a temporary branch outage remains retryable unless the other branch returned usable details. AniList similarly distinguishes GraphQL rate limits and server outages from validation errors or malformed payloads, allowing Media Engine to avoid caching incomplete metadata as a healthy response.
+
 ## Player sources
 
 - `kinobdStreamingProvider()` — movie, series, and anime player options;

@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ProviderError } from "@media-engine/core";
-import { fetchJson, mapHttpStatusToProviderErrorCode, normalizePublicHttpUrl } from "./http.js";
+import {
+  fetchJson,
+  getProviderHttpStatus,
+  mapHttpResponseToProviderError,
+  mapHttpStatusToProviderErrorCode,
+  normalizePublicHttpUrl,
+} from "./http.js";
 import { ProviderRateLimitGate } from "./rate-limit.js";
 
 test("normalizePublicHttpUrl rejects local and private network targets", () => {
@@ -120,6 +126,16 @@ test("fetchJson does not retry non-retryable provider failures", async () => {
   );
 
   assert.equal(calls, 1);
+});
+
+test("provider HTTP errors retain their response status for provider-specific semantics", () => {
+  const error = mapHttpResponseToProviderError(
+    "test-provider",
+    new Response("not found", { status: 404 }),
+  );
+
+  assert.equal(getProviderHttpStatus(error), 404);
+  assert.equal(getProviderHttpStatus(new Error("not an HTTP provider error")), undefined);
 });
 
 test("fetchJson returns the last retryable provider failure after retries", async () => {
