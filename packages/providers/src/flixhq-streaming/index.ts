@@ -9,7 +9,7 @@ import type {
 } from "@media-engine/core";
 import {
   mapProviderHttpError,
-  normalizePublicHttpUrl,
+  normalizeProviderOutputUrl,
   ProviderRateLimitGate,
   type ProviderFetch,
 } from "../shared/index.js";
@@ -246,7 +246,13 @@ async function getFlixHqAvailability(
     },
     options,
     episodes: [{ ...episode, options }],
-    sourceProviders: [{ provider: config.name, url: candidate.mediaUrl, ids: query.ids }],
+    sourceProviders: [
+      {
+        provider: config.name,
+        url: normalizeProviderOutputUrl(candidate.mediaUrl),
+        ids: query.ids,
+      },
+    ],
     checkedAt: new Date().toISOString(),
   };
 }
@@ -444,6 +450,8 @@ function mapPlayer(
   const kind = inferPlayerKind(url);
   const quality = inferQuality(label, url);
   const expiresAt = inferExpiresAt(url);
+  const referer = normalizeProviderOutputUrl(`${config.baseUrl}/`);
+  const sourceUrl = normalizeProviderOutputUrl(episode.url);
 
   return {
     id: `${config.name}:${episode.seasonNumber ?? 0}:${episode.episodeNumber ?? 0}:${index + 1}`,
@@ -459,13 +467,12 @@ function mapPlayer(
     },
     access: {
       url,
-      referer: `${config.baseUrl}/`,
-      headers: { Referer: `${config.baseUrl}/` },
+      ...(referer ? { referer, headers: { Referer: referer } } : {}),
     },
     availability: "available",
     ...(quality ? { quality } : {}),
     ...(expiresAt ? { expiresAt } : {}),
-    sourceUrl: episode.url,
+    sourceUrl,
   };
 }
 
@@ -634,7 +641,7 @@ function normalizeProviderName(value: string): string {
 }
 
 function normalizeHttpUrl(value: string | null | undefined): string | undefined {
-  return normalizePublicHttpUrl(value);
+  return normalizeProviderOutputUrl(value);
 }
 
 function findSubtitleInfoUrl(playerUrl: string): string | undefined {

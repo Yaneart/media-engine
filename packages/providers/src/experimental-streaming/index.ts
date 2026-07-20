@@ -10,6 +10,7 @@ import type {
   StreamingProvider,
   StreamingProviderCapabilities,
 } from "@media-engine/core";
+import { normalizeProviderOutputUrl } from "../shared/index.js";
 
 const DEFAULT_PROVIDER_NAME = "experimental-streaming";
 const EXTERNAL_ID_SOURCES: ExternalIdSource[] = [
@@ -99,8 +100,72 @@ function normalizeProviderName(name: string): string {
 function normalizeEntry(entry: ExperimentalStreamingEntry): NormalizedStreamingEntry {
   return {
     ...entry,
+    sourceUrl: normalizeProviderOutputUrl(entry.sourceUrl),
+    options: entry.options?.flatMap((option) => {
+      const normalized = normalizeConfiguredOption(option);
+      return normalized ? [normalized] : [];
+    }),
+    episodes: entry.episodes?.map((episode) => ({
+      ...episode,
+      options: episode.options.flatMap((option) => {
+        const normalized = normalizeConfiguredOption(option);
+        return normalized ? [normalized] : [];
+      }),
+    })),
     titleKey: entry.title ? normalizeTitle(entry.title) : undefined,
   };
+}
+
+// Removes unsafe browser-facing URLs from one configured player option.
+// Удаляет небезопасные browser-facing URL из настроенного player-варианта.
+function normalizeConfiguredOption(
+  option: ExperimentalStreamOptionInput,
+): ExperimentalStreamOptionInput | undefined {
+  const accessUrl = normalizeProviderOutputUrl(option.access.url);
+
+  if (!accessUrl) {
+    return undefined;
+  }
+
+  const referer = normalizeProviderOutputUrl(option.access.referer);
+  const sourceUrl = normalizeProviderOutputUrl(option.sourceUrl);
+  const subtitles = option.subtitles?.map((track) => ({
+    ...track,
+    url: track.url ? normalizeProviderOutputUrl(track.url) : undefined,
+  }));
+
+  return {
+    ...option,
+    access: {
+      ...option.access,
+      url: accessUrl,
+      referer,
+      headers: normalizeUrlHeaders(option.access.headers),
+    },
+    sourceUrl,
+    subtitles,
+  };
+}
+
+function normalizeUrlHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  const normalized: Record<string, string> = {};
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === "referer" || name.toLowerCase() === "origin") {
+      const url = normalizeProviderOutputUrl(value);
+      if (url) normalized[name] = url;
+    } else {
+      normalized[name] = value;
+    }
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
 // Builds safe capabilities from configured entries.

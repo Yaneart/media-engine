@@ -432,20 +432,33 @@
   background: #18202a;
 }
 
-.player-preview a {
+.player-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.player-preview a,
+.player-preview button {
   display: inline-flex;
   min-height: 36px;
+  padding: 0 14px;
   align-items: center;
   justify-content: center;
   border: 1px solid #1f3d52;
   border-radius: 8px;
+  background: transparent;
   color: #1f3d52;
+  cursor: pointer;
+  font: inherit;
   font-weight: 700;
   text-decoration: none;
 }
 
 .player-preview a:focus,
-.player-preview a:hover {
+.player-preview a:hover,
+.player-preview button:focus,
+.player-preview button:hover {
   border-color: #2f6f73;
 }
 

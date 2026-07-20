@@ -18,7 +18,12 @@ import type {
   SeriesDetails,
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
-import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
+import {
+  fetchJson,
+  normalizeProviderOutputUrl,
+  ProviderRateLimitGate,
+  type ProviderFetch,
+} from "../shared/index.js";
 import { createProviderImage, mapKinoBdMediaType as mapMediaType } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
@@ -418,7 +423,9 @@ function createProviderSource(ids: ExternalIds | undefined): ProviderSource {
   return {
     provider: PROVIDER_NAME,
     ids,
-    url: ids?.kinopoisk ? `https://www.kinopoisk.ru/film/${ids.kinopoisk}/` : undefined,
+    url: normalizeProviderOutputUrl(
+      ids?.kinopoisk ? `https://www.kinopoisk.ru/film/${ids.kinopoisk}/` : undefined,
+    ),
   };
 }
 
@@ -495,14 +502,13 @@ function mapImages(title: KinoBdTitle, limit: number): Image[] | undefined {
 // Мапит одну KinoBD image relation в normalized image metadata.
 function mapKinoBdImage(image: KinoBdImage): Image | undefined {
   const type = image.type?.startsWith("kadr") ? "still" : image.type === "logo" ? "logo" : "poster";
+  const mapped = createProviderImage(image.src, type, PROVIDER_NAME);
 
-  return image.src
+  return mapped
     ? {
-        url: image.src,
-        type,
+        ...mapped,
         width: image.width ?? undefined,
         height: image.height ?? undefined,
-        source: PROVIDER_NAME,
       }
     : undefined;
 }

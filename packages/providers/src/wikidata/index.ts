@@ -14,8 +14,16 @@ import type {
   SeriesDetails,
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
-import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
-import { normalizeProviderSearchText as normalizeSearchText } from "../shared/mapping.js";
+import {
+  fetchJson,
+  normalizeProviderOutputUrl,
+  ProviderRateLimitGate,
+  type ProviderFetch,
+} from "../shared/index.js";
+import {
+  createProviderImage,
+  normalizeProviderSearchText as normalizeSearchText,
+} from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
 const PROVIDER_NAME = "wikidata";
@@ -398,7 +406,7 @@ function createProviderSource(ids: ExternalIds | undefined): ProviderSource {
   return {
     provider: PROVIDER_NAME,
     ids,
-    url: imdbId ? `https://www.imdb.com/title/${imdbId}/` : undefined,
+    url: normalizeProviderOutputUrl(imdbId ? `https://www.imdb.com/title/${imdbId}/` : undefined),
   };
 }
 
@@ -487,16 +495,13 @@ function getClaimValues(entity: WikidataEntity, property: string): WikidataClaim
 // Создает Wikimedia image URL из Commons filename claim.
 function getImage(entity: WikidataEntity): Image | undefined {
   const filename = getStringClaim(entity, "P18");
-
-  return filename
-    ? {
-        url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(
-          filename.replaceAll(" ", "_"),
-        )}`,
-        type: "poster",
-        source: PROVIDER_NAME,
-      }
+  const url = filename
+    ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(
+        filename.replaceAll(" ", "_"),
+      )}`
     : undefined;
+
+  return createProviderImage(url, "poster", PROVIDER_NAME);
 }
 
 // Sends provider JSON requests with Wikimedia-friendly headers.

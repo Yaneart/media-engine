@@ -15,6 +15,7 @@ import {
   mapGenreNames,
   normalizeProviderSearchText as normalizeSearchText,
 } from "../shared/mapping.js";
+import { normalizeProviderOutputUrl } from "../shared/output-url.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 import { type MediaProvider } from "@media-engine/core";
 
@@ -371,7 +372,7 @@ function createProviderSource(record: ImdbTitleRecord): ProviderSource {
   return {
     provider: PROVIDER_NAME,
     ids: createIds(record),
-    url: `https://www.imdb.com/title/${record.tconst}/`,
+    url: normalizeProviderOutputUrl(`https://www.imdb.com/title/${record.tconst}/`),
   };
 }
 

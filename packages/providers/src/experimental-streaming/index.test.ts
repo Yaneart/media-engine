@@ -137,6 +137,65 @@ test("experimentalStreamingProvider respects provider restrictions", async () =>
   assert.equal(availability, null);
 });
 
+test("experimentalStreamingProvider removes unsafe output URLs before returning availability", async () => {
+  const signedUrl = "https://player.test/embed/movie?token=a%2Fb%2Bc&expires=1800000000";
+  const provider = experimentalStreamingProvider({
+    entries: [
+      {
+        type: "movie",
+        title: "Example Movie",
+        sourceUrl: "http://127.0.0.1/source",
+        options: [
+          {
+            id: "safe",
+            player: { kind: "embed", label: "Safe" },
+            access: {
+              url: signedUrl,
+              referer: "http://localhost/referrer",
+              headers: {
+                Referer: "http://192.168.0.1/referrer",
+                Origin: "https://player.test",
+                "X-Player": "fixture",
+              },
+            },
+            subtitles: [
+              { label: "Safe", url: "https://captions.test/en.vtt?signature=a%2Fb" },
+              { label: "Unsafe", url: "javascript:alert(1)" },
+            ],
+            sourceUrl: "file:///tmp/source",
+            availability: "available",
+          },
+          {
+            id: "unsafe",
+            player: { kind: "embed", label: "Unsafe" },
+            access: { url: "http://169.254.169.254/latest/meta-data" },
+            availability: "available",
+          },
+        ],
+      },
+    ],
+  });
+
+  const availability = await provider.getAvailability(
+    { type: "movie", title: "Example Movie" },
+    {},
+  );
+
+  assert.equal(availability?.sourceProviders[0]?.url, undefined);
+  assert.equal(availability?.options.length, 1);
+  assert.equal(availability?.options[0]?.access.url, signedUrl);
+  assert.equal(availability?.options[0]?.access.referer, undefined);
+  assert.deepEqual(availability?.options[0]?.access.headers, {
+    Origin: "https://player.test/",
+    "X-Player": "fixture",
+  });
+  assert.equal(availability?.options[0]?.sourceUrl, undefined);
+  assert.deepEqual(availability?.options[0]?.subtitles, [
+    { label: "Safe", url: "https://captions.test/en.vtt?signature=a%2Fb" },
+    { label: "Unsafe", url: undefined },
+  ]);
+});
+
 function createEmbedOption(
   id: string,
   translationTitle: string,

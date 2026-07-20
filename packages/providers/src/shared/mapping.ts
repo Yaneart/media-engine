@@ -1,4 +1,5 @@
 import type { Genre, Image, MediaType } from "@media-engine/core";
+import { normalizeProviderOutputUrl } from "./output-url.js";
 
 // Maps simple genre labels into normalized provider-attributed values.
 // Преобразует простые названия жанров в нормализованные значения с источником.
@@ -13,7 +14,8 @@ export function createProviderImage(
   type: Image["type"],
   source: string,
 ): Image | undefined {
-  return url ? { url, type, source } : undefined;
+  const normalizedUrl = normalizeProviderOutputUrl(url);
+  return normalizedUrl ? { url: normalizedUrl, type, source } : undefined;
 }
 
 // Normalizes text for conservative provider-local title comparisons.

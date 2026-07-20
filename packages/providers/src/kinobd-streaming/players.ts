@@ -4,7 +4,7 @@ import type {
   StreamOption,
   TranslationInfo,
 } from "@media-engine/core";
-import { fetchJson, normalizePublicHttpUrl } from "../shared/index.js";
+import { fetchJson, normalizeProviderOutputUrl } from "../shared/index.js";
 import type { KinoBdFilteredPlayerAuditEntry, KinoBdStreamingConfig } from "./config.js";
 import { normalizeSearchText, type PlayerCandidate } from "./candidates.js";
 
@@ -269,15 +269,15 @@ function mapPayloadToOption(
 // Нормализует absolute, protocol-relative или relative URLs.
 function toAbsoluteUrl(value: string, baseUrl: string | undefined): string | undefined {
   if (value.startsWith("http://") || value.startsWith("https://")) {
-    return normalizePublicHttpUrl(value);
+    return normalizeProviderOutputUrl(value);
   }
 
   if (value.startsWith("//")) {
-    return normalizePublicHttpUrl(`https:${value}`);
+    return normalizeProviderOutputUrl(`https:${value}`);
   }
 
   if (baseUrl) {
-    return normalizePublicHttpUrl(new URL(value, `${baseUrl}/`).toString());
+    return normalizeProviderOutputUrl(new URL(value, `${baseUrl}/`).toString());
   }
 
   return undefined;

@@ -19,6 +19,7 @@ import { rethrowIfProviderAborted } from "../shared/abort.js";
 import {
   fetchJson,
   getProviderHttpStatus,
+  normalizeProviderOutputUrl,
   ProviderRateLimitGate,
   type ProviderFetch,
 } from "../shared/index.js";
@@ -481,7 +482,9 @@ function createProviderSource(ids: ExternalIds | undefined): ProviderSource {
   return {
     provider: PROVIDER_NAME,
     ids,
-    url: ids?.imdb ? `https://www.imdb.com/title/${ids.imdb}/` : undefined,
+    url: normalizeProviderOutputUrl(
+      ids?.imdb ? `https://www.imdb.com/title/${ids.imdb}/` : undefined,
+    ),
   };
 }
 

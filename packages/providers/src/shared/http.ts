@@ -3,70 +3,12 @@ import type { ProviderContext } from "@media-engine/core";
 import type { ProviderRateLimitGate } from "./rate-limit.js";
 import { readBoundedResponseText } from "./response-body.js";
 import { calculateRetryDelayMs, parseRetryAfterMs } from "./retry.js";
-import { isPublicIpAddress } from "./safe-fetch.js";
 
 const DEFAULT_MAX_JSON_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 // Minimal fetch function shape used by provider HTTP utilities.
 // Минимальная форма fetch-функции для provider HTTP utilities.
 export type ProviderFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
-
-// Accepts only remote HTTP targets that cannot directly address the local machine or LAN.
-// Принимает только удаленные HTTP-цели без прямого доступа к локальной машине или LAN.
-export function normalizePublicHttpUrl(value: string | null | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(value);
-
-    if (
-      (url.protocol !== "http:" && url.protocol !== "https:") ||
-      url.username !== "" ||
-      url.password !== "" ||
-      isPrivateHostname(url.hostname)
-    ) {
-      return undefined;
-    }
-
-    return url.href;
-  } catch {
-    return undefined;
-  }
-}
-
-function isPrivateHostname(value: string): boolean {
-  const hostname = value
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "")
-    .replace(/\.$/, "");
-
-  if (
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname === "0.0.0.0" ||
-    hostname === "::" ||
-    hostname === "::1"
-  ) {
-    return true;
-  }
-
-  if (hostname.includes(":")) {
-    return !isPublicIpAddress(hostname);
-  }
-
-  const octets = hostname.split(".").map(Number);
-
-  if (
-    octets.length !== 4 ||
-    octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
-  ) {
-    return false;
-  }
-
-  return !isPublicIpAddress(hostname);
-}
 
 // Options used for a provider JSON HTTP request.
 // Опции для JSON HTTP-запроса провайдера.

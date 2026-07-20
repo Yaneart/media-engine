@@ -54,6 +54,7 @@ Provider methods receive request context with an abort signal, timeout, language
 - HTTP response sizes and player validation concurrency are bounded where needed.
 - FlixHQ navigation stays on its explicitly configured origin, so local self-hosted origins remain possible without allowing upstream HTML or redirects to select another destination.
 - Server-side player/subtitle checks resolve and validate every DNS address and redirect hop, reject local/private/reserved or mixed DNS sets, and pin fresh connections to validated addresses. A custom provider `fetch` is a trusted transport boundary and must enforce an equivalent policy.
+- Built-in artwork, player, and subtitle outputs share a conservative HTTP(S)-only URL policy. It rejects credentials, raw control characters, and literal local/private/reserved targets while preserving valid CDN query parameters and signatures. Hostnames are not resolved at this output boundary; deployments that need browser-side network isolation should use an application-owned image/player proxy.
 - Secrets, cookies, and private account tokens are not exposed through provider metadata.
 
 Live integrations are best-effort. Their parsers and mappings are covered by fixtures and live smoke checks, but upstream HTML and APIs can change without notice.

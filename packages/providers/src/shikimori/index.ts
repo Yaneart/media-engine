@@ -16,7 +16,13 @@ import type {
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
-import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
+import {
+  fetchJson,
+  normalizeProviderOutputUrl,
+  ProviderRateLimitGate,
+  type ProviderFetch,
+} from "../shared/index.js";
+import { createProviderImage } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 
 const PROVIDER_NAME = "shikimori";
@@ -442,7 +448,9 @@ function createProviderSource(
   return {
     provider: PROVIDER_NAME,
     ids,
-    url: ids?.shikimori ? `${config.baseUrl}/animes/${ids.shikimori}` : undefined,
+    url: normalizeProviderOutputUrl(
+      ids?.shikimori ? `${config.baseUrl}/animes/${ids.shikimori}` : undefined,
+    ),
   };
 }
 
@@ -459,11 +467,7 @@ function createImage(
     return undefined;
   }
 
-  return {
-    url: createAbsoluteUrl(config, path),
-    type,
-    source: PROVIDER_NAME,
-  };
+  return createProviderImage(createAbsoluteUrl(config, path), type, PROVIDER_NAME);
 }
 
 // Maps all Shikimori detail images into normalized image metadata.

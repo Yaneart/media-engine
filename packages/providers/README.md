@@ -74,6 +74,8 @@ Live player validation removes an option only after HTTP 404/410 or a stable del
 
 FlixHQ site navigation cannot leave its configured origin, including through redirects. External player and subtitle checks resolve every A/AAAA answer, reject private, local, reserved, multicast, or mixed public/private destinations, validate every bounded redirect hop, and pin the connection to the approved address. A custom provider `fetch` is an explicit trusted transport injection intended for controlled tests or self-hosted environments; it is responsible for equivalent network policy.
 
+Before built-in providers expose artwork, player, or subtitle URLs, one output policy accepts only HTTP(S) targets without credentials, raw control characters, or literal local/private/reserved addresses. Valid paths and CDN query parameters, including expiring signatures, are preserved. This browser-facing check does not replace DNS validation or an application-owned media proxy.
+
 Provider options, limitations, and safety rules are summarized in the [provider guide](https://github.com/Yaneart/media-engine/blob/main/docs/providers.md).
 
 ## License

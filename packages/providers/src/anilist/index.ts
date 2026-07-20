@@ -15,7 +15,13 @@ import type {
   ProviderSource,
   Rating,
 } from "@media-engine/core";
-import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
+import {
+  fetchJson,
+  normalizeProviderOutputUrl,
+  ProviderRateLimitGate,
+  type ProviderFetch,
+} from "../shared/index.js";
+import { createProviderImage } from "../shared/mapping.js";
 import { parseAniListGraphQlData } from "./graphql.js";
 
 const PROVIDER_NAME = "anilist";
@@ -313,13 +319,15 @@ function createSource(ids: ExternalIds | undefined): ProviderSource {
   return {
     provider: PROVIDER_NAME,
     ids,
-    url: ids?.aniList ? `https://anilist.co/anime/${ids.aniList}` : undefined,
+    url: normalizeProviderOutputUrl(
+      ids?.aniList ? `https://anilist.co/anime/${ids.aniList}` : undefined,
+    ),
   };
 }
 
 function mapPoster(image: AniListMedia["coverImage"]): Image | undefined {
   const url = image?.extraLarge ?? image?.large;
-  return url ? { url, type: "poster", source: PROVIDER_NAME } : undefined;
+  return createProviderImage(url, "poster", PROVIDER_NAME);
 }
 
 function mapGenres(values: string[] | undefined): Genre[] | undefined {

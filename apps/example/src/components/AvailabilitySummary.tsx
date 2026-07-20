@@ -83,17 +83,19 @@ export function AvailabilitySummary({ state }: { state: AvailabilityState }) {
           ))}
         </div>
       ) : null}
-      {selectedOption ? <PlayerPreview option={selectedOption} /> : null}
+      {selectedOption ? <PlayerPreview key={selectedOption.id} option={selectedOption} /> : null}
     </section>
   );
 }
 
 function PlayerPreview({ option }: { option: AvailabilityOption }) {
+  const [embedEnabled, setEmbedEnabled] = useState(false);
+
   if (option.player.kind === "external") {
     return (
       <div className="player-preview">
         <strong>{option.player.label}</strong>
-        <a href={option.access.url} rel="noreferrer" target="_blank">
+        <a href={option.access.url} rel="noopener noreferrer" target="_blank">
           Open external player
         </a>
       </div>
@@ -104,7 +106,7 @@ function PlayerPreview({ option }: { option: AvailabilityOption }) {
     return (
       <div className="player-preview">
         <strong>{option.player.label}</strong>
-        <a href={option.access.url} rel="noreferrer" target="_blank">
+        <a href={option.access.url} rel="noopener noreferrer" target="_blank">
           Open stream
         </a>
       </div>
@@ -114,13 +116,27 @@ function PlayerPreview({ option }: { option: AvailabilityOption }) {
   return (
     <div className="player-preview">
       <strong>{option.player.label}</strong>
-      <iframe
-        allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
-        referrerPolicy="no-referrer-when-downgrade"
-        src={option.access.url}
-        title={`${option.player.label} player`}
-      />
+      <div className="player-preview__actions">
+        <a href={option.access.url} rel="noopener noreferrer" target="_blank">
+          Open external player
+        </a>
+        <button onClick={() => setEmbedEnabled((enabled) => !enabled)} type="button">
+          {embedEnabled ? "Close embedded player" : "Load embedded player"}
+        </button>
+      </div>
+      {embedEnabled ? (
+        <iframe
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          sandbox="allow-presentation allow-scripts"
+          src={option.access.url}
+          title={`${option.player.label} player`}
+        />
+      ) : (
+        <span className="muted">Embedded playback is disabled until you explicitly load it.</span>
+      )}
     </div>
   );
 }

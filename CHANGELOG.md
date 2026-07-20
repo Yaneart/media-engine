@@ -13,6 +13,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Shared provider HTTP errors retain their response status through `getProviderHttpStatus`, allowing adapters to distinguish confirmed absence from other non-retryable responses.
 - Provider JSON and FlixHQ HTML responses are read through a streaming byte limit instead of being fully buffered first. Oversized bodies now fail with `PROVIDER_RESPONSE_TOO_LARGE`, distinct from invalid JSON, and `fetchJson` accepts a bounded `maxResponseBytes` override.
 - FlixHQ navigation is confined to its configured origin with manual bounded redirects. Server-side player and subtitle checks now reject private/reserved literal or DNS targets, mixed public/private answers, and unsafe redirect hops while pinning each connection to its validated address.
+- Built-in provider artwork, player, subtitle, and related output URLs now share an HTTP(S)-only policy that rejects credentials, raw control characters, and literal local/private/reserved targets without removing valid CDN query parameters or signatures. The example keeps external links as the default and loads sandboxed embeds only after explicit user action with no referrer.
 
 ### Fixed
 
