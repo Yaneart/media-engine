@@ -113,9 +113,10 @@ describe('Media Engine API (e2e)', () => {
       .expect(200)
       .expect(searchResponse);
 
-    expect(mediaEngine.search).toHaveBeenCalledWith({
-      title: 'Interstellar',
-    });
+    expect(mediaEngine.search).toHaveBeenCalledWith(
+      { title: 'Interstellar' },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('/media/details (GET)', async () => {
@@ -125,9 +126,10 @@ describe('Media Engine API (e2e)', () => {
       .expect(200)
       .expect(detailsResponse);
 
-    expect(mediaEngine.getDetails).toHaveBeenCalledWith({
-      imdb: 'tt0816692',
-    });
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith(
+      { imdb: 'tt0816692' },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('/providers (GET)', async () => {

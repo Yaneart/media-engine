@@ -53,6 +53,8 @@ Public search, details, and availability inputs are canonicalized before provide
 
 `MemoryCache` accepts only non-negative safe-integer TTL values. Omit `defaultTtlMs` and per-entry `ttlMs` for entries without expiration; negative values are not a no-expiry sentinel. Stale TTL values follow the same numeric validation.
 
+`search`, `getDetails`, and `getAvailability` accept optional `{ signal }` operation options. Identical requests still share one provider operation, but each caller has an independent subscription: aborting one caller does not affect the others, while the shared provider signal is aborted once no active subscribers remain. Fully cancelled work is not cached, and client cancellation is not counted as an upstream circuit-breaker failure.
+
 A streaming provider that resolves `null` is recorded as a successful no-result lookup. The engine reports an all-failed error only when every selected streaming provider actually failed. Discovered player options with an uncertain validation result remain visible with `availability: "unknown"`; the response includes `STREAM_VALIDATION_DEGRADED` and is retried instead of being stored in the normal availability cache.
 
 The constructor also accepts streaming providers, a cache, global and per-provider timeouts, a custom merge strategy, and debug mode. Provider calls are bounded to two concurrent operations per provider by default, with a cancellable queue of 100; `providerConcurrency` can tune per-provider limits or disable the gate. Queue waiting remains inside the existing provider timeout. Core never imports concrete provider packages itself.

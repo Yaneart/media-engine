@@ -9,6 +9,7 @@ import {
   type DetailsResponse,
   type MediaAvailability,
   type MediaEngine,
+  type MediaEngineOperationOptions,
   type MediaType,
   type ProviderInfo,
   type SearchQuery,
@@ -63,17 +64,23 @@ export class MediaService {
 
   // EN: Convert HTTP query parameters into a core SearchQuery and run search.
   // RU: Преобразует HTTP query параметры в core SearchQuery и запускает поиск.
-  async search(query: MediaSearchHttpQuery): Promise<SearchResponse> {
+  async search(
+    query: MediaSearchHttpQuery,
+    options?: MediaEngineOperationOptions,
+  ): Promise<SearchResponse> {
     return runEngineRequest(() =>
-      this.mediaEngine.search(toSearchQuery(query)),
+      this.mediaEngine.search(toSearchQuery(query), options),
     );
   }
 
   // EN: Convert HTTP query parameters into a core DetailsQuery and load details.
   // RU: Преобразует HTTP query параметры в core DetailsQuery и загружает детали.
-  async getDetails(query: MediaDetailsHttpQuery): Promise<DetailsResponse> {
+  async getDetails(
+    query: MediaDetailsHttpQuery,
+    options?: MediaEngineOperationOptions,
+  ): Promise<DetailsResponse> {
     return runEngineRequest(() =>
-      this.mediaEngine.getDetails(toDetailsQuery(query)),
+      this.mediaEngine.getDetails(toDetailsQuery(query), options),
     );
   }
 
@@ -81,9 +88,10 @@ export class MediaService {
   // RU: Преобразует HTTP query параметры в core StreamQuery и загружает player-варианты.
   async getAvailability(
     query: MediaAvailabilityHttpQuery,
+    options?: MediaEngineOperationOptions,
   ): Promise<MediaAvailability> {
     return runEngineRequest(() =>
-      this.mediaEngine.getAvailability(toStreamQuery(query)),
+      this.mediaEngine.getAvailability(toStreamQuery(query), options),
     );
   }
 

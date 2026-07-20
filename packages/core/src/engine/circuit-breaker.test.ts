@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { ProviderError } from "../errors/index.js";
 import { ProviderCircuitBreaker } from "./circuit-breaker.js";
+import { OperationCancelledError } from "./operation.js";
 
 const retryableFailure = new ProviderError({
   provider: "unstable",
@@ -142,4 +143,43 @@ test("ProviderCircuitBreaker classifies failure telemetry by stable provider cod
     unavailable: 0,
     other: 1,
   });
+});
+
+test("ProviderCircuitBreaker ignores cancellation and releases a recovery probe", async () => {
+  let now = 0;
+  const breaker = new ProviderCircuitBreaker(
+    { failureThreshold: 1, recoveryTimeoutMs: 10 },
+    () => now,
+  );
+  const timeout = new ProviderError({
+    provider: "test-provider",
+    code: "PROVIDER_TIMEOUT",
+    message: "Timed out.",
+    retryable: true,
+  });
+
+  await assert.rejects(
+    breaker.run("metadata:test-provider", "test-provider", async () => {
+      throw timeout;
+    }),
+    (error) => error === timeout,
+  );
+  now = 10;
+  await assert.rejects(
+    breaker.run("metadata:test-provider", "test-provider", async () => {
+      throw new OperationCancelledError();
+    }),
+    (error: unknown) => error instanceof OperationCancelledError,
+  );
+
+  const cancelled = breaker.getSnapshot("metadata:test-provider");
+  assert.equal(cancelled.state, "open");
+  assert.equal(cancelled.totalRequests, 2);
+  assert.equal(cancelled.totalFailures, 1);
+
+  assert.equal(
+    await breaker.run("metadata:test-provider", "test-provider", async () => "recovered"),
+    "recovered",
+  );
+  assert.equal(breaker.getSnapshot("metadata:test-provider").state, "closed");
 });

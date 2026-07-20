@@ -176,14 +176,17 @@ describe('MediaController', () => {
       .expect(200)
       .expect(searchResponse);
 
-    expect(mediaEngine.search).toHaveBeenCalledWith({
-      title: 'Interstellar',
-      type: 'movie',
-      year: 2014,
-      imdb: 'tt0816692',
-      limit: 2,
-      language: 'ru',
-    });
+    expect(mediaEngine.search).toHaveBeenCalledWith(
+      {
+        title: 'Interstellar',
+        type: 'movie',
+        year: 2014,
+        imdb: 'tt0816692',
+        limit: 2,
+        language: 'ru',
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('supports ids.* external ID query parameters', async () => {
@@ -194,9 +197,10 @@ describe('MediaController', () => {
       })
       .expect(200);
 
-    expect(mediaEngine.search).toHaveBeenCalledWith({
-      shikimori: '5114',
-    });
+    expect(mediaEngine.search).toHaveBeenCalledWith(
+      { shikimori: '5114' },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('falls back to a nested external ID when the top-level shortcut is blank', async () => {
@@ -205,9 +209,10 @@ describe('MediaController', () => {
       .query({ imdb: '   ', 'ids.imdb': ' tt0816692 ' })
       .expect(200);
 
-    expect(mediaEngine.search).toHaveBeenCalledWith({
-      imdb: 'tt0816692',
-    });
+    expect(mediaEngine.search).toHaveBeenCalledWith(
+      { imdb: 'tt0816692' },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('preserves nested-only external IDs in search queries', async () => {
@@ -216,9 +221,10 @@ describe('MediaController', () => {
       .query({ 'ids.worldArt': ' 12345 ' })
       .expect(200);
 
-    expect(mediaEngine.search).toHaveBeenCalledWith({
-      ids: { worldArt: '12345' },
-    });
+    expect(mediaEngine.search).toHaveBeenCalledWith(
+      { ids: { worldArt: '12345' } },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('returns 400 for invalid numeric query parameters', async () => {
@@ -269,11 +275,14 @@ describe('MediaController', () => {
       .expect(200)
       .expect(detailsResponse);
 
-    expect(mediaEngine.getDetails).toHaveBeenCalledWith({
-      imdb: 'tt0816692',
-      type: 'movie',
-      language: 'ru',
-    });
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith(
+      {
+        imdb: 'tt0816692',
+        type: 'movie',
+        language: 'ru',
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('supports ids.* external ID parameters for details lookup', async () => {
@@ -284,9 +293,10 @@ describe('MediaController', () => {
       })
       .expect(200);
 
-    expect(mediaEngine.getDetails).toHaveBeenCalledWith({
-      tmdb: '157336',
-    });
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith(
+      { tmdb: '157336' },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('preserves nested-only external IDs in details queries', async () => {
@@ -295,9 +305,10 @@ describe('MediaController', () => {
       .query({ 'ids.worldArt': '12345' })
       .expect(200);
 
-    expect(mediaEngine.getDetails).toHaveBeenCalledWith({
-      ids: { worldArt: '12345' },
-    });
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith(
+      { ids: { worldArt: '12345' } },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('returns 400 for invalid details media type', async () => {
@@ -342,7 +353,10 @@ describe('MediaController', () => {
         );
       });
 
-    expect(mediaEngine.getDetails).toHaveBeenCalledWith({ id: 'movie-1' });
+    expect(mediaEngine.getDetails).toHaveBeenCalledWith(
+      { id: 'movie-1' },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('returns 503 when all selected details providers fail', async () => {
@@ -373,14 +387,17 @@ describe('MediaController', () => {
       .expect(200)
       .expect(availabilityResponse);
 
-    expect(mediaEngine.getAvailability).toHaveBeenCalledWith({
-      title: 'Naruto',
-      type: 'anime',
-      shikimori: '20',
-      absoluteEpisodeNumber: 1,
-      providers: ['experimental-streaming', 'mirror'],
-      language: 'ru',
-    });
+    expect(mediaEngine.getAvailability).toHaveBeenCalledWith(
+      {
+        title: 'Naruto',
+        type: 'anime',
+        shikimori: '20',
+        absoluteEpisodeNumber: 1,
+        providers: ['experimental-streaming', 'mirror'],
+        language: 'ru',
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('supports ids.* external ID parameters for availability lookup', async () => {
@@ -392,10 +409,10 @@ describe('MediaController', () => {
       })
       .expect(200);
 
-    expect(mediaEngine.getAvailability).toHaveBeenCalledWith({
-      type: 'anime',
-      shikimori: '20',
-    });
+    expect(mediaEngine.getAvailability).toHaveBeenCalledWith(
+      { type: 'anime', shikimori: '20' },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('preserves nested-only external IDs in availability queries', async () => {
@@ -404,10 +421,10 @@ describe('MediaController', () => {
       .query({ type: 'movie', 'ids.worldArt': '12345' })
       .expect(200);
 
-    expect(mediaEngine.getAvailability).toHaveBeenCalledWith({
-      type: 'movie',
-      ids: { worldArt: '12345' },
-    });
+    expect(mediaEngine.getAvailability).toHaveBeenCalledWith(
+      { type: 'movie', ids: { worldArt: '12345' } },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   it('returns 400 for invalid availability numeric parameters', async () => {

@@ -1,4 +1,5 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import {
   ApiBadRequestResponse,
   ApiOkResponse,
@@ -13,6 +14,7 @@ import type {
   MediaDetailsHttpQuery,
   MediaSearchHttpQuery,
 } from './media.service';
+import { runWithHttpRequestSignal } from './request-cancellation';
 
 @ApiTags('media')
 @Controller('media')
@@ -52,8 +54,14 @@ export class MediaController {
     description: 'All selected providers failed.',
   })
   @Get('search')
-  search(@Query() query: MediaSearchHttpQuery) {
-    return this.mediaService.search(query);
+  search(
+    @Query() query: MediaSearchHttpQuery,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return runWithHttpRequestSignal(request, response, (signal) =>
+      this.mediaService.search(query, { signal }),
+    );
   }
 
   // EN: Expose merged metadata details for one media item.
@@ -90,8 +98,14 @@ export class MediaController {
     description: 'All selected providers failed.',
   })
   @Get('details')
-  getDetails(@Query() query: MediaDetailsHttpQuery) {
-    return this.mediaService.getDetails(query);
+  getDetails(
+    @Query() query: MediaDetailsHttpQuery,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return runWithHttpRequestSignal(request, response, (signal) =>
+      this.mediaService.getDetails(query, { signal }),
+    );
   }
 
   // EN: Expose normalized player and stream availability for one media item or episode.
@@ -132,7 +146,13 @@ export class MediaController {
     description: 'All selected streaming providers failed.',
   })
   @Get('availability')
-  getAvailability(@Query() query: MediaAvailabilityHttpQuery) {
-    return this.mediaService.getAvailability(query);
+  getAvailability(
+    @Query() query: MediaAvailabilityHttpQuery,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return runWithHttpRequestSignal(request, response, (signal) =>
+      this.mediaService.getAvailability(query, { signal }),
+    );
   }
 }

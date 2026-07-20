@@ -17,6 +17,7 @@ export interface SearchPosterLookupInput {
   registry: ProviderRegistry;
   mergeStrategy: MergeStrategy;
   debug: boolean;
+  signal?: AbortSignal;
   circuitBreaker?: ProviderCircuitBreaker | undefined;
   concurrencyLimiter?: ProviderConcurrencyLimiter | undefined;
   getProviderTimeoutMs(providerName: string): number | undefined;
@@ -82,6 +83,7 @@ export async function loadSearchPoster(
       return callTimedProviderDetails(provider, query, {
         debug: input.debug,
         language: input.language,
+        signal: input.signal,
         circuitBreaker: input.circuitBreaker,
         concurrencyLimiter: input.concurrencyLimiter,
         timeoutMs:

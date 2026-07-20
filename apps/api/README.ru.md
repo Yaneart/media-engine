@@ -40,6 +40,8 @@ GET /docs-json
 
 Все media endpoints приводят ID и language к canonical-виду до обращения к провайдерам/cache; эквивалентные top-level и `ids.*` формы используют один cache key. Некорректные известные ID и слишком длинные поля возвращают HTTP 400. `GET /media/search?...&limit=0` — намеренный zero-work probe с пустым ответом без вызова провайдеров.
 
+Disconnect media-запроса передается в core как abort signal. Если на тот же запрос еще подписан другой HTTP caller, общая provider operation продолжает работу; иначе queued/running provider work отменяется, а брошенный ответ не кешируется.
+
 Локальные настройки читаются из `.env`. Основные значения, включая порт и тайм-ауты провайдеров, перечислены в корневом `.env.example`. Metadata, KinoBD streaming и FlixHQ используют независимые бюджеты времени; увеличенный тайм-аут FlixHQ не обрезается более коротким общим streaming timeout.
 
 ## Проверки

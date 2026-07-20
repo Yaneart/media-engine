@@ -49,10 +49,15 @@ import {
 } from "./search-enrichment.js";
 import { SearchOutcomeAccumulator } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
+import { throwIfAborted, waitForCaller } from "./operation.js";
 import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
 import { ProviderTimeoutBudget } from "./timeout-budget.js";
-import type { MediaEngineOptions, ProviderHealthStatus } from "./types.js";
+import type {
+  MediaEngineOperationOptions,
+  MediaEngineOptions,
+  ProviderHealthStatus,
+} from "./types.js";
 
 const SEARCH_ID_ENRICHMENT_LIMIT = 6;
 const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
@@ -130,7 +135,11 @@ export class MediaEngine {
 
   // Searches media through selected providers and merges normalized results.
   // Ищет медиа через выбранных провайдеров и объединяет нормализованные результаты.
-  async search(query: SearchQuery): Promise<SearchResponse> {
+  async search(
+    query: SearchQuery,
+    options: MediaEngineOperationOptions = {},
+  ): Promise<SearchResponse> {
+    throwIfAborted(options.signal);
     const startedAt = Date.now();
     const normalizedQuery = normalizeSearchQuery(query);
     validateSearchQuery(normalizedQuery);
@@ -155,7 +164,7 @@ export class MediaEngine {
     const searchLanguage = normalizedQuery.language ?? inferTitleLanguage(normalizedQuery.title);
 
     const cacheKey = createSearchCacheKey(normalizedQuery);
-    const cached = await this.cache?.get<SearchResponse>(cacheKey);
+    const cached = await waitForCaller(this.cache?.get<SearchResponse>(cacheKey), options.signal);
 
     if (cached) {
       const response = structuredClone(cached);
@@ -171,8 +180,12 @@ export class MediaEngine {
       };
     }
 
-    const stale = await this.cache?.getStale?.<SearchResponse>(cacheKey);
-    const pending = this.inFlightRequests.run(`search:${cacheKey}`, async () => {
+    const stale = await waitForCaller(
+      this.cache?.getStale?.<SearchResponse>(cacheKey),
+      options.signal,
+    );
+    const inFlight = this.inFlightRequests.forCaller(options);
+    const pending = inFlight.run(`search:${cacheKey}`, async (operationSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
       const providers = this.registry.selectSearchProviders(normalizedQuery);
       const requested = providers.map((provider) => provider.name);
@@ -194,6 +207,7 @@ export class MediaEngine {
           callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
             debug: this.debug,
             language: searchLanguage,
+            signal: operationSignal,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
             concurrencyLimiter: this.concurrencyLimiter,
@@ -210,6 +224,7 @@ export class MediaEngine {
           {
             debug: this.debug,
             language: searchLanguage,
+            signal: operationSignal,
             circuitBreaker: this.circuitBreaker,
             concurrencyLimiter: this.concurrencyLimiter,
             getTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
@@ -249,6 +264,7 @@ export class MediaEngine {
             callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
               debug: this.debug,
               language: searchLanguage,
+              signal: operationSignal,
               timeoutMs: timeoutBudget.getRemainingMs(provider.name),
               circuitBreaker: this.circuitBreaker,
               concurrencyLimiter: this.concurrencyLimiter,
@@ -281,6 +297,7 @@ export class MediaEngine {
             registry: this.registry,
             mergeStrategy: this.mergeStrategy,
             debug: this.debug,
+            signal: operationSignal,
             circuitBreaker: this.circuitBreaker,
             concurrencyLimiter: this.concurrencyLimiter,
             getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
@@ -324,6 +341,7 @@ export class MediaEngine {
             {
               debug: this.debug,
               language: searchLanguage,
+              signal: operationSignal,
               timeoutMs: enrichmentTimeoutMs,
               circuitBreaker: this.circuitBreaker,
               concurrencyLimiter: this.concurrencyLimiter,
@@ -387,6 +405,8 @@ export class MediaEngine {
         }),
       };
 
+      throwIfAborted(operationSignal);
+
       if (!searchOutcomes.hasRetryableMandatoryFailure()) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
@@ -403,13 +423,17 @@ export class MediaEngine {
 
   // Loads media details through selected providers and merges normalized results.
   // Загружает детали медиа через выбранных провайдеров и объединяет нормализованные результаты.
-  async getDetails(query: DetailsQuery): Promise<DetailsResponse> {
+  async getDetails(
+    query: DetailsQuery,
+    options: MediaEngineOperationOptions = {},
+  ): Promise<DetailsResponse> {
+    throwIfAborted(options.signal);
     const startedAt = Date.now();
     const normalizedQuery = normalizeDetailsQuery(query);
     validateDetailsQuery(normalizedQuery);
 
     const cacheKey = createDetailsCacheKey(normalizedQuery);
-    const cached = await this.cache?.get<DetailsResponse>(cacheKey);
+    const cached = await waitForCaller(this.cache?.get<DetailsResponse>(cacheKey), options.signal);
 
     if (cached) {
       const response = structuredClone(cached);
@@ -425,8 +449,12 @@ export class MediaEngine {
       };
     }
 
-    const stale = await this.cache?.getStale?.<DetailsResponse>(cacheKey);
-    const pending = this.inFlightRequests.run(`details:${cacheKey}`, async () => {
+    const stale = await waitForCaller(
+      this.cache?.getStale?.<DetailsResponse>(cacheKey),
+      options.signal,
+    );
+    const inFlight = this.inFlightRequests.forCaller(options);
+    const pending = inFlight.run(`details:${cacheKey}`, async (operationSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
       const providers = this.registry.selectDetailsProviders(normalizedQuery);
       const requested = providers.map((provider) => provider.name);
@@ -441,6 +469,7 @@ export class MediaEngine {
           callTimedProviderDetails(provider, normalizedQuery, {
             debug: this.debug,
             language: normalizedQuery.language,
+            signal: operationSignal,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
             concurrencyLimiter: this.concurrencyLimiter,
@@ -492,6 +521,8 @@ export class MediaEngine {
         }),
       };
 
+      throwIfAborted(operationSignal);
+
       if (!hasRetryableProviderFailure(failed)) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
@@ -508,13 +539,20 @@ export class MediaEngine {
 
   // Loads normalized player and stream availability through streaming providers.
   // Загружает нормализованную доступность player и stream через streaming-провайдеры.
-  async getAvailability(query: StreamQuery): Promise<MediaAvailability> {
+  async getAvailability(
+    query: StreamQuery,
+    options: MediaEngineOperationOptions = {},
+  ): Promise<MediaAvailability> {
+    throwIfAborted(options.signal);
     const startedAt = Date.now();
     const normalizedQuery = normalizeStreamQuery(query);
     validateStreamQuery(normalizedQuery);
 
     const cacheKey = createAvailabilityCacheKey(normalizedQuery);
-    const cached = await this.cache?.get<MediaAvailability>(cacheKey);
+    const cached = await waitForCaller(
+      this.cache?.get<MediaAvailability>(cacheKey),
+      options.signal,
+    );
 
     if (cached) {
       const response = structuredClone(cached);
@@ -532,7 +570,8 @@ export class MediaEngine {
       };
     }
 
-    return this.inFlightRequests.run(`availability:${cacheKey}`, async () => {
+    const inFlight = this.inFlightRequests.forCaller(options);
+    return inFlight.run(`availability:${cacheKey}`, async (operationSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
       const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
       const requested = providers.map((provider) => provider.name);
@@ -546,6 +585,7 @@ export class MediaEngine {
           callTimedProviderAvailability(provider, normalizedQuery, {
             debug: this.debug,
             language: normalizedQuery.language,
+            signal: operationSignal,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
             concurrencyLimiter: this.concurrencyLimiter,
@@ -594,6 +634,8 @@ export class MediaEngine {
         debug: this.debug,
         timings: providerTimings,
       });
+
+      throwIfAborted(operationSignal);
 
       if (!hasRetryableProviderFailure(failed) && !hasUnknownValidation) {
         await this.cache?.set(

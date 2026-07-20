@@ -9,6 +9,7 @@ import type { ProviderFailure, ProviderTimingMeta } from "../response/index.js";
 import type { MediaAvailability, StreamQuery, StreamingProvider } from "../streaming/index.js";
 import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import type { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
+import { getAbortReason, isOperationCancelledError, throwIfAborted } from "./operation.js";
 import { createProviderSearchQuery } from "./query.js";
 import { elapsedSince } from "./response-meta.js";
 
@@ -17,6 +18,7 @@ import { elapsedSince } from "./response-meta.js";
 export interface ProviderCallContext {
   debug: boolean;
   language?: string;
+  signal?: AbortSignal;
   timeoutMs?: number;
   circuitBreaker?: ProviderCircuitBreaker | undefined;
   concurrencyLimiter?: ProviderConcurrencyLimiter | undefined;
@@ -25,6 +27,7 @@ export interface ProviderCallContext {
 export interface SearchRetryContext {
   debug: boolean;
   language?: string;
+  signal?: AbortSignal;
   circuitBreaker?: ProviderCircuitBreaker | undefined;
   concurrencyLimiter?: ProviderConcurrencyLimiter | undefined;
   getTimeoutMs(providerName: string): number | undefined;
@@ -74,6 +77,7 @@ export async function retryFailedSearchProviders(
       callTimedProviderSearch(provider, createProviderSearchQuery(query), {
         debug: context.debug,
         language: context.language,
+        signal: context.signal,
         timeoutMs: context.getTimeoutMs(provider.name),
         circuitBreaker: context.circuitBreaker,
         concurrencyLimiter: context.concurrencyLimiter,
@@ -115,6 +119,10 @@ export async function callTimedProviderSearch(
       results,
     };
   } catch (error) {
+    if (isOperationCancelledError(error)) {
+      throw error;
+    }
+
     return {
       provider: provider.name,
       timing: {
@@ -163,6 +171,10 @@ export async function callTimedProviderDetails(
       result,
     };
   } catch (error) {
+    if (isOperationCancelledError(error)) {
+      throw error;
+    }
+
     return {
       provider: provider.name,
       timing: {
@@ -209,6 +221,10 @@ export async function callTimedProviderAvailability(
       result,
     };
   } catch (error) {
+    if (isOperationCancelledError(error)) {
+      throw error;
+    }
+
     return {
       provider: provider.name,
       timing: {
@@ -297,8 +313,12 @@ async function withProviderTimeout<T>(
   context: ProviderCallContext,
   run: (controller: AbortController) => Promise<T>,
 ): Promise<T> {
+  throwIfAborted(context.signal);
   const controller = new AbortController();
   let timeout: ReturnType<typeof setTimeout> | undefined;
+  const onOperationAbort = () => controller.abort(getAbortReason(context.signal!));
+
+  context.signal?.addEventListener("abort", onOperationAbort, { once: true });
 
   try {
     const timeoutError = new ProviderError({
@@ -328,6 +348,8 @@ async function withProviderTimeout<T>(
 
     return await Promise.race([providerPromise, timeoutPromise]);
   } finally {
+    context.signal?.removeEventListener("abort", onOperationAbort);
+
     if (timeout) {
       clearTimeout(timeout);
     }

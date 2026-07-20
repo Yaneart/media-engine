@@ -38,6 +38,12 @@ export interface ProviderHealthStatus {
   retryAfterMs?: number;
 }
 
+// Per-call options for independently cancelling public engine operations.
+// Опции одного вызова для независимой отмены публичных операций движка.
+export interface MediaEngineOperationOptions {
+  signal?: AbortSignal;
+}
+
 // Options accepted by the MediaEngine constructor.
 // Опции, которые принимает constructor MediaEngine.
 export interface MediaEngineOptions {

@@ -65,6 +65,30 @@ test("search serializes query params and parses response", async () => {
   assert.equal(mock.calls[0]?.searchParams.get("limit"), "10");
 });
 
+test("request options forward AbortSignal without changing query serialization", async () => {
+  const controller = new AbortController();
+  let receivedSignal: AbortSignal | null | undefined;
+  const client = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: async (_, init) => {
+      receivedSignal = init?.signal;
+      return Response.json({
+        query: { title: "Dune" },
+        results: [],
+        meta: {
+          providers: { requested: [], successful: [], failed: [] },
+          cached: false,
+          tookMs: 0,
+        },
+      });
+    },
+  });
+
+  await client.search({ title: "Dune" }, { signal: controller.signal });
+
+  assert.equal(receivedSignal, controller.signal);
+});
+
 test("preserves a path prefix in the API base URL", async () => {
   const mock = createMockFetch(Response.json({ status: "ok", service: "media-engine-api" }));
   const client = new MediaEngineClient({

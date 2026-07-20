@@ -54,6 +54,18 @@ Each result contains a normalized item, a score, and source attribution. Respons
 
 Engine queries are canonicalized before provider selection and cache/coalescing key creation. Top-level external-ID shortcuts and nested `ids` share one normalized representation, string fields are trimmed and bounded, known IMDb/numeric ID formats are validated, language is lowercased, and availability provider filters are deduplicated and sorted. `limit: 0` is a valid search that returns immediately without provider or cache work.
 
+All three engine operations accept an optional second argument:
+
+```ts
+const controller = new AbortController();
+const pending = engine.search({ title: "Interstellar" }, { signal: controller.signal });
+
+controller.abort();
+await pending;
+```
+
+Every caller of a coalesced request owns an independent subscription. Cancelling one caller leaves shared provider work running for other subscribers; cancelling the last subscriber aborts the shared provider signal, removes queued work, and prevents a later cache write. Client cancellation is distinct from provider timeout and does not increment provider circuit failure counters.
+
 ## Details
 
 ```ts
@@ -105,6 +117,8 @@ GET /media/availability
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
+
+The media endpoints connect request/response disconnect events to the engine operation signal and remove their lifecycle listeners when the operation settles. An HTTP client that closes early therefore stops waiting immediately and cancels shared provider work only when no other identical request is still subscribed.
 
 `GET /health` includes process-local provider counters and circuit states. These diagnostics contain provider names, success/failure counts, timestamps, and recovery delay only; they do not expose credentials or provider internals.
 

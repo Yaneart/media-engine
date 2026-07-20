@@ -1,5 +1,6 @@
 import { ProviderError } from "../errors/index.js";
 import type { CircuitBreakerOptions } from "./types.js";
+import { isOperationCancelledError } from "./operation.js";
 
 const DEFAULT_FAILURE_THRESHOLD = 3;
 const DEFAULT_RECOVERY_TIMEOUT_MS = 30_000;
@@ -73,9 +74,22 @@ export class ProviderCircuitBreaker {
       this.recordSuccess(key);
       return result;
     } catch (error) {
+      if (isOperationCancelledError(error)) {
+        this.releaseCancelledProbe(key);
+        throw error;
+      }
+
       this.recordFailure(key, error);
       this.recordObservedFailure(key, error);
       throw error;
+    }
+  }
+
+  private releaseCancelledProbe(key: string): void {
+    const state = this.states.get(key);
+
+    if (state?.probeInFlight) {
+      state.probeInFlight = false;
     }
   }
 
