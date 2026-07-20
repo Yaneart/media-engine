@@ -52,6 +52,8 @@ A search query may use a title, media type, year, external IDs, language, and li
 
 Each result contains a normalized item, a score, and source attribution. Response metadata reports requested, successful, and failed providers, cache state, total elapsed time, and optional warnings/debug timings. Search failures and timings may identify their primary, retry, fallback, ID-enrichment, or poster-enrichment phase. Optional enrichment failures preserve base results and normal cache behavior while returning bounded warnings and debug counters; mandatory retryable degradation prevents a normal cache write. Retries, fallback queries, and enrichment share one timeout budget per provider within the operation.
 
+Engine queries are canonicalized before provider selection and cache/coalescing key creation. Top-level external-ID shortcuts and nested `ids` share one normalized representation, string fields are trimmed and bounded, known IMDb/numeric ID formats are validated, language is lowercased, and availability provider filters are deduplicated and sorted. `limit: 0` is a valid search that returns immediately without provider or cache work.
+
 ## Details
 
 ```ts

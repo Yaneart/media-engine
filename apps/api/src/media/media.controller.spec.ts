@@ -199,6 +199,17 @@ describe('MediaController', () => {
     });
   });
 
+  it('falls back to a nested external ID when the top-level shortcut is blank', async () => {
+    await request(app.getHttpServer())
+      .get('/media/search')
+      .query({ imdb: '   ', 'ids.imdb': ' tt0816692 ' })
+      .expect(200);
+
+    expect(mediaEngine.search).toHaveBeenCalledWith({
+      imdb: 'tt0816692',
+    });
+  });
+
   it('preserves nested-only external IDs in search queries', async () => {
     await request(app.getHttpServer())
       .get('/media/search')

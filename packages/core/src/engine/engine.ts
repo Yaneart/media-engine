@@ -134,6 +134,24 @@ export class MediaEngine {
     const startedAt = Date.now();
     const normalizedQuery = normalizeSearchQuery(query);
     validateSearchQuery(normalizedQuery);
+
+    if (normalizedQuery.limit === 0) {
+      return {
+        query: normalizedQuery,
+        results: [],
+        meta: createResponseMeta({
+          requested: [],
+          successful: [],
+          failed: [],
+          warnings: [],
+          cached: false,
+          tookMs: elapsedSince(startedAt),
+          debug: this.debug,
+          timings: [],
+        }),
+      };
+    }
+
     const searchLanguage = normalizedQuery.language ?? inferTitleLanguage(normalizedQuery.title);
 
     const cacheKey = createSearchCacheKey(normalizedQuery);

@@ -49,6 +49,10 @@ Optional search ID/poster enrichment failures do not discard the base results. T
 
 `MemoryCache` can retain metadata for a separate bounded stale window. `MediaEngine` uses it only for search and details when every selected provider fails retryably; stale streaming links are never returned. Such responses set `meta.cached` and `meta.stale` to `true`.
 
+Public search, details, and availability inputs are canonicalized before provider selection and cache/coalescing keys are built: strings and IDs are trimmed, language is lowercased, top-level ID shortcuts become `ids`, and streaming provider filters are trimmed, deduplicated, and sorted. Known IMDb/numeric ID formats and bounded field lengths are validated. A search with `limit: 0` returns an empty uncached response without provider or cache work.
+
+`MemoryCache` accepts only non-negative safe-integer TTL values. Omit `defaultTtlMs` and per-entry `ttlMs` for entries without expiration; negative values are not a no-expiry sentinel. Stale TTL values follow the same numeric validation.
+
 A streaming provider that resolves `null` is recorded as a successful no-result lookup. The engine reports an all-failed error only when every selected streaming provider actually failed. Discovered player options with an uncertain validation result remain visible with `availability: "unknown"`; the response includes `STREAM_VALIDATION_DEGRADED` and is retried instead of being stored in the normal availability cache.
 
 The constructor also accepts streaming providers, a cache, global and per-provider timeouts, a custom merge strategy, and debug mode. Provider calls are bounded to two concurrent operations per provider by default, with a cancellable queue of 100; `providerConcurrency` can tune per-provider limits or disable the gate. Queue waiting remains inside the existing provider timeout. Core never imports concrete provider packages itself.

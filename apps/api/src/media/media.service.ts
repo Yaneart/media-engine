@@ -131,7 +131,7 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
   }
 
   for (const key of EXTERNAL_ID_KEYS) {
-    const value = readString(query[key] ?? query[`ids.${key}`]);
+    const value = readString(query[key]) ?? readString(query[`ids.${key}`]);
 
     if (value !== undefined) {
       searchQuery[key] = value;
@@ -170,7 +170,7 @@ export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
   }
 
   for (const key of EXTERNAL_ID_KEYS) {
-    const value = readString(query[key] ?? query[`ids.${key}`]);
+    const value = readString(query[key]) ?? readString(query[`ids.${key}`]);
 
     if (value !== undefined) {
       detailsQuery[key] = value;
@@ -236,7 +236,7 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
   }
 
   for (const key of EXTERNAL_ID_KEYS) {
-    const value = readString(query[key] ?? query[`ids.${key}`]);
+    const value = readString(query[key]) ?? readString(query[`ids.${key}`]);
 
     if (value !== undefined) {
       streamQuery[key] = value;

@@ -4,6 +4,8 @@ import type { Cache, CacheSetOptions } from "./types.js";
 // Опции для создания экземпляра memory cache.
 export interface MemoryCacheOptions {
   now?: () => number;
+  // Omit to keep entries without a normal expiration unless set() supplies ttlMs.
+  // Не задавайте для записей без обычного срока истечения, если set() не передает ttlMs.
   defaultTtlMs?: number;
   defaultStaleTtlMs?: number;
   maxEntries?: number;
@@ -34,12 +36,8 @@ export class MemoryCache implements Cache {
       throw new TypeError("MemoryCache maxEntries must be a positive integer.");
     }
 
-    if (
-      options.defaultStaleTtlMs !== undefined &&
-      (!Number.isInteger(options.defaultStaleTtlMs) || options.defaultStaleTtlMs < 0)
-    ) {
-      throw new TypeError("MemoryCache defaultStaleTtlMs must be a non-negative integer.");
-    }
+    validateTtl("defaultTtlMs", options.defaultTtlMs);
+    validateTtl("defaultStaleTtlMs", options.defaultStaleTtlMs);
 
     this.now = options.now ?? Date.now;
     this.defaultTtlMs = options.defaultTtlMs;
@@ -97,11 +95,10 @@ export class MemoryCache implements Cache {
     const ttlMs = options.ttlMs ?? this.defaultTtlMs;
     const staleTtlMs = options.staleTtlMs ?? this.defaultStaleTtlMs;
 
-    if (staleTtlMs !== undefined && (!Number.isInteger(staleTtlMs) || staleTtlMs < 0)) {
-      throw new TypeError("MemoryCache staleTtlMs must be a non-negative integer.");
-    }
+    validateTtl("ttlMs", ttlMs);
+    validateTtl("staleTtlMs", staleTtlMs);
 
-    const expiresAt = ttlMs === undefined || ttlMs < 0 ? undefined : this.now() + ttlMs;
+    const expiresAt = ttlMs === undefined ? undefined : this.now() + ttlMs;
     const staleUntil =
       expiresAt === undefined || staleTtlMs === undefined || staleTtlMs <= 0
         ? undefined
@@ -169,4 +166,10 @@ export class MemoryCache implements Cache {
 // Не позволяет вызывающему коду изменять значения внутри общего memory cache.
 function cloneCacheValue<T>(value: T): T {
   return structuredClone(value);
+}
+
+function validateTtl(name: string, value: number | undefined): void {
+  if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
+    throw new TypeError(`MemoryCache ${name} must be a non-negative safe integer.`);
+  }
 }

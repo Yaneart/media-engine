@@ -67,6 +67,68 @@ test("getDetails normalizes top-level external id shortcuts into ids", async () 
   assert.equal(response.details?.title, "Interstellar");
 });
 
+test("getDetails canonicalizes equivalent shortcut and nested ID queries into one cache key", async () => {
+  let calls = 0;
+  let receivedQuery: unknown;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    providers: [
+      createProvider({
+        async getDetails(query): Promise<ProviderDetailsResult | null> {
+          calls += 1;
+          receivedQuery = query;
+          return {
+            provider: "test-provider",
+            details: { id: "movie-1", type: "movie", title: "Interstellar" },
+          };
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.getDetails({
+    id: "ignored-when-namespaced-id-is-present",
+    ids: { imdb: "tt0000001" },
+    imdb: " TT0816692 ",
+    language: " RU ",
+  });
+  const second = await engine.getDetails({
+    ids: { imdb: "tt0816692" },
+    language: "ru",
+  });
+
+  assert.deepEqual(receivedQuery, { ids: { imdb: "tt0816692" }, language: "ru" });
+  assert.deepEqual(first.query, { ids: { imdb: "tt0816692" }, language: "ru" });
+  assert.deepEqual(second.query, first.query);
+  assert.equal(first.meta.cached, false);
+  assert.equal(second.meta.cached, true);
+  assert.equal(calls, 1);
+});
+
+test("getDetails rejects malformed canonical IDs before provider selection", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          calls += 1;
+          return null;
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(() => engine.getDetails({ imdb: "tt-invalid" }), {
+    name: "MediaEngineError",
+    code: "INVALID_QUERY",
+  });
+  await assert.rejects(() => engine.getDetails({ aniList: "anime-21" }), {
+    name: "MediaEngineError",
+    code: "INVALID_QUERY",
+  });
+  assert.equal(calls, 0);
+});
+
 test("getDetails skips providers without getDetails", async () => {
   const searchOnlyProvider = createProvider({
     name: "search-only-provider",

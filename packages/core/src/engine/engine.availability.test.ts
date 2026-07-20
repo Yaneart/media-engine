@@ -136,6 +136,87 @@ test("getAvailability respects requested streaming provider filter", async () =>
   );
 });
 
+test("getAvailability canonicalizes provider filters and IDs into one cache key", async () => {
+  const calls: string[] = [];
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    streamingProviders: [
+      createStreamingProvider({
+        name: "kodik",
+        async getAvailability(query): Promise<MediaAvailability> {
+          calls.push(`kodik:${JSON.stringify(query)}`);
+          return createAvailability(query, "kodik");
+        },
+      }),
+      createStreamingProvider({
+        name: "mirror",
+        async getAvailability(query): Promise<MediaAvailability> {
+          calls.push(`mirror:${JSON.stringify(query)}`);
+          return createAvailability(query, "mirror");
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.getAvailability({
+    type: "anime",
+    title: " Naruto ",
+    ids: { shikimori: "999" },
+    shikimori: " 20 ",
+    providers: [" mirror ", "kodik", "mirror", ""],
+    language: " RU ",
+  });
+  const second = await engine.getAvailability({
+    type: "anime",
+    title: "Naruto",
+    ids: { shikimori: "20" },
+    providers: ["kodik", "mirror"],
+    language: "ru",
+  });
+
+  assert.deepEqual(first.query, {
+    type: "anime",
+    ids: { shikimori: "20" },
+    title: "Naruto",
+    providers: ["kodik", "mirror"],
+    language: "ru",
+  });
+  assert.deepEqual(second.query, first.query);
+  assert.equal(first.meta?.cached, false);
+  assert.equal(second.meta?.cached, true);
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every((call) => call.includes('"providers":["kodik","mirror"]')));
+});
+
+test("getAvailability rejects malformed IDs and oversized provider filters before selection", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(query): Promise<MediaAvailability> {
+          calls += 1;
+          return createAvailability(query, "stream");
+        },
+      }),
+    ],
+  });
+
+  await assert.rejects(() => engine.getAvailability({ type: "anime", shikimori: "anime-20" }), {
+    name: "MediaEngineError",
+    code: "INVALID_QUERY",
+  });
+  await assert.rejects(
+    () =>
+      engine.getAvailability({
+        type: "anime",
+        title: "Naruto",
+        providers: ["x".repeat(101)],
+      }),
+    { name: "MediaEngineError", code: "INVALID_QUERY" },
+  );
+  assert.equal(calls, 0);
+});
+
 test("getAvailability tolerates one provider failure when another provider succeeds", async () => {
   const engine = new MediaEngine({
     streamingProviders: [

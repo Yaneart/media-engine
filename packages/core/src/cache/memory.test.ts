@@ -137,9 +137,54 @@ test("evicts the least recently used entry when bounded", () => {
 
 test("rejects invalid max entry bounds", () => {
   assert.throws(() => new MemoryCache({ maxEntries: 0 }), /positive integer/);
-  assert.throws(() => new MemoryCache({ defaultStaleTtlMs: -1 }), /non-negative integer/);
-  assert.throws(
-    () => new MemoryCache().set("movie", "Interstellar", { staleTtlMs: -1 }),
-    /non-negative integer/,
-  );
+});
+
+test("rejects invalid default TTL values instead of creating accidental no-expiry entries", () => {
+  for (const value of [
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER + 1,
+    1.5,
+    -1,
+  ]) {
+    assert.throws(
+      () => new MemoryCache({ defaultTtlMs: value }),
+      /defaultTtlMs must be a non-negative safe integer/,
+    );
+    assert.throws(
+      () => new MemoryCache({ defaultStaleTtlMs: value }),
+      /defaultStaleTtlMs must be a non-negative safe integer/,
+    );
+  }
+});
+
+test("rejects invalid per-entry TTL values", () => {
+  const cache = new MemoryCache();
+
+  for (const value of [
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER + 1,
+    1.5,
+    -1,
+  ]) {
+    assert.throws(
+      () => cache.set("movie", "Interstellar", { ttlMs: value }),
+      /ttlMs must be a non-negative safe integer/,
+    );
+    assert.throws(
+      () => cache.set("movie", "Interstellar", { staleTtlMs: value }),
+      /staleTtlMs must be a non-negative safe integer/,
+    );
+  }
+});
+
+test("uses omitted default and per-entry TTL as the only no-expiry mode", () => {
+  let now = 1_000;
+  const cache = new MemoryCache({ now: () => now });
+
+  cache.set("movie", "Interstellar");
+  now = Number.MAX_SAFE_INTEGER;
+
+  assert.equal(cache.get("movie"), "Interstellar");
 });

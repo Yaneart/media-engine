@@ -14,6 +14,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Provider JSON and FlixHQ HTML responses are read through a streaming byte limit instead of being fully buffered first. Oversized bodies now fail with `PROVIDER_RESPONSE_TOO_LARGE`, distinct from invalid JSON, and `fetchJson` accepts a bounded `maxResponseBytes` override.
 - FlixHQ navigation is confined to its configured origin with manual bounded redirects. Server-side player and subtitle checks now reject private/reserved literal or DNS targets, mixed public/private answers, and unsafe redirect hops while pinning each connection to its validated address.
 - Built-in provider artwork, player, subtitle, and related output URLs now share an HTTP(S)-only policy that rejects credentials, raw control characters, and literal local/private/reserved targets without removing valid CDN query parameters or signatures. The example keeps external links as the default and loads sandboxed embeds only after explicit user action with no referrer.
+- Search, details, and availability queries now use one canonical validated shape for provider selection, cache, and in-flight keys. External-ID shortcuts collapse into trimmed `ids`, language and provider filters are normalized, known ID formats and field lengths are bounded, and `limit: 0` returns without provider or cache work. `MemoryCache` now rejects non-finite, fractional, negative, or unsafe-integer TTL values; omitted TTL remains the documented no-expiry mode.
 
 ### Fixed
 

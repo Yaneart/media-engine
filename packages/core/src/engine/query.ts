@@ -16,6 +16,20 @@ export const EXTERNAL_ID_SHORTCUTS = [
   "aniList",
 ] as const;
 
+const EXTERNAL_ID_SOURCES = [...EXTERNAL_ID_SHORTCUTS, "worldArt"] as const;
+const NUMERIC_EXTERNAL_ID_SOURCES = new Set<keyof ExternalIds>([
+  "tmdb",
+  "kinopoisk",
+  "shikimori",
+  "myAnimeList",
+  "aniList",
+  "worldArt",
+]);
+const MEDIA_TYPES = new Set(["movie", "series", "anime"]);
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
+const IMDB_TITLE_ID = /^tt\d{7,12}$/u;
+const NUMERIC_EXTERNAL_ID = /^\d+$/u;
+
 const SEARCH_FALLBACK_MIN_TOKENS = 3;
 const SEARCH_FALLBACK_MIN_LAST_TOKEN_LENGTH = 4;
 const SEARCH_JOINED_FALLBACK_MIN_LENGTH = 6;
@@ -23,24 +37,27 @@ const SEARCH_JOINED_FALLBACK_MAX_LENGTH = 8;
 const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_PROVIDER_SEARCH_LIMIT = 100;
+const MAX_TITLE_LENGTH = 300;
+const MAX_LANGUAGE_LENGTH = 35;
+const MAX_EXTERNAL_ID_LENGTH = 128;
+const MAX_DEPRECATED_DETAILS_ID_LENGTH = 128;
+const MAX_PROVIDER_FILTER_LENGTH = 100;
+const MAX_PROVIDER_FILTERS = 100;
 
 // Normalizes top-level external ID shortcuts into the ids object.
 // Нормализует верхнеуровневые сокращения внешних ID в объект ids.
 export function normalizeSearchQuery(query: SearchQuery): SearchQuery {
-  const ids: ExternalIds = { ...(query.ids ?? {}) };
-
-  for (const key of EXTERNAL_ID_SHORTCUTS) {
-    const value = query[key];
-
-    if (value) {
-      ids[key] = value;
-    }
-  }
+  const title = normalizeOptionalString(query.title);
+  const ids = normalizeExternalIds(query.ids, query);
+  const language = normalizeLanguage(query.language);
 
   return {
-    ...query,
-    title: query.title?.trim(),
-    ids: hasExternalIds(ids) ? ids : undefined,
+    ...(title ? { title } : {}),
+    ...(query.type !== undefined ? { type: query.type } : {}),
+    ...(query.year !== undefined ? { year: query.year } : {}),
+    ...(ids ? { ids } : {}),
+    ...(query.limit !== undefined ? { limit: query.limit } : {}),
+    ...(language ? { language } : {}),
   };
 }
 
@@ -56,42 +73,37 @@ export function inferTitleLanguage(title: string | undefined): string | undefine
 // Normalizes top-level external ID shortcuts into a details ids object.
 // Нормализует верхнеуровневые сокращения внешних ID в объект ids для details.
 export function normalizeDetailsQuery(query: DetailsQuery): DetailsQuery {
-  const ids: ExternalIds = { ...(query.ids ?? {}) };
-
-  for (const key of EXTERNAL_ID_SHORTCUTS) {
-    const value = query[key];
-
-    if (value) {
-      ids[key] = value;
-    }
-  }
+  const ids = normalizeExternalIds(query.ids, query);
+  const id = normalizeOptionalString(query.id);
+  const language = normalizeLanguage(query.language);
 
   return {
-    ...query,
-    ids: hasExternalIds(ids) ? ids : undefined,
+    ...(!ids && id ? { id } : {}),
+    ...(ids ? { ids } : {}),
+    ...(query.type !== undefined ? { type: query.type } : {}),
+    ...(language ? { language } : {}),
   };
 }
 
 // Normalizes top-level external ID shortcuts into a streaming ids object.
 // Нормализует верхнеуровневые сокращения внешних ID в объект ids для streaming.
 export function normalizeStreamQuery(query: StreamQuery): StreamQuery {
-  const ids: ExternalIds = { ...(query.ids ?? {}) };
-  const providers = query.providers?.map((provider) => provider.trim()).filter(Boolean);
-  const language = query.language?.trim();
-
-  for (const key of EXTERNAL_ID_SHORTCUTS) {
-    const value = query[key];
-
-    if (value) {
-      ids[key] = value;
-    }
-  }
+  const title = normalizeOptionalString(query.title);
+  const ids = normalizeExternalIds(query.ids, query);
+  const providers = normalizeProviderFilters(query.providers);
+  const language = normalizeLanguage(query.language);
 
   return {
-    ...query,
-    title: query.title?.trim(),
-    ...(hasExternalIds(ids) ? { ids } : {}),
-    ...(providers && providers.length > 0 ? { providers } : {}),
+    type: query.type,
+    ...(ids ? { ids } : {}),
+    ...(title ? { title } : {}),
+    ...(query.year !== undefined ? { year: query.year } : {}),
+    ...(query.seasonNumber !== undefined ? { seasonNumber: query.seasonNumber } : {}),
+    ...(query.episodeNumber !== undefined ? { episodeNumber: query.episodeNumber } : {}),
+    ...(query.absoluteEpisodeNumber !== undefined
+      ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
+      : {}),
+    ...(providers ? { providers } : {}),
     ...(language ? { language } : {}),
   };
 }
@@ -99,6 +111,8 @@ export function normalizeStreamQuery(query: StreamQuery): StreamQuery {
 // Validates that a search query has at least one supported lookup input.
 // Проверяет, что search query содержит хотя бы один поддерживаемый вход для поиска.
 export function validateSearchQuery(query: SearchQuery): void {
+  validateCommonQueryFields(query);
+
   if (
     query.limit !== undefined &&
     (!Number.isInteger(query.limit) || query.limit < 0 || query.limit > MAX_SEARCH_LIMIT)
@@ -107,6 +121,10 @@ export function validateSearchQuery(query: SearchQuery): void {
       code: "INVALID_QUERY",
       message: `Search query limit must be an integer between 0 and ${MAX_SEARCH_LIMIT}.`,
     });
+  }
+
+  if (query.year !== undefined && (!Number.isInteger(query.year) || query.year < 0)) {
+    throwInvalidQuery("Search query year must be a non-negative integer.");
   }
 
   if (query.title || hasExternalIds(query.ids)) {
@@ -122,6 +140,12 @@ export function validateSearchQuery(query: SearchQuery): void {
 // Validates that a details query has at least one supported lookup input.
 // Проверяет, что details query содержит хотя бы один поддерживаемый вход для поиска.
 export function validateDetailsQuery(query: DetailsQuery): void {
+  validateCommonQueryFields(query);
+
+  if (query.id) {
+    validateBoundedString("Details query id", query.id, MAX_DEPRECATED_DETAILS_ID_LENGTH);
+  }
+
   if (hasExternalIds(query.ids)) {
     return;
   }
@@ -143,11 +167,23 @@ export function validateDetailsQuery(query: DetailsQuery): void {
 // Validates that a streaming query can identify a media item or episode.
 // Проверяет, что streaming query может определить медиа или эпизод.
 export function validateStreamQuery(query: StreamQuery): void {
+  validateCommonQueryFields(query);
+
   if (!query.type) {
     throw new MediaEngineError({
       code: "INVALID_QUERY",
       message: "Stream query type is required.",
     });
+  }
+
+  if (query.providers && query.providers.length > MAX_PROVIDER_FILTERS) {
+    throwInvalidQuery(
+      `Stream query providers must contain at most ${MAX_PROVIDER_FILTERS} unique names.`,
+    );
+  }
+
+  for (const provider of query.providers ?? []) {
+    validateBoundedString("Stream query provider", provider, MAX_PROVIDER_FILTER_LENGTH);
   }
 
   if (
@@ -274,6 +310,100 @@ export function createAvailabilityCacheKey(query: StreamQuery): string {
 // Проверяет, содержит ли объект внешних ID хотя бы один ID.
 export function hasExternalIds(ids: ExternalIds | undefined): boolean {
   return Boolean(ids && Object.values(ids).some((value) => Boolean(value)));
+}
+
+function normalizeExternalIds(
+  nestedIds: ExternalIds | undefined,
+  shortcuts: Partial<Record<(typeof EXTERNAL_ID_SHORTCUTS)[number], string | undefined>>,
+): ExternalIds | undefined {
+  const ids: ExternalIds = {};
+
+  for (const source of EXTERNAL_ID_SOURCES) {
+    const nestedValue = normalizeOptionalString(nestedIds?.[source]);
+    const shortcutValue = EXTERNAL_ID_SHORTCUTS.includes(
+      source as (typeof EXTERNAL_ID_SHORTCUTS)[number],
+    )
+      ? normalizeOptionalString(shortcuts[source as (typeof EXTERNAL_ID_SHORTCUTS)[number]])
+      : undefined;
+    const value = shortcutValue ?? nestedValue;
+
+    if (value) {
+      ids[source] = source === "imdb" ? value.toLowerCase() : value;
+    }
+  }
+
+  return hasExternalIds(ids) ? ids : undefined;
+}
+
+function normalizeProviderFilters(providers: string[] | undefined): string[] | undefined {
+  if (!providers) {
+    return undefined;
+  }
+
+  const normalized = [...new Set(providers.map(normalizeOptionalString).filter(isString))].sort();
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeLanguage(language: string | undefined): string | undefined {
+  return normalizeOptionalString(language)?.toLowerCase();
+}
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function validateCommonQueryFields(query: {
+  title?: string;
+  type?: unknown;
+  ids?: ExternalIds;
+  language?: string;
+}): void {
+  if (query.type !== undefined && !MEDIA_TYPES.has(query.type as string)) {
+    throwInvalidQuery("Query type must be movie, series, or anime.");
+  }
+
+  if (query.title) {
+    validateBoundedString("Query title", query.title, MAX_TITLE_LENGTH);
+  }
+
+  if (query.language) {
+    validateBoundedString("Query language", query.language, MAX_LANGUAGE_LENGTH);
+  }
+
+  for (const [source, value] of Object.entries(query.ids ?? {})) {
+    validateBoundedString(`External ID ${source}`, value, MAX_EXTERNAL_ID_LENGTH);
+
+    if (source === "imdb" && !IMDB_TITLE_ID.test(value)) {
+      throwInvalidQuery("External ID imdb must use the tt prefix followed by 7 to 12 digits.");
+    }
+
+    if (
+      NUMERIC_EXTERNAL_ID_SOURCES.has(source as keyof ExternalIds) &&
+      !NUMERIC_EXTERNAL_ID.test(value)
+    ) {
+      throwInvalidQuery(`External ID ${source} must contain only digits.`);
+    }
+  }
+}
+
+function validateBoundedString(field: string, value: string, maxLength: number): void {
+  if (value.length > maxLength) {
+    throwInvalidQuery(`${field} must be at most ${maxLength} characters.`);
+  }
+
+  if (CONTROL_CHARACTERS.test(value)) {
+    throwInvalidQuery(`${field} must not contain control characters.`);
+  }
+}
+
+function throwInvalidQuery(message: string): never {
+  throw new MediaEngineError({ code: "INVALID_QUERY", message });
+}
+
+function isString(value: string | undefined): value is string {
+  return value !== undefined;
 }
 
 // Sorts object keys recursively for deterministic JSON cache keys.
