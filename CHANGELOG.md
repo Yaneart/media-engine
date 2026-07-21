@@ -28,6 +28,7 @@ This project follows semantic versioning after the first stable release. Before 
 - The local IMDb dataset provider now separates its backward-compatible in-memory TSV adapter from an exported synchronous/asynchronous storage contract, allowing applications to supply a persistent indexed backend without adding a database dependency for every package user. A reproducible 100k/1m benchmark records the linear adapter baseline and persisted-backend acceptance thresholds.
 - Added an optional persisted IMDb SQLite/FTS backend with streaming plain/gzip TSV import, a versioned validated schema, compacted same-directory atomic publication, read-only indexed ID/title lookup, and cancellation that preserves the previous index. SQLite is loaded lazily only for these functions, so the package and in-memory adapter retain their Node.js 20 baseline while the persisted path requires built-in `node:sqlite` from Node.js 22.13 or newer.
 - Public package builds now clean their own output before emit and verify source/output plus dry-pack inventories, preventing deleted modules and test artifacts from surviving into a release. Release checks keep the three package manifests, runtime versions, changelog, internal dependencies, and User-Agent release metadata consistent while treating the REST/OpenAPI contract version independently.
+- Local release checks now include check-only lint, deterministic thresholded coverage, API e2e tests, version consistency, and dry-pack verification while reusing one clean build. Node package tests are selected from the current source inventory, and API bootstrap, environment, health, and OpenAPI behavior have focused unit coverage.
 
 ### Fixed
 
@@ -36,6 +37,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Streaming providers that resolve `null` now count as successful no-result responses, so a separate provider failure no longer causes a false all-failed error.
 - Player validation removes options only after 404/410 or a stable deletion marker. Transient HTTP, network, and timeout failures keep the discovered option as `unknown`, add a bounded warning, and prevent normal availability caching until validation recovers.
 - Example embed sandboxing now preserves the third-party player origin after explicit iframe opt-in, avoiding `Origin: null` CORS failures in players that load their own resources.
+- Provider retry-budget coverage no longer depends on real-time 25–50 ms scheduling; an injected deterministic scheduler verifies the same total timeout contract without load-sensitive flakes.
 
 ## 0.1.1 - 2026-07-18
 

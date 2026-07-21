@@ -104,7 +104,7 @@ function ensureCapacity(entries: Map<string, RateLimitEntry>): void {
     return;
   }
 
-  const oldestKey = entries.keys().next().value as string | undefined;
+  const oldestKey = entries.keys().next().value;
 
   if (oldestKey !== undefined) {
     entries.delete(oldestKey);

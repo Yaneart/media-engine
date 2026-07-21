@@ -24,3 +24,12 @@ Before a release, the consistency check verifies the three public manifests, int
 dependencies, built runtime constants, the latest released changelog heading, the independently
 named API contract version, and production User-Agent defaults. It runs as part of
 `pnpm release:check` and `pnpm pack:check`.
+
+`pnpm release:check` builds once and then reuses those clean outputs for type checks, thresholded
+coverage, API e2e, release consistency, and dry-pack verification. Package-level `test` and
+`coverage` scripts remain standalone and build their own package first; their internal `test:unit`
+and `coverage:unit` forms intentionally consume existing output. Node test files are derived only
+from current `src/**/*.test.ts` files, and coverage explicitly excludes compiled tests and test
+helpers, so deleted or stale `dist` files cannot enter the gate. Built-in coverage include/exclude
+filters and thresholds require Node.js 22.8 or newer, independently of the packages' Node.js 20
+runtime baseline.

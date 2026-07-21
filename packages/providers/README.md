@@ -56,6 +56,10 @@ Expected upstream failures are reported as typed `ProviderError` values, and sha
 
 Shared `fetchJson` calls stream at most 4 MiB by default before parsing and accept a positive `maxResponseBytes` override for provider-specific limits. A declared or chunked oversized body is cancelled and reported as the non-retryable `PROVIDER_RESPONSE_TOO_LARGE`; malformed JSON within the limit remains `PROVIDER_INVALID_RESPONSE`.
 
+Low-level adapters may supply a `ProviderHttpScheduler` through `FetchJsonOptions.scheduler` when
+they need deterministic control of retry and total-timeout timers, especially in tests. Normal
+provider calls omit it and use the platform timers.
+
 ## Player sources
 
 - `kinobdStreamingProvider()` — movie, series, and anime player options;

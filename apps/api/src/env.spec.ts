@@ -18,6 +18,10 @@ describe('local env loader', () => {
         'EXISTING_VALUE=file-value',
         'EXAMPLE_VALUE="loaded-value"',
         "VITE_MEDIA_ENGINE_API_URL='http://127.0.0.1:3000'",
+        'MULTILINE_VALUE="first\\nsecond"',
+        'export EXPORTED_VALUE=exported',
+        'INVALID-KEY=ignored',
+        'missing-separator',
         '# ignored comment',
         '',
       ].join('\n'),
@@ -27,6 +31,9 @@ describe('local env loader', () => {
     expect(env.EXISTING_VALUE).toBe('existing');
     expect(env.EXAMPLE_VALUE).toBe('loaded-value');
     expect(env.VITE_MEDIA_ENGINE_API_URL).toBe('http://127.0.0.1:3000');
+    expect(env.MULTILINE_VALUE).toBe('first\nsecond');
+    expect(env.EXPORTED_VALUE).toBe('exported');
+    expect(env['INVALID-KEY']).toBeUndefined();
   });
 
   it('does not search above the workspace root', () => {

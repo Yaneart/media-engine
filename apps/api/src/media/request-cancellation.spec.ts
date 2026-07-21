@@ -21,9 +21,11 @@ describe('runWithHttpRequestSignal', () => {
       async (signal) => {
         receivedSignal = signal;
         return new Promise<never>((_, reject) => {
-          signal.addEventListener('abort', () => reject(signal.reason), {
-            once: true,
-          });
+          signal.addEventListener(
+            'abort',
+            () => reject(readAbortReason(signal)),
+            { once: true },
+          );
         });
       },
     );
@@ -72,9 +74,11 @@ describe('runWithHttpRequestSignal', () => {
       response,
       async (signal) =>
         new Promise<never>((_, reject) => {
-          signal.addEventListener('abort', () => reject(signal.reason), {
-            once: true,
-          });
+          signal.addEventListener(
+            'abort',
+            () => reject(readAbortReason(signal)),
+            { once: true },
+          );
         }),
     );
 
@@ -89,9 +93,9 @@ describe('runWithHttpRequestSignal', () => {
     response.writableEnded = true;
 
     await expect(
-      runWithHttpRequestSignal(request, response, async (signal) => {
+      runWithHttpRequestSignal(request, response, (signal) => {
         expect(signal.aborted).toBe(false);
-        return 'done';
+        return Promise.resolve('done');
       }),
     ).resolves.toBe('done');
 
@@ -100,3 +104,8 @@ describe('runWithHttpRequestSignal', () => {
     expect(response.listenerCount('close')).toBe(0);
   });
 });
+
+function readAbortReason(signal: AbortSignal): Error {
+  const reason: unknown = signal.reason;
+  return reason instanceof Error ? reason : new Error('Request was aborted.');
+}

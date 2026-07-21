@@ -10,6 +10,13 @@ const DEFAULT_MAX_JSON_RESPONSE_BYTES = 4 * 1024 * 1024;
 // Минимальная форма fetch-функции для provider HTTP utilities.
 export type ProviderFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
+// Injectable timer boundary used to make retry/timeout behavior deterministic in tests.
+// Инъецируемая граница таймеров для детерминированных retry/timeout тестов.
+export interface ProviderHttpScheduler {
+  setTimeout(callback: () => void, delayMs: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
 // Options used for a provider JSON HTTP request.
 // Опции для JSON HTTP-запроса провайдера.
 export interface FetchJsonOptions {
@@ -24,7 +31,17 @@ export interface FetchJsonOptions {
   retryJitterRatio?: number;
   maxResponseBytes?: number;
   rateLimitGate?: ProviderRateLimitGate;
+  scheduler?: ProviderHttpScheduler;
 }
+
+const defaultScheduler: ProviderHttpScheduler = {
+  setTimeout(callback, delayMs) {
+    return setTimeout(callback, delayMs);
+  },
+  clearTimeout(handle) {
+    clearTimeout(handle as ReturnType<typeof setTimeout>);
+  },
+};
 
 // Reads JSON through fetch and maps failures to ProviderError.
 // Читает JSON через fetch и преобразует сбои в ProviderError.
@@ -39,7 +56,8 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
     throw new TypeError("fetchJson maxResponseBytes must be a positive safe integer.");
   }
 
-  const timeout = createProviderTimeout(options.provider, options.context);
+  const scheduler = options.scheduler ?? defaultScheduler;
+  const timeout = createProviderTimeout(options.provider, options.context, scheduler);
   const signal = mergeAbortSignals(options.context?.signal, timeout.controller.signal);
   const boundedOptions: FetchJsonOptions = {
     ...options,
@@ -76,7 +94,7 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
           throw providerError;
         }
 
-        await delay(retryDelay, signal);
+        await delay(retryDelay, signal, scheduler);
         attempt += 1;
       }
     }
@@ -91,7 +109,11 @@ export async function fetchJson<T>(options: FetchJsonOptions): Promise<T> {
 // Выполняет одну попытку JSON HTTP с новым timeout signal.
 async function fetchJsonAttempt<T>(options: FetchJsonOptions): Promise<T> {
   const fetchImpl = options.fetch ?? fetch;
-  const timeout = createProviderTimeout(options.provider, options.context);
+  const timeout = createProviderTimeout(
+    options.provider,
+    options.context,
+    options.scheduler ?? defaultScheduler,
+  );
   const signal = mergeAbortSignals(options.context?.signal, timeout.controller.signal);
 
   try {
@@ -265,6 +287,7 @@ function deferSharedRateLimit(
 function createProviderTimeout(
   provider: string,
   context: ProviderContext | undefined,
+  scheduler: ProviderHttpScheduler,
 ): { controller: AbortController; clear: () => void } {
   const controller = new AbortController();
   const timeoutMs = context?.timeoutMs;
@@ -295,14 +318,14 @@ function createProviderTimeout(
     };
   }
 
-  const timeout = setTimeout(() => {
+  const timeout = scheduler.setTimeout(() => {
     controller.abort(timeoutError);
   }, timeoutMs);
 
   return {
     controller,
     clear() {
-      clearTimeout(timeout);
+      scheduler.clearTimeout(timeout);
     },
   };
 }
@@ -327,7 +350,11 @@ function isAbortError(error: unknown): boolean {
 
 // Waits before the next provider retry.
 // Ждет перед следующей provider retry.
-function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
+function delay(
+  ms: number,
+  signal: AbortSignal | undefined,
+  scheduler: ProviderHttpScheduler,
+): Promise<void> {
   if (ms <= 0) {
     return Promise.resolve();
   }
@@ -338,12 +365,12 @@ function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
       return;
     }
 
-    const timeout = setTimeout(() => {
+    const timeout = scheduler.setTimeout(() => {
       signal?.removeEventListener("abort", onAbort);
       resolve();
     }, ms);
     const onAbort = () => {
-      clearTimeout(timeout);
+      scheduler.clearTimeout(timeout);
       reject(signal?.reason);
     };
 

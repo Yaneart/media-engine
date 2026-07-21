@@ -90,8 +90,14 @@ For local checks:
 
 ```bash
 pnpm release:check
+pnpm coverage
 pnpm pack:check
 ```
+
+`release:check` is the complete local release-candidate gate: formatting, check-only lint,
+clean builds, type checks, thresholded unit coverage, API e2e tests, version consistency, and
+dry-pack verification. Built-in coverage filtering and thresholds require Node.js 22.8 or newer;
+the published packages retain their documented Node.js 20 runtime support.
 
 ## License
 

@@ -90,8 +90,14 @@ Media Engine не хранит видео. Он только приводит м
 
 ```bash
 pnpm release:check
+pnpm coverage
 pnpm pack:check
 ```
+
+`release:check` — полный локальный gate релиз-кандидата: форматирование, lint без изменения
+файлов, чистая сборка, typecheck, unit coverage с порогами, API e2e, согласованность версий и
+проверка dry-pack. Для встроенных coverage-фильтров и порогов нужен Node.js 22.8 или новее;
+опубликованные пакеты сохраняют заявленную runtime-поддержку Node.js 20.
 
 ## Лицензия
 

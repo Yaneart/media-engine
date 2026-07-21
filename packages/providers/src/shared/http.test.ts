@@ -7,6 +7,7 @@ import {
   getProviderHttpStatus,
   mapHttpResponseToProviderError,
   mapHttpStatusToProviderErrorCode,
+  type ProviderHttpScheduler,
 } from "./http.js";
 import { ProviderRateLimitGate } from "./rate-limit.js";
 
@@ -357,38 +358,46 @@ test("fetchJson applies timeout to fetch implementations", async () => {
 
 test("fetchJson keeps retries inside one total timeout budget", async () => {
   let attempts = 0;
+  const scheduler = new ManualScheduler();
   const unavailableResponse = new Response("unavailable", { status: 503 });
-  const startedAt = Date.now();
+
+  const request = fetchJson({
+    provider: "slow-retry",
+    url: "https://provider.test/data",
+    context: { timeoutMs: 50 },
+    maxRetries: 3,
+    retryDelayMs: 20,
+    retryJitterRatio: 0,
+    scheduler,
+    fetch: async (_input, init) => {
+      attempts += 1;
+
+      if (attempts === 1) {
+        return unavailableResponse;
+      }
+
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(init.signal?.reason ?? new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
+      });
+    },
+  });
+
+  await scheduler.waitForTimers(2);
+  scheduler.advanceBy(20);
+  await scheduler.waitFor(() => attempts === 2);
+  scheduler.advanceBy(30);
 
   await assert.rejects(
-    fetchJson({
-      provider: "slow-retry",
-      url: "https://provider.test/data",
-      context: { timeoutMs: 50 },
-      maxRetries: 3,
-      retryDelayMs: 20,
-      retryJitterRatio: 0,
-      fetch: async (_input, init) => {
-        attempts += 1;
-
-        if (attempts === 1) {
-          return unavailableResponse;
-        }
-
-        return new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener(
-            "abort",
-            () => reject(init.signal?.reason ?? new DOMException("Aborted", "AbortError")),
-            { once: true },
-          );
-        });
-      },
-    }),
+    request,
     (error: unknown) => error instanceof ProviderError && error.code === "PROVIDER_TIMEOUT",
   );
 
   assert.equal(attempts, 2);
-  assert.ok(Date.now() - startedAt < 500);
+  assert.deepEqual(scheduler.scheduledDelays, [50, 20]);
 });
 
 test("mapHttpStatusToProviderErrorCode maps important provider statuses", () => {
@@ -398,3 +407,50 @@ test("mapHttpStatusToProviderErrorCode maps important provider statuses", () => 
   assert.equal(mapHttpStatusToProviderErrorCode(500), "PROVIDER_UNAVAILABLE");
   assert.equal(mapHttpStatusToProviderErrorCode(404), "PROVIDER_ERROR");
 });
+
+class ManualScheduler implements ProviderHttpScheduler {
+  readonly scheduledDelays: number[] = [];
+  private now = 0;
+  private nextId = 1;
+  private readonly timers = new Map<number, { callback: () => void; dueAt: number }>();
+
+  setTimeout(callback: () => void, delayMs: number): number {
+    const id = this.nextId;
+    this.nextId += 1;
+    this.scheduledDelays.push(delayMs);
+    this.timers.set(id, { callback, dueAt: this.now + delayMs });
+    return id;
+  }
+
+  clearTimeout(handle: unknown): void {
+    if (typeof handle === "number") {
+      this.timers.delete(handle);
+    }
+  }
+
+  advanceBy(ms: number): void {
+    this.now += ms;
+
+    for (const [id, timer] of [...this.timers].sort(([left], [right]) => left - right)) {
+      if (timer.dueAt <= this.now && this.timers.delete(id)) {
+        timer.callback();
+      }
+    }
+  }
+
+  async waitForTimers(count: number): Promise<void> {
+    await this.waitFor(() => this.scheduledDelays.length >= count);
+  }
+
+  async waitFor(predicate: () => boolean): Promise<void> {
+    for (let index = 0; index < 20; index += 1) {
+      if (predicate()) {
+        return;
+      }
+
+      await Promise.resolve();
+    }
+
+    throw new Error("Timed out waiting for deterministic scheduler state.");
+  }
+}

@@ -15,10 +15,14 @@
     "dev:compose": "docker compose up",
     "dev:compose:down": "docker compose down",
     "dev:example": "pnpm --filter @media-engine/example dev",
+    "coverage": "pnpm build:check && pnpm coverage:unit",
+    "coverage:unit": "pnpm -r --if-present coverage:unit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "pack:check": "pnpm build:check && node scripts/check-release-consistency.mjs && node scripts/check-package-tarballs.mjs",
-    "release:check": "pnpm format:check && pnpm build:check && node scripts/check-release-consistency.mjs && pnpm typecheck && pnpm test",
+    "lint": "pnpm --filter @media-engine/api lint && pnpm --filter @media-engine/example lint",
+    "pack:check": "pnpm build:check && pnpm pack:verify",
+    "pack:verify": "node scripts/check-release-consistency.mjs && node scripts/check-package-tarballs.mjs",
+    "release:check": "pnpm format:check && pnpm lint && pnpm build:check && pnpm typecheck && pnpm coverage:unit && pnpm test:e2e && pnpm pack:verify",
     "smoke:availability": "pnpm build && node scripts/availability-smoke.mjs",
     "smoke:availability-latency": "pnpm build && node scripts/availability-latency-smoke.mjs",
     "smoke:details-latency": "pnpm build && node scripts/details-latency-smoke.mjs",
@@ -30,7 +34,9 @@
     "smoke:source-filter-audit": "pnpm build && node scripts/source-filter-audit.mjs",
     "smoke:providers": "pnpm build && node scripts/provider-smoke.mjs",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm build:check && pnpm test:unit",
+    "test:e2e": "pnpm --filter @media-engine/api test:e2e",
+    "test:unit": "pnpm -r --if-present test:unit"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",

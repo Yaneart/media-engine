@@ -48,8 +48,11 @@
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "pnpm clean && tsc -p tsconfig.json",
+    "coverage": "pnpm build && pnpm coverage:unit",
+    "coverage:unit": "node ../../scripts/run-node-tests.mjs --coverage --lines=95 --branches=88 --functions=95",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/client.test.js"
+    "test": "pnpm build && pnpm test:unit",
+    "test:unit": "node ../../scripts/run-node-tests.mjs"
   },
   "dependencies": {
     "@media-engine/core": "workspace:*"
