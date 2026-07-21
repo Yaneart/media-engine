@@ -141,7 +141,10 @@ export class DefaultMergeStrategy implements MergeStrategy {
       ),
       context,
     );
-    const mediaType = selectMergedMediaType(sortedEntries.map((entry) => entry.result.details));
+    const mediaType = selectMergedDetailsType(
+      sortedEntries.map((entry) => entry.result.details),
+      context,
+    );
     const finalEntries = sortEntriesByPriority(
       sortedEntries,
       context,
@@ -150,6 +153,17 @@ export class DefaultMergeStrategy implements MergeStrategy {
 
     return mergeDetailsEntries(finalEntries, context, mediaType);
   }
+}
+
+const ANIME_ID_KEYS = ["shikimori", "myAnimeList", "aniList"] as const;
+
+// Keeps explicit anime identity when only compatible generic catalogs survive an upstream outage.
+// Сохраняет явную anime-идентичность, когда при upstream outage отвечают лишь общие каталоги.
+function selectMergedDetailsType(items: MediaItem[], context: MergeContext): MediaType | undefined {
+  const query = context.query;
+  const hasAnimeId = ANIME_ID_KEYS.some((key) => Boolean(query?.ids?.[key] ?? query?.[key]));
+
+  return query?.type === "anime" && hasAnimeId ? "anime" : selectMergedMediaType(items);
 }
 
 // Checks exact primary/original query intent for preliminary search enrichment ordering.

@@ -266,6 +266,50 @@ test("keeps anime episodes from primary provider", () => {
   assert.equal(details.episodes?.[0]?.title, "Primary Episode");
 });
 
+test("keeps explicit anime identity when only a generic series catalog returns details", () => {
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-one-piece",
+        type: "series",
+        title: "One Piece",
+        ids: { imdb: "tt0388629" },
+        episodesCount: 1_155,
+      }),
+    ],
+    {
+      query: {
+        type: "anime",
+        ids: { shikimori: "21", imdb: "tt0388629" },
+      },
+    },
+  );
+
+  assert.equal(details?.type, "anime");
+  assert.equal(details?.episodesCount, 1_155);
+});
+
+test("does not coerce generic series details to anime without an anime-specific ID", () => {
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-series",
+        type: "series",
+        title: "Catalog Series",
+        ids: { imdb: "tt1234567" },
+      }),
+    ],
+    {
+      query: {
+        type: "anime",
+        ids: { imdb: "tt1234567" },
+      },
+    },
+  );
+
+  assert.equal(details?.type, "series");
+});
+
 test("excludes details whose strong IDs conflict with the primary identity", () => {
   const warnings: EngineWarning[] = [];
   const details = strategy.mergeDetails(

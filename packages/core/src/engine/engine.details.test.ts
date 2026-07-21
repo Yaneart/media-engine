@@ -203,6 +203,61 @@ test("getDetails tolerates one provider failure when another provider succeeds",
   ]);
 });
 
+test("getDetails preserves anime type through an anime-provider outage", async () => {
+  const genericSeriesProvider = createProvider({
+    name: "generic-series-provider",
+    capabilities: {
+      mediaTypes: ["series"],
+      search: { byTitle: false, byExternalIds: [] },
+      details: { byExternalIds: ["shikimori"] },
+    },
+    async getDetails(): Promise<ProviderDetailsResult> {
+      return {
+        provider: "generic-series-provider",
+        details: {
+          id: "generic-one-piece",
+          type: "series",
+          title: "One Piece",
+          ids: { imdb: "tt0388629" },
+          episodesCount: 1_155,
+        },
+      };
+    },
+  });
+  const failingAnimeProvider = createProvider({
+    name: "failing-anime-provider",
+    capabilities: {
+      mediaTypes: ["anime"],
+      search: { byTitle: false, byExternalIds: [] },
+      details: { byExternalIds: ["shikimori"] },
+    },
+    async getDetails(): Promise<ProviderDetailsResult> {
+      throw new ProviderError({
+        provider: "failing-anime-provider",
+        code: "PROVIDER_TIMEOUT",
+        retryable: true,
+        message: "Anime provider timed out.",
+      });
+    },
+  });
+  const engine = new MediaEngine({
+    providers: [genericSeriesProvider, failingAnimeProvider],
+  });
+
+  const response = await engine.getDetails({ type: "anime", shikimori: "21" });
+
+  assert.equal(response.details?.type, "anime");
+  assert.equal(response.details?.episodesCount, 1_155);
+  assert.deepEqual(response.meta.providers.failed, [
+    {
+      provider: "failing-anime-provider",
+      code: "PROVIDER_TIMEOUT",
+      retryable: true,
+      message: "Anime provider timed out.",
+    },
+  ]);
+});
+
 test("getDetails includes provider timings when debug is enabled", async () => {
   const engine = new MediaEngine({
     debug: true,
