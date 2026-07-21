@@ -1,6 +1,7 @@
 import type { Cache } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError } from "../errors/index.js";
+import type { MediaDetails } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type ProviderInfo } from "../providers/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
@@ -32,7 +33,6 @@ import {
   createProviderSearchQuery,
   createSearchCacheKey,
   createSearchFallbackQuery,
-  hasExternalIds,
   inferTitleLanguage,
   normalizeDetailsQuery,
   normalizeSearchQuery,
@@ -42,11 +42,8 @@ import {
   validateStreamQuery,
 } from "./query.js";
 import { createResponseMeta, elapsedSince } from "./response-meta.js";
-import {
-  applySearchPosterEnrichments,
-  loadSearchPoster,
-  needsSearchEnrichment,
-} from "./search-enrichment.js";
+import { applySearchDetailsEnrichments, executeSearchEnrichmentPlan } from "./search-enrichment.js";
+import { applySearchPosterEnrichments } from "./search-poster-enrichment.js";
 import { SearchOutcomeAccumulator } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
 import { throwIfAborted, waitForCaller } from "./operation.js";
@@ -58,10 +55,6 @@ import type {
   MediaEngineOptions,
   ProviderHealthStatus,
 } from "./types.js";
-
-const SEARCH_ID_ENRICHMENT_LIMIT = 6;
-const SEARCH_ID_ENRICHMENT_TIMEOUT_MS = 1_500;
-const SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT = 3;
 
 // Main entry point for using Media Engine core.
 // Главная точка входа для использования Media Engine core.
@@ -285,89 +278,28 @@ export class MediaEngine {
       }
 
       const excludedPosterProviders = new Set(failed.map((failure) => failure.provider));
-      const posterEnrichmentCandidates = results
-        .slice(0, SEARCH_DETAILS_POSTER_ENRICHMENT_LIMIT)
-        .filter((result) => hasExternalIds(result.item.ids));
-      const posterEnrichmentPromise = Promise.all(
-        posterEnrichmentCandidates.map(async (result) => {
-          const lookup = await loadSearchPoster({
-            result,
-            language: searchLanguage,
-            excludedProviders: excludedPosterProviders,
-            registry: this.registry,
-            mergeStrategy: this.mergeStrategy,
-            debug: this.debug,
-            signal: operationSignal,
-            circuitBreaker: this.circuitBreaker,
-            concurrencyLimiter: this.concurrencyLimiter,
-            getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
-          });
-
-          return {
-            ids: result.item.ids,
-            poster: lookup.poster,
-            outcomes: lookup.outcomes,
-            skipped: lookup.skipped,
-          };
-        }),
+      const enrichment = await executeSearchEnrichmentPlan({
+        results,
+        publicLimit: normalizedQuery.limit,
+        language: searchLanguage,
+        excludedProviders: excludedPosterProviders,
+        registry: this.registry,
+        mergeStrategy: this.mergeStrategy,
+        debug: this.debug,
+        signal: operationSignal,
+        circuitBreaker: this.circuitBreaker,
+        concurrencyLimiter: this.concurrencyLimiter,
+        getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
+        loadReusableDetails: (query, signal, maxWaitMs) =>
+          this.loadReusableDetails(query, signal, maxWaitMs),
+      });
+      searchOutcomes.appendIdEnrichment(enrichment.idOutcomes, enrichment.skippedId);
+      searchOutcomes.observePosterEnrichment(
+        enrichment.posterEnrichments.flatMap((item) => item.outcomes),
+        enrichment.skippedPoster,
       );
-      const idEnrichmentCandidates = results
-        .slice(0, SEARCH_ID_ENRICHMENT_LIMIT)
-        .filter((result) => needsSearchEnrichment(result.item) && hasExternalIds(result.item.ids));
-      const enrichmentResultsPromise = Promise.all(
-        idEnrichmentCandidates.map(async (result) => {
-          const existingProviders = new Set(result.sources.map((source) => source.provider));
-          const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
-          const enrichmentProvider = this.registry
-            .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
-            .find((provider) => !existingProviders.has(provider.name));
-
-          if (!enrichmentProvider) {
-            return undefined;
-          }
-
-          const enrichmentTimeoutMs = timeoutBudget.getRemainingMs(
-            enrichmentProvider.name,
-            SEARCH_ID_ENRICHMENT_TIMEOUT_MS,
-          );
-          const outcome = await callTimedProviderSearch(
-            enrichmentProvider,
-            {
-              ids: result.item.ids,
-              type: enrichmentType,
-              limit: 1,
-              language: searchLanguage,
-            },
-            {
-              debug: this.debug,
-              language: searchLanguage,
-              signal: operationSignal,
-              timeoutMs: enrichmentTimeoutMs,
-              circuitBreaker: this.circuitBreaker,
-              concurrencyLimiter: this.concurrencyLimiter,
-            },
-          );
-
-          return outcome;
-        }),
-      );
-      const [enrichmentResults, posterEnrichments] = await Promise.all([
-        enrichmentResultsPromise,
-        posterEnrichmentPromise,
-      ]);
-      const idEnrichmentOutcomes = enrichmentResults.filter(
-        (outcome): outcome is NonNullable<typeof outcome> => outcome !== undefined,
-      );
-      const skippedIdEnrichments = idEnrichmentCandidates.length - idEnrichmentOutcomes.length;
-      const posterOutcomes = posterEnrichments.flatMap((enrichment) => enrichment.outcomes);
-      const skippedPosterEnrichments = posterEnrichments.reduce(
-        (total, enrichment) => total + enrichment.skipped,
-        0,
-      );
-      searchOutcomes.appendIdEnrichment(idEnrichmentOutcomes, skippedIdEnrichments);
-      searchOutcomes.observePosterEnrichment(posterOutcomes, skippedPosterEnrichments);
       searchOutcomes.appendEnrichmentWarnings();
-      const flattenedEnrichmentResults = idEnrichmentOutcomes.flatMap((outcome) =>
+      const flattenedEnrichmentResults = enrichment.idOutcomes.flatMap((outcome) =>
         outcome.failure ? [] : outcome.results,
       );
 
@@ -383,7 +315,14 @@ export class MediaEngine {
         });
       }
 
-      const posterEnrichedResults = applySearchPosterEnrichments(results, posterEnrichments);
+      const detailsEnrichedResults = applySearchDetailsEnrichments(
+        results,
+        enrichment.detailsEnrichments,
+      );
+      const posterEnrichedResults = applySearchPosterEnrichments(
+        detailsEnrichedResults,
+        enrichment.posterEnrichments,
+      );
       const limitedResults =
         normalizedQuery.limit === undefined
           ? posterEnrichedResults
@@ -681,6 +620,54 @@ export class MediaEngine {
 
   private createProviderTimeoutBudget(): ProviderTimeoutBudget {
     return new ProviderTimeoutBudget((providerName) => this.getProviderTimeoutMs(providerName));
+  }
+
+  private async loadReusableDetails(
+    query: DetailsQuery,
+    signal: AbortSignal | undefined,
+    maxWaitMs: number,
+  ): Promise<MediaDetails | undefined> {
+    if (maxWaitMs <= 0) {
+      return undefined;
+    }
+
+    const normalizedQuery = normalizeDetailsQuery(query);
+    const cacheKey = createDetailsCacheKey(normalizedQuery);
+    const timeoutController = new AbortController();
+    const timeout = setTimeout(() => timeoutController.abort(), maxWaitMs);
+    const waitSignal = signal
+      ? AbortSignal.any([signal, timeoutController.signal])
+      : timeoutController.signal;
+
+    try {
+      const cached = await waitForCaller(this.cache?.get<DetailsResponse>(cacheKey), waitSignal);
+
+      if (cached) {
+        return cached.details ?? undefined;
+      }
+
+      const inFlight = this.inFlightRequests.joinExisting<DetailsResponse>(`details:${cacheKey}`, {
+        signal: waitSignal,
+      });
+
+      if (!inFlight) {
+        return undefined;
+      }
+
+      return (await inFlight).details ?? undefined;
+    } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
+
+      if (timeoutController.signal.aborted) {
+        return undefined;
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private createProviderHealthStatus(

@@ -10,6 +10,7 @@ interface SharedRequest<T> {
 
 interface InFlightCaller {
   run<T>(key: string, load: (signal: AbortSignal) => Promise<T>): Promise<T>;
+  joinExisting<T>(key: string): Promise<T> | undefined;
 }
 
 // Coalesces identical work while giving every caller an independently cancellable subscription.
@@ -20,7 +21,19 @@ export class InFlightRequestCoalescer {
   forCaller(options: MediaEngineOperationOptions = {}): InFlightCaller {
     return {
       run: (key, load) => this.run(key, load, options),
+      joinExisting: (key) => this.joinExisting(key, options),
     };
+  }
+
+  // Subscribes to matching work only when another caller already started it.
+  // Подписывается на совпадающую работу, только если другой caller уже ее запустил.
+  joinExisting<T>(key: string, options: MediaEngineOperationOptions = {}): Promise<T> | undefined {
+    if (options.signal?.aborted) {
+      return Promise.reject(getAbortReason(options.signal));
+    }
+
+    const shared = this.requests.get(key) as SharedRequest<T> | undefined;
+    return shared ? this.subscribe(key, shared, options.signal) : undefined;
   }
 
   run<T>(

@@ -127,3 +127,24 @@ test("a pre-aborted caller never starts shared work", async () => {
   );
   assert.equal(calls, 0);
 });
+
+test("joins existing work without starting a cache miss", async () => {
+  const coalescer = new InFlightRequestCoalescer();
+
+  assert.equal(coalescer.joinExisting("details:missing"), undefined);
+
+  let resolveLoad: ((value: { value: string }) => void) | undefined;
+  const original = coalescer.run("details:one", async () => {
+    return new Promise<{ value: string }>((resolve) => {
+      resolveLoad = resolve;
+    });
+  });
+  await Promise.resolve();
+
+  const joined = coalescer.joinExisting<{ value: string }>("details:one");
+  assert.ok(joined);
+  resolveLoad?.({ value: "shared" });
+
+  assert.deepEqual(await original, { value: "shared" });
+  assert.deepEqual(await joined, { value: "shared" });
+});

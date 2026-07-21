@@ -32,7 +32,7 @@ pnpm --filter @media-engine/example typecheck
 pnpm --filter @media-engine/example build
 ```
 
-This is a demonstration, not a finished movie website. Third-party players may not work in every browser, country, or network. Embed players are not loaded automatically: the external link is the default, while embedded playback requires an explicit click and runs with a restricted iframe policy and no referrer.
+This is a demonstration, not a finished movie website. Third-party players may not work in every browser, country, or network. Embed players are not loaded automatically: the external link is the default, while embedded playback requires an explicit click and runs with a restricted iframe policy that preserves the third-party player origin and sends no referrer.
 
 The example does not ship a universal `frame-src` Content Security Policy because player hosts are dynamic. A production deployment should disable embeds or set CSP to an explicit allowlist that matches its selected providers; the external-link flow remains available when framing is blocked.
 

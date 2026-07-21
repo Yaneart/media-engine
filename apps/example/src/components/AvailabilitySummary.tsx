@@ -130,7 +130,7 @@ function PlayerPreview({ option }: { option: AvailabilityOption }) {
           allowFullScreen
           loading="lazy"
           referrerPolicy="no-referrer"
-          sandbox="allow-presentation allow-scripts"
+          sandbox="allow-presentation allow-same-origin allow-scripts"
           src={option.access.url}
           title={`${option.player.label} player`}
         />

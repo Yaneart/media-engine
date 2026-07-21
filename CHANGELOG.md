@@ -16,6 +16,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Built-in provider artwork, player, subtitle, and related output URLs now share an HTTP(S)-only policy that rejects credentials, raw control characters, and literal local/private/reserved targets without removing valid CDN query parameters or signatures. The example keeps external links as the default and loads sandboxed embeds only after explicit user action with no referrer.
 - Search, details, and availability queries now use one canonical validated shape for provider selection, cache, and in-flight keys. External-ID shortcuts collapse into trimmed `ids`, language and provider filters are normalized, known ID formats and field lengths are bounded, and `limit: 0` returns without provider or cache work. `MemoryCache` now rejects non-finite, fractional, negative, or unsafe-integer TTL values; omitted TTL remains the documented no-expiry mode.
 - Public engine operations now accept an optional abort signal with subscriber-aware request coalescing. Cancelling one caller leaves shared work available to others; cancelling the last subscriber aborts provider work, removes queued calls, prevents cache writes, and is not recorded as an upstream circuit failure. Nest media endpoints connect HTTP disconnects to this lifecycle.
+- Search ID and poster enrichment now use one top-N planner with a six-call global budget, a two-call per-provider budget, and a 1.5-second wall-time boundary. Matching ID-search results and cached or in-flight details are reused instead of starting duplicate poster lookups.
 
 ### Fixed
 
@@ -23,6 +24,7 @@ This project follows semantic versioning after the first stable release. Before 
 - AniList HTTP-200 GraphQL rate-limit and server errors now remain retryable provider failures, while validation errors and malformed payloads receive non-retryable typed categories.
 - Streaming providers that resolve `null` now count as successful no-result responses, so a separate provider failure no longer causes a false all-failed error.
 - Player validation removes options only after 404/410 or a stable deletion marker. Transient HTTP, network, and timeout failures keep the discovered option as `unknown`, add a bounded warning, and prevent normal availability caching until validation recovers.
+- Example embed sandboxing now preserves the third-party player origin after explicit iframe opt-in, avoiding `Origin: null` CORS failures in players that load their own resources.
 
 ## 0.1.1 - 2026-07-18
 
