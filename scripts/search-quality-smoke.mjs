@@ -9,6 +9,9 @@ import {
   tvMazeProvider,
   wikidataProvider,
 } from "../packages/providers/dist/index.js";
+import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
+
+const userAgent = createSmokeUserAgent("SearchQualitySmoke");
 
 const strict = process.argv.includes("--strict");
 const json = process.argv.includes("--json");
@@ -28,9 +31,9 @@ const engine = new MediaEngine({
     aniListProvider(),
     cinemetaProvider(),
     shikimoriProvider({
-      userAgent: "MediaEngineSearchQualitySmoke/0.1.0",
+      userAgent,
     }),
-    tvMazeProvider({ userAgent: "MediaEngineSearchQualitySmoke/0.1.0" }),
+    tvMazeProvider({ userAgent }),
     wikidataProvider(),
   ],
 });

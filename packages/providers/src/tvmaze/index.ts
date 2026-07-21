@@ -25,12 +25,12 @@ import {
   normalizeProviderSearchText,
 } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
+import { MEDIA_ENGINE_DEFAULT_USER_AGENT } from "../package-version.js";
 
 const PROVIDER_NAME = "tvmaze";
 const DEFAULT_BASE_URL = "https://api.tvmaze.com";
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_ALIAS_LIMIT = 30;
-const DEFAULT_USER_AGENT = "MediaEngine/0.0.0 (https://github.com/Yaneart/media-engine)";
 
 export interface TvMazeProviderOptions {
   baseUrl?: string;
@@ -110,7 +110,7 @@ export function tvMazeProvider(options: TvMazeProviderOptions = {}): MediaProvid
 }
 
 function createConfig(options: TvMazeProviderOptions): TvMazeConfig {
-  const userAgent = options.userAgent?.trim() || DEFAULT_USER_AGENT;
+  const userAgent = options.userAgent?.trim() || MEDIA_ENGINE_DEFAULT_USER_AGENT;
 
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),

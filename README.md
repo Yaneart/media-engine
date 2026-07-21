@@ -8,6 +8,9 @@ Media Engine puts those sources behind one TypeScript API. You ask for a movie, 
 
 Version `0.1.1` is available on npm.
 
+Package, API contract, and User-Agent versions have distinct meanings; see the
+[versioning and package build contract](./docs/versioning.md).
+
 ## Try it
 
 You need Node.js 20 or newer.

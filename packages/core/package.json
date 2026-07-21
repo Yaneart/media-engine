@@ -48,7 +48,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "clean": "node ../../scripts/clean-package-dist.mjs",
+    "build": "pnpm clean && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm build && node --test dist/providers/registry.test.js dist/errors/types.test.js dist/merge/strategy.search.merge.test.js dist/merge/strategy.search.ranking.test.js dist/merge/strategy.search.evidence.test.js dist/merge/strategy.details.test.js dist/cache/memory.test.js dist/engine/circuit-breaker.test.js dist/engine/concurrency-limiter.test.js dist/engine/timeout-budget.test.js dist/engine/in-flight.test.js dist/engine/engine.config.test.js dist/engine/engine.health.test.js dist/engine/engine.cancellation.test.js dist/engine/engine.search.query.test.js dist/engine/engine.search.results.test.js dist/engine/engine.search.enrichment.test.js dist/engine/engine.search.enrichment-reuse.test.js dist/engine/engine.search.identity-freeze.test.js dist/engine/engine.search.providers.test.js dist/engine/engine.search.fallback.test.js dist/engine/engine.search.identity-snapshot.test.js dist/engine/engine.details.test.js dist/engine/engine.availability.test.js dist/engine/engine.availability.contract.test.js dist/testing/providers.test.js dist/streaming/types.test.js"
   }

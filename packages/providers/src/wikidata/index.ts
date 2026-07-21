@@ -21,6 +21,7 @@ import {
 } from "../shared/index.js";
 import { createProviderImage } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
+import { MEDIA_ENGINE_DEFAULT_USER_AGENT } from "../package-version.js";
 import { WikidataCache } from "./cache.js";
 import { isRelevantWikidataTitleMatch } from "./candidates.js";
 import {
@@ -40,7 +41,6 @@ const DEFAULT_SEARCH_LIMIT = 8;
 const DEFAULT_ENTITY_LIMIT = 3;
 const DEFAULT_CACHE_TTL_MS = 6 * 60 * 60 * 1_000;
 const DEFAULT_CACHE_MAX_ENTRIES = 256;
-const DEFAULT_USER_AGENT = "MediaEngine/0.0.0 (https://github.com/Yaneart/media-engine)";
 
 const MOVIE_INSTANCE_IDS = new Set(["Q11424", "Q506240"]);
 const SERIES_INSTANCE_IDS = new Set(["Q5398426", "Q1259759", "Q15416"]);
@@ -114,7 +114,7 @@ function createWikidataConfig(options: WikidataProviderOptions): WikidataClientC
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     sparqlUrl: options.sparqlUrl ?? DEFAULT_SPARQL_URL,
     language: normalizeWikidataLanguage(options.language ?? DEFAULT_LANGUAGE),
-    userAgent: options.userAgent ?? DEFAULT_USER_AGENT,
+    userAgent: options.userAgent ?? MEDIA_ENGINE_DEFAULT_USER_AGENT,
     fetch: options.fetch,
     rateLimitGate: new ProviderRateLimitGate(),
     searchLimit: resolveBoundedIntegerOption(

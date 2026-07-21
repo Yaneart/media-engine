@@ -7,6 +7,7 @@ import type {
   StreamingProviderCapabilities,
   SubtitleTrack,
 } from "@media-engine/core";
+import { MEDIA_ENGINE_DEFAULT_USER_AGENT } from "../package-version.js";
 import {
   mapProviderHttpError,
   normalizeProviderOutputUrl,
@@ -145,8 +146,7 @@ function createConfig(options: FlixHqStreamingProviderOptions): FlixHqConfig {
     playerValidationTimeoutMs,
     playerValidationMaxBytes,
     subtitleInfoMaxBytes,
-    userAgent:
-      options.userAgent?.trim() || "MediaEngine/0.0 (+https://github.com/Yaneart/media-engine)",
+    userAgent: options.userAgent?.trim() || MEDIA_ENGINE_DEFAULT_USER_AGENT,
   };
 }
 

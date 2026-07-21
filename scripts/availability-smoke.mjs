@@ -2,6 +2,7 @@
 
 import { MediaEngine } from "../packages/core/dist/index.js";
 import { kinobdStreamingProvider } from "../packages/providers/dist/index.js";
+import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
 
 const strict = process.argv.includes("--strict");
 const limit = readLimit();
@@ -10,7 +11,7 @@ const engine = new MediaEngine({
   timeoutMs: 20_000,
   streamingProviders: [
     kinobdStreamingProvider({
-      userAgent: "MediaEngineAvailabilitySmoke/0.1.0",
+      userAgent: createSmokeUserAgent("AvailabilitySmoke"),
     }),
   ],
 });

@@ -8,6 +8,9 @@ import {
   tvMazeProvider,
   wikidataProvider,
 } from "../packages/providers/dist/index.js";
+import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
+
+const userAgent = createSmokeUserAgent("SearchLatencySmoke");
 
 const strict = process.argv.includes("--strict");
 const limit = readLimit();
@@ -20,9 +23,9 @@ const engine = new MediaEngine({
     kinobdProvider(),
     cinemetaProvider(),
     shikimoriProvider({
-      userAgent: "MediaEngineSearchLatencySmoke/0.1.0",
+      userAgent,
     }),
-    tvMazeProvider({ userAgent: "MediaEngineSearchLatencySmoke/0.1.0" }),
+    tvMazeProvider({ userAgent }),
     wikidataProvider(),
   ],
 });
