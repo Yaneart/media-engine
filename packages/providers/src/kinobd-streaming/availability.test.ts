@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { selectBestPlayerCandidate } from "./candidates.js";
+import type { KinoBdPlayerAudit } from "./index.js";
 import { createMockFetch, createProvider, type RequestRecord } from "./test-helpers.js";
 
 test("kinobdStreamingProvider falls back to candidate iframes when playerdata fails", async () => {
@@ -56,6 +57,23 @@ test("kinobdStreamingProvider falls back to candidate iframes when playerdata fa
   assert.equal(availability?.options[0]?.player.label, "KINOBD");
   assert.equal(availability?.options[0]?.access.url, "https://kinobd.test/player/94666");
   assert.equal(availability?.options[0]?.availability, "available");
+});
+
+test("kinobdStreamingProvider caps actual retry attempts with one operation request budget", async () => {
+  let actualRequests = 0;
+  const provider = createProvider({
+    childRequestLimit: 1,
+    fetch: async () => {
+      actualRequests += 1;
+      return new Response("Unavailable", { status: 503 });
+    },
+  });
+
+  await assert.rejects(
+    provider.getAvailability({ type: "movie", ids: { kinopoisk: "258687" } }, { timeoutMs: 1_000 }),
+    { code: "PROVIDER_TIMEOUT", retryable: true },
+  );
+  assert.equal(actualRequests, 1);
 });
 
 test("kinobdStreamingProvider prefers exact series candidate over title noise", async () => {
@@ -500,7 +518,11 @@ test("kinobdStreamingProvider bounds slow Shikimori fallback lookup", async () =
 });
 
 test("kinobdStreamingProvider returns empty availability when no player candidate exists", async () => {
+  let audit: KinoBdPlayerAudit | undefined;
   const provider = createProvider({
+    onPlayerAudit(value) {
+      audit = value;
+    },
     fetch: createMockFetch([], {
       "GET /api/player/search": {
         data: [],
@@ -518,6 +540,15 @@ test("kinobdStreamingProvider returns empty availability when no player candidat
 
   assert.deepEqual(availability?.options, []);
   assert.deepEqual(availability?.sourceProviders, []);
+  assert.deepEqual(audit?.metrics, {
+    discovered: 0,
+    validated: 0,
+    skippedByLimit: 0,
+    skippedByBudget: 0,
+    transientUnknown: 0,
+    removedConfirmed: 0,
+    childRequests: 1,
+  });
 });
 
 test("kinobdStreamingProvider respects provider restrictions", async () => {

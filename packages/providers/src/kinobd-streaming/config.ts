@@ -1,5 +1,6 @@
 import type { MediaAvailability, StreamingProviderCapabilities } from "@media-engine/core";
 import { ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
+import { resolveBoundedIntegerOption } from "../shared/options.js";
 import { createHardenedProviderFetch } from "../shared/safe-fetch.js";
 
 const PROVIDER_NAME = "kinobd-streaming";
@@ -7,8 +8,16 @@ const DEFAULT_BASE_URL = "https://kinobd.net";
 const DEFAULT_SHIKIMORI_BASE_URL = "https://shikimori.io";
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_PLAYER_VALIDATION_LIMIT = 8;
+const DEFAULT_PLAYER_VALIDATION_CONCURRENCY = 3;
+const DEFAULT_CHILD_REQUEST_LIMIT = 24;
 const DEFAULT_SHIKIMORI_LOOKUP_TIMEOUT_MS = 2_500;
 const PLAYER_VALIDATION_TIMEOUT_MS = 2_500;
+const MAX_SEARCH_LIMIT = 50;
+const MAX_PLAYER_VALIDATION_LIMIT = 16;
+const MAX_PLAYER_VALIDATION_CONCURRENCY = 4;
+const MAX_CHILD_REQUEST_LIMIT = 64;
+const MAX_SHIKIMORI_LOOKUP_TIMEOUT_MS = 10_000;
+const MAX_PLAYER_VALIDATION_TIMEOUT_MS = 10_000;
 const DEFAULT_PLAYER_PROVIDERS = [
   "collaps",
   "vibix",
@@ -57,7 +66,9 @@ export interface KinoBdStreamingProviderOptions {
   searchLimit?: number;
   shikimoriLookupTimeoutMs?: number;
   playerValidationLimit?: number;
+  playerValidationConcurrency?: number;
   playerValidationTimeoutMs?: number;
+  childRequestLimit?: number;
   playerProviders?: string;
   fast?: number;
   userAgent?: string;
@@ -84,6 +95,19 @@ export interface KinoBdPlayerAudit {
   discovered: string[];
   shown: string[];
   filtered: KinoBdFilteredPlayerAuditEntry[];
+  metrics?: KinoBdPlayerAuditMetrics;
+}
+
+// Bounded request and validation counters for one availability lookup.
+// Счетчики ограниченных запросов и validation для одного availability lookup.
+export interface KinoBdPlayerAuditMetrics {
+  discovered: number;
+  validated: number;
+  skippedByLimit: number;
+  skippedByBudget: number;
+  transientUnknown: number;
+  removedConfirmed: number;
+  childRequests: number;
 }
 
 // Internal normalized provider configuration.
@@ -99,7 +123,9 @@ export interface KinoBdStreamingConfig {
   searchLimit: number;
   shikimoriLookupTimeoutMs: number;
   playerValidationLimit: number;
+  playerValidationConcurrency: number;
   playerValidationTimeoutMs: number;
+  childRequestLimit: number;
   playerProviders: string;
   allowedPlayerProviders: ReadonlySet<string>;
   fast: number;
@@ -111,32 +137,52 @@ export interface KinoBdStreamingConfig {
 // Собирает provider config с ReYohoho-compatible defaults.
 export function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStreamingConfig {
   const name = normalizeProviderName(options.name ?? PROVIDER_NAME);
-  const searchLimit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT;
-  const shikimoriLookupTimeoutMs =
-    options.shikimoriLookupTimeoutMs ?? DEFAULT_SHIKIMORI_LOOKUP_TIMEOUT_MS;
-  const playerValidationLimit = options.playerValidationLimit ?? DEFAULT_PLAYER_VALIDATION_LIMIT;
-  const playerValidationTimeoutMs =
-    options.playerValidationTimeoutMs ?? PLAYER_VALIDATION_TIMEOUT_MS;
+  const searchLimit = resolveBoundedIntegerOption(
+    options.searchLimit,
+    DEFAULT_SEARCH_LIMIT,
+    "KinoBD streaming searchLimit",
+    1,
+    MAX_SEARCH_LIMIT,
+  );
+  const shikimoriLookupTimeoutMs = resolveBoundedIntegerOption(
+    options.shikimoriLookupTimeoutMs,
+    DEFAULT_SHIKIMORI_LOOKUP_TIMEOUT_MS,
+    "KinoBD streaming shikimoriLookupTimeoutMs",
+    1,
+    MAX_SHIKIMORI_LOOKUP_TIMEOUT_MS,
+  );
+  const playerValidationLimit = resolveBoundedIntegerOption(
+    options.playerValidationLimit,
+    DEFAULT_PLAYER_VALIDATION_LIMIT,
+    "KinoBD streaming playerValidationLimit",
+    0,
+    MAX_PLAYER_VALIDATION_LIMIT,
+  );
+  const playerValidationConcurrency = resolveBoundedIntegerOption(
+    options.playerValidationConcurrency,
+    DEFAULT_PLAYER_VALIDATION_CONCURRENCY,
+    "KinoBD streaming playerValidationConcurrency",
+    1,
+    MAX_PLAYER_VALIDATION_CONCURRENCY,
+  );
+  const playerValidationTimeoutMs = resolveBoundedIntegerOption(
+    options.playerValidationTimeoutMs,
+    PLAYER_VALIDATION_TIMEOUT_MS,
+    "KinoBD streaming playerValidationTimeoutMs",
+    1,
+    MAX_PLAYER_VALIDATION_TIMEOUT_MS,
+  );
+  const childRequestLimit = resolveBoundedIntegerOption(
+    options.childRequestLimit,
+    DEFAULT_CHILD_REQUEST_LIMIT,
+    "KinoBD streaming childRequestLimit",
+    1,
+    MAX_CHILD_REQUEST_LIMIT,
+  );
   const fast = options.fast ?? 1;
   const allowedPlayerProviders = parsePlayerProviderKeys(
     options.playerProviders ?? DEFAULT_PLAYER_PROVIDERS,
   );
-
-  if (!Number.isInteger(searchLimit) || searchLimit <= 0) {
-    throw new TypeError("KinoBD streaming searchLimit must be a positive integer.");
-  }
-
-  if (!Number.isInteger(shikimoriLookupTimeoutMs) || shikimoriLookupTimeoutMs <= 0) {
-    throw new TypeError("KinoBD streaming shikimoriLookupTimeoutMs must be a positive integer.");
-  }
-
-  if (!Number.isInteger(playerValidationLimit) || playerValidationLimit < 0) {
-    throw new TypeError("KinoBD streaming playerValidationLimit must be a non-negative integer.");
-  }
-
-  if (!Number.isInteger(playerValidationTimeoutMs) || playerValidationTimeoutMs <= 0) {
-    throw new TypeError("KinoBD streaming playerValidationTimeoutMs must be a positive integer.");
-  }
 
   if (!Number.isInteger(fast) || fast < 0) {
     throw new TypeError("KinoBD streaming fast must be a non-negative integer.");
@@ -156,7 +202,9 @@ export function createConfig(options: KinoBdStreamingProviderOptions): KinoBdStr
     searchLimit,
     shikimoriLookupTimeoutMs,
     playerValidationLimit,
+    playerValidationConcurrency,
     playerValidationTimeoutMs,
+    childRequestLimit,
     playerProviders: [...allowedPlayerProviders].join(","),
     allowedPlayerProviders,
     fast,

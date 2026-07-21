@@ -30,6 +30,8 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
 
+KinoBD streaming shares one fixed wall deadline and a default 24-attempt child-request budget across candidate search, optional anime lookup, player loading, retries, and iframe validation. Live validation uses three workers by default, checks at most eight players, and does not start an optional nested iframe check without enough remaining time for its full validation window. The public limits are capped at 50 search candidates, 16 validated players, four validation workers, 64 child attempts, and 10 seconds for individual validation or Shikimori helper timeouts. Its optional player audit callback exposes bounded counters without changing availability results.
+
 ## Provider contract
 
 A metadata provider declares:
@@ -58,7 +60,7 @@ Provider methods receive request context with an abort signal, timeout, language
 - Optional search-card enrichment skips providers that opt out through `searchEnrichment: false`, preventing a short enrichment deadline from consuming a provider reserved for mandatory identity fallback.
 - Providers that explicitly guarantee identical normalized search/details posters reuse the search poster during canonical poster enrichment, avoiding duplicate upstream details calls. Providers without the guarantee keep the full lookup behavior.
 - Optional provider failures do not erase successful results from other providers.
-- HTTP response sizes and player validation concurrency are bounded where needed.
+- HTTP response sizes, KinoBD child-request amplification, and player validation concurrency are bounded where needed.
 - FlixHQ navigation stays on its explicitly configured origin, so local self-hosted origins remain possible without allowing upstream HTML or redirects to select another destination.
 - Server-side player/subtitle checks resolve and validate every DNS address and redirect hop, reject local/private/reserved or mixed DNS sets, and pin fresh connections to validated addresses. A custom provider `fetch` is a trusted transport boundary and must enforce an equivalent policy.
 - Built-in artwork, player, and subtitle outputs share a conservative HTTP(S)-only URL policy. It rejects credentials, raw control characters, and literal local/private/reserved targets while preserving valid CDN query parameters and signatures. Hostnames are not resolved at this output boundary; deployments that need browser-side network isolation should use an application-owned image/player proxy.

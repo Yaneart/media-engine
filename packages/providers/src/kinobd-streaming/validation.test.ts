@@ -136,6 +136,15 @@ test("kinobdStreamingProvider filters clearly broken player pages", async () => 
         url: "https://hdvb.test/broken/iframe",
       },
     ],
+    metrics: {
+      discovered: 5,
+      validated: 3,
+      skippedByLimit: 0,
+      skippedByBudget: 0,
+      transientUnknown: 0,
+      removedConfirmed: 2,
+      childRequests: 6,
+    },
   });
 });
 
@@ -262,9 +271,13 @@ test("kinobdStreamingProvider removes confirmed missing players and keeps transi
 });
 
 test("kinobdStreamingProvider limits live player validation fan-out", async () => {
+  let audit: KinoBdPlayerAudit | undefined;
   const validatedUrls: string[] = [];
   const provider = createProvider({
     playerValidationLimit: 1,
+    onPlayerAudit(value) {
+      audit = value;
+    },
     fetch: async (input, init) => {
       const url = new URL(String(input));
       const method = init?.method ?? "GET";
@@ -329,6 +342,185 @@ test("kinobdStreamingProvider limits live player validation fan-out", async () =
     availability?.options.map((option) => option.player.label),
     ["COLLAPS", "FLIXCDN"],
   );
+  assert.deepEqual(audit?.metrics, {
+    discovered: 3,
+    validated: 1,
+    skippedByLimit: 1,
+    skippedByBudget: 0,
+    transientUnknown: 0,
+    removedConfirmed: 1,
+    childRequests: 3,
+  });
+});
+
+test("kinobdStreamingProvider bounds concurrent child player validation", async () => {
+  let audit: KinoBdPlayerAudit | undefined;
+  let activeValidations = 0;
+  let maxActiveValidations = 0;
+  let startedValidations = 0;
+  let releaseFirstBatch: () => void = () => undefined;
+  const firstBatch = new Promise<void>((resolve) => {
+    releaseFirstBatch = resolve;
+  });
+  const provider = createProvider({
+    playerValidationConcurrency: 2,
+    playerProviders: "collaps,flixcdn,alloha,kodik,kinotochka,turbo",
+    onPlayerAudit(value) {
+      audit = value;
+    },
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [{ id: 94666, kinopoisk_id: 258687, title: "Интерстеллар", year: 2014 }],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json(
+          Object.fromEntries(
+            ["collaps", "flixcdn", "alloha", "kodik", "kinotochka", "turbo"].map((player) => [
+              player,
+              { translate: player, iframe: `https://${player}.test/embed` },
+            ]),
+          ),
+        );
+      }
+
+      activeValidations += 1;
+      startedValidations += 1;
+      maxActiveValidations = Math.max(maxActiveValidations, activeValidations);
+
+      if (startedValidations === 2) {
+        releaseFirstBatch();
+      }
+
+      await firstBatch;
+      activeValidations -= 1;
+      return new Response("<html>player</html>");
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    { type: "movie", ids: { kinopoisk: "258687" } },
+    {},
+  );
+
+  assert.equal(maxActiveValidations, 2);
+  assert.equal(availability?.options.length, 6);
+  assert.deepEqual(audit?.metrics, {
+    discovered: 6,
+    validated: 6,
+    skippedByLimit: 0,
+    skippedByBudget: 0,
+    transientUnknown: 0,
+    removedConfirmed: 0,
+    childRequests: 8,
+  });
+});
+
+test("kinobdStreamingProvider keeps options unknown when its child request budget is exhausted", async () => {
+  let audit: KinoBdPlayerAudit | undefined;
+  const provider = createProvider({
+    childRequestLimit: 3,
+    playerValidationConcurrency: 3,
+    playerProviders: "collaps,flixcdn,kodik",
+    onPlayerAudit(value) {
+      audit = value;
+    },
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [{ id: 94666, kinopoisk_id: 258687, title: "Интерстеллар", year: 2014 }],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json({
+          collaps: { translate: "Collaps", iframe: "https://collaps.test/embed" },
+          flixcdn: { translate: "FlixCDN", iframe: "https://flixcdn.test/embed" },
+          kodik: { translate: "Kodik", iframe: "https://kodik.test/embed" },
+        });
+      }
+
+      return new Response("<html>player</html>");
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    { type: "movie", ids: { kinopoisk: "258687" } },
+    {},
+  );
+
+  assert.deepEqual(
+    availability?.options.map((option) => option.availability),
+    ["available", "unknown", "unknown"],
+  );
+  assert.deepEqual(audit?.metrics, {
+    discovered: 3,
+    validated: 1,
+    skippedByLimit: 0,
+    skippedByBudget: 2,
+    transientUnknown: 2,
+    removedConfirmed: 0,
+    childRequests: 3,
+  });
+});
+
+test("kinobdStreamingProvider skips nested validation without a full remaining time budget", async () => {
+  let audit: KinoBdPlayerAudit | undefined;
+  let nestedRequested = false;
+  const provider = createProvider({
+    playerValidationTimeoutMs: 50,
+    onPlayerAudit(value) {
+      audit = value;
+    },
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+
+      if (`${method} ${url.pathname}` === "GET /api/player/search") {
+        return Response.json({
+          data: [{ id: 94666, kinopoisk_id: 258687, title: "Интерстеллар", year: 2014 }],
+        });
+      }
+
+      if (`${method} ${url.pathname}` === "POST /playerdata") {
+        return Response.json({
+          collaps: { translate: "Collaps", iframe: "https://collaps.test/embed" },
+        });
+      }
+
+      if (url.hostname === "collaps.test") {
+        return new Response('<iframe src="https://nested.test/embed"></iframe>');
+      }
+
+      nestedRequested = true;
+      return new Response("<html>nested player</html>");
+    },
+  });
+
+  const availability = await provider.getAvailability(
+    { type: "movie", ids: { kinopoisk: "258687" } },
+    { timeoutMs: 25 },
+  );
+
+  assert.equal(nestedRequested, false);
+  assert.equal(availability?.options[0]?.availability, "unknown");
+  assert.deepEqual(audit?.metrics, {
+    discovered: 1,
+    validated: 1,
+    skippedByLimit: 0,
+    skippedByBudget: 1,
+    transientUnknown: 1,
+    removedConfirmed: 0,
+    childRequests: 3,
+  });
 });
 
 test("kinobdStreamingProvider aborts live validation with the provider context", async () => {

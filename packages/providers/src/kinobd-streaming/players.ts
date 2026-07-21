@@ -7,6 +7,7 @@ import type {
 import { fetchJson, normalizeProviderOutputUrl } from "../shared/index.js";
 import type { KinoBdFilteredPlayerAuditEntry, KinoBdStreamingConfig } from "./config.js";
 import { normalizeSearchText, type PlayerCandidate } from "./candidates.js";
+import type { KinoBdRequestBudget } from "./request-budget.js";
 
 const KNOWN_RUSSIAN_VOICEOVER_TEAMS = [
   "2x2",
@@ -51,6 +52,7 @@ export async function loadPlayerData(
   config: KinoBdStreamingConfig,
   candidate: PlayerCandidate,
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<PlayerDataResponse> {
   const inid = candidate.inid ?? candidate.id;
 
@@ -79,8 +81,8 @@ export async function loadPlayerData(
   return fetchJson<PlayerDataResponse>({
     provider: config.name,
     url,
-    context,
-    fetch: config.fetch,
+    context: budget.createContext(context),
+    fetch: budget.createFetch(config.name, config.fetch),
     rateLimitGate: config.rateLimitGate,
     init: {
       method: "POST",

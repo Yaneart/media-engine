@@ -3,6 +3,7 @@ import { rethrowIfProviderAborted } from "../shared/abort.js";
 import { fetchJson } from "../shared/index.js";
 import { mapKinoBdMediaType as mapCandidateMediaType } from "../shared/mapping.js";
 import type { KinoBdStreamingConfig } from "./config.js";
+import type { KinoBdRequestBudget } from "./request-budget.js";
 
 // Search response returned by KinoBD-style player lookup.
 // Search response, который возвращает KinoBD-style player lookup.
@@ -53,9 +54,10 @@ export async function createAnimeTitleFallbackQueries(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<MediaAvailability["query"][]> {
   const lookup = query.ids?.shikimori
-    ? await tryLookupShikimoriAnime(config, query.ids.shikimori, context)
+    ? await tryLookupShikimoriAnime(config, query.ids.shikimori, context, budget)
     : undefined;
   const lookupTitles = [lookup?.russian, lookup?.name, ...(lookup?.english ?? [])];
   const candidates = query.title
@@ -97,6 +99,7 @@ export async function searchPlayerCandidates(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<PlayerCandidate[]> {
   const search = createCandidateSearch(query);
 
@@ -113,8 +116,8 @@ export async function searchPlayerCandidates(
   const response = await fetchJson<PlayerSearchResponse>({
     provider: config.name,
     url,
-    context,
-    fetch: config.fetch,
+    context: budget.createContext(context),
+    fetch: budget.createFetch(config.name, config.fetch),
     rateLimitGate: config.rateLimitGate,
     init: {
       headers: {
@@ -305,6 +308,7 @@ async function tryLookupShikimoriAnime(
   config: KinoBdStreamingConfig,
   shikimoriId: string,
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<ShikimoriAnimeLookup | undefined> {
   const url = new URL(
     `/api/animes/${encodeURIComponent(shikimoriId)}`,
@@ -322,11 +326,8 @@ async function tryLookupShikimoriAnime(
     return await fetchJson<ShikimoriAnimeLookup>({
       provider: config.name,
       url,
-      context: {
-        ...context,
-        timeoutMs: getBoundedTimeoutMs(context.timeoutMs, config.shikimoriLookupTimeoutMs),
-      },
-      fetch: config.fetch,
+      context: budget.createContext(context, config.shikimoriLookupTimeoutMs),
+      fetch: budget.createFetch(config.name, config.fetch),
       rateLimitGate: config.rateLimitGate,
       maxRetries: 0,
       init: {
@@ -337,17 +338,6 @@ async function tryLookupShikimoriAnime(
     rethrowIfProviderAborted(context, error);
     return undefined;
   }
-}
-
-// Keeps helper lookups inside the remaining provider budget when one exists.
-// Удерживает вспомогательные lookup-запросы внутри общего бюджета провайдера, если он задан.
-function getBoundedTimeoutMs(
-  contextTimeoutMs: number | undefined,
-  fallbackTimeoutMs: number,
-): number {
-  return contextTimeoutMs === undefined
-    ? fallbackTimeoutMs
-    : Math.min(contextTimeoutMs, fallbackTimeoutMs);
 }
 
 // Parses optional integer-like values.

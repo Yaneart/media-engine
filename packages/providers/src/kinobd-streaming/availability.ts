@@ -17,6 +17,7 @@ import {
   mapPlayerMapToOptions,
   type PlayerDataResponse,
 } from "./players.js";
+import { KinoBdRequestBudget } from "./request-budget.js";
 import { emitPlayerAudit, filterBrokenPlayerOptions } from "./validation.js";
 
 // Resolves availability through movie/series or anime player endpoints.
@@ -30,11 +31,11 @@ export async function getKinoBdAvailability(
     return null;
   }
 
-  if (query.type === "anime") {
-    return getAnimeAvailability(config, query, context);
-  }
+  const budget = new KinoBdRequestBudget(context, config.childRequestLimit);
 
-  return getMovieOrSeriesAvailability(config, query, context);
+  return query.type === "anime"
+    ? getAnimeAvailability(config, query, context, budget)
+    : getMovieOrSeriesAvailability(config, query, context, budget);
 }
 
 // Resolves anime availability through optional cache_shiki, direct title, then bounded fallbacks.
@@ -43,9 +44,10 @@ async function getAnimeAvailability(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<MediaAvailability> {
   if (config.animeCacheBaseUrl && query.ids?.shikimori) {
-    const cached = await tryGetShikimoriCacheAvailability(config, query, context);
+    const cached = await tryGetShikimoriCacheAvailability(config, query, context, budget);
 
     if (cached && cached.options.length > 0) {
       return cached;
@@ -55,7 +57,7 @@ async function getAnimeAvailability(
   let bestEmptyAvailability: MediaAvailability | undefined;
 
   if (query.title || query.ids?.kinopoisk) {
-    const direct = await getMovieOrSeriesAvailability(config, query, context);
+    const direct = await getMovieOrSeriesAvailability(config, query, context, budget);
 
     if (direct.options.length > 0) {
       return direct;
@@ -66,10 +68,10 @@ async function getAnimeAvailability(
     }
   }
 
-  const fallbackQueries = await createAnimeTitleFallbackQueries(config, query, context);
+  const fallbackQueries = await createAnimeTitleFallbackQueries(config, query, context, budget);
 
   for (const fallbackQuery of fallbackQueries) {
-    const fallback = await getMovieOrSeriesAvailability(config, fallbackQuery, context);
+    const fallback = await getMovieOrSeriesAvailability(config, fallbackQuery, context, budget);
 
     if (fallback.options.length > 0) {
       return {
@@ -97,15 +99,17 @@ async function getMovieOrSeriesAvailability(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<MediaAvailability> {
-  const candidates = await searchPlayerCandidates(config, query, context);
+  const candidates = await searchPlayerCandidates(config, query, context, budget);
   const selected = selectBestPlayerCandidate(candidates, query);
 
   if (!selected) {
+    emitPlayerAudit(config, query, [], [], [], undefined, budget);
     return createEmptyAvailability(query);
   }
 
-  const options = await loadPlayerOptions(config, selected, query, context);
+  const options = await loadPlayerOptions(config, selected, query, context, budget);
 
   return {
     query,
@@ -134,9 +138,10 @@ async function loadPlayerOptions(
   selected: PlayerCandidate,
   query: MediaAvailability["query"],
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<StreamOption[]> {
   try {
-    const playerData = await loadPlayerData(config, selected, context);
+    const playerData = await loadPlayerData(config, selected, context, budget);
     const mapping = mapPlayerMapToOptions(
       config.name,
       playerData,
@@ -146,19 +151,32 @@ async function loadPlayerOptions(
     );
 
     if (mapping.options.length > 0) {
-      const filtered = await filterBrokenPlayerOptions(config, mapping.options, context);
+      const filtered = await filterBrokenPlayerOptions(config, mapping.options, context, budget);
 
-      emitPlayerAudit(config, query, mapping.discovered, filtered.options, [
-        ...mapping.filtered,
-        ...filtered.filtered,
-      ]);
+      emitPlayerAudit(
+        config,
+        query,
+        mapping.discovered,
+        filtered.options,
+        [...mapping.filtered, ...filtered.filtered],
+        filtered.metrics,
+        budget,
+      );
 
       return filtered.options;
     }
 
     const fallbackOptions = mapCandidatesToFallbackOptions(config.name, [selected], query);
 
-    emitPlayerAudit(config, query, mapping.discovered, fallbackOptions, mapping.filtered);
+    emitPlayerAudit(
+      config,
+      query,
+      mapping.discovered,
+      fallbackOptions,
+      mapping.filtered,
+      undefined,
+      budget,
+    );
 
     return fallbackOptions;
   } catch (error) {
@@ -175,6 +193,8 @@ async function loadPlayerOptions(
     fallbackOptions.map((option) => option.player.label),
     fallbackOptions,
     [],
+    undefined,
+    budget,
   );
 
   return fallbackOptions;
@@ -186,19 +206,19 @@ async function tryGetShikimoriCacheAvailability(
   config: KinoBdStreamingConfig,
   query: MediaAvailability["query"],
   context: ProviderContext,
+  budget: KinoBdRequestBudget,
 ): Promise<MediaAvailability | undefined> {
   const url = new URL("/cache_shiki", `${config.animeCacheBaseUrl}/`);
   const body = new URLSearchParams({
     shikimori: query.ids!.shikimori!,
     type: "anime",
   });
-
   try {
     const playerData = await fetchJson<PlayerDataResponse>({
       provider: config.name,
       url,
-      context,
-      fetch: config.fetch,
+      context: budget.createContext(context),
+      fetch: budget.createFetch(config.name, config.fetch),
       rateLimitGate: config.rateLimitGate,
       init: {
         method: "POST",
@@ -217,7 +237,15 @@ async function tryGetShikimoriCacheAvailability(
     );
     const options = mapping.options;
 
-    emitPlayerAudit(config, query, mapping.discovered, options, mapping.filtered);
+    emitPlayerAudit(
+      config,
+      query,
+      mapping.discovered,
+      options,
+      mapping.filtered,
+      undefined,
+      budget,
+    );
 
     return {
       query,

@@ -45,4 +45,60 @@ test("kinobdStreamingProvider validates numeric options", () => {
       }),
     /playerValidationTimeoutMs/,
   );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        playerValidationConcurrency: 0,
+      }),
+    /playerValidationConcurrency/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        childRequestLimit: 0,
+      }),
+    /childRequestLimit/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        playerValidationConcurrency: 5,
+      }),
+    /playerValidationConcurrency/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        childRequestLimit: 65,
+      }),
+    /childRequestLimit/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        searchLimit: 51,
+      }),
+    /searchLimit/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        shikimoriLookupTimeoutMs: 10_001,
+      }),
+    /shikimoriLookupTimeoutMs/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        playerValidationLimit: 17,
+      }),
+    /playerValidationLimit/,
+  );
+  assert.throws(
+    () =>
+      kinobdStreamingProvider({
+        playerValidationTimeoutMs: 10_001,
+      }),
+    /playerValidationTimeoutMs/,
+  );
 });

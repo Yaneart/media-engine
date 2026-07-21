@@ -5,6 +5,7 @@ import { createCapabilities, createConfig, type KinoBdStreamingProviderOptions }
 export type {
   KinoBdFilteredPlayerAuditEntry,
   KinoBdPlayerAudit,
+  KinoBdPlayerAuditMetrics,
   KinoBdPlayerFilterReason,
   KinoBdStreamingProviderOptions,
 } from "./config.js";
