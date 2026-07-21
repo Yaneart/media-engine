@@ -40,13 +40,15 @@ Add only the providers that make sense for your application. Media Engine will c
 - `aniListProvider()` — international anime titles, popularity, and artwork;
 - `tvMazeProvider()` — fallback IMDb-backed series identities and localized aliases;
 - `wikidataProvider()` — fallback structured identity and metadata enrichment;
-- `imdbDatasetProvider()` — local IMDb TSV datasets supplied by your application.
+- `imdbDatasetProvider()` — local IMDb data supplied as small in-memory TSV fixtures or through an application-owned indexed storage adapter.
 
 None of these built-in providers needs your API key. TMDB IDs may appear in results, but this package does not call the TMDB API.
 
 TVmaze data is licensed under CC BY-SA. The provider keeps a TVmaze show URL in source attribution; applications using TVmaze data should preserve and render that link. See the [TVmaze API licensing terms](https://www.tvmaze.com/api#licensing).
 
 Wikidata fallback discovery loads at most three title-relevant entities through a selected-property query and caches entity/IMDb mappings for six hours in a 256-entry process-local LRU by default. `entityLimit` is bounded to 1–10, `cacheTtlMs` to 0–7 days, and `cacheMaxEntries` to 2–2048; a zero TTL disables this provider-local cache.
+
+The backward-compatible IMDb TSV adapter parses the complete input into memory and is intended for small datasets and fixtures. Full-dataset integrations can inject the exported synchronous/asynchronous `ImdbDatasetStorage` contract, including a direct ID lookup and bounded normalized title search, without adding a database dependency for other package users.
 
 Expected upstream failures are reported as typed `ProviderError` values, and shared HTTP errors expose their originating status through `getProviderHttpStatus`. An untyped Cinemeta IMDb lookup returns `null` only after both movie and series candidates confirm absence; a temporary branch outage remains retryable unless the other branch returned usable details. AniList similarly distinguishes GraphQL rate limits and server outages from validation errors or malformed payloads, allowing Media Engine to avoid caching incomplete metadata as a healthy response.
 

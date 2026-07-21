@@ -25,6 +25,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Added TVmaze as a no-token, fallback-only series identity provider. It returns only IMDb-backed candidates, performs at most one AKA lookup when the top result needs cross-script confirmation, stays out of optional card enrichment, and preserves TVmaze source links for CC BY-SA attribution.
 - KinoBD streaming now shares one bounded child-request/deadline budget across an availability operation and validates players through a configurable worker pool. Numeric search, player, concurrency, request, and timeout options have explicit upper bounds, while additive player-audit metrics report validation and budget outcomes.
 - Wikidata fallback discovery now filters clearly unrelated search summaries before loading at most three candidates, retrieves only the normalized identity fields through a 256 KiB selected-property query, and keeps entity/IMDb mappings in a bounded six-hour LRU cache. Cache TTL, size, and candidate count remain explicitly bounded provider options.
+- The local IMDb dataset provider now separates its backward-compatible in-memory TSV adapter from an exported synchronous/asynchronous storage contract, allowing applications to supply a persistent indexed backend without adding a database dependency for every package user. A reproducible 100k/1m benchmark records the linear adapter baseline and persisted-backend acceptance thresholds.
 
 ### Fixed
 

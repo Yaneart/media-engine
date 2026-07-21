@@ -20,6 +20,27 @@ TVmaze title discovery is fallback-only and returns only records with an IMDb id
 
 Wikidata is also fallback-only. Its title search filters clearly unrelated summaries before a selected-property lookup of at most three candidates, requests labels and descriptions only for the selected language plus English fallback, and caps JSON responses at 256 KiB. Entity and exact IMDb mappings use a process-local six-hour LRU cache with 256 combined entries by default. `entityLimit`, `cacheTtlMs`, and `cacheMaxEntries` can tune these values only within their documented safe bounds.
 
+### Local IMDb dataset storage
+
+`imdbDatasetProvider` keeps its original TSV setup for small datasets and tests:
+
+```ts
+const provider = imdbDatasetProvider({
+  titleBasicsTsv,
+  titleRatingsTsv,
+});
+```
+
+That adapter parses the complete strings into process memory and linearly scans supported titles, so it is not the full-dataset path. Applications can instead inject an `ImdbDatasetStorage` without installing a database dependency through `@media-engine/providers`:
+
+```ts
+const provider = imdbDatasetProvider({ storage });
+```
+
+The storage contract accepts synchronous or asynchronous implementations. It receives a normalized title, optional type/year filters, a bounded result limit, and the provider abort signal. It returns ranked normalized records and provides a direct indexed IMDb ID lookup. The provider owns output mapping, confidence bounds, capabilities, and source attribution, so storage implementations do not depend on core merge internals.
+
+The reproducible 100k/1m in-memory baseline and the acceptance thresholds for the persisted backend are recorded in [the IMDb dataset benchmark](./benchmarks/imdb-dataset.md).
+
 TMDB IDs remain supported in the normalized model because upstream providers may return them. There is no built-in TMDB API provider and users do not need a TMDB token.
 
 ## Streaming providers

@@ -2,7 +2,9 @@ import type {
   ExternalIds,
   MediaDetails,
   MediaItem,
+  MediaProvider,
   MovieDetails,
+  ProviderContext,
   ProviderDetailsQuery,
   ProviderDetailsResult,
   ProviderSearchQuery,
@@ -12,29 +14,60 @@ import type {
   SeriesDetails,
 } from "@media-engine/core";
 import {
-  mapGenreNames,
-  normalizeProviderSearchText as normalizeSearchText,
-} from "../shared/mapping.js";
-import { normalizeProviderOutputUrl } from "../shared/output-url.js";
+  createImdbDatasetMemoryStorage,
+  type ImdbDatasetMemoryStorageOptions,
+} from "./memory-storage.js";
+import type {
+  ImdbDatasetStorage,
+  ImdbDatasetStorageSearchResult,
+  ImdbDatasetTitleRecord,
+} from "./storage.js";
+import { mapGenreNames, normalizeProviderSearchText } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
-import { type MediaProvider } from "@media-engine/core";
+import { normalizeProviderOutputUrl } from "../shared/output-url.js";
+
+export { createImdbDatasetMemoryStorage } from "./memory-storage.js";
+export type { ImdbDatasetMemoryStorageOptions } from "./memory-storage.js";
+export type {
+  ImdbDatasetRatingRecord,
+  ImdbDatasetStorage,
+  ImdbDatasetStorageLookupOptions,
+  ImdbDatasetStorageSearchQuery,
+  ImdbDatasetStorageSearchResult,
+  ImdbDatasetTitleRecord,
+} from "./storage.js";
 
 const PROVIDER_NAME = "imdb-dataset";
 const DEFAULT_SEARCH_LIMIT = 20;
+const MAX_SEARCH_LIMIT = 100;
 
 // Options used to create an IMDb dataset provider from official TSV files.
 // Опции для создания IMDb dataset provider из официальных TSV-файлов.
-export interface ImdbDatasetProviderOptions {
-  titleBasicsTsv: string;
-  titleRatingsTsv?: string;
-  includeAdult?: boolean;
+export interface ImdbDatasetProviderOptions extends ImdbDatasetMemoryStorageOptions {
+  storage?: never;
   version?: string;
   searchLimit?: number;
 }
 
+// Options used to connect an indexed IMDb storage implementation.
+// Опции для подключения индексированной реализации IMDb storage.
+export interface ImdbDatasetStorageProviderOptions {
+  storage: ImdbDatasetStorage;
+  titleBasicsTsv?: never;
+  titleRatingsTsv?: never;
+  includeAdult?: never;
+  version?: string;
+  searchLimit?: number;
+}
+
+type ImdbDatasetProviderConfiguration =
+  ImdbDatasetProviderOptions | ImdbDatasetStorageProviderOptions;
+
 // Creates a local IMDb dataset provider without live scraping or unofficial APIs.
 // Создает локальный IMDb dataset provider без live scraping и неофициальных API.
-export function imdbDatasetProvider(options: ImdbDatasetProviderOptions): MediaProvider {
+export function imdbDatasetProvider(options: ImdbDatasetProviderOptions): MediaProvider;
+export function imdbDatasetProvider(options: ImdbDatasetStorageProviderOptions): MediaProvider;
+export function imdbDatasetProvider(options: ImdbDatasetProviderConfiguration): MediaProvider {
   const config = createImdbDatasetConfig(options);
 
   return {
@@ -53,191 +86,172 @@ export function imdbDatasetProvider(options: ImdbDatasetProviderOptions): MediaP
       features: ["ratings", "genres"],
     },
     async search(query, context) {
-      return searchImdbDataset(config, query, context.debug);
+      return searchImdbDataset(config, query, context);
     },
     async getDetails(query, context) {
-      return getImdbDatasetDetails(config, query, context.debug);
+      return getImdbDatasetDetails(config, query, context);
     },
   };
 }
 
-// Internal normalized IMDb dataset configuration and indexes.
-// Внутренняя нормализованная конфигурация и индексы IMDb dataset.
 interface ImdbDatasetConfig {
-  recordsById: Map<string, ImdbTitleRecord>;
-  ratingsById: Map<string, ImdbRatingRecord>;
+  storage: ImdbDatasetStorage;
   searchLimit: number;
 }
 
-interface ImdbTitleRecord {
-  tconst: string;
-  type: "movie" | "series";
-  primaryTitle: string;
-  originalTitle?: string;
-  startYear?: number;
-  endYear?: number;
-  runtimeMinutes?: number;
-  genres?: string[];
-  normalizedPrimaryTitle: string;
-  normalizedOriginalTitle: string;
-}
+function createImdbDatasetConfig(options: ImdbDatasetProviderConfiguration): ImdbDatasetConfig {
+  const hasStorage = "storage" in options && options.storage !== undefined;
+  const hasTsv = "titleBasicsTsv" in options && options.titleBasicsTsv !== undefined;
 
-interface ImdbRatingRecord {
-  averageRating: number;
-  numVotes?: number;
-}
-
-// Parses TSV content and builds lookup maps once at provider creation time.
-// Парсит TSV content и строит lookup maps один раз при создании provider.
-function createImdbDatasetConfig(options: ImdbDatasetProviderOptions): ImdbDatasetConfig {
-  const recordsById = new Map<string, ImdbTitleRecord>();
-
-  for (const row of parseTsv(options.titleBasicsTsv)) {
-    const record = mapTitleBasicsRow(row, options.includeAdult ?? false);
-
-    if (record) {
-      recordsById.set(record.tconst, record);
-    }
+  if (hasStorage === hasTsv) {
+    throw new TypeError("IMDb dataset provider requires exactly one of storage or titleBasicsTsv");
   }
 
+  if (hasStorage && !isImdbDatasetStorage(options.storage)) {
+    throw new TypeError("IMDb dataset storage must implement getTitleById and searchTitles");
+  }
+
+  const storage = hasStorage
+    ? options.storage
+    : createImdbDatasetMemoryStorage({
+        titleBasicsTsv: options.titleBasicsTsv,
+        titleRatingsTsv: options.titleRatingsTsv,
+        includeAdult: options.includeAdult,
+      });
+
   return {
-    recordsById,
-    ratingsById: parseRatings(options.titleRatingsTsv),
+    storage,
     searchLimit: resolveBoundedIntegerOption(
       options.searchLimit,
       DEFAULT_SEARCH_LIMIT,
       "IMDb dataset searchLimit",
       1,
-      100,
+      MAX_SEARCH_LIMIT,
     ),
   };
 }
 
-// Runs local title or IMDb ID search over parsed IMDb title records.
-// Выполняет локальный поиск по названию или IMDb ID по распарсенным title records.
-function searchImdbDataset(
+function isImdbDatasetStorage(value: unknown): value is ImdbDatasetStorage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "getTitleById" in value &&
+    typeof value.getTitleById === "function" &&
+    "searchTitles" in value &&
+    typeof value.searchTitles === "function"
+  );
+}
+
+async function searchImdbDataset(
   config: ImdbDatasetConfig,
   query: ProviderSearchQuery,
-  debug: boolean | undefined,
-): ProviderSearchResult[] {
+  context: ProviderContext,
+): Promise<ProviderSearchResult[]> {
   if (query.type === "anime") {
     return [];
   }
 
+  context.signal?.throwIfAborted();
+
   if (query.ids?.imdb) {
-    const record = config.recordsById.get(query.ids.imdb);
+    const record = await config.storage.getTitleById(query.ids.imdb, {
+      signal: context.signal,
+    });
+
+    context.signal?.throwIfAborted();
     return record && matchesType(record, query.type)
-      ? [createSearchResult(config, record, debug, 1)]
+      ? [createSearchResult(record, context.debug, 1)]
       : [];
   }
 
-  const normalizedTitle = normalizeSearchText(query.title ?? "");
+  const normalizedTitle = normalizeProviderSearchText(query.title ?? "");
 
-  if (!normalizedTitle) {
+  if (!normalizedTitle || query.limit === 0) {
     return [];
   }
 
-  const limit = query.limit ?? config.searchLimit;
-  const matches: Array<{ record: ImdbTitleRecord; score: number }> = [];
+  const limit = resolveBoundedIntegerOption(
+    query.limit,
+    config.searchLimit,
+    "IMDb dataset query limit",
+    1,
+    MAX_SEARCH_LIMIT,
+  );
+  const matches = await config.storage.searchTitles({
+    normalizedTitle,
+    type: query.type,
+    year: query.year,
+    limit,
+    signal: context.signal,
+  });
 
-  for (const record of config.recordsById.values()) {
-    if (
-      !matchesType(record, query.type) ||
-      (query.year !== undefined && record.startYear !== query.year)
-    ) {
-      continue;
-    }
+  context.signal?.throwIfAborted();
 
-    const score = scoreTitle(record, normalizedTitle);
-
-    if (score <= 0) {
-      continue;
-    }
-
-    const candidate = { record, score };
-    const worstMatch = matches.at(-1);
-
-    if (matches.length >= limit && worstMatch && compareSearchMatches(candidate, worstMatch) >= 0) {
-      continue;
-    }
-
-    matches.push(candidate);
-    matches.sort(compareSearchMatches);
-
-    if (matches.length > limit) {
-      matches.pop();
-    }
-  }
-
-  return matches.map((entry) => createSearchResult(config, entry.record, debug, entry.score));
+  return matches
+    .slice(0, limit)
+    .filter((match) => matchesStorageQuery(match, query))
+    .map((match) =>
+      createSearchResult(match.record, context.debug, normalizeConfidence(match.confidence)),
+    );
 }
 
-// Loads local details by IMDb title ID.
-// Загружает локальные details по IMDb title ID.
-function getImdbDatasetDetails(
+async function getImdbDatasetDetails(
   config: ImdbDatasetConfig,
   query: ProviderDetailsQuery,
-  debug: boolean | undefined,
-): ProviderDetailsResult | null {
+  context: ProviderContext,
+): Promise<ProviderDetailsResult | null> {
   const imdbId = query.ids?.imdb;
 
   if (!imdbId || query.type === "anime") {
     return null;
   }
 
-  const record = config.recordsById.get(imdbId);
+  context.signal?.throwIfAborted();
+  const record = await config.storage.getTitleById(imdbId, { signal: context.signal });
+  context.signal?.throwIfAborted();
 
   if (!record || !matchesType(record, query.type)) {
     return null;
   }
 
-  const details = recordToDetails(config, record);
-
   return {
     provider: PROVIDER_NAME,
-    details,
+    details: recordToDetails(record),
     source: createProviderSource(record),
-    raw: debug ? record : undefined,
+    raw: context.debug ? record : undefined,
     confidence: 1,
   };
 }
 
-// Converts one IMDb title row into a provider search result.
-// Преобразует одну IMDb title row в provider search result.
 function createSearchResult(
-  config: ImdbDatasetConfig,
-  record: ImdbTitleRecord,
+  record: ImdbDatasetTitleRecord,
   debug: boolean | undefined,
   confidence: number,
 ): ProviderSearchResult {
   return {
     provider: PROVIDER_NAME,
-    item: recordToItem(config, record),
+    item: recordToItem(record),
     source: createProviderSource(record),
     raw: debug ? record : undefined,
     confidence,
   };
 }
 
-// Converts an IMDb title record into a compact MediaItem.
-// Преобразует IMDb title record в compact MediaItem.
-function recordToItem(config: ImdbDatasetConfig, record: ImdbTitleRecord): MediaItem {
+function recordToItem(record: ImdbDatasetTitleRecord): MediaItem {
   return {
-    id: `${PROVIDER_NAME}-${record.tconst}`,
+    id: `${PROVIDER_NAME}-${record.imdbId}`,
     type: record.type,
     title: record.primaryTitle,
     originalTitle: record.originalTitle,
     year: record.startYear,
-    genres: mapGenreNames(record.genres, PROVIDER_NAME),
-    ratings: mapRating(config.ratingsById.get(record.tconst)),
+    genres: mapGenreNames(record.genres ? [...record.genres] : undefined, PROVIDER_NAME),
+    ratings: mapRating(record.rating),
     ids: createIds(record),
   };
 }
 
-// Converts an IMDb title record into basic movie or series details.
-// Преобразует IMDb title record в базовые details фильма или сериала.
-function recordToDetails(config: ImdbDatasetConfig, record: ImdbTitleRecord): MediaDetails {
-  const item = recordToItem(config, record);
+function recordToDetails(record: ImdbDatasetTitleRecord): MediaDetails {
+  const item = recordToItem(record);
   const sourceProviders = [createProviderSource(record)];
 
   if (record.type === "series") {
@@ -261,124 +275,37 @@ function recordToDetails(config: ImdbDatasetConfig, record: ImdbTitleRecord): Me
   return details;
 }
 
-// Maps IMDb TSV title.basics rows into normalized title records.
-// Мапит IMDb TSV title.basics rows в нормализованные title records.
-function mapTitleBasicsRow(
-  row: Record<string, string>,
-  includeAdult: boolean,
-): ImdbTitleRecord | undefined {
-  const type = mapTitleType(row.titleType);
-
-  if (!type || (!includeAdult && row.isAdult === "1")) {
-    return undefined;
-  }
-
-  const originalTitle = emptyToUndefined(row.originalTitle);
-
-  return {
-    tconst: row.tconst,
-    type,
-    primaryTitle: row.primaryTitle,
-    originalTitle,
-    startYear: parseNumber(row.startYear),
-    endYear: parseNumber(row.endYear),
-    runtimeMinutes: parseNumber(row.runtimeMinutes),
-    genres: parseList(row.genres),
-    normalizedPrimaryTitle: normalizeSearchText(row.primaryTitle),
-    normalizedOriginalTitle: normalizeSearchText(originalTitle ?? ""),
-  };
-}
-
-// Parses optional IMDb title.ratings TSV content.
-// Парсит опциональный IMDb title.ratings TSV content.
-function parseRatings(tsv: string | undefined): Map<string, ImdbRatingRecord> {
-  const ratings = new Map<string, ImdbRatingRecord>();
-
-  if (!tsv) {
-    return ratings;
-  }
-
-  for (const row of parseTsv(tsv)) {
-    const rating = parseNumber(row.averageRating);
-
-    if (row.tconst && rating !== undefined) {
-      ratings.set(row.tconst, {
-        averageRating: rating,
-        numVotes: parseNumber(row.numVotes),
-      });
-    }
-  }
-
-  return ratings;
-}
-
-// Parses TSV content into rows keyed by header names.
-// Парсит TSV content в rows с ключами из header names.
-function* parseTsv(content: string): Generator<Record<string, string>> {
-  const firstLineEnd = content.indexOf("\n");
-  const headerLine = (firstLineEnd < 0 ? content : content.slice(0, firstLineEnd)).replace(
-    /\r$/,
-    "",
+function matchesStorageQuery(
+  match: ImdbDatasetStorageSearchResult,
+  query: ProviderSearchQuery,
+): boolean {
+  return (
+    Number.isFinite(match.confidence) &&
+    match.confidence > 0 &&
+    matchesType(match.record, query.type) &&
+    (query.year === undefined || match.record.startYear === query.year)
   );
-  const headers = headerLine.split("\t");
-  let offset = firstLineEnd < 0 ? content.length : firstLineEnd + 1;
-
-  while (offset < content.length) {
-    const nextLineEnd = content.indexOf("\n", offset);
-    const lineEnd = nextLineEnd < 0 ? content.length : nextLineEnd;
-    const line = content.slice(offset, lineEnd).replace(/\r$/, "");
-    offset = nextLineEnd < 0 ? content.length : nextLineEnd + 1;
-
-    if (!line) {
-      continue;
-    }
-
-    const values = line.split("\t");
-    const row: Record<string, string> = {};
-
-    headers.forEach((header, index) => {
-      row[header] = values[index] ?? "";
-    });
-
-    yield row;
-  }
 }
 
-// Maps IMDb titleType into Media Engine type.
-// Мапит IMDb titleType в тип Media Engine.
-function mapTitleType(titleType: string | undefined): ImdbTitleRecord["type"] | undefined {
-  if (titleType === "movie") {
-    return "movie";
-  }
-
-  if (titleType === "tvSeries") {
-    return "series";
-  }
-
-  return undefined;
+function matchesType(record: ImdbDatasetTitleRecord, type: ProviderSearchQuery["type"]): boolean {
+  return type === undefined || type === record.type;
 }
 
-// Creates normalized IMDb external IDs.
-// Создает нормализованные IMDb external IDs.
-function createIds(record: ImdbTitleRecord): ExternalIds {
+function createIds(record: ImdbDatasetTitleRecord): ExternalIds {
   return {
-    imdb: record.tconst,
+    imdb: record.imdbId,
   };
 }
 
-// Creates source attribution for IMDb dataset records.
-// Создает source attribution для IMDb dataset records.
-function createProviderSource(record: ImdbTitleRecord): ProviderSource {
+function createProviderSource(record: ImdbDatasetTitleRecord): ProviderSource {
   return {
     provider: PROVIDER_NAME,
     ids: createIds(record),
-    url: normalizeProviderOutputUrl(`https://www.imdb.com/title/${record.tconst}/`),
+    url: normalizeProviderOutputUrl(`https://www.imdb.com/title/${record.imdbId}/`),
   };
 }
 
-// Maps IMDb rating row into normalized rating.
-// Мапит IMDb rating row в нормализованный rating.
-function mapRating(rating: ImdbRatingRecord | undefined): Rating[] | undefined {
+function mapRating(rating: ImdbDatasetTitleRecord["rating"]): Rating[] | undefined {
   return rating
     ? [
         {
@@ -391,56 +318,6 @@ function mapRating(rating: ImdbRatingRecord | undefined): Rating[] | undefined {
     : undefined;
 }
 
-// Scores a record title against a normalized search query.
-// Оценивает record title относительно нормализованного search query.
-function scoreTitle(record: ImdbTitleRecord, normalizedQuery: string): number {
-  const primary = record.normalizedPrimaryTitle;
-  const original = record.normalizedOriginalTitle;
-
-  if (primary === normalizedQuery || original === normalizedQuery) {
-    return 1;
-  }
-
-  if (primary.includes(normalizedQuery) || original.includes(normalizedQuery)) {
-    return 0.75;
-  }
-
-  return 0;
-}
-
-function matchesType(record: ImdbTitleRecord, type: ProviderSearchQuery["type"]): boolean {
-  return type === undefined || type === record.type;
-}
-
-function parseList(value: string | undefined): string[] | undefined {
-  const normalized = emptyToUndefined(value);
-
-  return normalized ? normalized.split(",").filter(Boolean) : undefined;
-}
-
-function parseNumber(value: string | undefined): number | undefined {
-  const normalized = emptyToUndefined(value);
-
-  if (!normalized) {
-    return undefined;
-  }
-
-  const parsed = Number(normalized);
-
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function emptyToUndefined(value: string | undefined): string | undefined {
-  return value && value !== "\\N" ? value : undefined;
-}
-
-function compareNumbers(left: number | undefined, right: number | undefined): number {
-  return (right ?? 0) - (left ?? 0);
-}
-
-function compareSearchMatches(
-  left: { record: ImdbTitleRecord; score: number },
-  right: { record: ImdbTitleRecord; score: number },
-): number {
-  return right.score - left.score || compareNumbers(left.record.startYear, right.record.startYear);
+function normalizeConfidence(confidence: number): number {
+  return Math.min(1, Math.max(0, confidence));
 }
