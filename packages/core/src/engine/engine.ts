@@ -55,6 +55,7 @@ import {
   applySearchIdEnrichments,
   createFrozenDiscoveryResults,
   createSearchEnrichmentCandidates,
+  finalizeSearchRankingEvidence,
   filterFrozenSearchResults,
 } from "./search-result-freeze.js";
 import {
@@ -424,14 +425,15 @@ export class MediaEngine {
         detailsEnrichedResults,
         enrichment.posterEnrichments,
       );
-      const visibleResults =
+      const filteredResults =
         this.mergeStrategy instanceof DefaultMergeStrategy
           ? filterFrozenSearchResults(posterEnrichedResults, normalizedQuery)
           : posterEnrichedResults;
-      const visibleResultSet = new Set(visibleResults);
+      const visibleResultSet = new Set(filteredResults);
       const visibleDiscoveryResults = frozenDiscoveryResults.filter((_, index) =>
         visibleResultSet.has(posterEnrichedResults[index]!),
       );
+      const visibleResults = finalizeSearchRankingEvidence(filteredResults);
       const limitedResults =
         normalizedQuery.limit === undefined
           ? visibleResults

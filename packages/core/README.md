@@ -57,6 +57,8 @@ Mandatory discovery and eligible snapshot recovery freeze result identity, score
 
 Mandatory ranking favors close multi-word title completions and external IDs that support reliable cross-catalog follow-up. Popular anime catalog identities remain competitive when their audience is established; small audience counters and ratings without vote counts do not receive full ranking weight.
 
+The built-in strategy keeps the first result and every score unchanged, but may interleave a similarly ranked candidate inside the top ten after two results from the same normalized matched-title/media-type family. The alternative must be within `0.03` score and `0.05` title relevance, so weak noise is not promoted merely for variety. Debug mode adds optional per-result `ranking` evidence with the formula, match/title evidence, weighted signal contributions, and raw-score/diversity/final positions; normal responses omit it.
+
 `MemoryCache` can retain metadata for a separate bounded stale window. `MediaEngine` uses it only for search and details when every selected provider fails retryably; stale streaming links are never returned. Such responses set `meta.cached` and `meta.stale` to `true`.
 
 Public search, details, and availability inputs are canonicalized before provider selection and cache/coalescing keys are built: strings and IDs are trimmed, language is lowercased, top-level ID shortcuts become `ids`, and streaming provider filters are trimmed, deduplicated, and sorted. Known IMDb/numeric ID formats and bounded field lengths are validated. A search with `limit: 0` returns an empty uncached response without provider or cache work.

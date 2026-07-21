@@ -51,6 +51,7 @@ export function applySearchIdEnrichments(
     const imageEntries = [...entries.slice(1), entries[0]!];
 
     return {
+      ...result,
       item: {
         ...result.item,
         alternativeTitles: mergeAlternativeTitles(entries, result.item.title),
@@ -63,10 +64,25 @@ export function applySearchIdEnrichments(
         ratings: mergeRatings(entries),
         ids: mergeFrozenExternalIds(result.item.ids, candidates, warnings),
       },
-      score: result.score,
       sources: mergeFrozenSources(result.sources, candidates),
     };
   });
+}
+
+// Refreshes final debug positions after snapshot recovery without changing candidate order.
+// Обновляет итоговые debug-позиции после snapshot recovery без изменения порядка кандидатов.
+export function finalizeSearchRankingEvidence(results: MediaSearchResult[]): MediaSearchResult[] {
+  return results.map((result, index) =>
+    result.ranking
+      ? {
+          ...result,
+          ranking: {
+            ...result.ranking,
+            finalPosition: index + 1,
+          },
+        }
+      : result,
+  );
 }
 
 // Keeps ranked relevant identities first while retaining unresolved discovery candidates for aliases.

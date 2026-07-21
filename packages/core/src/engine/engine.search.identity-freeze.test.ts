@@ -11,6 +11,7 @@ import { createProvider } from "./test-helpers.js";
 test("optional enrichment cannot rerank frozen discovery identities", async () => {
   const catalog = createDuneCatalog();
   const engine = new MediaEngine({
+    debug: true,
     providers: [
       catalog,
       createProvider({
@@ -63,6 +64,8 @@ test("optional enrichment cannot rerank frozen discovery identities", async () =
   );
   assert.ok(response.results[0]!.score > response.results[1]!.score);
   assert.equal(response.results[1]!.item.ratings?.[0]?.votes, 10_000_000);
+  assert.equal(response.results[0]?.ranking?.finalPosition, 1);
+  assert.equal(response.results[1]?.ranking?.finalPosition, 2);
 });
 
 test("optional enrichment preserves frozen identity fields and conflicting discovery IDs", async () => {

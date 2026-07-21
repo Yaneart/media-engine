@@ -1,4 +1,9 @@
-import type { SearchQuery } from "../search/index.js";
+import type {
+  SearchQuery,
+  SearchRankEvidence,
+  SearchRankSignal,
+  SearchTitleMatchKind,
+} from "../search/index.js";
 import { hasSharedStrongId } from "./identity.js";
 import type { SearchEntry, SearchGroup } from "./internal.js";
 import { normalizeTitle, titleCandidates } from "./title.js";
@@ -11,20 +16,42 @@ export function scoreGroup(
   entries: SearchEntry[],
   context: MergeContext,
 ): number {
+  return rankSearchGroup(group, entries, context).score;
+}
+
+// Calculates the public score and its debug explanation from the same normalized signals.
+// Вычисляет публичный score и его debug-объяснение из одних и тех же сигналов.
+export function rankSearchGroup(
+  group: SearchGroup,
+  entries: SearchEntry[],
+  context: MergeContext,
+): {
+  score: number;
+  evidence: Omit<
+    SearchRankEvidence,
+    "scorePosition" | "diversityPosition" | "finalPosition" | "diversity"
+  >;
+} {
   const query = context.query as SearchQuery | undefined;
   const queryIds = "ids" in (query ?? {}) ? query?.ids : undefined;
   const queryTitle = "title" in (query ?? {}) ? query?.title : undefined;
 
   if (queryIds && entries.some((entry) => hasSharedStrongId(queryIds, entry.result.item.ids))) {
-    return 1;
+    return createRankResult("external_id", group, 1, emptyTitleMatch(), {
+      base: signal(1, 1),
+    });
   }
 
   if (!queryTitle?.trim()) {
-    return baseGroupScore(group, entries);
+    const baseScore = baseGroupScore(group, entries);
+    return createRankResult("non_text", group, baseScore, emptyTitleMatch(), {
+      base: signal(baseScore, 1),
+    });
   }
 
   const baseScore = baseTextSearchScore(group, entries);
-  const titleScore = titleRelevanceScore(entries, queryTitle);
+  const titleMatch = titleRelevanceEvidence(entries, queryTitle);
+  const titleScore = titleMatch.score;
   const exactPrimaryTitleScore = hasExactPrimaryTitle(entries, queryTitle) ? 1 : 0;
   const popularityScore = ratingVotesScore(entries);
   const ratingScore = normalizedRatingScore(entries);
@@ -32,18 +59,24 @@ export function scoreGroup(
   const sourceScore = sourceCoverageScore(entries);
   const authorityScore = sourceAuthorityScore(entries);
 
-  return boundedTextScore(
-    baseScore +
-      titleScore * 0.2 +
-      // Prefer exact primary/original intent over prefix and incidental-alias noise while
-      // still allowing overwhelmingly corroborated canonical results for broad short queries.
-      exactPrimaryTitleScore * 0.3 +
-      popularityScore * 0.15 +
-      ratingScore * 0.03 +
-      idScore * 0.2 +
-      sourceScore * 0.02 +
-      authorityScore * 0.1,
+  const signals = {
+    base: signal(baseScore, 1),
+    title: signal(titleScore, 0.2),
+    // Prefer exact primary/original intent over prefix and incidental-alias noise while
+    // still allowing overwhelmingly corroborated canonical results for broad short queries.
+    exactPrimaryTitle: signal(exactPrimaryTitleScore, 0.3),
+    popularity: signal(popularityScore, 0.15),
+    rating: signal(ratingScore, 0.03),
+    externalIds: signal(idScore, 0.2),
+    sourceCoverage: signal(sourceScore, 0.02),
+    sourceAuthority: signal(authorityScore, 0.1),
+  };
+  const preBoundedScore = Object.values(signals).reduce(
+    (total, rankingSignal) => total + rankingSignal.contribution,
+    0,
   );
+
+  return createRankResult("text", group, boundedTextScore(preBoundedScore), titleMatch, signals);
 }
 
 // Distinguishes exact primary/original titles from incidental alternative aliases.
@@ -61,19 +94,49 @@ export function hasExactPrimaryTitle(entries: SearchEntry[], queryTitle: string)
 // Scores how well result titles match the user's text query.
 // Оценивает, насколько названия результатов совпадают с текстовым запросом пользователя.
 export function titleRelevanceScore(entries: SearchEntry[], queryTitle: string): number {
+  return titleRelevanceEvidence(entries, queryTitle).score;
+}
+
+// Returns the strongest deterministic title match used by ranking and debug evidence.
+// Возвращает сильнейшее детерминированное title match для ranking и debug evidence.
+export function titleRelevanceEvidence(
+  entries: SearchEntry[],
+  queryTitle: string,
+): { kind: SearchTitleMatchKind; score: number; matchedTitle?: string } {
   const normalizedQuery = normalizeTitle(queryTitle);
 
   if (!normalizedQuery) {
-    return 0;
+    return emptyTitleMatch();
   }
 
-  return Math.max(
-    ...entries.flatMap((entry) =>
-      titleCandidates(entry.result.item).map((title) =>
-        scoreNormalizedTitle(normalizeTitle(title), normalizedQuery),
-      ),
-    ),
-  );
+  let best: SearchRankEvidence["titleMatch"] = { kind: "none", score: 0 };
+
+  for (const entry of entries) {
+    const primaryTitles = new Set(
+      [entry.result.item.title, entry.result.item.originalTitle]
+        .filter((title): title is string => Boolean(title))
+        .map(normalizeTitle),
+    );
+
+    for (const title of titleCandidates(entry.result.item)) {
+      const match = scoreNormalizedTitle(normalizeTitle(title), normalizedQuery);
+
+      if (match.score > best.score) {
+        best = {
+          kind:
+            match.kind === "exact"
+              ? primaryTitles.has(normalizeTitle(title))
+                ? "exact_primary"
+                : "exact_alias"
+              : match.kind,
+          score: match.score,
+          matchedTitle: title,
+        };
+      }
+    }
+  }
+
+  return best;
 }
 
 // Keeps legacy scores for non-title searches where no relevance ranking is possible.
@@ -118,31 +181,37 @@ function bestProviderConfidence(entries: SearchEntry[]): number {
 
 // Scores one normalized title against one normalized query.
 // Оценивает одно нормализованное название против одного нормализованного запроса.
-function scoreNormalizedTitle(title: string, query: string): number {
+function scoreNormalizedTitle(
+  title: string,
+  query: string,
+): {
+  kind: Exclude<SearchTitleMatchKind, "not_applicable" | "exact_primary" | "exact_alias"> | "exact";
+  score: number;
+} {
   if (!title) {
-    return 0;
+    return { kind: "none", score: 0 };
   }
 
   if (title === query) {
-    return 1;
+    return { kind: "exact", score: 1 };
   }
 
   if (title.replace(/\s+/g, "") === query.replace(/\s+/g, "")) {
-    return 0.98;
+    return { kind: "joined", score: 0.98 };
   }
 
   if (title.startsWith(`${query} `)) {
-    return adjustPartialTitleScore(0.92, title, query);
+    return { kind: "prefix", score: adjustPartialTitleScore(0.92, title, query) };
   }
 
   if (title.includes(` ${query} `) || title.endsWith(` ${query}`)) {
-    return adjustPartialTitleScore(0.75, title, query);
+    return { kind: "contains", score: adjustPartialTitleScore(0.75, title, query) };
   }
 
   const queryTokens = query.split(" ").filter(Boolean);
 
   if (queryTokens.length > 0 && queryTokens.every((token) => title.includes(token))) {
-    return adjustPartialTitleScore(0.55, title, query);
+    return { kind: "all_tokens", score: adjustPartialTitleScore(0.55, title, query) };
   }
 
   const titleTokens = title.split(" ").filter(Boolean);
@@ -155,14 +224,67 @@ function scoreNormalizedTitle(title: string, query: string): number {
     fuzzyTokenScores.length > 0 &&
     fuzzyTokenScores.every((score) => score >= minimumFuzzyScore)
   ) {
-    return adjustPartialTitleScore(
-      (fuzzyTokenScores.reduce((sum, score) => sum + score, 0) / fuzzyTokenScores.length) * 0.7,
-      title,
-      query,
-    );
+    return {
+      kind: "fuzzy",
+      score: adjustPartialTitleScore(
+        (fuzzyTokenScores.reduce((sum, score) => sum + score, 0) / fuzzyTokenScores.length) * 0.7,
+        title,
+        query,
+      ),
+    };
   }
 
-  return 0;
+  return { kind: "none", score: 0 };
+}
+
+type RankSignals = SearchRankEvidence["signals"];
+
+function createRankResult(
+  formula: SearchRankEvidence["formula"],
+  group: SearchGroup,
+  score: number,
+  titleMatch: SearchRankEvidence["titleMatch"],
+  partialSignals: Partial<RankSignals>,
+): {
+  score: number;
+  evidence: Omit<
+    SearchRankEvidence,
+    "scorePosition" | "diversityPosition" | "finalPosition" | "diversity"
+  >;
+} {
+  const zero = signal(0, 0);
+  const signals: RankSignals = {
+    base: partialSignals.base ?? zero,
+    title: partialSignals.title ?? zero,
+    exactPrimaryTitle: partialSignals.exactPrimaryTitle ?? zero,
+    popularity: partialSignals.popularity ?? zero,
+    rating: partialSignals.rating ?? zero,
+    externalIds: partialSignals.externalIds ?? zero,
+    sourceCoverage: partialSignals.sourceCoverage ?? zero,
+    sourceAuthority: partialSignals.sourceAuthority ?? zero,
+  };
+
+  return {
+    score,
+    evidence: {
+      formula,
+      matchStrength: group.matchStrength,
+      titleMatch,
+      signals,
+      preBoundedScore: Object.values(signals).reduce(
+        (total, rankingSignal) => total + rankingSignal.contribution,
+        0,
+      ),
+    },
+  };
+}
+
+function signal(value: number, weight: number): SearchRankSignal {
+  return { value, weight, contribution: value * weight };
+}
+
+function emptyTitleMatch(): SearchRankEvidence["titleMatch"] {
+  return { kind: "not_applicable", score: 0 };
 }
 
 // Prefers the closest title completion for multi-word prefix and fuzzy matches.

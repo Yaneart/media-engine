@@ -1,6 +1,7 @@
 import type { ExternalIds, MediaDetails, MediaItem, MediaType } from "../media/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
-import type { MediaSearchResult, SearchQuery } from "../search/index.js";
+import type { MediaSearchResult, SearchQuery, SearchRankEvidence } from "../search/index.js";
+import { diversifySearchCandidates } from "./diversity.js";
 import { filterDetailsEntriesByIdentity, warnDetailsTypeConflicts } from "./details-identity.js";
 import {
   firstDefined,
@@ -41,7 +42,7 @@ import {
   selectMetadataPriorityType,
 } from "./media-type.js";
 import { providerRank, SEARCH_RESULT_PRIORITY, sortEntriesByPriority } from "./priority.js";
-import { hasExactPrimaryTitle, scoreGroup, titleRelevanceScore } from "./scoring.js";
+import { hasExactPrimaryTitle, rankSearchGroup, titleRelevanceScore } from "./scoring.js";
 import type { MergeContext, MergeStrategy } from "./types.js";
 
 // Built-in merge strategy used by core when no custom strategy is provided.
@@ -55,13 +56,17 @@ export class DefaultMergeStrategy implements MergeStrategy {
   ): MediaSearchResult[] {
     const groups = groupSearchResults(results);
 
-    return groups
+    const ranked = groups
       .filter((group) => isSearchGroupRelevant(group, context))
-      .map((group, groupIndex) => ({
-        groupIndex,
-        exactPrimaryTitleMatch: hasExactPrimaryQueryTitle(group.entries, context),
-        result: mergeSearchGroup(group, context),
-      }))
+      .map((group, groupIndex) => {
+        const merged = mergeSearchGroup(group, context);
+
+        return {
+          groupIndex,
+          exactPrimaryTitleMatch: hasExactPrimaryQueryTitle(group.entries, context),
+          ...merged,
+        };
+      })
       .sort((left, right) => {
         // The engine's preliminary broad merge feeds a bounded enrichment window. Keep exact
         // canonical candidates in that window even when their initial provider card is sparse.
@@ -92,8 +97,36 @@ export class DefaultMergeStrategy implements MergeStrategy {
         }
 
         return left.groupIndex - right.groupIndex;
-      })
-      .map(({ result }) => result);
+      });
+    const query = context.query as SearchQuery | undefined;
+    const diversified = diversifySearchCandidates(
+      ranked.map((candidate) => ({
+        value: candidate.result,
+        score: candidate.result.score,
+        mediaType: candidate.result.item.type,
+        title: candidate.result.item.title,
+        ranking: candidate.ranking,
+      })),
+      Boolean(query?.title?.trim()) && !context.includeIrrelevantSearchResults,
+    );
+
+    return diversified.map((candidate) => ({
+      ...candidate.value,
+      ...(context.debug
+        ? {
+            ranking: {
+              ...candidate.ranking,
+              scorePosition: candidate.scorePosition,
+              diversityPosition: candidate.diversityPosition,
+              finalPosition: candidate.diversityPosition,
+              diversity: {
+                family: candidate.diversityFamily,
+                adjusted: candidate.scorePosition !== candidate.diversityPosition,
+              },
+            },
+          }
+        : {}),
+    }));
   }
 
   // Merges provider details results around a primary provider result.
@@ -153,7 +186,16 @@ function searchResultProviderRank(result: MediaSearchResult): number {
 
 // Merges one internal search group into one public search result.
 // Объединяет одну внутреннюю группу поиска в один публичный результат поиска.
-function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearchResult {
+function mergeSearchGroup(
+  group: SearchGroup,
+  context: MergeContext,
+): {
+  result: MediaSearchResult;
+  ranking: Omit<
+    SearchRankEvidence,
+    "scorePosition" | "diversityPosition" | "finalPosition" | "diversity"
+  >;
+} {
   const mediaType = selectMergedSearchType(group.entries);
   const priorityType = selectMetadataPriorityType(group.entries.map((entry) => entry.result.item));
   const sortedEntries = sortEntriesByPriority(group.entries, context, priorityType);
@@ -183,10 +225,15 @@ function mergeSearchGroup(group: SearchGroup, context: MergeContext): MediaSearc
     ids,
   };
 
+  const ranking = rankSearchGroup(group, sortedEntries, context);
+
   return {
-    item,
-    score: scoreGroup(group, sortedEntries, context),
-    sources: mergeSources(sortedEntries),
+    result: {
+      item,
+      score: ranking.score,
+      sources: mergeSources(sortedEntries),
+    },
+    ranking: ranking.evidence,
   };
 }
 

@@ -60,7 +60,7 @@ Search adds an explicit discovery pipeline before merging:
 1. run `primary` title-discovery providers concurrently;
 2. if no exact candidate exists, broaden a supported typo or joined-title query through the same primary providers even when weak fuzzy noise is present;
 3. run `fallback` title-discovery providers when primary candidates remain empty, a multi-word query has no exact identity, or multiple conflicting exact-title identities remain;
-4. merge mandatory candidates and freeze their identities, scores, and order, applying a prior identity snapshot when eligible;
+4. merge mandatory candidates, apply the bounded comparable-candidate diversity policy, and freeze their identities, scores, and order, applying a prior identity snapshot when eligible;
 5. execute bounded ID/details/poster enrichment against the frozen candidates and remove any candidate that remains textually unrelated without reranking;
 6. after healthy mandatory discovery, retain the visible frozen identities independently of the full response cache.
 
@@ -81,6 +81,10 @@ Strong external IDs such as IMDb, Kinopoisk, Shikimori, MyAnimeList, and AniList
 Results with conflicting strong identities are not silently combined. When at least one strong ID agrees, compatible metadata may still be merged and secondary conflicts are reported as warnings.
 
 Mandatory search ranking combines title relevance, provider confidence, source authority, audience-backed ratings, follow-up external-ID quality, and metadata completeness. Partial and fuzzy matches prefer the closest token-length completion. Small catalog audience counts and ratings without vote counts receive bounded trust, while broadly resolvable IMDb/Kinopoisk identities and well-established anime catalog identities remain comparable. The result order remains deterministic even though providers run concurrently, and later optional enrichment cannot recalculate it.
+
+The built-in strategy applies diversity only inside the first ten score-ranked candidates. After two results from one normalized matched-title and media-type family, it may interleave a different family only when its public score is within `0.03` and its title-relevance score is within `0.05` of the crowded candidate. The top result, every score, and the complete candidate set remain unchanged. This avoids filling the leading window with near-equivalent adaptations while preventing weak noise from being promoted for variety alone.
+
+When engine debug mode is enabled, each built-in result includes `ranking`. It records the formula and group match strength, the strongest title match, every normalized signal with its weight and contribution, the pre-bounded total, and separate score, diversity, and final positions. `finalPosition` reflects later identity-snapshot recovery; `diversity.adjusted` identifies only the bounded diversity pass. Custom merge strategies remain responsible for their own optional ranking evidence.
 
 ## Reliability boundaries
 

@@ -193,6 +193,9 @@ test("search keeps a healthy snapshot stable across successful but inconsistent 
     restored: 1,
     reordered: 0,
   });
+  assert.equal(drifted.results[0]?.ranking?.finalPosition, 1);
+  assert.equal(drifted.results[1]?.ranking?.scorePosition, 1);
+  assert.equal(drifted.results[1]?.ranking?.finalPosition, 2);
   assert.equal(repeated.results[0]?.item.id, "dune-2021");
   assert.equal(repeated.meta.warnings?.[0]?.code, "SEARCH_IDENTITY_SNAPSHOT_STABILIZED");
 });

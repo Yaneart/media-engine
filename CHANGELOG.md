@@ -21,6 +21,7 @@ This project follows semantic versioning after the first stable release. Before 
 - The first healthy search discovery with a strong top identity now retains a separate bounded 30-minute snapshot across equivalent limits. It keeps later cache misses stable across successful upstream drift and retryable partial degradation without refreshing the window, promoting weak ID-less results, hiding current provider failures, caching degraded responses, or merging conflicting strong IDs.
 - Mandatory search discovery and eligible snapshot recovery now freeze result identities, scores, and order before optional ID/details/poster enrichment. Enrichment only augments matching cards with presentation data, non-conflicting IDs, and source attribution; it cannot introduce or rerank identities, and conflicting added IDs retain the discovery value with a warning.
 - Mandatory title discovery now broadens supported multi-word typos despite weak fuzzy noise and invokes fallback identity sources for multi-word queries without an exact match. Ranking prefers closer token-length matches, broadly reusable external IDs, and audience-backed ratings before the identity order is frozen.
+- Built-in debug search results now expose the exact ranking formula, match strength, title match, normalized factor weights/contributions, and score/diversity/final positions. A bounded top-10 diversity pass keeps the first result and every score unchanged while interleaving only similarly ranked candidates after two results from the same normalized title and media type.
 
 ### Fixed
 

@@ -57,6 +57,8 @@ Mandatory discovery и подходящее snapshot recovery фиксируют
 
 Mandatory ranking предпочитает близкие по длине multi-word title completions и external IDs, пригодные для надёжного cross-catalog follow-up. Популярные anime catalog identities остаются конкурентными при подтверждённой аудитории; малые audience counters и ratings без vote count не получают полный ranking weight.
 
+Встроенная стратегия сохраняет первый результат и все score, но внутри top-10 может поднять сопоставимый кандидат после двух результатов одной normalized matched-title/media-type family. Альтернатива должна отличаться не более чем на `0.03` по score и `0.05` по title relevance, поэтому слабый шум не продвигается только ради разнообразия. В debug-режиме результат получает опциональный `ranking` с formula, match/title evidence, взвешенными signal contributions и позициями raw score/diversity/final; в обычном ответе этого поля нет.
+
 `MemoryCache` может сохранять метаданные в отдельном ограниченном stale-окне. `MediaEngine` использует их только для поиска и деталей, когда все выбранные провайдеры завершились с retryable-ошибками; устаревшие streaming-ссылки никогда не возвращаются. В таком ответе `meta.cached` и `meta.stale` равны `true`.
 
 Публичные search, details и availability запросы приводятся к canonical-виду до выбора провайдеров и построения cache/coalescing keys: строки и ID обрезаются, язык переводится в нижний регистр, top-level ID shortcuts переносятся в `ids`, а streaming provider filters обрезаются, дедуплицируются и сортируются. Известные форматы IMDb/numeric ID и длины полей валидируются. Search с `limit: 0` возвращает пустой некешированный ответ без обращений к провайдерам или cache.
