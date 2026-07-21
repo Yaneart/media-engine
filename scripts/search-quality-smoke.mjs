@@ -9,12 +9,19 @@ import {
   tvMazeProvider,
   wikidataProvider,
 } from "../packages/providers/dist/index.js";
+import {
+  SMOKE_CLASSIFICATION,
+  applySmokeExitCode,
+  classifySmokeError,
+  createSmokeReport,
+  formatSmokePolicy,
+  readSmokePolicy,
+} from "./smoke-policy.mjs";
 import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
 
 const userAgent = createSmokeUserAgent("SearchQualitySmoke");
 
-const strict = process.argv.includes("--strict");
-const json = process.argv.includes("--json");
+const policy = readSmokePolicy();
 const matrix = readOption("--matrix") ?? "smoke";
 const limit = readLimit();
 
@@ -45,11 +52,15 @@ for (const testCase of cases) {
   results.push(await runQualityCase(testCase));
 }
 
-printSummary(results);
+const report = createSmokeReport({
+  smoke: "search-quality",
+  policy,
+  metadata: { matrix },
+  results,
+});
 
-if (strict && results.some((result) => result.status === "FAIL")) {
-  process.exitCode = 1;
-}
+printReport(report);
+applySmokeExitCode(report);
 
 function selectCases(name) {
   if (name === "quick") {
@@ -358,6 +369,12 @@ async function runQualityCase(testCase) {
 
     return {
       status,
+      classification:
+        status === "FAIL"
+          ? SMOKE_CLASSIFICATION.contractRegression
+          : status === "WARN"
+            ? SMOKE_CLASSIFICATION.upstreamDegraded
+            : SMOKE_CLASSIFICATION.healthy,
       name: testCase.name,
       query: testCase.query,
       tookMs: response.meta.tookMs,
@@ -369,8 +386,10 @@ async function runQualityCase(testCase) {
       notes: [...deterministicNotes, ...warningNotes],
     };
   } catch (error) {
+    const failure = classifySmokeError(error);
+
     return {
-      status: "FAIL",
+      ...failure,
       name: testCase.name,
       query: testCase.query,
       tookMs: 0,
@@ -535,13 +554,13 @@ function normalize(value) {
     .replace(/\s+/g, " ");
 }
 
-function printSummary(results) {
-  if (json) {
-    console.log(JSON.stringify({ matrix, results, summary: summarize(results) }, null, 2));
+function printReport(report) {
+  if (policy.json) {
+    console.log(JSON.stringify(report, null, 2));
     return;
   }
 
-  for (const result of results) {
+  for (const result of report.results) {
     const notes = result.notes.length ? ` (${result.notes.join("; ")})` : "";
 
     console.log(
@@ -550,24 +569,13 @@ function printSummary(results) {
     console.log(`     top: ${result.topResults.join(" | ") || "none"}`);
   }
 
-  const summary = summarize(results);
+  const { summary } = report;
 
   console.log("");
   console.log(
     `Search quality ${matrix} summary: ${summary.pass} PASS, ${summary.warn} WARN, ${summary.fail} FAIL`,
   );
-
-  if (!strict && (summary.warn > 0 || summary.fail > 0)) {
-    console.log("Run with --strict to make failures exit non-zero.");
-  }
-}
-
-function summarize(results) {
-  return {
-    pass: results.filter((result) => result.status === "PASS").length,
-    warn: results.filter((result) => result.status === "WARN").length,
-    fail: results.filter((result) => result.status === "FAIL").length,
-  };
+  console.log(formatSmokePolicy(report));
 }
 
 function readLimit() {

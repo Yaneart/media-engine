@@ -2,9 +2,17 @@
 
 import { MediaEngine } from "../packages/core/dist/index.js";
 import { kinobdStreamingProvider } from "../packages/providers/dist/index.js";
+import {
+  SMOKE_CLASSIFICATION,
+  applySmokeExitCode,
+  classifySmokeError,
+  createSmokeReport,
+  formatSmokePolicy,
+  readSmokePolicy,
+} from "./smoke-policy.mjs";
 import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
 
-const strict = process.argv.includes("--strict");
+const policy = readSmokePolicy();
 const limit = readLimit();
 
 const engine = new MediaEngine({
@@ -71,11 +79,10 @@ for (const testCase of cases) {
   results.push(await runAvailabilityCase(testCase));
 }
 
-printSummary(results);
+const report = createSmokeReport({ smoke: "availability", policy, results });
 
-if (strict && results.some((result) => result.status === "FAIL")) {
-  process.exitCode = 1;
-}
+printReport(report);
+applySmokeExitCode(report);
 
 function availabilityCase(name, query, minOptions, options = {}) {
   return {
@@ -110,18 +117,21 @@ async function runAvailabilityCase(testCase) {
     const forbiddenPlayers = usableOptions
       .map((option) => option.player.label)
       .filter((label) => testCase.forbiddenPlayers.includes(label));
-    const status =
-      usableOptions.length >= testCase.minOptions &&
-      invalidKinds.length === 0 &&
-      !missingEpisodeGroup &&
-      !failedProviders &&
-      mismatchedIds.length === 0 &&
-      forbiddenPlayers.length === 0
-        ? "PASS"
-        : "FAIL";
+    const contractRegression =
+      invalidKinds.length > 0 ||
+      missingEpisodeGroup ||
+      mismatchedIds.length > 0 ||
+      forbiddenPlayers.length > 0;
+    const upstreamDegraded = usableOptions.length < testCase.minOptions || failedProviders;
+    const status = contractRegression ? "FAIL" : upstreamDegraded ? "WARN" : "PASS";
 
     return {
       status,
+      classification: contractRegression
+        ? SMOKE_CLASSIFICATION.contractRegression
+        : upstreamDegraded
+          ? SMOKE_CLASSIFICATION.upstreamDegraded
+          : SMOKE_CLASSIFICATION.healthy,
       kind: testCase.kind,
       name: testCase.name,
       tookMs: Date.now() - startedAt,
@@ -147,8 +157,10 @@ async function runAvailabilityCase(testCase) {
       ].filter(Boolean),
     };
   } catch (error) {
+    const failure = classifySmokeError(error);
+
     return {
-      status: "FAIL",
+      ...failure,
       kind: testCase.kind,
       name: testCase.name,
       tookMs: Date.now() - startedAt,
@@ -170,8 +182,13 @@ function isSupportedPlayerKind(kind) {
   return kind === "embed" || kind === "external" || kind === "hls" || kind === "mp4";
 }
 
-function printSummary(results) {
-  for (const result of results) {
+function printReport(report) {
+  if (policy.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  for (const result of report.results) {
     const notes = result.notes.length ? ` (${result.notes.join("; ")})` : "";
 
     console.log(
@@ -179,15 +196,11 @@ function printSummary(results) {
     );
   }
 
-  const pass = results.filter((result) => result.status === "PASS").length;
-  const fail = results.filter((result) => result.status === "FAIL").length;
+  const { pass, warn, fail } = report.summary;
 
   console.log("");
-  console.log(`Availability smoke summary: ${pass} PASS, ${fail} FAIL`);
-
-  if (!strict && fail > 0) {
-    console.log("Run with --strict to make failures exit non-zero.");
-  }
+  console.log(`Availability smoke summary: ${pass} PASS, ${warn} WARN, ${fail} FAIL`);
+  console.log(formatSmokePolicy(report));
 }
 
 function readLimit() {

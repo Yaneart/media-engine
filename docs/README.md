@@ -6,6 +6,7 @@ This directory contains current technical documentation for Media Engine.
 - [Public API](public-api.md) shows the main library and HTTP operations without duplicating every TypeScript type.
 - [Data model](data-model.md) describes the normalized media and streaming shapes.
 - [Providers](providers.md) lists the built-in providers and their safety boundaries.
+- [Quality gates](quality-gates.md) documents deterministic CI and classified live smoke policy.
 - [Roadmap](roadmap.md) contains a short public view of completed and planned work.
 
 The TypeScript declarations exported by the packages are the source of truth for exact fields. Package READMEs contain installation and quick-start examples.

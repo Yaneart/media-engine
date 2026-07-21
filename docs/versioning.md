@@ -33,3 +33,9 @@ from current `src/**/*.test.ts` files, and coverage explicitly excludes compiled
 helpers, so deleted or stale `dist` files cannot enter the gate. Built-in coverage include/exclude
 filters and thresholds require Node.js 22.8 or newer, independently of the packages' Node.js 20
 runtime baseline.
+
+Required push/pull-request CI runs the full deterministic gate on Node.js 24 and 26 and executes
+the prebuilt public package tests separately under Node.js 20 without requiring the newer pnpm
+tooling to run on that runtime. Live provider smoke is intentionally isolated in a scheduled/manual
+workflow. Its contract failures and tolerated upstream/latency warnings follow the versioned policy
+in [quality-gates.md](quality-gates.md).

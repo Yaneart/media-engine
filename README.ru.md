@@ -92,12 +92,19 @@ Media Engine не хранит видео. Он только приводит м
 pnpm release:check
 pnpm coverage
 pnpm pack:check
+pnpm smoke:search-quality:scheduled
 ```
 
 `release:check` — полный локальный gate релиз-кандидата: форматирование, lint без изменения
 файлов, чистая сборка, typecheck, unit coverage с порогами, API e2e, согласованность версий и
 проверка dry-pack. Для встроенных coverage-фильтров и порогов нужен Node.js 22.8 или новее;
 опубликованные пакеты сохраняют заявленную runtime-поддержку Node.js 20.
+
+Push и pull request запускают детерминированный gate на Node.js 24 и 26, а публичные пакеты
+отдельно проверяются на минимальной ветке Node.js 20. Live-проверки провайдеров не входят в
+обязательный PR gate: для них есть scheduled/manual workflow с классификацией результатов и
+явным бюджетом предупреждений. Подробности — в документе
+[quality gates and live smoke policy](docs/quality-gates.md).
 
 ## Лицензия
 

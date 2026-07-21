@@ -9,11 +9,19 @@ import {
   tvMazeProvider,
   wikidataProvider,
 } from "../packages/providers/dist/index.js";
+import {
+  SMOKE_CLASSIFICATION,
+  applySmokeExitCode,
+  classifySmokeError,
+  createSmokeReport,
+  formatSmokePolicy,
+  readSmokePolicy,
+} from "./smoke-policy.mjs";
 import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
 
 const userAgent = createSmokeUserAgent("ProviderSmoke");
 
-const strict = process.argv.includes("--strict");
+const policy = readSmokePolicy();
 const limit = readLimit();
 
 const engine = new MediaEngine({
@@ -134,11 +142,10 @@ for (const testCase of detailCases) {
   results.push(await runDetailsCase(testCase));
 }
 
-printSummary(results);
+const report = createSmokeReport({ smoke: "providers", policy, results });
 
-if (strict && results.some((result) => result.status === "FAIL")) {
-  process.exitCode = 1;
-}
+printReport(report);
+applySmokeExitCode(report);
 
 function searchCase(group, query, expectedTitles, requiredFields, options = {}) {
   return {
@@ -173,10 +180,18 @@ async function runSearchCase(testCase) {
     const missing = top
       ? missingFields(top.item, testCase.requiredFields)
       : testCase.requiredFields;
-    const status = matched && missing.length === 0 ? "PASS" : matched ? "WARN" : "FAIL";
+    const failedProviders = response.meta.providers.failed;
+    const contractRegression = !matched && failedProviders.length === 0;
+    const upstreamDegraded = failedProviders.length > 0 || missing.length > 0;
+    const status = contractRegression ? "FAIL" : upstreamDegraded ? "WARN" : "PASS";
 
     return {
       status,
+      classification: contractRegression
+        ? SMOKE_CLASSIFICATION.contractRegression
+        : upstreamDegraded
+          ? SMOKE_CLASSIFICATION.upstreamDegraded
+          : SMOKE_CLASSIFICATION.healthy,
       kind: testCase.kind,
       name: `${testCase.group}: ${testCase.query.title}`,
       tookMs: Date.now() - startedAt,
@@ -189,8 +204,8 @@ async function runSearchCase(testCase) {
           ? undefined
           : `expected top ${testCase.top}: ${testCase.expectedTitles.join(" / ")}`,
         missing.length ? `missing top fields: ${missing.join(", ")}` : undefined,
-        response.meta.providers.failed.length
-          ? `failed providers: ${response.meta.providers.failed.map((failure) => failure.provider).join(", ")}`
+        failedProviders.length
+          ? `failed providers: ${failedProviders.map((failure) => failure.provider).join(", ")}`
           : undefined,
       ].filter(Boolean),
     };
@@ -213,10 +228,18 @@ async function runDetailsCase(testCase) {
     const missing = details
       ? missingFields(details, testCase.requiredFields)
       : testCase.requiredFields;
-    const status = details && missing.length === 0 ? "PASS" : "FAIL";
+    const failedProviders = response.meta.providers.failed;
+    const contractRegression = !details && failedProviders.length === 0;
+    const upstreamDegraded = failedProviders.length > 0 || missing.length > 0;
+    const status = contractRegression ? "FAIL" : upstreamDegraded ? "WARN" : "PASS";
 
     return {
       status,
+      classification: contractRegression
+        ? SMOKE_CLASSIFICATION.contractRegression
+        : upstreamDegraded
+          ? SMOKE_CLASSIFICATION.upstreamDegraded
+          : SMOKE_CLASSIFICATION.healthy,
       kind: testCase.kind,
       name: testCase.name,
       tookMs: Date.now() - startedAt,
@@ -225,8 +248,8 @@ async function runDetailsCase(testCase) {
         : "null",
       notes: [
         missing.length ? `missing details fields: ${missing.join(", ")}` : undefined,
-        response.meta.providers.failed.length
-          ? `failed providers: ${response.meta.providers.failed.map((failure) => failure.provider).join(", ")}`
+        failedProviders.length
+          ? `failed providers: ${failedProviders.map((failure) => failure.provider).join(", ")}`
           : undefined,
       ].filter(Boolean),
     };
@@ -236,8 +259,10 @@ async function runDetailsCase(testCase) {
 }
 
 function failureResult(kind, name, startedAt, error) {
+  const failure = classifySmokeError(error);
+
   return {
-    status: "FAIL",
+    ...failure,
     kind,
     name,
     tookMs: Date.now() - startedAt,
@@ -283,9 +308,14 @@ function normalize(value) {
     .replace(/\s+/g, " ");
 }
 
-function printSummary(results) {
+function printReport(report) {
+  if (policy.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
   const statusOrder = { FAIL: 0, WARN: 1, PASS: 2 };
-  const sorted = [...results].sort((left, right) => {
+  const sorted = [...report.results].sort((left, right) => {
     const statusDiff = statusOrder[left.status] - statusOrder[right.status];
 
     return statusDiff || left.kind.localeCompare(right.kind) || left.name.localeCompare(right.name);
@@ -298,16 +328,11 @@ function printSummary(results) {
     );
   }
 
-  const pass = results.filter((result) => result.status === "PASS").length;
-  const warn = results.filter((result) => result.status === "WARN").length;
-  const fail = results.filter((result) => result.status === "FAIL").length;
+  const { pass, warn, fail } = report.summary;
 
   console.log("");
   console.log(`Provider smoke summary: ${pass} PASS, ${warn} WARN, ${fail} FAIL`);
-
-  if (!strict && fail > 0) {
-    console.log("Run with --strict to make failures exit non-zero.");
-  }
+  console.log(formatSmokePolicy(report));
 }
 
 function readLimit() {

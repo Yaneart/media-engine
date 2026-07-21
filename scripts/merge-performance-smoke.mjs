@@ -3,8 +3,15 @@
 import { performance } from "node:perf_hooks";
 
 import { DefaultMergeStrategy } from "../packages/core/dist/merge/index.js";
+import {
+  SMOKE_CLASSIFICATION,
+  applySmokeExitCode,
+  createSmokeReport,
+  formatSmokePolicy,
+  readSmokePolicy,
+} from "./smoke-policy.mjs";
 
-const json = process.argv.includes("--json");
+const policy = readSmokePolicy();
 const iterations = readNumber("--iterations", 5);
 const count = readNumber("--count", 2_000);
 const duplicateProviders = readNumber("--duplicate-providers", 2);
@@ -32,28 +39,31 @@ for (let index = 0; index < iterations; index += 1) {
 }
 
 const summary = summarize(runs);
-const status =
-  runs.every((run) => run.resultCount === count) && summary.medianMs <= thresholdMs
-    ? "PASS"
-    : "WARN";
+const resultCountMatches = runs.every((run) => run.resultCount === count);
+const status = !resultCountMatches ? "FAIL" : summary.medianMs > thresholdMs ? "WARN" : "PASS";
+const result = {
+  status,
+  classification: !resultCountMatches
+    ? SMOKE_CLASSIFICATION.contractRegression
+    : status === "WARN"
+      ? SMOKE_CLASSIFICATION.budgetExceeded
+      : SMOKE_CLASSIFICATION.healthy,
+  inputCount: providerResults.length,
+  uniqueMediaCount: count,
+  duplicateProviders,
+  iterations,
+  thresholdMs,
+  summary,
+  runs,
+};
+const report = createSmokeReport({
+  smoke: "merge-performance",
+  policy,
+  results: [result],
+});
 
-if (json) {
-  console.log(
-    JSON.stringify(
-      {
-        status,
-        inputCount: providerResults.length,
-        uniqueMediaCount: count,
-        duplicateProviders,
-        iterations,
-        thresholdMs,
-        summary,
-        runs,
-      },
-      null,
-      2,
-    ),
-  );
+if (policy.json) {
+  console.log(JSON.stringify(report, null, 2));
 } else {
   console.log(
     `${status} merge performance -> input=${providerResults.length} unique=${count} duplicateProviders=${duplicateProviders}`,
@@ -64,7 +74,10 @@ if (json) {
     )}ms max=${summary.maxMs.toFixed(2)}ms avg=${summary.avgMs.toFixed(2)}ms threshold=${thresholdMs}ms`,
   );
   console.log(`     first=${runs[0]?.first ?? "none"} warnings=${runs[0]?.warningCount ?? 0}`);
+  console.log(formatSmokePolicy(report));
 }
+
+applySmokeExitCode(report);
 
 function createProviderResults(uniqueCount, providersPerItem) {
   const providers = ["kinobd", "cinemeta", "shikimori", "wikidata"];

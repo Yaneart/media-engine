@@ -8,11 +8,19 @@ import {
   tvMazeProvider,
   wikidataProvider,
 } from "../packages/providers/dist/index.js";
+import {
+  SMOKE_CLASSIFICATION,
+  applySmokeExitCode,
+  classifySmokeError,
+  createSmokeReport,
+  formatSmokePolicy,
+  readSmokePolicy,
+} from "./smoke-policy.mjs";
 import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
 
 const userAgent = createSmokeUserAgent("DetailsLatencySmoke");
 
-const strict = process.argv.includes("--strict");
+const policy = readSmokePolicy();
 const limit = readLimit();
 const thresholdMs = readThresholdMs();
 
@@ -90,11 +98,15 @@ for (const testCase of cases) {
   results.push(await runLatencyCase(testCase));
 }
 
-printSummary(results);
+const report = createSmokeReport({
+  smoke: "details-latency",
+  policy,
+  metadata: { thresholdMs },
+  results,
+});
 
-if (strict && results.some((result) => result.status === "FAIL")) {
-  process.exitCode = 1;
-}
+printReport(report);
+applySmokeExitCode(report);
 
 function latencyCase(name, query, expectedTitles) {
   return {
@@ -116,15 +128,26 @@ async function runLatencyCase(testCase) {
     const identityMatches = response.details
       ? testCase.expectedTitles.some((title) => hasTitleMatch(response.details, title))
       : false;
-    const status =
-      !response.details || !identityMatches
-        ? "FAIL"
-        : response.meta.tookMs > thresholdMs || slowTimings.length > 0
-          ? "WARN"
-          : "PASS";
+    const contractRegression =
+      (!response.details || !identityMatches) && failedProviders.length === 0;
+    const upstreamDegraded = (!response.details || !identityMatches) && failedProviders.length > 0;
+    const latencyExceeded = response.meta.tookMs > thresholdMs || slowTimings.length > 0;
+    const status = contractRegression
+      ? "FAIL"
+      : upstreamDegraded || latencyExceeded
+        ? "WARN"
+        : "PASS";
+    const classification = contractRegression
+      ? SMOKE_CLASSIFICATION.contractRegression
+      : upstreamDegraded
+        ? SMOKE_CLASSIFICATION.upstreamDegraded
+        : latencyExceeded
+          ? SMOKE_CLASSIFICATION.budgetExceeded
+          : SMOKE_CLASSIFICATION.healthy;
 
     return {
       status,
+      classification,
       name: testCase.name,
       tookMs: response.meta.tookMs,
       details: response.details ? formatDetails(response.details) : "no details",
@@ -145,8 +168,10 @@ async function runLatencyCase(testCase) {
       ].filter(Boolean),
     };
   } catch (error) {
+    const failure = classifySmokeError(error);
+
     return {
-      status: "FAIL",
+      ...failure,
       name: testCase.name,
       tookMs: 0,
       details: "",
@@ -193,8 +218,13 @@ function findMissingFields(details) {
   ].filter(Boolean);
 }
 
-function printSummary(results) {
-  for (const result of results) {
+function printReport(report) {
+  if (policy.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  for (const result of report.results) {
     const notes = result.notes.length ? ` (${result.notes.join("; ")})` : "";
     const failures = result.failedProviders.length
       ? ` failures=${result.failedProviders.join(",")}`
@@ -213,17 +243,12 @@ function printSummary(results) {
     }
   }
 
-  const pass = results.filter((result) => result.status === "PASS").length;
-  const warn = results.filter((result) => result.status === "WARN").length;
-  const fail = results.filter((result) => result.status === "FAIL").length;
+  const { pass, warn, fail } = report.summary;
 
   console.log("");
   console.log(`Details latency smoke summary: ${pass} PASS, ${warn} WARN, ${fail} FAIL`);
   console.log(`Latency threshold: ${thresholdMs}ms`);
-
-  if (!strict && (warn > 0 || fail > 0)) {
-    console.log("Run with --strict to make failures exit non-zero.");
-  }
+  console.log(formatSmokePolicy(report));
 }
 
 function readLimit() {

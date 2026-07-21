@@ -2,9 +2,17 @@
 
 import { MediaEngine } from "../packages/core/dist/index.js";
 import { kinobdStreamingProvider } from "../packages/providers/dist/index.js";
+import {
+  SMOKE_CLASSIFICATION,
+  applySmokeExitCode,
+  classifySmokeError,
+  createSmokeReport,
+  formatSmokePolicy,
+  readSmokePolicy,
+} from "./smoke-policy.mjs";
 import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
 
-const strict = process.argv.includes("--strict");
+const policy = readSmokePolicy();
 const limit = readLimit();
 const category = readCategory();
 let latestAudit;
@@ -64,11 +72,15 @@ for (const testCase of cases) {
   results.push(await runAuditCase(testCase));
 }
 
-printResults(results);
+const report = createSmokeReport({
+  smoke: "source-filter-audit",
+  policy,
+  metadata: { category: category ?? null },
+  results,
+});
 
-if (strict && results.some((result) => result.status === "FAIL")) {
-  process.exitCode = 1;
-}
+printReport(report);
+applySmokeExitCode(report);
 
 function kinopoiskCase(name, type, kinopoiskId, titleAliases = []) {
   const expectedTitle = name.slice(name.indexOf(":") + 1).trim();
@@ -93,17 +105,18 @@ async function runAuditCase(testCase) {
     const actualKinopoiskId = availability.item?.ids?.kinopoisk;
     const identityMismatch = actualKinopoiskId !== testCase.expectedKinopoiskId;
     const titleMismatch = !matchesExpectedTitle(availability.item, testCase.expectedTitles);
-    const status =
-      availability.options.length > 0 &&
-      audit &&
-      invalidFilteredEntries.length === 0 &&
-      !identityMismatch &&
-      !titleMismatch
-        ? "PASS"
-        : "FAIL";
+    const upstreamDegraded = availability.options.length === 0 || !audit;
+    const contractRegression =
+      !upstreamDegraded && (invalidFilteredEntries.length > 0 || identityMismatch || titleMismatch);
+    const status = contractRegression ? "FAIL" : upstreamDegraded ? "WARN" : "PASS";
 
     return {
       status,
+      classification: contractRegression
+        ? SMOKE_CLASSIFICATION.contractRegression
+        : upstreamDegraded
+          ? SMOKE_CLASSIFICATION.upstreamDegraded
+          : SMOKE_CLASSIFICATION.healthy,
       name: testCase.name,
       tookMs: Date.now() - startedAt,
       optionCount: availability.options.length,
@@ -118,8 +131,10 @@ async function runAuditCase(testCase) {
       ].filter(Boolean),
     };
   } catch (error) {
+    const failure = classifySmokeError(error);
+
     return {
-      status: "FAIL",
+      ...failure,
       name: testCase.name,
       tookMs: Date.now() - startedAt,
       optionCount: 0,
@@ -130,8 +145,13 @@ async function runAuditCase(testCase) {
   }
 }
 
-function printResults(results) {
-  for (const result of results) {
+function printReport(report) {
+  if (policy.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  for (const result of report.results) {
     const notes = result.notes.length ? ` (${result.notes.join("; ")})` : "";
 
     console.log(
@@ -142,11 +162,11 @@ function printResults(results) {
     console.log(`     filtered:   ${formatFiltered(result.audit?.filtered)}`);
   }
 
-  const pass = results.filter((result) => result.status === "PASS").length;
-  const fail = results.filter((result) => result.status === "FAIL").length;
+  const { pass, warn, fail } = report.summary;
 
   console.log("");
-  console.log(`Source filter audit summary: ${pass} PASS, ${fail} FAIL`);
+  console.log(`Source filter audit summary: ${pass} PASS, ${warn} WARN, ${fail} FAIL`);
+  console.log(formatSmokePolicy(report));
 }
 
 function formatList(values) {

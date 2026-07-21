@@ -92,12 +92,18 @@ For local checks:
 pnpm release:check
 pnpm coverage
 pnpm pack:check
+pnpm smoke:search-quality:scheduled
 ```
 
 `release:check` is the complete local release-candidate gate: formatting, check-only lint,
 clean builds, type checks, thresholded unit coverage, API e2e tests, version consistency, and
 dry-pack verification. Built-in coverage filtering and thresholds require Node.js 22.8 or newer;
 the published packages retain their documented Node.js 20 runtime support.
+
+Pushes and pull requests run the deterministic gate on Node.js 24 and 26, while the public
+packages are tested separately on their minimum Node.js 20 line. Live provider checks are kept out
+of the pull-request gate and run through the scheduled/manual network workflow with classified
+results and an explicit warning budget. See [quality gates and live smoke policy](docs/quality-gates.md).
 
 ## License
 

@@ -1,0 +1,72 @@
+name: Network smoke
+
+on:
+  schedule:
+    - cron: "23 4 * * 2,5"
+  workflow_dispatch:
+    inputs:
+      matrix:
+        description: Search matrix to run
+        required: true
+        default: full
+        type: choice
+        options:
+          - quick
+          - full
+      max_warnings:
+        description: Maximum tolerated upstream/latency warnings
+        required: true
+        default: "4"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: network-smoke
+  cancel-in-progress: false
+
+jobs:
+  search-quality:
+    name: Live search quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SMOKE_MATRIX: ${{ inputs.matrix || 'full' }}
+      SMOKE_MAX_WARNINGS: ${{ inputs.max_warnings || '4' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up current LTS Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace
+        run: pnpm build:check
+
+      - name: Run bounded live matrix
+        run: >-
+          node scripts/search-quality-smoke.mjs
+          --matrix "$SMOKE_MATRIX"
+          --max-warnings "$SMOKE_MAX_WARNINGS"
+          --json
+          | tee network-smoke-summary.json
+
+      - name: Upload machine-readable smoke report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: network-smoke-${{ github.run_id }}
+          path: network-smoke-summary.json
+          if-no-files-found: warn
+          retention-days: 30
