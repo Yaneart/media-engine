@@ -4,7 +4,7 @@ This roadmap is intentionally short. Detailed task lists and session plans are k
 
 ## Released
 
-Version `0.1.0` established the first public baseline:
+The `0.1.x` releases established and hardened the first public baseline:
 
 - framework-independent core engine;
 - normalized movie, series, anime, and streaming models;
@@ -12,14 +12,28 @@ Version `0.1.0` established the first public baseline:
 - no-token built-in providers plus optional local IMDb datasets;
 - deterministic merging, caching, timeouts, retries, and partial failures;
 - NestJS API, typed SDK, and React example;
-- public npm packages for core, providers, and SDK.
+- public npm packages for core, providers, and SDK;
+- repeatable coverage, package, runtime, Docker, and live-upstream quality gates.
 
 ## Current focus
 
-1. Make repository and package documentation shorter, clearer, and available in English and Russian.
-2. Refactor large internal modules without changing public APIs or search behavior.
-3. Strengthen repeatable search-quality and performance regression checks.
-4. Audit code quality, cancellation, caching, complexity, and hot paths.
+1. Revalidate the access model, response contracts, and live reliability of candidate
+   streaming sources before integrating them.
+2. Add Kinobox and DDBB as independent providers when they pass those checks; add DDBB
+   Live only if repeated measurements show that it is stable enough. RHServ is excluded.
+3. Stabilize each accepted provider with bounded requests, typed failures, deterministic
+   tests, clear attribution, predictable folders, isolated outage behavior, and accurate
+   `embed` versus direct-stream classification for consuming applications.
+4. Design a separate normalized torrent-discovery contract and add only accepted torrent
+   sources. Media Engine will return typed candidates and playback handoff data without
+   bundling a frontend player, video proxy, BitTorrent client, storage, or transcoder.
+5. Use the repository API and example applications as an opt-in reference playback stand:
+   verify direct HLS/MP4 and controlled torrent handoff end to end without moving player or
+   P2P runtime responsibilities into the public Media Engine packages.
+6. Run a complete code and architecture audit, then remove proven dead code and accidental
+   duplication and reorganize misplaced modules in small behavior-preserving changes.
+7. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before
+   preparing `1.0.0`.
 
 ## Later
 
@@ -27,12 +41,20 @@ Version `0.1.0` established the first public baseline:
 - add providers only when their access model and usage boundaries are clear;
 - expand localization and normalized subtitle/audio metadata;
 - improve contributor documentation and release automation;
-- stabilize contracts toward `1.0.0` based on real consumer feedback.
+- evaluate additional metadata sources independently from streaming providers.
 
 ## Principles
 
 - built-in providers should not require private credentials or account cookies;
 - metadata and streaming remain separate layers;
+- torrent discovery remains separate from immediate stream availability and playback;
 - external IDs and provider attribution stay visible;
+- Media Engine returns normalized discovery and playback handoff data; consuming applications
+  own their UI, player, proxy, torrent runtime, storage, and transcoding decisions;
+- repository applications may demonstrate and verify that handoff, but reference playback
+  components must remain optional and outside public package runtime dependencies;
 - live upstream data is described honestly as best-effort;
+- one slow or broken provider must not hide useful results from healthy providers;
+- shared code must represent genuinely shared semantics, not merely similar syntax;
+- structural cleanup must preserve public contracts and proven behavior;
 - measured reliability and performance matter more than a long feature checklist.
