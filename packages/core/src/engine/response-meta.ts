@@ -4,6 +4,7 @@ import type {
   ProviderTimingMeta,
   ResponseMeta,
   SearchEnrichmentDebugMeta,
+  SearchIdentitySnapshotDebugMeta,
 } from "../response/index.js";
 
 // Values used to build response metadata.
@@ -18,6 +19,7 @@ export interface ResponseMetaInput {
   debug: boolean;
   timings?: ProviderTimingMeta[];
   enrichment?: SearchEnrichmentDebugMeta;
+  identitySnapshot?: SearchIdentitySnapshotDebugMeta;
 }
 
 // Creates public response metadata for engine calls.
@@ -42,6 +44,7 @@ export function createResponseMeta(input: ResponseMetaInput): ResponseMeta {
           ],
           timings: input.timings ?? [],
           enrichment: input.enrichment,
+          ...(input.identitySnapshot ? { identitySnapshot: input.identitySnapshot } : {}),
         }
       : undefined,
   };

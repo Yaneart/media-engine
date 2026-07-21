@@ -52,12 +52,21 @@ export interface SearchEnrichmentDebugMeta {
   poster: SearchEnrichmentCounters;
 }
 
+// Search identity recovery diagnostics exposed only in debug responses.
+// Диагностика восстановления search identity только для debug-ответов.
+export interface SearchIdentitySnapshotDebugMeta {
+  applied: true;
+  restored: number;
+  reordered: number;
+}
+
 // Extra diagnostics returned when the engine is created with debug enabled.
 // Дополнительная диагностика, возвращаемая при включенном debug у движка.
 export interface ResponseDebugMeta {
   providers: string[];
   timings: ProviderTimingMeta[];
   enrichment?: SearchEnrichmentDebugMeta;
+  identitySnapshot?: SearchIdentitySnapshotDebugMeta;
 }
 
 // Shared metadata returned with search and details responses.

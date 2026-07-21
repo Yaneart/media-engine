@@ -5,7 +5,12 @@ import type { MediaDetails } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type ProviderInfo } from "../providers/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
-import type { EngineWarning, ProviderFailure, ProviderTimingMeta } from "../response/index.js";
+import type {
+  EngineWarning,
+  ProviderFailure,
+  ProviderTimingMeta,
+  SearchIdentitySnapshotDebugMeta,
+} from "../response/index.js";
 import type { SearchQuery, SearchResponse } from "../search/index.js";
 import type {
   MediaAvailability,
@@ -33,6 +38,7 @@ import {
   createProviderSearchQuery,
   createSearchCacheKey,
   createSearchFallbackQuery,
+  createSearchIdentitySnapshotCacheKey,
   inferTitleLanguage,
   normalizeDetailsQuery,
   normalizeSearchQuery,
@@ -45,6 +51,13 @@ import { createResponseMeta, elapsedSince } from "./response-meta.js";
 import { applySearchDetailsEnrichments, executeSearchEnrichmentPlan } from "./search-enrichment.js";
 import { needsFallbackTitleDiscovery } from "./search-discovery.js";
 import { applySearchPosterEnrichments } from "./search-poster-enrichment.js";
+import {
+  createSearchIdentitySnapshot,
+  isUsableSearchIdentitySnapshot,
+  recoverSearchIdentitySnapshot,
+  SEARCH_IDENTITY_SNAPSHOT_CACHE_OPTIONS,
+  type SearchIdentitySnapshot,
+} from "./search-identity-snapshot.js";
 import { SearchOutcomeAccumulator } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
 import { throwIfAborted, waitForCaller } from "./operation.js";
@@ -158,6 +171,7 @@ export class MediaEngine {
     const searchLanguage = normalizedQuery.language ?? inferTitleLanguage(normalizedQuery.title);
 
     const cacheKey = createSearchCacheKey(normalizedQuery);
+    const identitySnapshotCacheKey = createSearchIdentitySnapshotCacheKey(normalizedQuery);
     const cached = await waitForCaller(this.cache?.get<SearchResponse>(cacheKey), options.signal);
 
     if (cached) {
@@ -368,6 +382,30 @@ export class MediaEngine {
         detailsEnrichedResults,
         enrichment.posterEnrichments,
       );
+      let identitySnapshotDebug: SearchIdentitySnapshotDebugMeta | undefined;
+      const hasRetryableMandatoryFailure = searchOutcomes.hasRetryableMandatoryFailure();
+      const identitySnapshot = await waitForCaller(
+        this.cache?.get<SearchIdentitySnapshot>(identitySnapshotCacheKey),
+        operationSignal,
+      );
+
+      if (failed.length === 0 || hasRetryableMandatoryFailure) {
+        const recovery = recoverSearchIdentitySnapshot(posterEnrichedResults, identitySnapshot);
+        posterEnrichedResults.splice(0, posterEnrichedResults.length, ...recovery.results);
+        identitySnapshotDebug = recovery.debug;
+
+        if (recovery.debug) {
+          warnings.push({
+            code: hasRetryableMandatoryFailure
+              ? "SEARCH_IDENTITY_SNAPSHOT_FALLBACK"
+              : "SEARCH_IDENTITY_SNAPSHOT_STABILIZED",
+            message: hasRetryableMandatoryFailure
+              ? "Restored previously confirmed search identities because mandatory discovery was retryably degraded."
+              : "Kept previously confirmed search identities stable across equivalent searches.",
+          });
+        }
+      }
+
       const limitedResults =
         normalizedQuery.limit === undefined
           ? posterEnrichedResults
@@ -386,12 +424,29 @@ export class MediaEngine {
           debug: this.debug,
           timings: providerTimings,
           enrichment: searchOutcomes.getEnrichmentDebugMeta(),
+          identitySnapshot: identitySnapshotDebug,
         }),
       };
 
       throwIfAborted(operationSignal);
 
-      if (!searchOutcomes.hasRetryableMandatoryFailure()) {
+      if (failed.length === 0 && !isUsableSearchIdentitySnapshot(identitySnapshot)) {
+        const newIdentitySnapshot = createSearchIdentitySnapshot(posterEnrichedResults);
+
+        if (newIdentitySnapshot) {
+          await this.cache?.set(
+            identitySnapshotCacheKey,
+            newIdentitySnapshot,
+            SEARCH_IDENTITY_SNAPSHOT_CACHE_OPTIONS,
+          );
+        } else {
+          await this.cache?.delete(identitySnapshotCacheKey);
+        }
+      }
+
+      // Keep the complete response most recent when a bounded cache can retain only one entry.
+      // Сохраняем полный ответ последним, если bounded cache вмещает только одну запись.
+      if (!hasRetryableMandatoryFailure) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
 

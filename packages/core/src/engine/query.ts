@@ -294,6 +294,13 @@ export function createSearchCacheKey(query: SearchQuery): string {
   return `search:${JSON.stringify(sortObject(query))}`;
 }
 
+// Shares confirmed identity ordering across equivalent searches with different public limits.
+// Разделяет подтвержденный порядок identity между эквивалентными поисками с разными limit.
+export function createSearchIdentitySnapshotCacheKey(query: SearchQuery): string {
+  const { limit: _limit, ...identityQuery } = query;
+  return `search-identity:${JSON.stringify(sortObject(identityQuery))}`;
+}
+
 // Creates a stable cache key for a normalized details query.
 // Создает стабильный cache key для нормализованного details query.
 export function createDetailsCacheKey(query: DetailsQuery): string {

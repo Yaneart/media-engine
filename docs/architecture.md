@@ -60,11 +60,14 @@ Search adds an explicit discovery pipeline before merging:
 1. run `primary` title-discovery providers concurrently;
 2. if no relevant candidate exists, broaden a supported typo or joined-title query through the same primary providers;
 3. run `fallback` title-discovery providers only when the primary candidates remain empty or contain multiple conflicting exact-title identities;
-4. merge candidates, then execute bounded ID/details/poster enrichment.
+4. merge candidates, then execute bounded ID/details/poster enrichment;
+5. after healthy mandatory discovery, retain a bounded identity snapshot for equivalent queries independently of the full response cache.
 
 External-ID search is not tiered: every compatible provider remains eligible immediately. A custom metadata provider defaults to primary title discovery unless it opts into `capabilities.search.titleDiscovery: "fallback"`.
 
 Optional search-card enrichment is a separate role. Providers participate by default but can set `capabilities.searchEnrichment: false`; built-in Wikidata does so because its slower identity lookup must not consume circuit and timeout capacity during best-effort poster enrichment.
+
+For the next 30 minutes, equivalent cache misses use the first healthy identity snapshot whose top candidate has a strong external ID to keep confirmed candidates and ordering stable even if a successful upstream response drifts. The snapshot is not refreshed inside that window. It ignores the public `limit`, keeps at most 20 candidates, never replaces a current candidate with conflicting strong IDs, and does not mark the response as cached. Retryably degraded partial searches can use the same recovery while retaining current provider failures; non-retryable degradation does not. A cold request without a prior confirmed snapshot remains dependent on the currently available identity sources, and a weak top candidate without a strong ID is never promoted into the snapshot.
 
 Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options.
 
@@ -81,6 +84,7 @@ Search ranking combines title relevance, provider confidence, source authority, 
 - Provider timeouts and abort signals bound slow upstream calls.
 - Partial provider failures are returned in response metadata.
 - Slower fallback identity sources stay off the healthy primary title-search path.
+- Retryably degraded partial searches can recover prior confirmed identity order without caching the degraded response.
 - Public query limits and provider fan-out are bounded.
 - The in-memory cache isolates stored values from caller mutation.
 - Availability cache lifetimes respect expiring direct links.
