@@ -11,7 +11,19 @@ import {
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from './../src/media-engine';
 import { AppModule } from './../src/app.module';
-import { setupOpenApi } from './../src/openapi';
+import { configureApiApplication } from './../src/bootstrap';
+import type { ApiRuntimeConfig } from './../src/runtime-config';
+
+const testRuntimeConfig: ApiRuntimeConfig = {
+  environment: 'test',
+  host: '127.0.0.1',
+  port: 3000,
+  corsOrigins: ['http://127.0.0.1:5173'],
+  rateLimit: {
+    windowMs: 60_000,
+    maxRequests: 2,
+  },
+};
 
 describe('Media Engine API (e2e)', () => {
   let app: INestApplication<App>;
@@ -94,12 +106,25 @@ describe('Media Engine API (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
-    setupOpenApi(app);
+    configureApiApplication(app, testRuntimeConfig);
     await app.init();
   });
 
   it('/health (GET)', () => {
     return request(app.getHttpServer()).get('/health').expect(200).expect({
+      status: 'ok',
+      service: 'media-engine-api',
+      providers: [],
+    });
+  });
+
+  it('/health/live and /health/ready expose separate probe semantics', async () => {
+    await request(app.getHttpServer()).get('/health/live').expect(200).expect({
+      status: 'ok',
+      service: 'media-engine-api',
+    });
+
+    await request(app.getHttpServer()).get('/health/ready').expect(200).expect({
       status: 'ok',
       service: 'media-engine-api',
       providers: [],
@@ -141,6 +166,57 @@ describe('Media Engine API (e2e)', () => {
     expect(mediaEngine.getProviders).toHaveBeenCalledWith();
   });
 
+  it('adds security headers with separate API and Swagger CSP policies', async () => {
+    const apiResponse = await request(app.getHttpServer())
+      .get('/health/live')
+      .expect(200);
+    const docsResponse = await request(app.getHttpServer())
+      .get('/docs/')
+      .expect(200);
+
+    expect(apiResponse.headers['x-content-type-options']).toBe('nosniff');
+    expect(apiResponse.headers['strict-transport-security']).toBeUndefined();
+    expect(apiResponse.headers['content-security-policy']).toContain(
+      "default-src 'none'",
+    );
+    expect(docsResponse.headers['content-security-policy']).toContain(
+      "script-src 'self' 'unsafe-inline'",
+    );
+  });
+
+  it('allows only configured CORS origins', async () => {
+    await request(app.getHttpServer())
+      .get('/health/live')
+      .set('Origin', 'http://127.0.0.1:5173')
+      .expect('Access-Control-Allow-Origin', 'http://127.0.0.1:5173')
+      .expect(200);
+
+    const rejected = await request(app.getHttpServer())
+      .get('/health/live')
+      .set('Origin', 'https://untrusted.example')
+      .expect(200);
+
+    expect(rejected.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('rate limits expensive media routes but not health probes', async () => {
+    await request(app.getHttpServer())
+      .get('/media/search?title=Dune')
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/media/details?imdb=tt0816692')
+      .expect(200);
+
+    const limited = await request(app.getHttpServer())
+      .get('/media/availability?type=movie&title=Dune')
+      .expect(429);
+
+    expect(limited.headers['ratelimit-limit']).toBe('2');
+    expect(limited.headers['ratelimit-remaining']).toBe('0');
+    expect(limited.headers['retry-after']).toBeDefined();
+    await request(app.getHttpServer()).get('/health/live').expect(200);
+  });
+
   it('/docs-json (GET)', async () => {
     const response = await request(app.getHttpServer())
       .get('/docs-json')
@@ -159,6 +235,8 @@ describe('Media Engine API (e2e)', () => {
       version: '0.1.0',
     });
     expect(body.paths).toHaveProperty('/health');
+    expect(body.paths).toHaveProperty('/health/live');
+    expect(body.paths).toHaveProperty('/health/ready');
     expect(body.paths).toHaveProperty('/media/search');
     expect(body.paths).toHaveProperty('/media/details');
     expect(body.paths).toHaveProperty('/media/availability');

@@ -20,6 +20,8 @@ const media = new MediaEngineClient({
 const search = await media.search({ title: "Interstellar" });
 const details = await media.getDetails({ imdb: "tt0816692" });
 const health = await media.getHealth();
+const live = await media.getLiveness();
+const ready = await media.getReadiness();
 ```
 
 Pass a namespaced external ID to `getDetails()`, through `ids` or a shortcut such as `imdb`. The API rejects the deprecated plain `id` lookup with HTTP 400.

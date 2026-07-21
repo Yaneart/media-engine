@@ -7,6 +7,7 @@ import {
   ApiQuery,
   ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import { MediaService } from './media.service';
 import type {
@@ -17,6 +18,9 @@ import type {
 import { runWithHttpRequestSignal } from './request-cancellation';
 
 @ApiTags('media')
+@ApiTooManyRequestsResponse({
+  description: 'The process-local public media request limit was exceeded.',
+})
 @Controller('media')
 // EN: Public media metadata controller for REST clients.
 // RU: Публичный metadata controller для REST-клиентов.

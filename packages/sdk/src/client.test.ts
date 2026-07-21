@@ -202,7 +202,7 @@ test("getAvailability serializes streaming query params", async () => {
   assert.equal(mock.calls[0]?.searchParams.get("language"), "ru");
 });
 
-test("getProviders and getHealth parse typed responses", async () => {
+test("provider and health methods parse typed responses", async () => {
   const providersMock = createMockFetch(Response.json([]));
   const providersClient = new MediaEngineClient({
     baseUrl: "http://127.0.0.1:3000",
@@ -234,6 +234,33 @@ test("getProviders and getHealth parse typed responses", async () => {
 
   assert.deepEqual(await healthClient.getHealth(), health);
   assert.equal(healthMock.calls[0]?.pathname, "/health");
+
+  const liveness = {
+    status: "ok",
+    service: "media-engine-api",
+  } as const;
+  const livenessMock = createMockFetch(Response.json(liveness));
+  const livenessClient = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: livenessMock.fetch,
+  });
+
+  assert.deepEqual(await livenessClient.getLiveness(), liveness);
+  assert.equal(livenessMock.calls[0]?.pathname, "/health/live");
+
+  const readiness = {
+    status: "degraded",
+    service: "media-engine-api",
+    providers: [],
+  } as const;
+  const readinessMock = createMockFetch(Response.json(readiness));
+  const readinessClient = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: readinessMock.fetch,
+  });
+
+  assert.deepEqual(await readinessClient.getReadiness(), readiness);
+  assert.equal(readinessMock.calls[0]?.pathname, "/health/ready");
 });
 
 test("failed API responses throw typed SDK errors", async () => {

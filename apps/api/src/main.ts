@@ -1,26 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { configureApiApplication } from './bootstrap';
 import { loadLocalEnv } from './env';
-import { setupOpenApi } from './openapi';
-
-const DEFAULT_PORT = 3000;
-const DEFAULT_HOST = '127.0.0.1';
+import { readApiRuntimeConfig } from './runtime-config';
 
 async function bootstrap(): Promise<void> {
   loadLocalEnv();
+  const config = readApiRuntimeConfig();
 
   const app = await NestFactory.create(AppModule);
-  app.enableCors({
-    origin: ['http://127.0.0.1:5173', 'http://localhost:5173'],
-  });
-  setupOpenApi(app);
+  configureApiApplication(app, config);
+  app.enableShutdownHooks();
 
-  // EN: Keep local defaults explicit while still allowing deployment overrides.
-  // RU: Держим локальные значения явными, но оставляем переопределение для деплоя.
-  const port = Number.parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
-  const host = process.env.HOST ?? DEFAULT_HOST;
-
-  await app.listen(Number.isFinite(port) ? port : DEFAULT_PORT, host);
+  await app.listen(config.port, config.host);
 }
 
-void bootstrap();
+void bootstrap().catch((error: unknown) => {
+  console.error('Media Engine API failed to start.', error);
+  process.exitCode = 1;
+});

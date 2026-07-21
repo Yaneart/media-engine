@@ -20,6 +20,8 @@ const media = new MediaEngineClient({
 const search = await media.search({ title: "Интерстеллар" });
 const details = await media.getDetails({ imdb: "tt0816692" });
 const health = await media.getHealth();
+const live = await media.getLiveness();
+const ready = await media.getReadiness();
 ```
 
 В `getDetails()` передавайте внешний ID с указанием источника — через `ids` или сокращение вроде `imdb`. API отклоняет устаревший запрос с одним обычным `id` и возвращает HTTP 400.

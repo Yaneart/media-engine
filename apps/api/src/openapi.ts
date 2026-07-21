@@ -10,7 +10,7 @@ export function setupOpenApi(app: INestApplication): void {
     .setTitle('Media Engine API')
     .setDescription('REST API for unified movie, series, and anime metadata.')
     .setVersion(MEDIA_ENGINE_API_VERSION)
-    .addTag('health', 'Readiness and basic service status.')
+    .addTag('health', 'Liveness and provider-aware readiness status.')
     .addTag(
       'media',
       'Search and details endpoints for normalized media metadata.',

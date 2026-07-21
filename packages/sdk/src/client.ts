@@ -27,13 +27,20 @@ export interface MediaEngineRequestOptions {
   headers?: HeadersInit;
 }
 
-// EN: Stable response returned by the API health endpoint.
-// RU: Стабильный ответ, который возвращает API health endpoint.
-export interface MediaEngineHealthResponse {
+export interface MediaEngineLivenessResponse {
   status: "ok";
+  service: "media-engine-api";
+}
+
+// Provider-aware readiness returned by /health, including partial-service degradation.
+// Provider-aware readiness из /health, включая деградацию частично доступного сервиса.
+export interface MediaEngineHealthResponse {
+  status: "ok" | "degraded";
   service: "media-engine-api";
   providers: ProviderHealthStatus[];
 }
+
+export type MediaEngineReadinessResponse = MediaEngineHealthResponse;
 
 // EN: Error thrown by the SDK for failed API responses or invalid payloads.
 // RU: Ошибка, которую SDK бросает для неуспешных API responses или неверных payload.
@@ -121,6 +128,18 @@ export class MediaEngineClient {
   // RU: Проверяет готовность API через GET /health.
   getHealth(options?: MediaEngineRequestOptions): Promise<MediaEngineHealthResponse> {
     return this.requestJson<MediaEngineHealthResponse>("/health", undefined, options);
+  }
+
+  // EN: Check whether the API process is alive through GET /health/live.
+  // RU: Проверяет, жив ли процесс API, через GET /health/live.
+  getLiveness(options?: MediaEngineRequestOptions): Promise<MediaEngineLivenessResponse> {
+    return this.requestJson<MediaEngineLivenessResponse>("/health/live", undefined, options);
+  }
+
+  // EN: Check provider-aware readiness through GET /health/ready.
+  // RU: Проверяет provider-aware готовность через GET /health/ready.
+  getReadiness(options?: MediaEngineRequestOptions): Promise<MediaEngineReadinessResponse> {
+    return this.requestJson<MediaEngineReadinessResponse>("/health/ready", undefined, options);
   }
 
   // EN: Build an absolute API URL from a relative endpoint path.
