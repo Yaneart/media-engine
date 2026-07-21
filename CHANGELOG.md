@@ -24,6 +24,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Built-in debug search results now expose the exact ranking formula, match strength, title match, normalized factor weights/contributions, and score/diversity/final positions. A bounded top-10 diversity pass keeps the first result and every score unchanged while interleaving only similarly ranked candidates after two results from the same normalized title and media type.
 - Added TVmaze as a no-token, fallback-only series identity provider. It returns only IMDb-backed candidates, performs at most one AKA lookup when the top result needs cross-script confirmation, stays out of optional card enrichment, and preserves TVmaze source links for CC BY-SA attribution.
 - KinoBD streaming now shares one bounded child-request/deadline budget across an availability operation and validates players through a configurable worker pool. Numeric search, player, concurrency, request, and timeout options have explicit upper bounds, while additive player-audit metrics report validation and budget outcomes.
+- Wikidata fallback discovery now filters clearly unrelated search summaries before loading at most three candidates, retrieves only the normalized identity fields through a 256 KiB selected-property query, and keeps entity/IMDb mappings in a bounded six-hour LRU cache. Cache TTL, size, and candidate count remain explicitly bounded provider options.
 
 ### Fixed
 

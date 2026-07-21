@@ -15,22 +15,31 @@ import type {
 } from "@media-engine/core";
 import { type MediaProvider } from "@media-engine/core";
 import {
-  fetchJson,
   normalizeProviderOutputUrl,
   ProviderRateLimitGate,
   type ProviderFetch,
 } from "../shared/index.js";
-import {
-  createProviderImage,
-  normalizeProviderSearchText as normalizeSearchText,
-} from "../shared/mapping.js";
+import { createProviderImage } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
+import { WikidataCache } from "./cache.js";
+import { isRelevantWikidataTitleMatch } from "./candidates.js";
+import {
+  getWikidataEntityByImdbId,
+  normalizeWikidataLanguage,
+  searchWikidataEntities,
+  type WikidataClaimValue,
+  type WikidataClientConfig,
+  type WikidataEntity,
+} from "./client.js";
 
 const PROVIDER_NAME = "wikidata";
 const DEFAULT_BASE_URL = "https://www.wikidata.org";
 const DEFAULT_SPARQL_URL = "https://query.wikidata.org/sparql";
 const DEFAULT_LANGUAGE = "en";
 const DEFAULT_SEARCH_LIMIT = 8;
+const DEFAULT_ENTITY_LIMIT = 3;
+const DEFAULT_CACHE_TTL_MS = 6 * 60 * 60 * 1_000;
+const DEFAULT_CACHE_MAX_ENTRIES = 256;
 const DEFAULT_USER_AGENT = "MediaEngine/0.0.0 (https://github.com/Yaneart/media-engine)";
 
 const MOVIE_INSTANCE_IDS = new Set(["Q11424", "Q506240"]);
@@ -46,6 +55,9 @@ export interface WikidataProviderOptions {
   fetch?: ProviderFetch;
   version?: string;
   searchLimit?: number;
+  entityLimit?: number;
+  cacheTtlMs?: number;
+  cacheMaxEntries?: number;
 }
 
 // Creates a Wikidata metadata provider for basic movie and series lookup.
@@ -80,71 +92,28 @@ export function wikidataProvider(options: WikidataProviderOptions = {}): MediaPr
   };
 }
 
-// Internal normalized Wikidata provider configuration.
-// Внутренняя нормализованная конфигурация Wikidata-провайдера.
-interface WikidataConfig {
-  baseUrl: string;
-  sparqlUrl: string;
-  language: string;
-  userAgent: string;
-  fetch?: ProviderFetch;
-  rateLimitGate: ProviderRateLimitGate;
-  searchLimit: number;
-}
-
-interface WikidataSearchResponse {
-  search?: Array<{ id?: string }>;
-}
-
-interface WikidataEntityResponse {
-  entities?: Record<string, WikidataEntity>;
-}
-
-interface WikidataEntity {
-  id: string;
-  labels?: Record<string, WikidataTextValue>;
-  descriptions?: Record<string, WikidataTextValue>;
-  claims?: Record<string, WikidataClaim[]>;
-}
-
-interface WikidataTextValue {
-  value?: string;
-}
-
-interface WikidataClaim {
-  mainsnak?: {
-    datavalue?: {
-      value?: WikidataClaimValue;
-    };
-  };
-}
-
-type WikidataClaimValue =
-  | string
-  | {
-      id?: string;
-      time?: string;
-      amount?: string;
-      text?: string;
-    };
-
-interface WikidataSparqlResponse {
-  results?: {
-    bindings?: Array<{
-      item?: {
-        value?: string;
-      };
-    }>;
-  };
-}
-
 // Builds provider config with conservative defaults for public Wikimedia APIs.
 // Собирает конфигурацию с консервативными defaults для публичных Wikimedia API.
-function createWikidataConfig(options: WikidataProviderOptions): WikidataConfig {
+function createWikidataConfig(options: WikidataProviderOptions): WikidataClientConfig {
+  const cacheTtlMs = resolveBoundedIntegerOption(
+    options.cacheTtlMs,
+    DEFAULT_CACHE_TTL_MS,
+    "Wikidata cacheTtlMs",
+    0,
+    7 * 24 * 60 * 60 * 1_000,
+  );
+  const cacheMaxEntries = resolveBoundedIntegerOption(
+    options.cacheMaxEntries,
+    DEFAULT_CACHE_MAX_ENTRIES,
+    "Wikidata cacheMaxEntries",
+    2,
+    2_048,
+  );
+
   return {
     baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
     sparqlUrl: options.sparqlUrl ?? DEFAULT_SPARQL_URL,
-    language: normalizeLanguage(options.language ?? DEFAULT_LANGUAGE),
+    language: normalizeWikidataLanguage(options.language ?? DEFAULT_LANGUAGE),
     userAgent: options.userAgent ?? DEFAULT_USER_AGENT,
     fetch: options.fetch,
     rateLimitGate: new ProviderRateLimitGate(),
@@ -155,13 +124,21 @@ function createWikidataConfig(options: WikidataProviderOptions): WikidataConfig 
       1,
       50,
     ),
+    entityLimit: resolveBoundedIntegerOption(
+      options.entityLimit,
+      DEFAULT_ENTITY_LIMIT,
+      "Wikidata entityLimit",
+      1,
+      10,
+    ),
+    cache: new WikidataCache({ maxEntries: cacheMaxEntries, ttlMs: cacheTtlMs }),
   };
 }
 
 // Runs title or IMDb ID search through Wikidata without requiring credentials.
 // Выполняет поиск по названию или IMDb ID через Wikidata без credentials.
 async function searchWikidata(
-  config: WikidataConfig,
+  config: WikidataClientConfig,
   query: ProviderSearchQuery,
   context: ProviderContext,
 ): Promise<ProviderSearchResult[]> {
@@ -178,8 +155,7 @@ async function searchWikidata(
     return [];
   }
 
-  const entityIds = await searchEntityIds(config, query, context);
-  const entities = await getEntities(config, entityIds, context);
+  const entities = await searchWikidataEntities(config, query, context);
 
   return entities
     .map((entity) => mapEntityToItem(config, entity, query, context))
@@ -190,7 +166,7 @@ async function searchWikidata(
 // Loads details by IMDb ID when the selected search result exposes one.
 // Загружает детали по IMDb ID, если выбранный результат поиска его содержит.
 async function getWikidataDetails(
-  config: WikidataConfig,
+  config: WikidataClientConfig,
   query: ProviderDetailsQuery,
   context: ProviderContext,
 ): Promise<ProviderDetailsResult | null> {
@@ -214,18 +190,12 @@ async function getWikidataDetails(
 // Resolves one Wikidata entity through an exact IMDb ID SPARQL lookup.
 // Находит одну Wikidata entity через точный SPARQL lookup по IMDb ID.
 async function getDetailsByImdbId(
-  config: WikidataConfig,
+  config: WikidataClientConfig,
   imdbId: string,
   type: MediaType | undefined,
   context: ProviderContext,
 ): Promise<MediaDetails | null> {
-  const entityId = await findEntityIdByImdbId(config, imdbId, context);
-
-  if (!entityId) {
-    return null;
-  }
-
-  const [entity] = await getEntities(config, [entityId], context);
+  const entity = await getWikidataEntityByImdbId(config, imdbId, context);
   const item = entity
     ? mapEntityToItem(config, entity, { ids: { imdb: imdbId }, type }, context)
     : undefined;
@@ -233,77 +203,10 @@ async function getDetailsByImdbId(
   return item ? itemToDetails(item) : null;
 }
 
-// Searches Wikidata item IDs using the public Action API search endpoint.
-// Ищет Wikidata item IDs через публичный search endpoint Action API.
-async function searchEntityIds(
-  config: WikidataConfig,
-  query: ProviderSearchQuery,
-  context: ProviderContext,
-): Promise<string[]> {
-  const url = new URL(`${config.baseUrl}/w/api.php`);
-  const language = normalizeLanguage(query.language ?? context.language ?? config.language);
-
-  url.searchParams.set("action", "wbsearchentities");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("type", "item");
-  url.searchParams.set("language", language);
-  url.searchParams.set("uselang", language);
-  url.searchParams.set("search", query.title ?? "");
-  url.searchParams.set("limit", String(config.searchLimit));
-
-  const response = await requestJson<WikidataSearchResponse>(config, url, context);
-
-  return (response.search ?? [])
-    .map((result) => result.id)
-    .filter((id): id is string => Boolean(id));
-}
-
-// Loads full Wikidata entity JSON for candidate IDs.
-// Загружает полный JSON Wikidata entity для candidate IDs.
-async function getEntities(
-  config: WikidataConfig,
-  entityIds: string[],
-  context: ProviderContext,
-): Promise<WikidataEntity[]> {
-  if (!entityIds.length) {
-    return [];
-  }
-
-  const url = new URL(`${config.baseUrl}/w/api.php`);
-
-  url.searchParams.set("action", "wbgetentities");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("ids", entityIds.join("|"));
-  url.searchParams.set("props", "labels|descriptions|claims");
-
-  const response = await requestJson<WikidataEntityResponse>(config, url, context);
-
-  return Object.values(response.entities ?? {}).filter(isKnownEntity);
-}
-
-// Finds one Wikidata item ID by exact IMDb title ID.
-// Находит один Wikidata item ID по точному IMDb title ID.
-async function findEntityIdByImdbId(
-  config: WikidataConfig,
-  imdbId: string,
-  context: ProviderContext,
-): Promise<string | undefined> {
-  const url = new URL(config.sparqlUrl);
-  const query = `SELECT ?item WHERE { ?item wdt:P345 "${escapeSparqlString(imdbId)}". } LIMIT 1`;
-
-  url.searchParams.set("format", "json");
-  url.searchParams.set("query", query);
-
-  const response = await requestJson<WikidataSparqlResponse>(config, url, context);
-  const itemUrl = response.results?.bindings?.[0]?.item?.value;
-
-  return itemUrl?.split("/").at(-1);
-}
-
 // Maps a Wikidata entity into the normalized compact media model.
 // Преобразует Wikidata entity в нормализованную compact media model.
 function mapEntityToItem(
-  config: WikidataConfig,
+  config: WikidataClientConfig,
   entity: WikidataEntity,
   query: Pick<ProviderSearchQuery, "title" | "type" | "year" | "ids">,
   context: ProviderContext,
@@ -316,7 +219,7 @@ function mapEntityToItem(
 
   const title = getLabel(entity, context.language ?? config.language);
 
-  if (!title || (query.title && !isRelevantTitleMatch(title, query.title))) {
+  if (!title || (query.title && !isRelevantWikidataTitleMatch(title, query.title))) {
     return undefined;
   }
 
@@ -440,14 +343,15 @@ function getMediaType(entity: WikidataEntity): MediaType | undefined {
 // Reads localized entity label with English fallback.
 // Читает локализованный label entity с fallback на English.
 function getLabel(entity: WikidataEntity, language: string): string | undefined {
-  return entity.labels?.[normalizeLanguage(language)]?.value ?? entity.labels?.en?.value;
+  return entity.labels?.[normalizeWikidataLanguage(language)]?.value ?? entity.labels?.en?.value;
 }
 
 // Reads localized entity description with English fallback.
 // Читает локализованное description entity с fallback на English.
 function getDescription(entity: WikidataEntity, language: string): string | undefined {
   return (
-    entity.descriptions?.[normalizeLanguage(language)]?.value ?? entity.descriptions?.en?.value
+    entity.descriptions?.[normalizeWikidataLanguage(language)]?.value ??
+    entity.descriptions?.en?.value
   );
 }
 
@@ -497,46 +401,16 @@ function getClaimValues(entity: WikidataEntity, property: string): WikidataClaim
 // Создает Wikimedia image URL из Commons filename claim.
 function getImage(entity: WikidataEntity): Image | undefined {
   const filename = getStringClaim(entity, "P18");
-  const url = filename
-    ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(
-        filename.replaceAll(" ", "_"),
-      )}`
-    : undefined;
+  const url =
+    filename?.startsWith("http://") || filename?.startsWith("https://")
+      ? filename
+      : filename
+        ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(
+            filename.replaceAll(" ", "_"),
+          )}`
+        : undefined;
 
   return createProviderImage(url, "poster", PROVIDER_NAME);
-}
-
-// Sends provider JSON requests with Wikimedia-friendly headers.
-// Отправляет JSON-запросы провайдера с Wikimedia-friendly headers.
-function requestJson<T>(config: WikidataConfig, url: URL, context: ProviderContext): Promise<T> {
-  return fetchJson<T>({
-    provider: PROVIDER_NAME,
-    url,
-    context,
-    fetch: config.fetch,
-    rateLimitGate: config.rateLimitGate,
-    init: {
-      headers: {
-        accept: "application/json",
-        "user-agent": config.userAgent,
-      },
-    },
-  });
-}
-
-// Checks that entity data has a stable ID.
-// Проверяет, что entity data содержит стабильный ID.
-function isKnownEntity(entity: WikidataEntity): boolean {
-  return Boolean(entity.id);
-}
-
-// Keeps title matching conservative so generic search noise is dropped.
-// Держит matching названия консервативным, чтобы отсечь шум generic search.
-function isRelevantTitleMatch(title: string, queryTitle: string): boolean {
-  const normalizedTitle = normalizeSearchText(title);
-  const normalizedQuery = normalizeSearchText(queryTitle);
-
-  return normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle);
 }
 
 // Extracts a four-digit year from an ISO-like date.
@@ -545,18 +419,6 @@ function getYear(date: string | undefined): number | undefined {
   const year = date?.slice(0, 4);
 
   return year && /^\d{4}$/.test(year) ? Number(year) : undefined;
-}
-
-// Normalizes BCP-style language tags to Wikidata language codes.
-// Нормализует BCP-style language tags в language codes Wikidata.
-function normalizeLanguage(language: string): string {
-  return language.split("-")[0]?.trim().toLocaleLowerCase() || DEFAULT_LANGUAGE;
-}
-
-// Escapes a literal string for the narrow SPARQL query used here.
-// Экранирует literal string для узкого SPARQL-запроса здесь.
-function escapeSparqlString(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
 function trimTrailingSlash(value: string): string {

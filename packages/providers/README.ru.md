@@ -46,6 +46,8 @@ const result = await media.search({ title: "Ван-Пис" });
 
 Данные TVmaze распространяются по лицензии CC BY-SA. Провайдер сохраняет ссылку на страницу сериала TVmaze в source attribution; приложению следует сохранять и показывать эту ссылку. См. [условия API TVmaze](https://www.tvmaze.com/api#licensing).
 
+Резервный поиск Wikidata загружает не больше трёх релевантных title entities через selected-property запрос и по умолчанию кеширует entity/IMDb mappings на шесть часов в process-local LRU на 256 записей. `entityLimit` ограничен диапазоном 1–10, `cacheTtlMs` — 0–7 дней, `cacheMaxEntries` — 2–2048; нулевой TTL отключает локальный cache провайдера.
+
 Ожидаемые сбои внешних источников возвращаются как типизированные `ProviderError`, а исходный HTTP status доступен через `getProviderHttpStatus`. Cinemeta при IMDb-запросе без типа возвращает `null`, только когда отсутствие подтверждено и для фильма, и для сериала; временный сбой одной ветки остаётся retryable, если другая ветка не вернула пригодные детали. AniList также отличает GraphQL rate limit и сбой сервера от ошибок валидации или некорректного ответа, поэтому Media Engine не кеширует неполные метаданные как здоровый результат.
 
 Общий `fetchJson` по умолчанию читает потоково не больше 4 МиБ перед разбором JSON и принимает положительный `maxResponseBytes` для индивидуального лимита провайдера. Объявленное или фактическое превышение отменяет body и возвращает non-retryable `PROVIDER_RESPONSE_TOO_LARGE`; некорректный JSON в пределах лимита остаётся `PROVIDER_INVALID_RESPONSE`.

@@ -18,6 +18,8 @@ Default applications can combine several providers. The merge strategy uses stro
 
 TVmaze title discovery is fallback-only and returns only records with an IMDb identity. If the best result uses a different script from the query, the provider performs one bounded AKA lookup before exposing the alias. TVmaze data is available under CC BY-SA; normalized source records retain a link to the TVmaze show page, and consuming applications should render that attribution link. See the [TVmaze API license](https://www.tvmaze.com/api#licensing).
 
+Wikidata is also fallback-only. Its title search filters clearly unrelated summaries before a selected-property lookup of at most three candidates, requests labels and descriptions only for the selected language plus English fallback, and caps JSON responses at 256 KiB. Entity and exact IMDb mappings use a process-local six-hour LRU cache with 256 combined entries by default. `entityLimit`, `cacheTtlMs`, and `cacheMaxEntries` can tune these values only within their documented safe bounds.
+
 TMDB IDs remain supported in the normalized model because upstream providers may return them. There is no built-in TMDB API provider and users do not need a TMDB token.
 
 ## Streaming providers

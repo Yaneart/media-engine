@@ -46,6 +46,8 @@ None of these built-in providers needs your API key. TMDB IDs may appear in resu
 
 TVmaze data is licensed under CC BY-SA. The provider keeps a TVmaze show URL in source attribution; applications using TVmaze data should preserve and render that link. See the [TVmaze API licensing terms](https://www.tvmaze.com/api#licensing).
 
+Wikidata fallback discovery loads at most three title-relevant entities through a selected-property query and caches entity/IMDb mappings for six hours in a 256-entry process-local LRU by default. `entityLimit` is bounded to 1–10, `cacheTtlMs` to 0–7 days, and `cacheMaxEntries` to 2–2048; a zero TTL disables this provider-local cache.
+
 Expected upstream failures are reported as typed `ProviderError` values, and shared HTTP errors expose their originating status through `getProviderHttpStatus`. An untyped Cinemeta IMDb lookup returns `null` only after both movie and series candidates confirm absence; a temporary branch outage remains retryable unless the other branch returned usable details. AniList similarly distinguishes GraphQL rate limits and server outages from validation errors or malformed payloads, allowing Media Engine to avoid caching incomplete metadata as a healthy response.
 
 Shared `fetchJson` calls stream at most 4 MiB by default before parsing and accept a positive `maxResponseBytes` override for provider-specific limits. A declared or chunked oversized body is cancelled and reported as the non-retryable `PROVIDER_RESPONSE_TOO_LARGE`; malformed JSON within the limit remains `PROVIDER_INVALID_RESPONSE`.
