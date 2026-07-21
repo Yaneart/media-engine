@@ -10,7 +10,7 @@ const SEARCH_IDENTITY_SNAPSHOT_TTL_MS = 30 * 60_000;
 const SEARCH_IDENTITY_SNAPSHOT_MAX_RESULTS = 20;
 
 export interface SearchIdentitySnapshot {
-  version: 1;
+  version: 2;
   results: MediaSearchResult[];
 }
 
@@ -36,7 +36,7 @@ export function createSearchIdentitySnapshot(
   }
 
   return {
-    version: 1,
+    version: 2,
     results: structuredClone(results.slice(0, SEARCH_IDENTITY_SNAPSHOT_MAX_RESULTS)),
   };
 }
@@ -110,7 +110,7 @@ export function isUsableSearchIdentitySnapshot(value: unknown): value is SearchI
   }
 
   const snapshot = value as Partial<SearchIdentitySnapshot>;
-  return snapshot.version === 1 && Array.isArray(snapshot.results) && snapshot.results.length > 0;
+  return snapshot.version === 2 && Array.isArray(snapshot.results) && snapshot.results.length > 0;
 }
 
 function isSameSearchIdentity(left: MediaItem, right: MediaItem): boolean {

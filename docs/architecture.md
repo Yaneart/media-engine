@@ -58,14 +58,17 @@ Details requests follow this broad path:
 Search adds an explicit discovery pipeline before merging:
 
 1. run `primary` title-discovery providers concurrently;
-2. if no relevant candidate exists, broaden a supported typo or joined-title query through the same primary providers;
-3. run `fallback` title-discovery providers only when the primary candidates remain empty or contain multiple conflicting exact-title identities;
-4. merge candidates, then execute bounded ID/details/poster enrichment;
-5. after healthy mandatory discovery, retain a bounded identity snapshot for equivalent queries independently of the full response cache.
+2. if no exact candidate exists, broaden a supported typo or joined-title query through the same primary providers even when weak fuzzy noise is present;
+3. run `fallback` title-discovery providers when primary candidates remain empty, a multi-word query has no exact identity, or multiple conflicting exact-title identities remain;
+4. merge mandatory candidates and freeze their identities, scores, and order, applying a prior identity snapshot when eligible;
+5. execute bounded ID/details/poster enrichment against the frozen candidates and remove any candidate that remains textually unrelated without reranking;
+6. after healthy mandatory discovery, retain the visible frozen identities independently of the full response cache.
 
 External-ID search is not tiered: every compatible provider remains eligible immediately. A custom metadata provider defaults to primary title discovery unless it opts into `capabilities.search.titleDiscovery: "fallback"`.
 
 Optional search-card enrichment is a separate role. Providers participate by default but can set `capabilities.searchEnrichment: false`; built-in Wikidata does so because its slower identity lookup must not consume circuit and timeout capacity during best-effort poster enrichment.
+
+Optional enrichment never joins its provider results back into mandatory discovery. It can add alternative titles, descriptions, artwork, genres, ratings, non-conflicting external IDs, and source attribution to a matching frozen candidate. It cannot add a new result, replace `id`, `type`, `title`, `originalTitle`, or `year`, change the discovery score, or reorder candidates. An added alias may make a previously unresolved discovery candidate textually relevant, but that candidate keeps its frozen relative position. Conflicting secondary IDs retain the discovery value and produce a warning.
 
 For the next 30 minutes, equivalent cache misses use the first healthy identity snapshot whose top candidate has a strong external ID to keep confirmed candidates and ordering stable even if a successful upstream response drifts. The snapshot is not refreshed inside that window. It ignores the public `limit`, keeps at most 20 candidates, never replaces a current candidate with conflicting strong IDs, and does not mark the response as cached. Retryably degraded partial searches can use the same recovery while retaining current provider failures; non-retryable degradation does not. A cold request without a prior confirmed snapshot remains dependent on the currently available identity sources, and a weak top candidate without a strong ID is never promoted into the snapshot.
 
@@ -77,7 +80,7 @@ Strong external IDs such as IMDb, Kinopoisk, Shikimori, MyAnimeList, and AniList
 
 Results with conflicting strong identities are not silently combined. When at least one strong ID agrees, compatible metadata may still be merged and secondary conflicts are reported as warnings.
 
-Search ranking combines title relevance, provider confidence, source authority, ratings, popularity, and metadata completeness. Ordering remains deterministic even though providers run concurrently.
+Mandatory search ranking combines title relevance, provider confidence, source authority, audience-backed ratings, follow-up external-ID quality, and metadata completeness. Partial and fuzzy matches prefer the closest token-length completion. Small catalog audience counts and ratings without vote counts receive bounded trust, while broadly resolvable IMDb/Kinopoisk identities and well-established anime catalog identities remain comparable. The result order remains deterministic even though providers run concurrently, and later optional enrichment cannot recalculate it.
 
 ## Reliability boundaries
 

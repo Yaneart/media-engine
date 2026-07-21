@@ -200,7 +200,17 @@ test("search broadens a typo with primary providers before fallback discovery", 
                   item: { id: "got", type: "series", title: "Game of Thrones", year: 2011 },
                 },
               ]
-            : [];
+            : [
+                {
+                  provider: "primary-provider",
+                  item: {
+                    id: "documentary",
+                    type: "movie",
+                    title: "Game of Thrones: The Last Watch",
+                    year: 2019,
+                  },
+                },
+              ];
         },
       }),
       createProvider({
@@ -223,6 +233,53 @@ test("search broadens a typo with primary providers before fallback discovery", 
   assert.equal(response.results[0]?.item.title, "Game of Thrones");
   assert.deepEqual(primaryQueries, ["game of throen", "game of"]);
   assert.equal(fallbackCalls, 0);
+});
+
+test("search invokes fallback discovery for a multi-word prefix without an exact identity", async () => {
+  let fallbackCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "primary-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "primary-provider",
+              item: { id: "game-of-dice", type: "anime", title: "Game of Dice", year: 2020 },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["series"],
+          search: { byTitle: true, byExternalIds: [], titleDiscovery: "fallback" },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          fallbackCalls += 1;
+          return [
+            {
+              provider: "fallback-provider",
+              item: {
+                id: "game-of-thrones",
+                type: "series",
+                title: "Game of Thrones",
+                year: 2011,
+                ids: { imdb: "tt0944947" },
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "game of" });
+
+  assert.equal(fallbackCalls, 1);
+  assert.ok(response.results.some((result) => result.item.id === "game-of-thrones"));
 });
 
 test("search runs a fallback title provider normally for a supported external ID", async () => {

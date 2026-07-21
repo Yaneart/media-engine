@@ -16,6 +16,7 @@ import {
   supportsSearchEnrichmentFeature,
 } from "./search-enrichment-shared.js";
 import { loadSearchPoster, type SearchPosterEnrichment } from "./search-poster-enrichment.js";
+import type { SearchIdEnrichment } from "./search-result-freeze.js";
 
 const SEARCH_ENRICHMENT_MAX_CANDIDATES = 6;
 const SEARCH_POSTER_MAX_CANDIDATES = 3;
@@ -40,7 +41,7 @@ interface SearchEnrichmentPlannerInput {
 }
 
 interface SearchEnrichmentPlanResult {
-  idOutcomes: ProviderSearchCallOutcome[];
+  idEnrichments: SearchIdEnrichment[];
   skippedId: number;
   detailsEnrichments: SearchDetailsEnrichment[];
   posterEnrichments: SearchPosterEnrichment[];
@@ -64,7 +65,10 @@ export async function executeSearchEnrichmentPlan(
   const candidates = input.results.slice(0, candidateLimit);
   const posterCandidateLimit = Math.min(SEARCH_POSTER_MAX_CANDIDATES, candidateLimit);
   const budget = new SearchEnrichmentCallBudget(input.getProviderTimeoutMs);
-  const idOutcomes: Promise<ProviderSearchCallOutcome>[] = [];
+  const idEnrichments: Array<{
+    ids: ExternalIds | undefined;
+    outcome: Promise<ProviderSearchCallOutcome>;
+  }> = [];
   const detailsEnrichments: SearchDetailsEnrichment[] = [];
   const posterEnrichments: Promise<SearchPosterEnrichment>[] = [];
   let skippedId = 0;
@@ -86,7 +90,7 @@ export async function executeSearchEnrichmentPlan(
 
     if (needsSearchEnrichment(result.item) && hasIds) {
       if (idEnrichment) {
-        idOutcomes.push(idEnrichment.outcome);
+        idEnrichments.push({ ids: result.item.ids, outcome: idEnrichment.outcome });
       } else {
         skippedId += 1;
       }
@@ -114,13 +118,18 @@ export async function executeSearchEnrichmentPlan(
     );
   }
 
-  const [resolvedIdOutcomes, resolvedPosterEnrichments] = await Promise.all([
-    Promise.all(idOutcomes),
+  const [resolvedIdEnrichments, resolvedPosterEnrichments] = await Promise.all([
+    Promise.all(
+      idEnrichments.map(async (enrichment) => ({
+        ids: enrichment.ids,
+        outcome: await enrichment.outcome,
+      })),
+    ),
     Promise.all(posterEnrichments),
   ]);
 
   return {
-    idOutcomes: resolvedIdOutcomes,
+    idEnrichments: resolvedIdEnrichments,
     skippedId,
     detailsEnrichments,
     posterEnrichments: resolvedPosterEnrichments,

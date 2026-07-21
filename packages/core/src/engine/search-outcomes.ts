@@ -82,16 +82,10 @@ export class SearchOutcomeAccumulator {
     }
   }
 
-  // Adds optional ID-enrichment results while keeping failures non-fatal and observable.
-  // Добавляет результаты ID enrichment, оставляя ошибки нефатальными, но наблюдаемыми.
+  // Records optional ID enrichment without adding its candidates to mandatory discovery state.
+  // Учитывает optional ID enrichment без добавления кандидатов в mandatory discovery state.
   appendIdEnrichment(outcomes: ProviderSearchCallOutcome[], skipped: number): void {
     this.observeEnrichment(outcomes, "id_enrichment", this.enrichment.id, skipped);
-
-    for (const outcome of outcomes) {
-      if (!outcome.failure) {
-        appendUniqueSearchResults(this.results, outcome.results);
-      }
-    }
   }
 
   // Records optional poster-enrichment calls without promoting them to provider failures.

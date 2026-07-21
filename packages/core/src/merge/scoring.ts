@@ -1,7 +1,6 @@
 import type { SearchQuery } from "../search/index.js";
 import { hasSharedStrongId } from "./identity.js";
 import type { SearchEntry, SearchGroup } from "./internal.js";
-import { STRONG_ID_KEYS } from "./internal.js";
 import { normalizeTitle, titleCandidates } from "./title.js";
 import type { MergeContext } from "./types.js";
 
@@ -40,10 +39,10 @@ export function scoreGroup(
       // still allowing overwhelmingly corroborated canonical results for broad short queries.
       exactPrimaryTitleScore * 0.3 +
       popularityScore * 0.15 +
-      ratingScore * 0.05 +
-      idScore * 0.01 +
+      ratingScore * 0.03 +
+      idScore * 0.2 +
       sourceScore * 0.02 +
-      authorityScore * 0.15,
+      authorityScore * 0.1,
   );
 }
 
@@ -133,17 +132,17 @@ function scoreNormalizedTitle(title: string, query: string): number {
   }
 
   if (title.startsWith(`${query} `)) {
-    return 0.92;
+    return adjustPartialTitleScore(0.92, title, query);
   }
 
   if (title.includes(` ${query} `) || title.endsWith(` ${query}`)) {
-    return 0.75;
+    return adjustPartialTitleScore(0.75, title, query);
   }
 
   const queryTokens = query.split(" ").filter(Boolean);
 
   if (queryTokens.length > 0 && queryTokens.every((token) => title.includes(token))) {
-    return 0.55;
+    return adjustPartialTitleScore(0.55, title, query);
   }
 
   const titleTokens = title.split(" ").filter(Boolean);
@@ -156,12 +155,30 @@ function scoreNormalizedTitle(title: string, query: string): number {
     fuzzyTokenScores.length > 0 &&
     fuzzyTokenScores.every((score) => score >= minimumFuzzyScore)
   ) {
-    return (
-      (fuzzyTokenScores.reduce((sum, score) => sum + score, 0) / fuzzyTokenScores.length) * 0.7
+    return adjustPartialTitleScore(
+      (fuzzyTokenScores.reduce((sum, score) => sum + score, 0) / fuzzyTokenScores.length) * 0.7,
+      title,
+      query,
     );
   }
 
   return 0;
+}
+
+// Prefers the closest title completion for multi-word prefix and fuzzy matches.
+// Предпочитает ближайшее продолжение title для multi-word prefix и fuzzy matches.
+function adjustPartialTitleScore(score: number, title: string, query: string): number {
+  const queryTokenCount = query.split(" ").filter(Boolean).length;
+
+  if (queryTokenCount < 2) {
+    return score;
+  }
+
+  const titleTokenCount = title.split(" ").filter(Boolean).length;
+  const tokenRatio =
+    Math.min(queryTokenCount, titleTokenCount) / Math.max(queryTokenCount, titleTokenCount);
+
+  return score * (0.5 + tokenRatio * 0.5);
 }
 
 // Allows one small typo in meaningful words while keeping short tokens exact.
@@ -272,14 +289,9 @@ function levenshteinDistance(left: string, right: string, maxDistance: number): 
 // Scores popularity from the largest available vote count.
 // Оценивает популярность по самому большому доступному числу голосов.
 function ratingVotesScore(entries: SearchEntry[]): number {
-  const maxVotes = Math.max(
-    0,
-    ...entries.flatMap(
-      (entry) => entry.result.item.ratings?.map((rating) => rating.votes ?? 0) ?? [],
-    ),
-  );
+  const maxVotes = maxRatingVotes(entries);
 
-  return Math.min(1, Math.log10(maxVotes + 1) / 7);
+  return Math.min(1, Math.max(0, (Math.log10(maxVotes + 1) - 3) / 4));
 }
 
 // Scores normalized rating values across providers.
@@ -288,7 +300,10 @@ function normalizedRatingScore(entries: SearchEntry[]): number {
   const values = entries.flatMap(
     (entry) =>
       entry.result.item.ratings
-        ?.map((rating) => rating.value / rating.max)
+        ?.map((rating) => {
+          const value = rating.value / rating.max;
+          return value * ratingVoteConfidence(rating.votes);
+        })
         .filter((value) => Number.isFinite(value)) ?? [],
   );
 
@@ -298,14 +313,45 @@ function normalizedRatingScore(entries: SearchEntry[]): number {
 // Rewards results that carry strong external IDs for better follow-up details lookup.
 // Поощряет результаты с сильными внешними ID для более надежной загрузки деталей.
 function externalIdCompletenessScore(entries: SearchEntry[]): number {
-  const idCount = Math.max(
+  const ids = entries.map((entry) => entry.result.item.ids);
+  const hasCatalogAnimeId = ids.some(
+    (value) => value?.shikimori || value?.myAnimeList || value?.aniList,
+  );
+  const animeCatalogScore = hasCatalogAnimeId ? (maxRatingVotes(entries) >= 100_000 ? 1 : 0.5) : 0;
+
+  return Math.max(
     0,
-    ...entries.map(
-      (entry) => STRONG_ID_KEYS.filter((key) => Boolean(entry.result.item.ids?.[key])).length,
+    ids.some((value) => value?.imdb) ? 1 : 0,
+    ids.some((value) => value?.kinopoisk) ? 0.9 : 0,
+    ids.some((value) => value?.tmdb) ? 0.8 : 0,
+    animeCatalogScore,
+    ids.some((value) => value?.worldArt) ? 0.3 : 0,
+  );
+}
+
+function maxRatingVotes(entries: SearchEntry[]): number {
+  return Math.max(
+    0,
+    ...entries.flatMap(
+      (entry) => entry.result.item.ratings?.map((rating) => rating.votes ?? 0) ?? [],
     ),
   );
+}
 
-  return Math.min(1, idCount / 3);
+function ratingVoteConfidence(votes: number | undefined): number {
+  if (votes === undefined) {
+    return 0.2;
+  }
+
+  if (votes < 1_000) {
+    return 0.3;
+  }
+
+  if (votes < 100_000) {
+    return 0.6;
+  }
+
+  return 1;
 }
 
 // Rewards results confirmed by multiple providers.
@@ -330,7 +376,7 @@ function sourceAuthorityScore(entries: SearchEntry[]): number {
 function providerAuthority(provider: string): number {
   switch (provider) {
     case "wikidata":
-      return 0.7;
+      return 0.9;
     case "tmdb":
       return 0.95;
     case "cinemeta":

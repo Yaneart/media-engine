@@ -61,6 +61,33 @@ test("ranks popular relevant series first for broad any-title search", () => {
   );
 });
 
+test("ranks the closest fuzzy title above a longer continuation", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "last-watch",
+        type: "movie",
+        title: "Game of Thrones: The Last Watch",
+        year: 2019,
+        ratings: [{ source: "imdb", value: 7.1, max: 10 }],
+        ids: { imdb: "tt10090796" },
+        confidence: 0.95,
+      }),
+      providerResult("cinemeta", {
+        id: "game-of-thrones",
+        type: "series",
+        title: "Game of Thrones",
+        year: 2011,
+        ids: { imdb: "tt0944947" },
+        confidence: 0.95,
+      }),
+    ],
+    { query: { title: "game of throen" } },
+  );
+
+  assert.equal(results[0]?.item.id, "game-of-thrones");
+});
+
 test("ranks a popular exact anime above less popular live-action adaptations", () => {
   const results = strategy.mergeSearchResults(
     [
@@ -86,6 +113,67 @@ test("ranks a popular exact anime above less popular live-action adaptations", (
 
   assert.equal(results[0]?.item.type, "anime");
   assert.equal(results[0]?.item.year, 2006);
+});
+
+test("prefers a broadly resolvable exact identity over a small catalog-only audience", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("shikimori", {
+        id: "dune-anime",
+        type: "anime",
+        title: "DUNE",
+        year: 2017,
+        ratings: [{ source: "shikimori", value: 7.37, max: 10 }],
+        ids: { shikimori: "36173", myAnimeList: "36173" },
+        confidence: 1,
+      }),
+      providerResult("anilist", {
+        id: "dune-anime-anilist",
+        type: "anime",
+        title: "DUNE",
+        year: 2017,
+        ratings: [{ source: "aniList", value: 71, max: 100, votes: 3_615 }],
+        ids: { myAnimeList: "36173", aniList: "102452" },
+        confidence: 1,
+      }),
+      providerResult("cinemeta", {
+        id: "dune-2021",
+        type: "movie",
+        title: "Dune: Part One",
+        year: 2021,
+        ids: { imdb: "tt1160419" },
+        confidence: 0.95,
+      }),
+      providerResult("wikidata", {
+        id: "dune-2021-wikidata",
+        type: "movie",
+        title: "Dune",
+        year: 2021,
+        ids: { imdb: "tt1160419" },
+        confidence: 0.8,
+      }),
+      providerResult("kinobd", {
+        id: "dune-2020",
+        type: "movie",
+        title: "Dűne",
+        year: 2020,
+        ratings: [{ source: "imdb", value: 6.5, max: 10, votes: 87 }],
+        ids: { imdb: "tt12451788", tmdb: "697620" },
+        confidence: 0.93,
+      }),
+      providerResult("cinemeta", {
+        id: "dune-2020-cinemeta",
+        type: "movie",
+        title: "Dűne",
+        year: 2020,
+        ids: { imdb: "tt12451788" },
+        confidence: 0.95,
+      }),
+    ],
+    { query: { title: "dune" } },
+  );
+
+  assert.equal(results[0]?.item.id, "dune-2021");
 });
 
 test("ranks exact canonical titles above popular prefixed and incidental alias noise", () => {

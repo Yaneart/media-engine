@@ -49,8 +49,14 @@ import {
 } from "./query.js";
 import { createResponseMeta, elapsedSince } from "./response-meta.js";
 import { applySearchDetailsEnrichments, executeSearchEnrichmentPlan } from "./search-enrichment.js";
-import { needsFallbackTitleDiscovery } from "./search-discovery.js";
+import { needsFallbackTitleDiscovery, needsPrimaryTitleBroadening } from "./search-discovery.js";
 import { applySearchPosterEnrichments } from "./search-poster-enrichment.js";
+import {
+  applySearchIdEnrichments,
+  createFrozenDiscoveryResults,
+  createSearchEnrichmentCandidates,
+  filterFrozenSearchResults,
+} from "./search-result-freeze.js";
 import {
   createSearchIdentitySnapshot,
   isUsableSearchIdentitySnapshot,
@@ -264,8 +270,10 @@ export class MediaEngine {
               debug: this.debug,
             })
           : results;
+      let primaryTitleBroadened = false;
 
-      if (fallbackQuery && relevantResults.length === 0) {
+      if (fallbackQuery && needsPrimaryTitleBroadening(normalizedQuery, relevantResults)) {
+        primaryTitleBroadened = true;
         const fallbackOutcomes = await Promise.all(
           providers.map((provider) =>
             callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
@@ -298,6 +306,7 @@ export class MediaEngine {
 
       if (
         fallbackProviders.length > 0 &&
+        !(primaryTitleBroadened && relevantResults.length > 0) &&
         needsFallbackTitleDiscovery(normalizedQuery, relevantResults)
       ) {
         requested.push(...fallbackProviders.map((provider) => provider.name));
@@ -336,52 +345,17 @@ export class MediaEngine {
         });
       }
 
-      const excludedPosterProviders = new Set(failed.map((failure) => failure.provider));
-      const enrichment = await executeSearchEnrichmentPlan({
-        results,
-        publicLimit: normalizedQuery.limit,
-        language: searchLanguage,
-        excludedProviders: excludedPosterProviders,
-        registry: this.registry,
-        mergeStrategy: this.mergeStrategy,
-        debug: this.debug,
-        signal: operationSignal,
-        circuitBreaker: this.circuitBreaker,
-        concurrencyLimiter: this.concurrencyLimiter,
-        getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
-        loadReusableDetails: (query, signal, maxWaitMs) =>
-          this.loadReusableDetails(query, signal, maxWaitMs),
-      });
-      searchOutcomes.appendIdEnrichment(enrichment.idOutcomes, enrichment.skippedId);
-      searchOutcomes.observePosterEnrichment(
-        enrichment.posterEnrichments.flatMap((item) => item.outcomes),
-        enrichment.skippedPoster,
-      );
-      searchOutcomes.appendEnrichmentWarnings();
-      const flattenedEnrichmentResults = enrichment.idOutcomes.flatMap((outcome) =>
-        outcome.failure ? [] : outcome.results,
-      );
+      const preliminaryDiscoveryResults = results;
 
-      if (
-        this.mergeStrategy instanceof DefaultMergeStrategy ||
-        flattenedEnrichmentResults.length > 0
-      ) {
-        results = this.mergeStrategy.mergeSearchResults(providerResults, {
+      if (this.mergeStrategy instanceof DefaultMergeStrategy) {
+        const rankedDiscoveryResults = this.mergeStrategy.mergeSearchResults(providerResults, {
           query: normalizedQuery,
           language: searchLanguage,
           debug: this.debug,
-          warnings,
         });
+        results = createFrozenDiscoveryResults(rankedDiscoveryResults, results);
       }
 
-      const detailsEnrichedResults = applySearchDetailsEnrichments(
-        results,
-        enrichment.detailsEnrichments,
-      );
-      const posterEnrichedResults = applySearchPosterEnrichments(
-        detailsEnrichedResults,
-        enrichment.posterEnrichments,
-      );
       let identitySnapshotDebug: SearchIdentitySnapshotDebugMeta | undefined;
       const hasRetryableMandatoryFailure = searchOutcomes.hasRetryableMandatoryFailure();
       const identitySnapshot = await waitForCaller(
@@ -390,8 +364,8 @@ export class MediaEngine {
       );
 
       if (failed.length === 0 || hasRetryableMandatoryFailure) {
-        const recovery = recoverSearchIdentitySnapshot(posterEnrichedResults, identitySnapshot);
-        posterEnrichedResults.splice(0, posterEnrichedResults.length, ...recovery.results);
+        const recovery = recoverSearchIdentitySnapshot(results, identitySnapshot);
+        results = recovery.results;
         identitySnapshotDebug = recovery.debug;
 
         if (recovery.debug) {
@@ -406,10 +380,62 @@ export class MediaEngine {
         }
       }
 
+      const frozenDiscoveryResults = results;
+      const enrichmentCandidates = createSearchEnrichmentCandidates(
+        frozenDiscoveryResults,
+        preliminaryDiscoveryResults,
+      );
+
+      const excludedPosterProviders = new Set(failed.map((failure) => failure.provider));
+      const enrichment = await executeSearchEnrichmentPlan({
+        results: enrichmentCandidates,
+        publicLimit: normalizedQuery.limit,
+        language: searchLanguage,
+        excludedProviders: excludedPosterProviders,
+        registry: this.registry,
+        mergeStrategy: this.mergeStrategy,
+        debug: this.debug,
+        signal: operationSignal,
+        circuitBreaker: this.circuitBreaker,
+        concurrencyLimiter: this.concurrencyLimiter,
+        getProviderTimeoutMs: (providerName) => timeoutBudget.getRemainingMs(providerName),
+        loadReusableDetails: (query, signal, maxWaitMs) =>
+          this.loadReusableDetails(query, signal, maxWaitMs),
+      });
+      const idOutcomes = enrichment.idEnrichments.map((item) => item.outcome);
+      searchOutcomes.appendIdEnrichment(idOutcomes, enrichment.skippedId);
+      searchOutcomes.observePosterEnrichment(
+        enrichment.posterEnrichments.flatMap((item) => item.outcomes),
+        enrichment.skippedPoster,
+      );
+      searchOutcomes.appendEnrichmentWarnings();
+      const idEnrichedResults = applySearchIdEnrichments(
+        frozenDiscoveryResults,
+        enrichment.idEnrichments,
+        warnings,
+        searchLanguage,
+      );
+
+      const detailsEnrichedResults = applySearchDetailsEnrichments(
+        idEnrichedResults,
+        enrichment.detailsEnrichments,
+      );
+      const posterEnrichedResults = applySearchPosterEnrichments(
+        detailsEnrichedResults,
+        enrichment.posterEnrichments,
+      );
+      const visibleResults =
+        this.mergeStrategy instanceof DefaultMergeStrategy
+          ? filterFrozenSearchResults(posterEnrichedResults, normalizedQuery)
+          : posterEnrichedResults;
+      const visibleResultSet = new Set(visibleResults);
+      const visibleDiscoveryResults = frozenDiscoveryResults.filter((_, index) =>
+        visibleResultSet.has(posterEnrichedResults[index]!),
+      );
       const limitedResults =
         normalizedQuery.limit === undefined
-          ? posterEnrichedResults
-          : posterEnrichedResults.slice(0, normalizedQuery.limit);
+          ? visibleResults
+          : visibleResults.slice(0, normalizedQuery.limit);
 
       const response: SearchResponse = {
         query: normalizedQuery,
@@ -431,7 +457,7 @@ export class MediaEngine {
       throwIfAborted(operationSignal);
 
       if (failed.length === 0 && !isUsableSearchIdentitySnapshot(identitySnapshot)) {
-        const newIdentitySnapshot = createSearchIdentitySnapshot(posterEnrichedResults);
+        const newIdentitySnapshot = createSearchIdentitySnapshot(visibleDiscoveryResults);
 
         if (newIdentitySnapshot) {
           await this.cache?.set(
