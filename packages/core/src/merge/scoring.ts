@@ -503,6 +503,8 @@ function providerAuthority(provider: string): number {
       return 0.95;
     case "cinemeta":
       return 0.75;
+    case "tvmaze":
+      return 0.75;
     case "kinobd":
       return 0.75;
     case "imdb":

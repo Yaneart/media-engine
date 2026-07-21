@@ -110,7 +110,13 @@ export function DetailsPanel({
           <div className="chips">
             {(details.sourceProviders ?? []).map((source) => (
               <span className="chip" key={source.provider}>
-                {source.provider}
+                {source.url ? (
+                  <a href={source.url} rel="noreferrer" target="_blank">
+                    {source.provider}
+                  </a>
+                ) : (
+                  source.provider
+                )}
               </span>
             ))}
             {!details.sourceProviders?.length ? <span className="muted">No sources</span> : null}

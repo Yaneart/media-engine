@@ -137,6 +137,23 @@ test("prefers a broadly resolvable exact identity over a small catalog-only audi
         confidence: 1,
       }),
       providerResult("cinemeta", {
+        id: "dune-series",
+        type: "series",
+        title: "Dune",
+        year: 2000,
+        ids: { imdb: "tt0142032" },
+        confidence: 0.95,
+      }),
+      providerResult("tvmaze", {
+        id: "dune-series-tvmaze",
+        type: "series",
+        title: "Dune",
+        year: 2000,
+        ratings: [{ source: "tvmaze", value: 7.7, max: 10 }],
+        ids: { imdb: "tt0142032" },
+        confidence: 0.9,
+      }),
+      providerResult("cinemeta", {
         id: "dune-2021",
         type: "movie",
         title: "Dune: Part One",

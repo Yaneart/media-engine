@@ -22,6 +22,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Mandatory search discovery and eligible snapshot recovery now freeze result identities, scores, and order before optional ID/details/poster enrichment. Enrichment only augments matching cards with presentation data, non-conflicting IDs, and source attribution; it cannot introduce or rerank identities, and conflicting added IDs retain the discovery value with a warning.
 - Mandatory title discovery now broadens supported multi-word typos despite weak fuzzy noise and invokes fallback identity sources for multi-word queries without an exact match. Ranking prefers closer token-length matches, broadly reusable external IDs, and audience-backed ratings before the identity order is frozen.
 - Built-in debug search results now expose the exact ranking formula, match strength, title match, normalized factor weights/contributions, and score/diversity/final positions. A bounded top-10 diversity pass keeps the first result and every score unchanged while interleaving only similarly ranked candidates after two results from the same normalized title and media type.
+- Added TVmaze as a no-token, fallback-only series identity provider. It returns only IMDb-backed candidates, performs at most one AKA lookup when the top result needs cross-script confirmation, stays out of optional card enrichment, and preserves TVmaze source links for CC BY-SA attribution.
 
 ### Fixed
 

@@ -6,6 +6,7 @@ import {
   cinemetaProvider,
   kinobdProvider,
   shikimoriProvider,
+  tvMazeProvider,
   wikidataProvider,
 } from "../packages/providers/dist/index.js";
 
@@ -19,6 +20,7 @@ const engine = new MediaEngine({
   timeoutMs: 5_000,
   providerTimeouts: {
     cinemeta: 2_500,
+    tvmaze: 2_500,
     wikidata: 2_500,
   },
   providers: [
@@ -28,6 +30,7 @@ const engine = new MediaEngine({
     shikimoriProvider({
       userAgent: "MediaEngineSearchQualitySmoke/0.1.0",
     }),
+    tvMazeProvider({ userAgent: "MediaEngineSearchQualitySmoke/0.1.0" }),
     wikidataProvider(),
   ],
 });

@@ -5,6 +5,7 @@ import {
   cinemetaProvider,
   kinobdProvider,
   shikimoriProvider,
+  tvMazeProvider,
   wikidataProvider,
 } from "../packages/providers/dist/index.js";
 
@@ -21,6 +22,7 @@ const engine = new MediaEngine({
     shikimoriProvider({
       userAgent: "MediaEngineSearchLatencySmoke/0.1.0",
     }),
+    tvMazeProvider({ userAgent: "MediaEngineSearchLatencySmoke/0.1.0" }),
     wikidataProvider(),
   ],
 });

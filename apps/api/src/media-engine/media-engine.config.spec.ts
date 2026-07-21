@@ -27,6 +27,7 @@ describe('MediaEngine configuration', () => {
       'cinemeta',
       'shikimori',
       'anilist',
+      'tvmaze',
       'wikidata',
     ]);
     expect(

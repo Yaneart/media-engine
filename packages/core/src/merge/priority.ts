@@ -3,7 +3,7 @@ import type { MergeContext } from "./types.js";
 
 // Default provider priority for movies and series.
 // Приоритет провайдеров по умолчанию для фильмов и сериалов.
-const DEFAULT_PRIORITY = ["tmdb", "kinobd", "cinemeta", "imdb", "wikidata", "kinopoisk"];
+const DEFAULT_PRIORITY = ["tmdb", "kinobd", "cinemeta", "tvmaze", "imdb", "wikidata", "kinopoisk"];
 
 // Default provider priority for anime results.
 // Приоритет провайдеров по умолчанию для аниме.
@@ -13,6 +13,7 @@ const ANIME_PRIORITY = [
   "tmdb",
   "kinobd",
   "cinemeta",
+  "tvmaze",
   "imdb",
   "wikidata",
   "kinopoisk",
@@ -24,6 +25,7 @@ export const SEARCH_RESULT_PRIORITY = [
   "tmdb",
   "kinobd",
   "cinemeta",
+  "tvmaze",
   "imdb",
   "wikidata",
   "kinopoisk",

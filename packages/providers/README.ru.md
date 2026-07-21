@@ -20,10 +20,11 @@ import {
   kinobdProvider,
   kinobdStreamingProvider,
   shikimoriProvider,
+  tvMazeProvider,
 } from "@media-engine/providers";
 
 const media = new MediaEngine({
-  providers: [kinobdProvider(), shikimoriProvider(), aniListProvider()],
+  providers: [kinobdProvider(), shikimoriProvider(), aniListProvider(), tvMazeProvider()],
 });
 
 const result = await media.search({ title: "Ван-Пис" });
@@ -37,10 +38,13 @@ const result = await media.search({ title: "Ван-Пис" });
 - `cinemetaProvider()` — данные фильмов и сериалов, связанные с IMDb;
 - `shikimoriProvider()` — поиск и детали аниме;
 - `aniListProvider()` — международные названия аниме, популярность и изображения;
+- `tvMazeProvider()` — резервные IMDb identity сериалов и локализованные aliases;
 - `wikidataProvider()` — резервная проверка identity и обогащение открытыми структурированными данными;
 - `imdbDatasetProvider()` — локальные TSV-датасеты IMDb, переданные приложением.
 
 Для встроенных провайдеров не нужен ваш API-ключ. TMDB ID может встретиться в результате, но сам пакет не обращается к TMDB API.
+
+Данные TVmaze распространяются по лицензии CC BY-SA. Провайдер сохраняет ссылку на страницу сериала TVmaze в source attribution; приложению следует сохранять и показывать эту ссылку. См. [условия API TVmaze](https://www.tvmaze.com/api#licensing).
 
 Ожидаемые сбои внешних источников возвращаются как типизированные `ProviderError`, а исходный HTTP status доступен через `getProviderHttpStatus`. Cinemeta при IMDb-запросе без типа возвращает `null`, только когда отсутствие подтверждено и для фильма, и для сериала; временный сбой одной ветки остаётся retryable, если другая ветка не вернула пригодные детали. AniList также отличает GraphQL rate limit и сбой сервера от ошибок валидации или некорректного ответа, поэтому Media Engine не кеширует неполные метаданные как здоровый результат.
 

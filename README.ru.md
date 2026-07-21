@@ -23,6 +23,7 @@ import {
   cinemetaProvider,
   kinobdProvider,
   shikimoriProvider,
+  tvMazeProvider,
   wikidataProvider,
 } from "@media-engine/providers";
 
@@ -32,6 +33,7 @@ const media = new MediaEngine({
     cinemetaProvider(),
     shikimoriProvider(),
     aniListProvider(),
+    tvMazeProvider(),
     wikidataProvider(),
   ],
 });

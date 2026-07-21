@@ -32,7 +32,7 @@ export interface Image {
 // Source that produced a rating value.
 // Источник, который предоставил значение рейтинга.
 export type RatingSource =
-  "imdb" | "tmdb" | "kinopoisk" | "shikimori" | "myAnimeList" | "aniList" | "internal";
+  "imdb" | "tmdb" | "kinopoisk" | "shikimori" | "myAnimeList" | "aniList" | "tvmaze" | "internal";
 
 // Rating value from one source with its scale and optional vote count.
 // Значение рейтинга из одного источника со шкалой и опциональным числом голосов.

@@ -4,16 +4,19 @@ Providers are adapters between an external data source and the normalized core c
 
 ## Metadata providers
 
-| Provider     | Main role                                                 | Credentials         |
-| ------------ | --------------------------------------------------------- | ------------------- |
-| KinoBD       | Russian/localized movie and series metadata               | None                |
-| Cinemeta     | IMDb-linked movie and series metadata                     | None                |
-| Shikimori    | Anime search and details                                  | None                |
-| AniList      | International anime aliases, IDs, popularity, and artwork | None                |
-| Wikidata     | Fallback structured identity and metadata enrichment      | None                |
-| IMDb dataset | Optional local TSV-backed search and details              | Local dataset files |
+| Provider     | Main role                                                  | Credentials         |
+| ------------ | ---------------------------------------------------------- | ------------------- |
+| KinoBD       | Russian/localized movie and series metadata                | None                |
+| Cinemeta     | IMDb-linked movie and series metadata                      | None                |
+| Shikimori    | Anime search and details                                   | None                |
+| AniList      | International anime aliases, IDs, popularity, and artwork  | None                |
+| TVmaze       | Fallback IMDb-backed series identity and localized aliases | None                |
+| Wikidata     | Fallback structured identity and metadata enrichment       | None                |
+| IMDb dataset | Optional local TSV-backed search and details               | Local dataset files |
 
 Default applications can combine several providers. The merge strategy uses strong IDs and compatible titles to avoid treating unrelated results as the same item.
+
+TVmaze title discovery is fallback-only and returns only records with an IMDb identity. If the best result uses a different script from the query, the provider performs one bounded AKA lookup before exposing the alias. TVmaze data is available under CC BY-SA; normalized source records retain a link to the TVmaze show page, and consuming applications should render that attribution link. See the [TVmaze API license](https://www.tvmaze.com/api#licensing).
 
 TMDB IDs remain supported in the normalized model because upstream providers may return them. There is no built-in TMDB API provider and users do not need a TMDB token.
 

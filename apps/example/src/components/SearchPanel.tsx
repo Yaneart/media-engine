@@ -75,7 +75,20 @@ export function SearchPanel({
             </div>
             <div className="result-card__aside">
               <span>{formatRating(result.item.ratings)}</span>
-              <span>{result.sources.map((source) => source.provider).join(", ")}</span>
+              <span>
+                {result.sources.map((source, index) => (
+                  <span key={source.provider}>
+                    {index > 0 ? ", " : null}
+                    {source.url ? (
+                      <a href={source.url} rel="noreferrer" target="_blank">
+                        {source.provider}
+                      </a>
+                    ) : (
+                      source.provider
+                    )}
+                  </span>
+                ))}
+              </span>
               <button
                 className="details-button"
                 onClick={() => onDetails(result.item)}

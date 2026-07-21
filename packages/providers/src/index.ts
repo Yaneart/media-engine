@@ -4,6 +4,7 @@ export * from "./cinemeta/index.js";
 export * from "./shikimori/index.js";
 export * from "./anilist/index.js";
 export * from "./wikidata/index.js";
+export * from "./tvmaze/index.js";
 export * from "./imdb-dataset/index.js";
 export * from "./experimental-streaming/index.js";
 export * from "./kinobd-streaming/index.js";

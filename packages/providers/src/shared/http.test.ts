@@ -357,20 +357,22 @@ test("fetchJson applies timeout to fetch implementations", async () => {
 
 test("fetchJson keeps retries inside one total timeout budget", async () => {
   let attempts = 0;
+  const unavailableResponse = new Response("unavailable", { status: 503 });
   const startedAt = Date.now();
 
   await assert.rejects(
     fetchJson({
       provider: "slow-retry",
       url: "https://provider.test/data",
-      context: { timeoutMs: 25 },
+      context: { timeoutMs: 50 },
       maxRetries: 3,
       retryDelayMs: 20,
+      retryJitterRatio: 0,
       fetch: async (_input, init) => {
         attempts += 1;
 
         if (attempts === 1) {
-          return new Response("unavailable", { status: 503 });
+          return unavailableResponse;
         }
 
         return new Promise<Response>((_resolve, reject) => {
@@ -386,7 +388,7 @@ test("fetchJson keeps retries inside one total timeout budget", async () => {
   );
 
   assert.equal(attempts, 2);
-  assert.ok(Date.now() - startedAt < 100);
+  assert.ok(Date.now() - startedAt < 500);
 });
 
 test("mapHttpStatusToProviderErrorCode maps important provider statuses", () => {

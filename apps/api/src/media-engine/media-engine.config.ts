@@ -25,6 +25,7 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
     aniListProvider,
     kinobdProvider,
     shikimoriProvider,
+    tvMazeProvider,
     wikidataProvider,
   } = await import('@media-engine/providers');
   const providers: MediaProvider[] = [
@@ -32,6 +33,7 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
     cinemetaProvider(),
     shikimoriProvider(),
     aniListProvider(),
+    tvMazeProvider(),
     wikidataProvider(),
   ];
   return providers;
@@ -70,6 +72,7 @@ export async function createMediaEngine(
       kinobd: metadataTimeoutMs,
       shikimori: metadataTimeoutMs,
       anilist: metadataTimeoutMs,
+      tvmaze: metadataTimeoutMs,
       cinemeta: metadataTimeoutMs,
       wikidata: metadataTimeoutMs,
       'kinobd-streaming': streamingTimeoutMs,

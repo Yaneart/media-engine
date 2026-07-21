@@ -66,7 +66,7 @@ Search adds an explicit discovery pipeline before merging:
 
 External-ID search is not tiered: every compatible provider remains eligible immediately. A custom metadata provider defaults to primary title discovery unless it opts into `capabilities.search.titleDiscovery: "fallback"`.
 
-Optional search-card enrichment is a separate role. Providers participate by default but can set `capabilities.searchEnrichment: false`; built-in Wikidata does so because its slower identity lookup must not consume circuit and timeout capacity during best-effort poster enrichment.
+Optional search-card enrichment is a separate role. Providers participate by default but can set `capabilities.searchEnrichment: false`; built-in TVmaze and Wikidata do so because fallback identity lookups must not consume circuit and timeout capacity during best-effort poster enrichment. TVmaze supplies fast IMDb-backed series identity, including confirmed localized aliases, while Wikidata remains the broader movie/series structured fallback.
 
 Optional enrichment never joins its provider results back into mandatory discovery. It can add alternative titles, descriptions, artwork, genres, ratings, non-conflicting external IDs, and source attribution to a matching frozen candidate. It cannot add a new result, replace `id`, `type`, `title`, `originalTitle`, or `year`, change the discovery score, or reorder candidates. An added alias may make a previously unresolved discovery candidate textually relevant, but that candidate keeps its frozen relative position. Conflicting secondary IDs retain the discovery value and produce a warning.
 
