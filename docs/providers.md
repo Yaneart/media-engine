@@ -39,7 +39,35 @@ const provider = imdbDatasetProvider({ storage });
 
 The storage contract accepts synchronous or asynchronous implementations. It receives a normalized title, optional type/year filters, a bounded result limit, and the provider abort signal. It returns ranked normalized records and provides a direct indexed IMDb ID lookup. The provider owns output mapping, confidence bounds, capabilities, and source attribution, so storage implementations do not depend on core merge internals.
 
-The reproducible 100k/1m in-memory baseline and the acceptance thresholds for the persisted backend are recorded in [the IMDb dataset benchmark](./benchmarks/imdb-dataset.md).
+For full datasets, the package includes an optional persisted SQLite/FTS implementation:
+
+```ts
+import {
+  buildImdbDatasetSqliteIndex,
+  imdbDatasetProvider,
+  openImdbDatasetSqliteStorage,
+} from "@media-engine/providers";
+
+await buildImdbDatasetSqliteIndex({
+  titleBasicsPath: "./title.basics.tsv.gz",
+  titleRatingsPath: "./title.ratings.tsv.gz",
+  outputPath: "./data/imdb.sqlite",
+});
+
+const storage = await openImdbDatasetSqliteStorage({
+  path: "./data/imdb.sqlite",
+});
+const provider = imdbDatasetProvider({ storage });
+
+// Close during application shutdown.
+storage.close();
+```
+
+The builder streams plain or gzip official TSV files, imports only supported movie/series records, validates a versioned schema and integrity, and publishes a compacted temporary index through same-directory atomic replacement. A failed or cancelled rebuild leaves the previous index untouched. Existing storage instances should be closed and reopened after a successful replacement.
+
+The SQLite path is loaded only when its build/open functions are called and requires Node.js 22.13 or newer with built-in `node:sqlite` and FTS5 trigram support. The package and in-memory TSV adapter retain the declared Node.js 20 baseline and do not load SQLite. No npm database dependency is added.
+
+The reproducible in-memory baseline and persisted 100k/1m results are recorded in [the IMDb dataset benchmark](./benchmarks/imdb-dataset.md).
 
 TMDB IDs remain supported in the normalized model because upstream providers may return them. There is no built-in TMDB API provider and users do not need a TMDB token.
 

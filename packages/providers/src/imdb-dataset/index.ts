@@ -28,6 +28,19 @@ import { normalizeProviderOutputUrl } from "../shared/output-url.js";
 
 export { createImdbDatasetMemoryStorage } from "./memory-storage.js";
 export type { ImdbDatasetMemoryStorageOptions } from "./memory-storage.js";
+export { buildImdbDatasetSqliteIndex } from "./sqlite-import.js";
+export type {
+  ImdbDatasetSqliteBuildOptions,
+  ImdbDatasetSqliteBuildPhase,
+  ImdbDatasetSqliteBuildProgress,
+  ImdbDatasetSqliteBuildResult,
+} from "./sqlite-import.js";
+export {
+  IMDB_DATASET_SQLITE_SCHEMA_VERSION,
+  openImdbDatasetSqliteStorage,
+  type ImdbDatasetSqliteStorage,
+  type ImdbDatasetSqliteStorageOptions,
+} from "./sqlite-storage.js";
 export type {
   ImdbDatasetRatingRecord,
   ImdbDatasetStorage,

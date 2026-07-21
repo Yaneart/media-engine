@@ -44,3 +44,28 @@ The persisted implementation must pass the same generated 100k/1m workload and t
 - the original TSV provider options and small-fixture behavior must remain backward compatible.
 
 Machine variance is handled by the relative scaling and memory requirements. If a hard latency threshold misses on a materially slower host, the result must still demonstrate indexed scaling and a clear improvement over that host's 14A baseline; thresholds must not be silently weakened.
+
+## 14B persisted result
+
+Run the persisted benchmark with the same generated title/rating distribution:
+
+```bash
+pnpm benchmark:imdb-dataset:sqlite -- --sizes 100000,1000000 --iterations 10 --warmup-iterations 2
+```
+
+It generates TSV files without retaining them in JavaScript heap, samples the streaming import in a fresh worker, then measures opening and querying the completed index in another fresh worker. Captured on the same reference environment with Node.js v26.4.0 and SQLite 3.53.2:
+
+| Metric                    |       100k rows |         1m rows | 1m acceptance |
+| ------------------------- | --------------: | --------------: | ------------: |
+| Streaming import          |          2.62 s |         21.84 s |             — |
+| Import sampled peak heap  |        7.88 MiB |       28.44 MiB |      ≤128 MiB |
+| Compacted index size      |       29.01 MiB |      299.05 MiB |       ≤4× TSV |
+| Index / TSV size          |           3.45× |           3.47× |           ≤4× |
+| Existing-index open       |         1.38 ms |         1.22 ms |       ≤500 ms |
+| Open retained / peak heap | 0.04 / 0.93 MiB | 0.04 / 1.13 MiB |      ≤128 MiB |
+| ID lookup p50 / p95       |  0.10 / 0.15 ms |  0.06 / 0.14 ms |         ≤2 ms |
+| Exact title p50 / p95     |  0.14 / 0.17 ms |  0.15 / 0.16 ms |        ≤20 ms |
+| Prefix title p50 / p95    |  0.46 / 0.54 ms |  0.52 / 0.57 ms |        ≤20 ms |
+| Fuzzy miss p50 / p95      |  0.19 / 0.24 ms |  0.18 / 0.21 ms |        ≤20 ms |
+
+P95 growth from 100k to 1m is 0.91× for exact lookup, 1.05× for prefix lookup, and 0.89× for the misspelled-title miss. All absolute, heap, disk, and ≤2× scaling criteria pass without a query-result cache. Compared with the one-million-row in-memory baseline, existing-index startup falls from 5.22 seconds to 1.22 milliseconds, retained JavaScript heap from 526 MiB to about 0.04 MiB, and exact/prefix p95 from 69/106 ms to 0.16/0.57 ms.
