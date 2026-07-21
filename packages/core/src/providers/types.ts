@@ -27,13 +27,19 @@ export type ProviderFeature =
   | "episodes"
   | "alternative_titles";
 
+// Role of a provider in title-based candidate discovery.
+// Роль провайдера в поиске кандидатов по названию.
+export type TitleDiscoveryRole = "primary" | "fallback";
+
 // Capabilities used by the engine to select matching providers.
 // Возможности, по которым движок выбирает подходящих провайдеров.
 export interface ProviderCapabilities {
   mediaTypes: MediaType[];
+  searchEnrichment?: boolean;
   search: {
     byTitle: boolean;
     byExternalIds: ExternalIdSource[];
+    titleDiscovery?: TitleDiscoveryRole;
   };
   details: {
     byExternalIds: ExternalIdSource[];

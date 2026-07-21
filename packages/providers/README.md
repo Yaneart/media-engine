@@ -37,7 +37,7 @@ Add only the providers that make sense for your application. Media Engine will c
 - `cinemetaProvider()` — IMDb-linked movie and series data;
 - `shikimoriProvider()` — anime search and details;
 - `aniListProvider()` — international anime titles, popularity, and artwork;
-- `wikidataProvider()` — open structured enrichment;
+- `wikidataProvider()` — fallback structured identity and metadata enrichment;
 - `imdbDatasetProvider()` — local IMDb TSV datasets supplied by your application.
 
 None of these built-in providers needs your API key. TMDB IDs may appear in results, but this package does not call the TMDB API.

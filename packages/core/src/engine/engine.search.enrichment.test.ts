@@ -177,6 +177,49 @@ test("search skips ID providers that cannot improve the missing field", async ()
   assert.equal(ratingsCalls, 1);
 });
 
+test("search excludes providers that opt out of optional search enrichment", async () => {
+  let idSearchCalls = 0;
+  let detailsCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "catalog",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: [] },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [createSparseResult(1)];
+        },
+      }),
+      createProvider({
+        name: "identity-fallback",
+        capabilities: {
+          mediaTypes: ["movie"],
+          searchEnrichment: false,
+          search: { byTitle: false, byExternalIds: ["imdb"] },
+          details: { byExternalIds: ["imdb"] },
+          features: ["posters", "ratings"],
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          idSearchCalls += 1;
+          return [];
+        },
+        async getDetails(): Promise<ProviderDetailsResult | null> {
+          detailsCalls += 1;
+          return null;
+        },
+      }),
+    ],
+  });
+
+  await engine.search({ title: "Movie 1", limit: 1 });
+
+  assert.equal(idSearchCalls, 0);
+  assert.equal(detailsCalls, 0);
+});
+
 test("search reuses a matching ID enrichment result for the canonical poster", async () => {
   let idSearchCalls = 0;
   let detailsCalls = 0;

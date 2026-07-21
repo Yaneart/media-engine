@@ -60,9 +60,11 @@ export function wikidataProvider(options: WikidataProviderOptions = {}): MediaPr
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["movie", "series"],
+      searchEnrichment: false,
       search: {
         byTitle: true,
         byExternalIds: ["imdb"],
+        titleDiscovery: "fallback",
       },
       details: {
         byExternalIds: ["imdb"],

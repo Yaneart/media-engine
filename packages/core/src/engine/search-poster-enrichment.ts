@@ -12,6 +12,7 @@ import {
   type PlannedIdEnrichment,
   type SearchEnrichmentCallBudget,
   searchItemAsDetails,
+  supportsSearchEnrichment,
   supportsSearchEnrichmentFeature,
 } from "./search-enrichment-shared.js";
 
@@ -47,6 +48,7 @@ export async function loadSearchPoster(
   const providers = selectedProviders.filter(
     (provider) =>
       !input.excludedProviders.has(provider.name) &&
+      supportsSearchEnrichment(provider) &&
       supportsSearchEnrichmentFeature(provider, "posters"),
   );
 

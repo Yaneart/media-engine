@@ -43,6 +43,7 @@ import {
 } from "./query.js";
 import { createResponseMeta, elapsedSince } from "./response-meta.js";
 import { applySearchDetailsEnrichments, executeSearchEnrichmentPlan } from "./search-enrichment.js";
+import { needsFallbackTitleDiscovery } from "./search-discovery.js";
 import { applySearchPosterEnrichments } from "./search-poster-enrichment.js";
 import { SearchOutcomeAccumulator } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
@@ -180,7 +181,13 @@ export class MediaEngine {
     const inFlight = this.inFlightRequests.forCaller(options);
     const pending = inFlight.run(`search:${cacheKey}`, async (operationSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
-      const providers = this.registry.selectSearchProviders(normalizedQuery);
+      const providers = this.registry.selectSearchProviders(normalizedQuery, {
+        titleDiscovery: "primary",
+      });
+      const primaryProviderNames = new Set(providers.map((provider) => provider.name));
+      const fallbackProviders = this.registry
+        .selectSearchProviders(normalizedQuery, { titleDiscovery: "fallback" })
+        .filter((provider) => !primaryProviderNames.has(provider.name));
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
       const failed: ProviderFailure[] = [];
@@ -226,14 +233,6 @@ export class MediaEngine {
         searchOutcomes.appendMandatory(retryOutcomes, "retry");
       }
 
-      if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
-        throw new MediaEngineError({
-          code: "PROVIDER_ERROR",
-          message: "All search providers failed.",
-          cause: { failed },
-        });
-      }
-
       let results = this.mergeStrategy.mergeSearchResults(providerResults, {
         query: normalizedQuery,
         language: searchLanguage,
@@ -243,15 +242,16 @@ export class MediaEngine {
       });
 
       const fallbackQuery = createSearchFallbackQuery(normalizedQuery);
-      const hasRelevantResults = fallbackQuery
-        ? this.mergeStrategy.mergeSearchResults(providerResults, {
-            query: normalizedQuery,
-            language: searchLanguage,
-            debug: this.debug,
-          }).length > 0
-        : true;
+      let relevantResults =
+        fallbackQuery || fallbackProviders.length > 0
+          ? this.mergeStrategy.mergeSearchResults(providerResults, {
+              query: normalizedQuery,
+              language: searchLanguage,
+              debug: this.debug,
+            })
+          : results;
 
-      if (fallbackQuery && !hasRelevantResults) {
+      if (fallbackQuery && relevantResults.length === 0) {
         const fallbackOutcomes = await Promise.all(
           providers.map((provider) =>
             callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
@@ -274,6 +274,51 @@ export class MediaEngine {
           debug: this.debug,
           warnings,
           includeIrrelevantSearchResults: true,
+        });
+        relevantResults = this.mergeStrategy.mergeSearchResults(providerResults, {
+          query: normalizedQuery,
+          language: searchLanguage,
+          debug: this.debug,
+        });
+      }
+
+      if (
+        fallbackProviders.length > 0 &&
+        needsFallbackTitleDiscovery(normalizedQuery, relevantResults)
+      ) {
+        requested.push(...fallbackProviders.map((provider) => provider.name));
+        const providerFallbackQuery =
+          relevantResults.length === 0 && fallbackQuery ? fallbackQuery : normalizedQuery;
+        const providerFallbackOutcomes = await Promise.all(
+          fallbackProviders.map((provider) =>
+            callTimedProviderSearch(provider, createProviderSearchQuery(providerFallbackQuery), {
+              debug: this.debug,
+              language: searchLanguage,
+              signal: operationSignal,
+              timeoutMs: timeoutBudget.getRemainingMs(provider.name),
+              circuitBreaker: this.circuitBreaker,
+              concurrencyLimiter: this.concurrencyLimiter,
+            }),
+          ),
+        );
+
+        searchOutcomes.appendMandatory(providerFallbackOutcomes, "provider_fallback", {
+          deduplicateResults: true,
+        });
+        results = this.mergeStrategy.mergeSearchResults(providerResults, {
+          query: normalizedQuery,
+          language: searchLanguage,
+          debug: this.debug,
+          warnings,
+          includeIrrelevantSearchResults: true,
+        });
+      }
+
+      if (requested.length > 0 && successful.length === 0 && failed.length > 0) {
+        throw new MediaEngineError({
+          code: "PROVIDER_ERROR",
+          message: "All search providers failed.",
+          cause: { failed },
         });
       }
 

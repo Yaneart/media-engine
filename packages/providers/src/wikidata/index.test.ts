@@ -15,7 +15,9 @@ test("wikidataProvider exposes safe no-token metadata capabilities", () => {
   assert.equal(provider.kind, "metadata");
   assert.equal(provider.searchPosterMatchesDetails, true);
   assert.deepEqual(provider.capabilities.mediaTypes, ["movie", "series"]);
+  assert.equal(provider.capabilities.searchEnrichment, false);
   assert.deepEqual(provider.capabilities.search.byExternalIds, ["imdb"]);
+  assert.equal(provider.capabilities.search.titleDiscovery, "fallback");
   assert.deepEqual(provider.capabilities.details.byExternalIds, ["imdb"]);
 });
 

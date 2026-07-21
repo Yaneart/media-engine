@@ -46,7 +46,7 @@ The React application demonstrates search, details, episode selection, and playe
 
 ## Request flow
 
-Search and details requests follow the same broad path:
+Details requests follow this broad path:
 
 1. normalize and validate the query;
 2. select providers by declared capabilities;
@@ -54,6 +54,17 @@ Search and details requests follow the same broad path:
 4. keep successful results when only some providers fail;
 5. merge compatible results deterministically;
 6. return provider attribution, warnings, cache state, and elapsed time.
+
+Search adds an explicit discovery pipeline before merging:
+
+1. run `primary` title-discovery providers concurrently;
+2. if no relevant candidate exists, broaden a supported typo or joined-title query through the same primary providers;
+3. run `fallback` title-discovery providers only when the primary candidates remain empty or contain multiple conflicting exact-title identities;
+4. merge candidates, then execute bounded ID/details/poster enrichment.
+
+External-ID search is not tiered: every compatible provider remains eligible immediately. A custom metadata provider defaults to primary title discovery unless it opts into `capabilities.search.titleDiscovery: "fallback"`.
+
+Optional search-card enrichment is a separate role. Providers participate by default but can set `capabilities.searchEnrichment: false`; built-in Wikidata does so because its slower identity lookup must not consume circuit and timeout capacity during best-effort poster enrichment.
 
 Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options.
 
@@ -69,6 +80,7 @@ Search ranking combines title relevance, provider confidence, source authority, 
 
 - Provider timeouts and abort signals bound slow upstream calls.
 - Partial provider failures are returned in response metadata.
+- Slower fallback identity sources stay off the healthy primary title-search path.
 - Public query limits and provider fan-out are bounded.
 - The in-memory cache isolates stored values from caller mutation.
 - Availability cache lifetimes respect expiring direct links.

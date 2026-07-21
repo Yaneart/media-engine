@@ -10,7 +10,7 @@ import type {
 import type { ProviderDetailsCallOutcome, ProviderSearchCallOutcome } from "./provider-calls.js";
 import { appendUniqueSearchResults } from "./query.js";
 
-type MandatorySearchPhase = "primary" | "retry" | "fallback";
+type MandatorySearchPhase = "primary" | "retry" | "fallback" | "provider_fallback";
 type EnrichmentSearchPhase = "id_enrichment" | "poster_enrichment";
 type EnrichmentOutcome = ProviderSearchCallOutcome | ProviderDetailsCallOutcome;
 

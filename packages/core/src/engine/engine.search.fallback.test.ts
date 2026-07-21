@@ -8,6 +8,265 @@ import type { ProviderSearchResult } from "../providers/index.js";
 import { MediaEngine } from "./engine.js";
 import { createProvider } from "./test-helpers.js";
 
+test("search skips fallback discovery after one exact primary identity", async () => {
+  let fallbackCalls = 0;
+  const engine = new MediaEngine({
+    debug: true,
+    providers: [
+      createProvider({
+        name: "primary-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "primary-provider",
+              item: { id: "interstellar", type: "movie", title: "Interstellar", year: 2014 },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: [], titleDiscovery: "fallback" },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          fallbackCalls += 1;
+          return [];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "Interstellar" });
+
+  assert.equal(response.results[0]?.item.title, "Interstellar");
+  assert.equal(fallbackCalls, 0);
+  assert.deepEqual(response.meta.providers.requested, ["primary-provider"]);
+  assert.deepEqual(
+    response.meta.debug?.timings.map((timing) => timing.phase),
+    ["primary"],
+  );
+});
+
+test("search invokes fallback discovery after empty primary discovery", async () => {
+  let fallbackCalls = 0;
+  const engine = new MediaEngine({
+    debug: true,
+    providers: [
+      createProvider({ name: "primary-provider" }),
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: [], titleDiscovery: "fallback" },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          fallbackCalls += 1;
+          return [
+            {
+              provider: "fallback-provider",
+              item: { id: "sopranos", type: "series", title: "The Sopranos", year: 1999 },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "The Sopranos" });
+
+  assert.equal(response.results[0]?.item.title, "The Sopranos");
+  assert.equal(fallbackCalls, 1);
+  assert.deepEqual(response.meta.providers.requested, ["primary-provider", "fallback-provider"]);
+  assert.deepEqual(
+    response.meta.debug?.timings.map((timing) => timing.phase),
+    ["primary", "provider_fallback"],
+  );
+});
+
+test("search invokes fallback discovery for conflicting exact title identities", async () => {
+  let fallbackCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "primary-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "primary-provider",
+              item: { id: "dune-anime", type: "anime", title: "DUNE", year: 2017 },
+            },
+            {
+              provider: "primary-provider",
+              item: { id: "dune-old", type: "movie", title: "Dune", year: 2006 },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["movie", "series"],
+          search: { byTitle: true, byExternalIds: [], titleDiscovery: "fallback" },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          fallbackCalls += 1;
+          return [
+            {
+              provider: "fallback-provider",
+              item: { id: "dune-2021", type: "movie", title: "Dune", year: 2021 },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  await engine.search({ title: "Dune" });
+
+  assert.equal(fallbackCalls, 1);
+});
+
+test("search skips exact-title ambiguity fallback when a broader candidate ranks first", async () => {
+  let fallbackCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "primary-provider",
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "primary-provider",
+              confidence: 1,
+              item: {
+                id: "one-piece",
+                type: "anime",
+                title: "One Piece",
+                year: 1999,
+                ratings: [{ source: "imdb", value: 9, max: 10, votes: 10_000_000 }],
+              },
+            },
+            {
+              provider: "primary-provider",
+              confidence: 0.2,
+              item: { id: "one-a", type: "movie", title: "One", year: 2017 },
+            },
+            {
+              provider: "primary-provider",
+              confidence: 0.1,
+              item: { id: "one-b", type: "movie", title: "ONE", year: 2020 },
+            },
+          ];
+        },
+      }),
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["movie", "series"],
+          search: { byTitle: true, byExternalIds: [], titleDiscovery: "fallback" },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          fallbackCalls += 1;
+          return [];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "One" });
+
+  assert.equal(response.results[0]?.item.title, "One Piece");
+  assert.equal(fallbackCalls, 0);
+});
+
+test("search broadens a typo with primary providers before fallback discovery", async () => {
+  const primaryQueries: string[] = [];
+  let fallbackCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "primary-provider",
+        async search(query): Promise<ProviderSearchResult[]> {
+          primaryQueries.push(query.title ?? "");
+          return query.title === "game of"
+            ? [
+                {
+                  provider: "primary-provider",
+                  item: { id: "got", type: "series", title: "Game of Thrones", year: 2011 },
+                },
+              ]
+            : [];
+        },
+      }),
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["movie", "series"],
+          search: { byTitle: true, byExternalIds: [], titleDiscovery: "fallback" },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          fallbackCalls += 1;
+          return [];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "game of throen" });
+
+  assert.equal(response.results[0]?.item.title, "Game of Thrones");
+  assert.deepEqual(primaryQueries, ["game of throen", "game of"]);
+  assert.equal(fallbackCalls, 0);
+});
+
+test("search runs a fallback title provider normally for a supported external ID", async () => {
+  const engine = new MediaEngine({
+    debug: true,
+    providers: [
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: {
+            byTitle: true,
+            byExternalIds: ["imdb"],
+            titleDiscovery: "fallback",
+          },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [
+            {
+              provider: "fallback-provider",
+              item: {
+                id: "dune",
+                type: "movie",
+                title: "Dune",
+                year: 2021,
+                ids: { imdb: "tt1160419" },
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ ids: { imdb: "tt1160419" } });
+
+  assert.equal(response.results[0]?.item.title, "Dune");
+  assert.deepEqual(
+    response.meta.debug?.timings.map((timing) => timing.phase),
+    ["primary"],
+  );
+});
+
 test("search broadens an empty multi-word typo and ranks against the original query", async () => {
   const receivedTitles: string[] = [];
   const engine = new MediaEngine({

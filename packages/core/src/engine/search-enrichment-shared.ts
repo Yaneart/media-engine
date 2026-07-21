@@ -21,6 +21,10 @@ export function supportsSearchEnrichmentFeature(
   return provider.capabilities.features?.includes(feature) ?? true;
 }
 
+export function supportsSearchEnrichment(provider: MediaProvider): boolean {
+  return provider.capabilities.searchEnrichment !== false;
+}
+
 export function createSearchDetailsQuery(
   result: MediaSearchResult,
   language: string | undefined,

@@ -93,6 +93,54 @@ test("selects search providers by title support", () => {
   assert.deepEqual(registry.selectSearchProviders({ title: "Interstellar" }), [titleProvider]);
 });
 
+test("selects primary and fallback title discovery providers separately", () => {
+  const primaryProvider = createProvider({ name: "primary-provider" });
+  const fallbackProvider = createProvider({
+    name: "fallback-provider",
+    capabilities: {
+      mediaTypes: ["movie"],
+      search: {
+        byTitle: true,
+        byExternalIds: ["imdb"],
+        titleDiscovery: "fallback",
+      },
+      details: { byExternalIds: ["imdb"] },
+    },
+  });
+  const registry = new ProviderRegistry([primaryProvider, fallbackProvider]);
+
+  assert.deepEqual(
+    registry.selectSearchProviders({ title: "Dune" }, { titleDiscovery: "primary" }),
+    [primaryProvider],
+  );
+  assert.deepEqual(
+    registry.selectSearchProviders({ title: "Dune" }, { titleDiscovery: "fallback" }),
+    [fallbackProvider],
+  );
+  assert.equal(registry.getProviders()[1]?.capabilities.search.titleDiscovery, "fallback");
+});
+
+test("keeps fallback title providers available for direct external ID search", () => {
+  const fallbackProvider = createProvider({
+    name: "fallback-provider",
+    capabilities: {
+      mediaTypes: ["movie"],
+      search: {
+        byTitle: true,
+        byExternalIds: ["imdb"],
+        titleDiscovery: "fallback",
+      },
+      details: { byExternalIds: ["imdb"] },
+    },
+  });
+  const registry = new ProviderRegistry([fallbackProvider]);
+
+  assert.deepEqual(
+    registry.selectSearchProviders({ ids: { imdb: "tt1160419" } }, { titleDiscovery: "primary" }),
+    [fallbackProvider],
+  );
+});
+
 test("selects search providers by external ids", () => {
   const imdbProvider = createProvider({ name: "imdb-provider" });
   const shikimoriProvider = createProvider({

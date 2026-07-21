@@ -45,6 +45,10 @@ The engine also has `getAvailability()` for optional streaming providers.
 
 Provider calls run concurrently. If one source fails and another succeeds, the response keeps the useful data and lists the failure in `meta.providers.failed`. Search failures and debug timings include an optional execution `phase`; repeated failures from one provider are represented once in the public failure list. Mandatory retryable primary/fallback degradation is not stored in the normal cache.
 
+Title search distinguishes primary discovery from slower fallback identity sources through optional `capabilities.search.titleDiscovery`. Custom providers are primary by default. Fallback providers run only after primary typo broadening and only when the remaining result is empty or has conflicting exact-title identities. External-ID search still calls every compatible provider immediately.
+
+Providers can separately set `capabilities.searchEnrichment: false` to stay out of best-effort search-card ID/poster work. This keeps short optional enrichment deadlines from consuming the reliability budget of a mandatory fallback identity source.
+
 Optional search ID/poster enrichment failures do not discard the base results. They produce bounded `meta.warnings`, remain cacheable with those warnings, and expose attempted/skipped/succeeded/failed counters plus phase-aware timings when debug mode is enabled. One planner limits enrichment to the visible top results, at most six additional calls, at most two calls per provider, and 1.5 seconds total. It skips providers that cannot improve a missing field and reuses matching ID-search plus cached or in-flight details outcomes for poster selection.
 
 `MemoryCache` can retain metadata for a separate bounded stale window. `MediaEngine` uses it only for search and details when every selected provider fails retryably; stale streaming links are never returned. Such responses set `meta.cached` and `meta.stale` to `true`.

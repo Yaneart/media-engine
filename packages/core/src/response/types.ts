@@ -1,7 +1,7 @@
 // Public provider failure summary included in response metadata.
 // Публичное описание ошибки провайдера в метаданных ответа.
 export type ProviderExecutionPhase =
-  "primary" | "retry" | "fallback" | "id_enrichment" | "poster_enrichment";
+  "primary" | "retry" | "fallback" | "provider_fallback" | "id_enrichment" | "poster_enrichment";
 
 export interface ProviderFailure {
   provider: string;

@@ -5,6 +5,7 @@ import type {
   ProviderDetailsQuery,
   ProviderInfo,
   ProviderSearchQuery,
+  TitleDiscoveryRole,
 } from "./types.js";
 
 const EXTERNAL_ID_SOURCES: ExternalIdSource[] = [
@@ -59,9 +60,15 @@ export class ProviderRegistry {
       kind: provider.kind,
       capabilities: {
         mediaTypes: [...provider.capabilities.mediaTypes],
+        ...(provider.capabilities.searchEnrichment !== undefined
+          ? { searchEnrichment: provider.capabilities.searchEnrichment }
+          : {}),
         search: {
           byTitle: provider.capabilities.search.byTitle,
           byExternalIds: [...provider.capabilities.search.byExternalIds],
+          ...(provider.capabilities.search.titleDiscovery
+            ? { titleDiscovery: provider.capabilities.search.titleDiscovery }
+            : {}),
         },
         details: {
           byExternalIds: [...provider.capabilities.details.byExternalIds],
@@ -73,7 +80,10 @@ export class ProviderRegistry {
 
   // Selects providers that can handle a normalized search query.
   // Выбирает провайдеров, которые могут обработать нормализованный поисковый запрос.
-  selectSearchProviders(query: ProviderSearchQuery): MediaProvider[] {
+  selectSearchProviders(
+    query: ProviderSearchQuery,
+    options: { titleDiscovery?: TitleDiscoveryRole } = {},
+  ): MediaProvider[] {
     const queryIdSources = getExternalIdSources(query.ids);
 
     return Array.from(this.providers.values()).filter((provider) => {
@@ -81,8 +91,11 @@ export class ProviderRegistry {
         return false;
       }
 
+      const providerTitleDiscovery = provider.capabilities.search.titleDiscovery ?? "primary";
       const supportsTitleSearch =
-        Boolean(query.title?.trim()) && provider.capabilities.search.byTitle;
+        Boolean(query.title?.trim()) &&
+        provider.capabilities.search.byTitle &&
+        (!options.titleDiscovery || options.titleDiscovery === providerTitleDiscovery);
 
       const supportsIdSearch = queryIdSources.some((source) =>
         provider.capabilities.search.byExternalIds.includes(source),

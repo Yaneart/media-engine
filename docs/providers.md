@@ -10,7 +10,7 @@ Providers are adapters between an external data source and the normalized core c
 | Cinemeta     | IMDb-linked movie and series metadata                     | None                |
 | Shikimori    | Anime search and details                                  | None                |
 | AniList      | International anime aliases, IDs, popularity, and artwork | None                |
-| Wikidata     | Public structured identity and metadata enrichment        | None                |
+| Wikidata     | Fallback structured identity and metadata enrichment      | None                |
 | IMDb dataset | Optional local TSV-backed search and details              | Local dataset files |
 
 Default applications can combine several providers. The merge strategy uses strong IDs and compatible titles to avoid treating unrelated results as the same item.
@@ -34,6 +34,8 @@ A metadata provider declares:
 - stable name and optional version;
 - supported media types;
 - title and external-ID search capabilities;
+- optional title-discovery role: `primary` by default or `fallback` for slower identity sources;
+- optional `searchEnrichment: false` for providers that must stay out of best-effort search-card enrichment;
 - detail lookup capabilities;
 - optional features such as posters, ratings, people, seasons, or episodes;
 - optional `searchPosterMatchesDetails` when the provider guarantees that its normalized search and details poster fields are identical;
@@ -49,6 +51,8 @@ Provider methods receive request context with an abort signal, timeout, language
 - Retryable failures use bounded exponential backoff with jitter, respect `Retry-After`, and stay inside the provider timeout budget.
 - Repeated transient failures open a per-provider circuit, suppressing wasteful calls until one recovery probe is allowed after cooldown.
 - Search retries, fallback queries, and enrichment consume one shared timeout budget per provider instead of restarting the full timeout for every call.
+- Primary providers handle normal title discovery. Fallback title providers run only after primary typo broadening and only for an empty result or conflicting exact-title identities; direct external-ID searches still call every compatible provider.
+- Optional search-card enrichment skips providers that opt out through `searchEnrichment: false`, preventing a short enrichment deadline from consuming a provider reserved for mandatory identity fallback.
 - Providers that explicitly guarantee identical normalized search/details posters reuse the search poster during canonical poster enrichment, avoiding duplicate upstream details calls. Providers without the guarantee keep the full lookup behavior.
 - Optional provider failures do not erase successful results from other providers.
 - HTTP response sizes and player validation concurrency are bounded where needed.

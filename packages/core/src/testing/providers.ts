@@ -168,6 +168,7 @@ export function createDetailsResult(
 function createCapabilities(overrides: Partial<ProviderCapabilities> = {}): ProviderCapabilities {
   return {
     mediaTypes: overrides.mediaTypes ?? (["movie", "series", "anime"] satisfies MediaType[]),
+    searchEnrichment: overrides.searchEnrichment,
     search: {
       byTitle: overrides.search?.byTitle ?? true,
       byExternalIds: overrides.search?.byExternalIds ?? [
@@ -176,6 +177,7 @@ function createCapabilities(overrides: Partial<ProviderCapabilities> = {}): Prov
         "shikimori",
         "myAnimeList",
       ],
+      titleDiscovery: overrides.search?.titleDiscovery,
     },
     details: {
       byExternalIds: overrides.details?.byExternalIds ?? [

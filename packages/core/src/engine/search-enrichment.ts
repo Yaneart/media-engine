@@ -12,6 +12,7 @@ import {
   hasSharedExternalId,
   type PlannedIdEnrichment,
   SearchEnrichmentCallBudget,
+  supportsSearchEnrichment,
   supportsSearchEnrichmentFeature,
 } from "./search-enrichment-shared.js";
 import { loadSearchPoster, type SearchPosterEnrichment } from "./search-poster-enrichment.js";
@@ -153,7 +154,9 @@ function planIdEnrichment(
   const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
   const providers = input.registry
     .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
-    .filter((candidate) => !existingProviders.has(candidate.name))
+    .filter(
+      (candidate) => supportsSearchEnrichment(candidate) && !existingProviders.has(candidate.name),
+    )
     .map((candidate, index) => ({
       candidate,
       index,
