@@ -7,6 +7,11 @@ import type {
 } from "../providers/index.js";
 import type { ProviderFailure, ProviderTimingMeta } from "../response/index.js";
 import type { MediaAvailability, StreamQuery, StreamingProvider } from "../streaming/index.js";
+import type {
+  TorrentDiscoveryQuery,
+  TorrentDiscoveryResponse,
+  TorrentProvider,
+} from "../torrent/index.js";
 import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import type { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
 import { getAbortReason, isOperationCancelledError, throwIfAborted } from "./operation.js";
@@ -57,6 +62,15 @@ export interface ProviderAvailabilityCallOutcome {
   provider: string;
   timing: ProviderTimingMeta;
   result: MediaAvailability | null;
+  failure?: ProviderFailure;
+}
+
+// Result of one torrent provider call after timing and failure normalization.
+// Результат одного torrent provider вызова после замера времени и нормализации ошибок.
+export interface ProviderTorrentCallOutcome {
+  provider: string;
+  timing: ProviderTimingMeta;
+  result: TorrentDiscoveryResponse | null;
   failure?: ProviderFailure;
 }
 
@@ -204,6 +218,56 @@ export async function callTimedProviderAvailability(
       provider.name,
       (signal) =>
         provider.getAvailability(query, {
+          signal,
+          timeoutMs: context.timeoutMs,
+          debug: context.debug,
+          language: context.language,
+        }),
+    );
+
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "success",
+        tookMs: elapsedSince(startedAt),
+      },
+      result,
+    };
+  } catch (error) {
+    if (isOperationCancelledError(error)) {
+      throw error;
+    }
+
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "failed",
+        tookMs: elapsedSince(startedAt),
+      },
+      result: null,
+      failure: toProviderFailure(provider.name, error),
+    };
+  }
+}
+
+// Calls one torrent provider and returns normalized timing/failure metadata.
+// Вызывает один torrent-провайдер и возвращает нормализованные timing/failure метаданные.
+export async function callTimedTorrentProvider(
+  provider: TorrentProvider,
+  query: TorrentDiscoveryQuery,
+  context: ProviderCallContext,
+): Promise<ProviderTorrentCallOutcome> {
+  const startedAt = Date.now();
+
+  try {
+    const result = await runProviderOperation(
+      context,
+      `torrent:${provider.name}`,
+      provider.name,
+      (signal) =>
+        provider.discoverTorrents(query, {
           signal,
           timeoutMs: context.timeoutMs,
           debug: context.debug,

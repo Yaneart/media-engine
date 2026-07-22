@@ -35,7 +35,7 @@ const engine = new MediaEngine({
 });
 ```
 
-`MediaEngineOptions` also accepts streaming providers, a cache, a custom merge strategy, a global timeout, provider-specific timeouts, debug mode, and optional circuit-breaker tuning. The circuit breaker is enabled by default, opens after three consecutive retryable failures, and permits one recovery probe after 30 seconds. Use `failureThreshold` and `recoveryTimeoutMs` to tune it, or pass `circuitBreaker: false` to disable it.
+`MediaEngineOptions` also accepts streaming providers, torrent discovery providers, a cache, a custom merge strategy, a global timeout, provider-specific timeouts, debug mode, and optional circuit-breaker tuning. The circuit breaker is enabled by default, opens after three consecutive retryable failures, and permits one recovery probe after 30 seconds. Use `failureThreshold` and `recoveryTimeoutMs` to tune it, or pass `circuitBreaker: false` to disable it.
 
 Provider work is also limited to two concurrent calls per provider by default, with a bounded cancellable queue. Configure `providerConcurrency.defaultMaxConcurrent`, `maxQueueSize`, and `providerLimits` for local overrides, or pass `providerConcurrency: false` to disable the gate. Queue waiting consumes the same provider timeout budget as network work.
 
@@ -66,7 +66,7 @@ When a cache is configured, the first healthy mandatory discovery whose top cand
 
 Engine queries are canonicalized before provider selection and cache/coalescing key creation. Top-level external-ID shortcuts and nested `ids` share one normalized representation, string fields are trimmed and bounded, known IMDb/numeric ID formats are validated, language is lowercased, and availability provider filters are deduplicated and sorted. `limit: 0` is a valid search that returns immediately without provider or cache work.
 
-All three engine operations accept an optional second argument:
+All four engine operations accept an optional second argument:
 
 ```ts
 const controller = new AbortController();
@@ -111,6 +111,26 @@ Availability responses contain normalized player/stream options and optional epi
 
 Returned options are discovered from third-party sources. They are not a guarantee that playback works in every browser, country, or network.
 
+## Torrent discovery
+
+```ts
+const torrents = await engine.discoverTorrents({
+  type: "series",
+  imdb: "tt5753856",
+  seasonNumber: 1,
+  episodeNumber: 2,
+  limit: 20,
+});
+```
+
+Torrent discovery is a separate provider category and operation. A `TorrentDiscoveryResponse` contains normalized candidates, source attribution, optional release/file/peer metadata, and an explicit handoff of kind `magnet`, `torrent_file`, or `external`. Core does not open the handoff, download torrent metadata, join a swarm, select files, store media, proxy traffic, or transcode video.
+
+`torrentProviders` are selected by media type, supported external IDs or title lookup, episode capability, and an optional provider filter. Calls use the same bounded timeout, cancellation, concurrency, circuit-breaker, partial-failure, cache, and identical-request coalescing behavior as other provider operations. Handoff data is never served from the stale metadata cache and an advertised `expiresAt` bounds its normal cache lifetime. `limit: 0` is a zero-work response.
+
+Candidate order is deterministic: the engine preserves each provider's order while interleaving configured sources before applying the public limit. It deduplicates repeated `provider` plus `id` identities but does not collapse matching info hashes from different providers because their attribution and handoff path may differ.
+
+This contract-only release configures no torrent source in the repository API. `discoverTorrents()` therefore returns a successful empty response until an application supplies a `TorrentProvider` or a later accepted source is added.
+
 ## Errors and partial failures
 
 Invalid queries throw `MediaEngineError`. Provider failures are normalized and include a stable code plus retryability. If at least one selected provider succeeds, the engine normally returns a partial response and records other failures in `meta.providers.failed`. If every selected provider fails, the operation throws.
@@ -123,9 +143,11 @@ The example NestJS application exposes:
 GET /health
 GET /providers
 GET /providers/streaming
+GET /providers/torrent
 GET /media/search
 GET /media/details
 GET /media/availability
+GET /media/torrents
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
@@ -146,4 +168,4 @@ const client = new MediaEngineClient({
 const response = await client.search({ title: "One Piece" });
 ```
 
-The SDK provides `search`, `getDetails`, `getAvailability`, `getProviders`, `getStreamingProviders`, and `getHealth`. Requests accept an abort signal and extra headers.
+The SDK provides `search`, `getDetails`, `getAvailability`, `discoverTorrents`, provider-list methods for all three provider categories, and health methods. Requests accept an abort signal and extra headers.

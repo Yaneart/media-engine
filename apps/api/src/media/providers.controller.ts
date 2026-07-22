@@ -28,4 +28,15 @@ export class ProvidersController {
   getStreamingProviders() {
     return this.mediaService.getStreamingProviders();
   }
+
+  // EN: Return safe torrent provider capabilities without secrets or internals.
+  // RU: Возвращает безопасные capabilities torrent-провайдеров без секретов и внутренностей.
+  @ApiOperation({ summary: 'List configured torrent discovery providers.' })
+  @ApiOkResponse({
+    description: 'Safe torrent provider metadata and capabilities.',
+  })
+  @Get('torrent')
+  getTorrentProviders() {
+    return this.mediaService.getTorrentProviders();
+  }
 }

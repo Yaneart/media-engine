@@ -38,6 +38,18 @@ describe('MediaEngine configuration', () => {
       'ddbb-streaming',
       'aniliberty-streaming',
     ]);
+    expect(engine.getTorrentProviders()).toEqual([]);
+
+    const torrents = await engine.discoverTorrents({
+      type: 'movie',
+      title: 'Interstellar',
+    });
+    expect(torrents.candidates).toEqual([]);
+    expect(torrents.meta?.providers).toEqual({
+      requested: [],
+      successful: [],
+      failed: [],
+    });
   });
 
   it('creates no-token streaming providers by default', async () => {

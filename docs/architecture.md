@@ -18,10 +18,10 @@ apps/api ← @media-engine/sdk ← apps/example
 
 The core package owns:
 
-- normalized media and streaming types;
-- metadata and streaming provider contracts;
+- normalized media, streaming, and torrent-discovery types;
+- metadata, streaming, and torrent provider contracts;
 - provider selection and concurrent execution;
-- search, details, and availability orchestration;
+- search, details, availability, and torrent-discovery orchestration;
 - merging, warnings, errors, timeouts, and optional caching.
 
 Core does not import concrete providers, NestJS, React, or environment configuration.
@@ -38,7 +38,9 @@ The SDK is a small typed HTTP client for the API. It works with browser or Node.
 
 ### `apps/api`
 
-The NestJS application wires providers into `MediaEngine` and exposes health, provider, search, details, and availability endpoints. It owns HTTP validation and OpenAPI documentation, but not merge logic or provider HTTP clients.
+The NestJS application wires providers into `MediaEngine` and exposes health, provider, search, details, availability, and torrent-discovery endpoints. It owns HTTP validation and OpenAPI documentation, but not merge logic or provider HTTP clients.
+
+Torrent discovery is intentionally independent from streaming availability. Core can select torrent providers and return typed handoff candidates, but it never contains a BitTorrent client, player, proxy, storage, or transcoder. Those runtime responsibilities belong to consuming applications.
 
 ### `apps/example`
 
@@ -72,7 +74,7 @@ Optional enrichment never joins its provider results back into mandatory discove
 
 For the next 30 minutes, equivalent cache misses use the first healthy identity snapshot whose top candidate has a strong external ID to keep confirmed candidates and ordering stable even if a successful upstream response drifts. The snapshot is not refreshed inside that window. It ignores the public `limit`, keeps at most 20 candidates, never replaces a current candidate with conflicting strong IDs, and does not mark the response as cached. Retryably degraded partial searches can use the same recovery while retaining current provider failures; non-retryable degradation does not. A cold request without a prior confirmed snapshot remains dependent on the currently available identity sources, and a weak top candidate without a strong ID is never promoted into the snapshot.
 
-Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options.
+Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options. Torrent providers use another operation and return discovery metadata plus an opaque handoff instead of claiming immediate stream availability.
 
 ## Identity and merging
 
@@ -94,7 +96,7 @@ When engine debug mode is enabled, each built-in result includes `ranking`. It r
 - Retryably degraded partial searches can recover prior confirmed identity order without caching the degraded response.
 - Public query limits and provider fan-out are bounded.
 - The in-memory cache isolates stored values from caller mutation.
-- Availability cache lifetimes respect expiring direct links.
+- Availability and torrent-discovery cache lifetimes respect expiring access or handoff data and never use stale metadata fallback.
 - Upstream-discovered URLs are checked before server-side fetching or public exposure.
 - Live providers remain best-effort because upstream sites can change or become unavailable.
 
@@ -102,7 +104,7 @@ When engine debug mode is enabled, each built-in result includes `ranking`. It r
 
 ```text
 packages/core       framework-independent engine
-packages/providers  metadata and streaming adapters
+packages/providers  concrete provider adapters
 packages/sdk        typed HTTP client
 apps/api            NestJS API
 apps/example        React example

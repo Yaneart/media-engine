@@ -202,6 +202,58 @@ test("getAvailability serializes streaming query params", async () => {
   assert.equal(mock.calls[0]?.searchParams.get("language"), "ru");
 });
 
+test("discoverTorrents serializes torrent query params and parses handoff candidates", async () => {
+  const body = {
+    query: {
+      type: "series",
+      title: "Dark",
+      ids: { imdb: "tt5753856" },
+      seasonNumber: 1,
+      episodeNumber: 2,
+      providers: ["torrent-catalog", "mirror"],
+      limit: 5,
+    },
+    candidates: [
+      {
+        id: "torrent-catalog:1",
+        provider: "torrent-catalog",
+        title: "Dark S01E02 1080p",
+        handoff: {
+          kind: "magnet",
+          uri: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
+        },
+        availability: "available",
+      },
+    ],
+    sourceProviders: [{ provider: "torrent-catalog" }],
+    checkedAt: "2026-07-22T00:00:00.000Z",
+  };
+  const mock = createMockFetch(Response.json(body));
+  const client = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: mock.fetch,
+  });
+
+  const result = await client.discoverTorrents({
+    type: "series",
+    title: " Dark ",
+    ids: { imdb: "tt5753856" },
+    seasonNumber: 1,
+    episodeNumber: 2,
+    providers: ["torrent-catalog", "mirror"],
+    limit: 5,
+  });
+
+  assert.deepEqual(result, body);
+  assert.equal(mock.calls[0]?.pathname, "/media/torrents");
+  assert.equal(mock.calls[0]?.searchParams.get("title"), "Dark");
+  assert.equal(mock.calls[0]?.searchParams.get("ids.imdb"), "tt5753856");
+  assert.equal(mock.calls[0]?.searchParams.get("seasonNumber"), "1");
+  assert.equal(mock.calls[0]?.searchParams.get("episodeNumber"), "2");
+  assert.equal(mock.calls[0]?.searchParams.get("limit"), "5");
+  assert.deepEqual(mock.calls[0]?.searchParams.getAll("providers"), ["torrent-catalog", "mirror"]);
+});
+
 test("provider and health methods parse typed responses", async () => {
   const providersMock = createMockFetch(Response.json([]));
   const providersClient = new MediaEngineClient({
@@ -220,6 +272,15 @@ test("provider and health methods parse typed responses", async () => {
 
   assert.deepEqual(await streamingProvidersClient.getStreamingProviders(), []);
   assert.equal(streamingProvidersMock.calls[0]?.pathname, "/providers/streaming");
+
+  const torrentProvidersMock = createMockFetch(Response.json([]));
+  const torrentProvidersClient = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: torrentProvidersMock.fetch,
+  });
+
+  assert.deepEqual(await torrentProvidersClient.getTorrentProviders(), []);
+  assert.equal(torrentProvidersMock.calls[0]?.pathname, "/providers/torrent");
 
   const health = {
     status: "ok",

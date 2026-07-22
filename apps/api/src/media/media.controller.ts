@@ -14,6 +14,7 @@ import type {
   MediaAvailabilityHttpQuery,
   MediaDetailsHttpQuery,
   MediaSearchHttpQuery,
+  TorrentDiscoveryHttpQuery,
 } from './media.service';
 import { runWithHttpRequestSignal } from './request-cancellation';
 
@@ -157,6 +158,56 @@ export class MediaController {
   ) {
     return runWithHttpRequestSignal(request, response, (signal) =>
       this.mediaService.getAvailability(query, { signal }),
+    );
+  }
+
+  // EN: Expose normalized torrent candidates and handoff data without running a torrent client.
+  // RU: Возвращает torrent-кандидаты и handoff без запуска torrent-клиента.
+  @ApiOperation({
+    summary:
+      'Discover torrent handoff candidates for one media item or episode.',
+    description:
+      'Returns metadata and handoff data only. The API does not download torrents, join swarms, store files, proxy media, or transcode video.',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: true,
+    enum: ['movie', 'series', 'anime'],
+  })
+  @ApiQuery({ name: 'title', required: false, type: String })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiQuery({ name: 'seasonNumber', required: false, type: Number })
+  @ApiQuery({ name: 'episodeNumber', required: false, type: Number })
+  @ApiQuery({ name: 'absoluteEpisodeNumber', required: false, type: Number })
+  @ApiQuery({ name: 'providers', required: false, type: String })
+  @ApiQuery({ name: 'language', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'imdb', required: false, type: String })
+  @ApiQuery({ name: 'tmdb', required: false, type: String })
+  @ApiQuery({ name: 'kinopoisk', required: false, type: String })
+  @ApiQuery({ name: 'shikimori', required: false, type: String })
+  @ApiQuery({ name: 'myAnimeList', required: false, type: String })
+  @ApiQuery({ name: 'aniList', required: false, type: String })
+  @ApiQuery({ name: 'ids.imdb', required: false, type: String })
+  @ApiQuery({ name: 'ids.tmdb', required: false, type: String })
+  @ApiQuery({ name: 'ids.kinopoisk', required: false, type: String })
+  @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
+  @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
+  @ApiQuery({ name: 'ids.aniList', required: false, type: String })
+  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
+  @ApiOkResponse({ description: 'Normalized torrent discovery response.' })
+  @ApiBadRequestResponse({ description: 'Invalid torrent discovery query.' })
+  @ApiServiceUnavailableResponse({
+    description: 'All selected torrent providers failed.',
+  })
+  @Get('torrents')
+  discoverTorrents(
+    @Query() query: TorrentDiscoveryHttpQuery,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return runWithHttpRequestSignal(request, response, (signal) =>
+      this.mediaService.discoverTorrents(query, { signal }),
     );
   }
 }

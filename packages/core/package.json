@@ -18,6 +18,7 @@
     "movies",
     "series",
     "anime",
+    "torrent",
     "shikimori"
   ],
   "type": "module",

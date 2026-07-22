@@ -31,9 +31,11 @@ GET /health/live
 GET /health/ready
 GET /providers
 GET /providers/streaming
+GET /providers/torrent
 GET /media/search
 GET /media/details
 GET /media/availability
+GET /media/torrents
 GET /docs
 GET /docs-json
 ```
@@ -42,13 +44,15 @@ GET /docs-json
 
 All media endpoints canonicalize trimmed IDs and language before provider/cache work; equivalent top-level and `ids.*` forms share one cache key. Malformed known IDs and oversized fields return HTTP 400. `GET /media/search?...&limit=0` is an intentional zero-work probe that returns an empty provider-free response.
 
+`GET /media/torrents` is a discovery and handoff endpoint only. It does not run a torrent client, join a swarm, download or store media, proxy traffic, or transcode video. No torrent provider is configured in this contract-only block, so valid requests return an empty successful response and `/providers/torrent` returns an empty list until an accepted source is added.
+
 Media request disconnects are forwarded to core as an abort signal. If another identical HTTP request is still subscribed, its shared provider work continues; otherwise queued/running provider work is cancelled and the abandoned response is not cached.
 
 Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts. Metadata, generic streaming, and FlixHQ keep independent timeout budgets; KinoBD, DDBB, and AniLiberty share the bounded generic streaming budget, while the larger FlixHQ value is not capped by it. The default streaming set is KinoBD, FlixHQ, DDBB, and AniLiberty; none requires caller credentials.
 
 `/health/live` only confirms that the API process can answer HTTP requests. `/health/ready` and the backward-compatible `/health` also inspect provider circuits and return `status: "degraded"` when at least one circuit is open or recovering. Degraded readiness remains HTTP 200 because the API can still return partial results.
 
-Deployment settings are parsed strictly at startup. `HOST` must be an IP address or hostname, `PORT` must be an integer from 1 to 65535, and production requires an explicit comma-separated `CORS_ORIGINS` allowlist containing exact HTTP(S) origins. The three expensive media endpoints share a process-local fixed-window limit configured by `MEDIA_ENGINE_RATE_LIMIT_WINDOW_MS` and `MEDIA_ENGINE_RATE_LIMIT_MAX_REQUESTS`; set the maximum to `0` only when an equivalent edge limiter is present.
+Deployment settings are parsed strictly at startup. `HOST` must be an IP address or hostname, `PORT` must be an integer from 1 to 65535, and production requires an explicit comma-separated `CORS_ORIGINS` allowlist containing exact HTTP(S) origins. The four expensive media endpoints share a process-local fixed-window limit configured by `MEDIA_ENGINE_RATE_LIMIT_WINDOW_MS` and `MEDIA_ENGINE_RATE_LIMIT_MAX_REQUESTS`; set the maximum to `0` only when an equivalent edge limiter is present.
 
 Helmet applies a no-content CSP and standard security headers to JSON API responses. Swagger has a separate self-only policy that permits its required inline bootstrap. The example/player UI is a separate deployment surface: keep third-party embeds disabled or define an explicit `frame-src` allowlist there rather than weakening the API CSP.
 

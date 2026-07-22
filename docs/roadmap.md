@@ -19,9 +19,9 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 1. Monitor the accepted default DDBB and AniLiberty providers while keeping their requests bounded,
    failures isolated, attribution explicit, and `embed` versus direct-HLS classification accurate.
-2. Design a separate normalized torrent-discovery contract and add only accepted torrent
-   sources. Media Engine will return typed candidates and playback handoff data without
-   bundling a frontend player, video proxy, BitTorrent client, storage, or transcoder.
+2. Use the separate normalized torrent-discovery contract to add only accepted torrent sources.
+   Media Engine returns typed candidates and playback handoff data without bundling a frontend
+   player, video proxy, BitTorrent client, storage, or transcoder.
 3. Use the repository API and example applications as an opt-in reference playback stand:
    verify direct HLS/MP4 and controlled torrent handoff end to end without moving player or
    P2P runtime responsibilities into the public Media Engine packages.

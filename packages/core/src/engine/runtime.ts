@@ -1,4 +1,5 @@
 import type { StreamingProvider } from "../streaming/index.js";
+import type { TorrentProvider } from "../torrent/index.js";
 
 // Validates streaming providers and rejects duplicate public names.
 // Проверяет streaming-провайдеры и отклоняет дубли публичных имен.
@@ -20,6 +21,34 @@ export function validateStreamingProviders(providers: StreamingProvider[]): Stre
 
     if (names.has(name)) {
       throw new Error(`Streaming provider "${name}" is already registered.`);
+    }
+
+    names.add(name);
+  }
+
+  return [...providers];
+}
+
+// Validates torrent providers and rejects duplicate public names.
+// Проверяет torrent-провайдеры и отклоняет дубли публичных имен.
+export function validateTorrentProviders(providers: TorrentProvider[]): TorrentProvider[] {
+  const names = new Set<string>();
+
+  for (const provider of providers) {
+    const name = provider.name.trim();
+
+    if (!name) {
+      throw new Error("Torrent provider name is required.");
+    }
+
+    if (name !== provider.name) {
+      throw new Error(
+        `Torrent provider name "${provider.name}" must not include leading or trailing whitespace.`,
+      );
+    }
+
+    if (names.has(name)) {
+      throw new Error(`Torrent provider "${name}" is already registered.`);
     }
 
     names.add(name);

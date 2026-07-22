@@ -18,6 +18,12 @@ import type {
   StreamingProvider,
   StreamingProviderInfo,
 } from "../streaming/index.js";
+import type {
+  TorrentDiscoveryQuery,
+  TorrentDiscoveryResponse,
+  TorrentProvider,
+  TorrentProviderInfo,
+} from "../torrent/index.js";
 import {
   createAvailabilityCacheOptions,
   hasUnknownStreamValidation,
@@ -43,9 +49,11 @@ import {
   normalizeDetailsQuery,
   normalizeSearchQuery,
   normalizeStreamQuery,
+  normalizeTorrentQuery,
   validateDetailsQuery,
   validateSearchQuery,
   validateStreamQuery,
+  validateTorrentQuery,
 } from "./query.js";
 import { createResponseMeta, elapsedSince } from "./response-meta.js";
 import { applySearchDetailsEnrichments, executeSearchEnrichmentPlan } from "./search-enrichment.js";
@@ -68,7 +76,12 @@ import {
 import { SearchOutcomeAccumulator } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
 import { throwIfAborted, waitForCaller } from "./operation.js";
-import { resolveProviderTimeoutMs, validateStreamingProviders } from "./runtime.js";
+import {
+  resolveProviderTimeoutMs,
+  validateStreamingProviders,
+  validateTorrentProviders,
+} from "./runtime.js";
+import { executeTorrentDiscovery } from "./torrents.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
 import { ProviderTimeoutBudget } from "./timeout-budget.js";
 import type {
@@ -82,6 +95,7 @@ import type {
 export class MediaEngine {
   private readonly registry: ProviderRegistry;
   private readonly streamingProviders: StreamingProvider[];
+  private readonly torrentProviders: TorrentProvider[];
   private readonly cache?: Cache;
   private readonly mergeStrategy: MergeStrategy;
   private readonly timeoutMs?: number;
@@ -94,6 +108,7 @@ export class MediaEngine {
   constructor(options: MediaEngineOptions = {}) {
     this.registry = new ProviderRegistry(options.providers ?? []);
     this.streamingProviders = validateStreamingProviders(options.streamingProviders ?? []);
+    this.torrentProviders = validateTorrentProviders(options.torrentProviders ?? []);
     this.cache = options.cache;
     this.mergeStrategy = options.mergeStrategy ?? new DefaultMergeStrategy();
     this.timeoutMs = options.timeoutMs;
@@ -134,6 +149,25 @@ export class MediaEngine {
     }));
   }
 
+  // Returns safe registered torrent provider metadata without provider internals.
+  // Возвращает безопасные метаданные torrent-провайдеров без внутренних данных.
+  getTorrentProviders(): TorrentProviderInfo[] {
+    return this.torrentProviders.map((provider) => ({
+      name: provider.name,
+      version: provider.version,
+      kind: provider.kind,
+      capabilities: {
+        mediaTypes: [...provider.capabilities.mediaTypes],
+        lookup: {
+          byTitle: provider.capabilities.lookup.byTitle,
+          byExternalIds: [...provider.capabilities.lookup.byExternalIds],
+          byEpisode: provider.capabilities.lookup.byEpisode,
+        },
+        features: provider.capabilities.features ? [...provider.capabilities.features] : undefined,
+      },
+    }));
+  }
+
   // Returns process-local provider reliability counters without exposing provider internals.
   // Возвращает локальные health-счетчики провайдеров без раскрытия их внутренностей.
   getProviderHealth(): ProviderHealthStatus[] {
@@ -143,8 +177,11 @@ export class MediaEngine {
     const streaming = this.streamingProviders.map((provider) =>
       this.createProviderHealthStatus(provider.name, "streaming"),
     );
+    const torrent = this.torrentProviders.map((provider) =>
+      this.createProviderHealthStatus(provider.name, "torrent"),
+    );
 
-    return [...metadata, ...streaming];
+    return [...metadata, ...streaming, ...torrent];
   }
 
   // Searches media through selected providers and merges normalized results.
@@ -713,6 +750,31 @@ export class MediaEngine {
       }
 
       return availability;
+    });
+  }
+
+  // Discovers normalized torrent handoff candidates through torrent providers.
+  // Находит нормализованные torrent handoff кандидаты через torrent-провайдеры.
+  async discoverTorrents(
+    query: TorrentDiscoveryQuery,
+    options: MediaEngineOperationOptions = {},
+  ): Promise<TorrentDiscoveryResponse> {
+    throwIfAborted(options.signal);
+    const startedAt = Date.now();
+    const normalizedQuery = normalizeTorrentQuery(query);
+    validateTorrentQuery(normalizedQuery);
+
+    return executeTorrentDiscovery({
+      query: normalizedQuery,
+      options,
+      startedAt,
+      providers: this.torrentProviders,
+      cache: this.cache,
+      debug: this.debug,
+      circuitBreaker: this.circuitBreaker,
+      concurrencyLimiter: this.concurrencyLimiter,
+      inFlightRequests: this.inFlightRequests,
+      getProviderTimeoutMs: (providerName) => this.getProviderTimeoutMs(providerName),
     });
   }
 

@@ -20,8 +20,8 @@ interface ProviderQueue {
   waiting: QueueEntry<unknown>[];
 }
 
-// Bounds concurrent work independently for every metadata or streaming provider.
-// Ограничивает параллельную работу отдельно для каждого metadata/streaming-провайдера.
+// Bounds concurrent work independently for every metadata, streaming, or torrent provider.
+// Ограничивает параллельную работу отдельно для metadata, streaming и torrent-провайдеров.
 export class ProviderConcurrencyLimiter {
   private readonly defaultMaxConcurrent: number;
   private readonly maxQueueSize: number;

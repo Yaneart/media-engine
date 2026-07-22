@@ -54,6 +54,12 @@ A `StreamOption` can describe:
 
 Optional fields are omitted when an upstream source does not provide trustworthy data. The model avoids inventing language, quality, or availability guarantees.
 
+## Torrent discovery
+
+Torrent discovery is separate from both metadata and immediate stream availability. A `TorrentDiscoveryResponse` contains normalized `TorrentCandidate` values, provider execution metadata, and source attribution. A candidate may include release characteristics, peer counts, an episode range, advertised files, size, info hash, and expiration only when the source provides them reliably.
+
+Every candidate has an explicit `TorrentHandoff` of kind `magnet`, `torrent_file`, or `external`. The handoff is opaque data for a consuming application. Media Engine core does not fetch torrent metadata, join a swarm, select files, store content, proxy media, or transcode video.
+
 ## Source of truth
 
 Refer to the exported declarations in `@media-engine/core` for exact fields and unions:
@@ -63,3 +69,4 @@ Refer to the exported declarations in `@media-engine/core` for exact fields and 
 - `details/types`;
 - `response/types`;
 - `streaming/types`.
+- `torrent/types`.

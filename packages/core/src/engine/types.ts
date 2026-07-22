@@ -2,6 +2,7 @@ import type { Cache } from "../cache/index.js";
 import type { MergeStrategy } from "../merge/index.js";
 import type { MediaProvider } from "../providers/index.js";
 import type { StreamingProvider } from "../streaming/index.js";
+import type { TorrentProvider } from "../torrent/index.js";
 
 // Tuning for per-provider transient-failure isolation.
 // Настройки изоляции временных сбоев отдельных провайдеров.
@@ -20,7 +21,7 @@ export interface ProviderConcurrencyOptions {
 
 export interface ProviderHealthStatus {
   provider: string;
-  kind: "metadata" | "streaming";
+  kind: "metadata" | "streaming" | "torrent";
   circuitState: "closed" | "open" | "half-open" | "disabled";
   consecutiveFailures: number;
   totalRequests: number;
@@ -49,6 +50,7 @@ export interface MediaEngineOperationOptions {
 export interface MediaEngineOptions {
   providers?: MediaProvider[];
   streamingProviders?: StreamingProvider[];
+  torrentProviders?: TorrentProvider[];
   cache?: Cache;
   mergeStrategy?: MergeStrategy;
   timeoutMs?: number;

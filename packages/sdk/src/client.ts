@@ -7,6 +7,9 @@ import type { SearchResponse } from "@media-engine/core";
 import type { SearchQuery } from "@media-engine/core";
 import type { StreamQuery } from "@media-engine/core";
 import type { StreamingProviderInfo } from "@media-engine/core";
+import type { TorrentDiscoveryQuery } from "@media-engine/core";
+import type { TorrentDiscoveryResponse } from "@media-engine/core";
+import type { TorrentProviderInfo } from "@media-engine/core";
 
 // EN: Fetch-compatible function accepted by the SDK for browser, Node, and tests.
 // RU: Fetch-compatible функция, которую SDK принимает для browser, Node и tests.
@@ -112,6 +115,15 @@ export class MediaEngineClient {
     return this.requestJson<MediaAvailability>("/media/availability", query, options);
   }
 
+  // EN: Discover normalized torrent handoff candidates through GET /media/torrents.
+  // RU: Ищет нормализованные torrent handoff кандидаты через GET /media/torrents.
+  discoverTorrents(
+    query: TorrentDiscoveryQuery,
+    options?: MediaEngineRequestOptions,
+  ): Promise<TorrentDiscoveryResponse> {
+    return this.requestJson<TorrentDiscoveryResponse>("/media/torrents", query, options);
+  }
+
   // EN: List safe provider metadata through GET /providers.
   // RU: Получает безопасные provider metadata через GET /providers.
   getProviders(options?: MediaEngineRequestOptions): Promise<ProviderInfo[]> {
@@ -122,6 +134,12 @@ export class MediaEngineClient {
   // RU: Получает безопасные metadata streaming-провайдеров через GET /providers/streaming.
   getStreamingProviders(options?: MediaEngineRequestOptions): Promise<StreamingProviderInfo[]> {
     return this.requestJson<StreamingProviderInfo[]>("/providers/streaming", undefined, options);
+  }
+
+  // EN: List safe torrent provider metadata through GET /providers/torrent.
+  // RU: Получает безопасные metadata torrent-провайдеров через GET /providers/torrent.
+  getTorrentProviders(options?: MediaEngineRequestOptions): Promise<TorrentProviderInfo[]> {
+    return this.requestJson<TorrentProviderInfo[]>("/providers/torrent", undefined, options);
   }
 
   // EN: Check API readiness through GET /health.
@@ -172,7 +190,7 @@ export class MediaEngineClient {
   // RU: Выполняет GET request и парсит JSON response как ожидаемый SDK type.
   private async requestJson<T>(
     path: string,
-    query?: SearchQuery | DetailsQuery | StreamQuery,
+    query?: SearchQuery | DetailsQuery | StreamQuery | TorrentDiscoveryQuery,
     options?: MediaEngineRequestOptions,
   ): Promise<T> {
     const url = this.createUrl(path);
@@ -194,12 +212,17 @@ export class MediaEngineClient {
 export type MediaEngineSearchResponse = SearchResponse;
 export type MediaEngineDetailsResponse = DetailsResponse;
 export type MediaEngineAvailabilityResponse = MediaAvailability;
+export type MediaEngineTorrentDiscoveryResponse = TorrentDiscoveryResponse;
 export type MediaEngineProviderInfo = ProviderInfo;
 export type MediaEngineStreamingProviderInfo = StreamingProviderInfo;
+export type MediaEngineTorrentProviderInfo = TorrentProviderInfo;
 
 // EN: Append core search/details/streaming query fields to API URL search params.
 // RU: Добавляет поля core search/details/streaming query в API URL search params.
-function appendQuery(url: URL, query: SearchQuery | DetailsQuery | StreamQuery): void {
+function appendQuery(
+  url: URL,
+  query: SearchQuery | DetailsQuery | StreamQuery | TorrentDiscoveryQuery,
+): void {
   appendParam(url, "title", "title" in query ? query.title : undefined);
   appendParam(url, "type", query.type);
   appendParam(url, "year", "year" in query ? query.year : undefined);

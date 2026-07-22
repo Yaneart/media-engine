@@ -4,6 +4,7 @@ import type { ExternalIds } from "../media/index.js";
 import type { ProviderSearchQuery, ProviderSearchResult } from "../providers/index.js";
 import type { SearchQuery } from "../search/index.js";
 import type { StreamQuery } from "../streaming/index.js";
+import type { TorrentDiscoveryQuery } from "../torrent/index.js";
 
 // Top-level public external ID shortcuts supported by engine queries.
 // Верхнеуровневые публичные сокращения внешних ID, поддерживаемые query движка.
@@ -36,6 +37,7 @@ const SEARCH_JOINED_FALLBACK_MIN_LENGTH = 6;
 const SEARCH_JOINED_FALLBACK_MAX_LENGTH = 8;
 const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
+const MAX_TORRENT_LIMIT = 100;
 const MAX_PROVIDER_SEARCH_LIMIT = 100;
 const MAX_TITLE_LENGTH = 300;
 const MAX_LANGUAGE_LENGTH = 35;
@@ -105,6 +107,30 @@ export function normalizeStreamQuery(query: StreamQuery): StreamQuery {
       : {}),
     ...(providers ? { providers } : {}),
     ...(language ? { language } : {}),
+  };
+}
+
+// Normalizes top-level external ID shortcuts into a torrent discovery ids object.
+// Нормализует верхнеуровневые сокращения внешних ID в torrent discovery ids object.
+export function normalizeTorrentQuery(query: TorrentDiscoveryQuery): TorrentDiscoveryQuery {
+  const title = normalizeOptionalString(query.title);
+  const ids = normalizeExternalIds(query.ids, query);
+  const providers = normalizeProviderFilters(query.providers);
+  const language = normalizeLanguage(query.language);
+
+  return {
+    type: query.type,
+    ...(ids ? { ids } : {}),
+    ...(title ? { title } : {}),
+    ...(query.year !== undefined ? { year: query.year } : {}),
+    ...(query.seasonNumber !== undefined ? { seasonNumber: query.seasonNumber } : {}),
+    ...(query.episodeNumber !== undefined ? { episodeNumber: query.episodeNumber } : {}),
+    ...(query.absoluteEpisodeNumber !== undefined
+      ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
+      : {}),
+    ...(providers ? { providers } : {}),
+    ...(language ? { language } : {}),
+    ...(query.limit !== undefined ? { limit: query.limit } : {}),
   };
 }
 
@@ -205,6 +231,49 @@ export function validateStreamQuery(query: StreamQuery): void {
     code: "INVALID_QUERY",
     message: "Stream query must include title or external ids.",
   });
+}
+
+// Validates that a torrent discovery query can identify a media item or episode.
+// Проверяет, что torrent discovery query может определить медиа или эпизод.
+export function validateTorrentQuery(query: TorrentDiscoveryQuery): void {
+  validateCommonQueryFields(query);
+
+  if (!query.type) {
+    throwInvalidQuery("Torrent discovery query type is required.");
+  }
+
+  if (query.providers && query.providers.length > MAX_PROVIDER_FILTERS) {
+    throwInvalidQuery(
+      `Torrent discovery query providers must contain at most ${MAX_PROVIDER_FILTERS} unique names.`,
+    );
+  }
+
+  for (const provider of query.providers ?? []) {
+    validateBoundedString("Torrent discovery query provider", provider, MAX_PROVIDER_FILTER_LENGTH);
+  }
+
+  if (
+    [query.year, query.seasonNumber, query.episodeNumber, query.absoluteEpisodeNumber].some(
+      (value) => value !== undefined && (!Number.isInteger(value) || value < 0),
+    )
+  ) {
+    throwInvalidQuery("Torrent discovery query numeric fields must be non-negative integers.");
+  }
+
+  if (
+    query.limit !== undefined &&
+    (!Number.isInteger(query.limit) || query.limit < 0 || query.limit > MAX_TORRENT_LIMIT)
+  ) {
+    throwInvalidQuery(
+      `Torrent discovery query limit must be an integer between 0 and ${MAX_TORRENT_LIMIT}.`,
+    );
+  }
+
+  if (query.title || hasExternalIds(query.ids)) {
+    return;
+  }
+
+  throwInvalidQuery("Torrent discovery query must include title or external ids.");
 }
 
 // Gives providers enough candidates so the engine can rank before applying the public limit.
@@ -311,6 +380,12 @@ export function createDetailsCacheKey(query: DetailsQuery): string {
 // Создает стабильный cache key для нормализованного streaming query.
 export function createAvailabilityCacheKey(query: StreamQuery): string {
   return `availability:${JSON.stringify(sortObject(query))}`;
+}
+
+// Creates a stable cache key for a normalized torrent discovery query.
+// Создает стабильный cache key для нормализованного torrent discovery query.
+export function createTorrentDiscoveryCacheKey(query: TorrentDiscoveryQuery): string {
+  return `torrents:${JSON.stringify(sortObject(query))}`;
 }
 
 // Checks whether an external ID object contains at least one ID.

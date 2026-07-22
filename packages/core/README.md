@@ -31,13 +31,13 @@ console.log(details.details);
 
 Details lookup requires a namespaced external ID through `ids` or a shortcut such as `imdb`. The plain `id` field is deprecated because provider-native IDs are not globally unique.
 
-The engine also has `getAvailability()` for optional streaming providers.
+The engine also has `getAvailability()` for optional streaming providers and a separate `discoverTorrents()` contract for torrent discovery providers.
 
 ## What comes from core
 
 - `MediaEngine`;
-- search, details, media, and streaming types;
-- metadata and streaming provider contracts;
+- search, details, media, streaming, and torrent-discovery types;
+- metadata, streaming, and torrent provider contracts;
 - merge and cache interfaces;
 - `MemoryCache`;
 - normalized errors and provider failure metadata;
@@ -61,17 +61,19 @@ The built-in strategy keeps the first result and every score unchanged, but may 
 
 `MemoryCache` can retain metadata for a separate bounded stale window. `MediaEngine` uses it only for search and details when every selected provider fails retryably; stale streaming links are never returned. Such responses set `meta.cached` and `meta.stale` to `true`.
 
-Public search, details, and availability inputs are canonicalized before provider selection and cache/coalescing keys are built: strings and IDs are trimmed, language is lowercased, top-level ID shortcuts become `ids`, and streaming provider filters are trimmed, deduplicated, and sorted. Known IMDb/numeric ID formats and bounded field lengths are validated. A search with `limit: 0` returns an empty uncached response without provider or cache work.
+Public search, details, availability, and torrent-discovery inputs are canonicalized before provider selection and cache/coalescing keys are built: strings and IDs are trimmed, language is lowercased, top-level ID shortcuts become `ids`, and provider filters are trimmed, deduplicated, and sorted. Known IMDb/numeric ID formats and bounded field lengths are validated. Search and torrent discovery with `limit: 0` return empty uncached responses without provider or cache work.
 
 `MemoryCache` accepts only non-negative safe-integer TTL values. Omit `defaultTtlMs` and per-entry `ttlMs` for entries without expiration; negative values are not a no-expiry sentinel. Stale TTL values follow the same numeric validation.
 
-`search`, `getDetails`, and `getAvailability` accept optional `{ signal }` operation options. Identical requests still share one provider operation, but each caller has an independent subscription: aborting one caller does not affect the others, while the shared provider signal is aborted once no active subscribers remain. Fully cancelled work is not cached, and client cancellation is not counted as an upstream circuit-breaker failure.
+`search`, `getDetails`, `getAvailability`, and `discoverTorrents` accept optional `{ signal }` operation options. Identical requests still share one provider operation, but each caller has an independent subscription: aborting one caller does not affect the others, while the shared provider signal is aborted once no active subscribers remain. Fully cancelled work is not cached, and client cancellation is not counted as an upstream circuit-breaker failure.
 
 A streaming provider that resolves `null` is recorded as a successful no-result lookup. The engine reports an all-failed error only when every selected streaming provider actually failed. Discovered player options with an uncertain validation result remain visible with `availability: "unknown"`; the response includes `STREAM_VALIDATION_DEGRADED` and is retried instead of being stored in the normal availability cache.
 
-The constructor also accepts streaming providers, a cache, global and per-provider timeouts, a custom merge strategy, and debug mode. Provider calls are bounded to two concurrent operations per provider by default, with a cancellable queue of 100; `providerConcurrency` can tune per-provider limits or disable the gate. Queue waiting remains inside the existing provider timeout. Core never imports concrete provider packages itself.
+The constructor also accepts streaming and torrent providers, a cache, global and per-provider timeouts, a custom merge strategy, and debug mode. Provider calls are bounded to two concurrent operations per provider by default, with a cancellable queue of 100; `providerConcurrency` can tune per-provider limits or disable the gate. Queue waiting remains inside the existing provider timeout. Core never imports concrete provider packages itself.
 
-Exact types are available from the package exports. The short [public API guide](https://github.com/Yaneart/media-engine/blob/main/docs/public-api.md) explains the three main operations without repeating every field.
+Torrent discovery remains independent from streaming availability. A `TorrentProvider` returns normalized candidates with source attribution and an explicit `magnet`, `torrent_file`, or `external` handoff. Core does not open that handoff, download torrent metadata, join a swarm, select files, store media, proxy traffic, or transcode video. No concrete torrent provider is bundled in this contract-only block.
+
+Exact types are available from the package exports. The short [public API guide](https://github.com/Yaneart/media-engine/blob/main/docs/public-api.md) explains the four main operations without repeating every field.
 
 ## License
 
