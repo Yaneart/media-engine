@@ -17,23 +17,20 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 ## Current focus
 
-1. Add DDBB as an independent opt-in provider to create a general movie/series/anime lookup
-   path that does not depend on KinoBD.
-2. Add AniLiberty as a separate opt-in anime provider using its public release API and direct
-   HLS, with strict title/year identity matching and no ambiguous guesses.
-3. Stabilize each accepted provider with bounded requests, typed failures, deterministic
+1. Stabilize the accepted opt-in DDBB and AniLiberty providers with repeated reliability and
+   diversity checks before considering either for default API enablement.
+2. Keep each accepted provider bounded with typed failures, deterministic
    tests, clear attribution, predictable folders, isolated outage behavior, and accurate
-   `embed` versus direct-stream classification for consuming applications. Consider default
-   API enablement only after repeated live reliability checks.
-4. Design a separate normalized torrent-discovery contract and add only accepted torrent
+   `embed` versus direct-stream classification for consuming applications.
+3. Design a separate normalized torrent-discovery contract and add only accepted torrent
    sources. Media Engine will return typed candidates and playback handoff data without
    bundling a frontend player, video proxy, BitTorrent client, storage, or transcoder.
-5. Use the repository API and example applications as an opt-in reference playback stand:
+4. Use the repository API and example applications as an opt-in reference playback stand:
    verify direct HLS/MP4 and controlled torrent handoff end to end without moving player or
    P2P runtime responsibilities into the public Media Engine packages.
-6. Run a complete code and architecture audit, then remove proven dead code and accidental
+5. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
-7. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before
+6. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before
    preparing `1.0.0`.
 
 ## Later

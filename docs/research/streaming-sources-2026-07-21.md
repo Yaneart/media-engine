@@ -128,6 +128,14 @@ flags, and return `null` on ambiguous or missing matches. The main limitation is
 does not expose MAL, AniList, or Shikimori IDs, so the adapter must not guess solely from a loose title
 match. Keep it explicit opt-in until matching and usage boundaries are reviewed.
 
+Implementation checkpoint, 2026-07-22: the independent adapter was added as explicit opt-in with
+exact normalized title/year matching, release identity revalidation, bounded search/release parsing,
+absolute episode mapping, safe direct HLS qualities, block-state normalization, cancellation, and
+typed fault tests. Live checks returned One Piece episode 1 with three qualities, One Punch Man
+episode 1 with two qualities, and the complete sampled One Punch Man release with 12 episodes and 24
+options; both sampled 720p manifests returned HTTP 200 with valid media segments. It remains outside
+API defaults until the dedicated reliability/diversity checkpoint.
+
 #### Videasy — useful direct embed, pending manual playback
 
 The current [first-party Videasy documentation](https://www.videasy.to/) publishes predictable

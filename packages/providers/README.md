@@ -66,6 +66,7 @@ provider calls omit it and use the platform timers.
 - `kinobdStreamingProvider()` — movie, series, and anime player options;
 - `flixHqStreamingProvider()` — international movie and selected series-episode options;
 - `ddbbStreamingProvider()` — opt-in Kinopoisk/IMDb lookup through an independent DDBB player route;
+- `aniLibertyStreamingProvider()` — opt-in exact title/year anime lookup with direct HLS episodes;
 - `experimentalStreamingProvider()` — data configured by your own application, useful in tests and UI work.
 
 ```ts
@@ -98,9 +99,17 @@ const media = new MediaEngine({
     kinobdStreamingProvider(),
     flixHqStreamingProvider(),
     ddbbStreamingProvider(), // explicit opt-in
+    aniLibertyStreamingProvider(), // explicit opt-in
   ],
 });
 ```
+
+`aniLibertyStreamingProvider()` is also outside the repository API defaults. Because AniLiberty
+does not publish MAL, AniList, or Shikimori IDs for releases, the adapter requires both title and
+year, accepts only one exact normalized match, and revalidates the loaded release before returning
+streams. It supports generic episode maps and exact `absoluteEpisodeNumber` queries, but does not
+guess season/episode mappings. Each safe first-party 480p/720p/1080p URL is returned as direct HLS;
+release geo and copyright blocks are preserved as normalized availability states.
 
 Live player validation removes an option only after HTTP 404/410 or a stable deletion marker. Rate limits, server errors, network failures, and validation timeouts keep the discovered option with `availability: "unknown"`, allowing the engine to expose the degradation and retry it instead of caching a transiently reduced result.
 
@@ -112,6 +121,11 @@ DDBB caps its JSON response, output option count, live validation count, validat
 validation body size, and per-player timeout. Its default transport applies the same hardened DNS,
 redirect, and connection-pinning policy to the DDBB endpoint and returned players. A custom `fetch`
 is the same explicit trusted test/self-hosted boundary used by the other streaming providers.
+
+AniLiberty bounds search candidates, release episodes, JSON bytes, retries, and total provider time
+through the shared engine/provider controls. Its default transport uses the hardened DNS, redirect,
+and connection-pinning policy for API calls. Direct HLS targets still pass the shared browser-facing
+output URL policy; playback network policy remains the consuming application's responsibility.
 
 Before built-in providers expose artwork, player, or subtitle URLs, one output policy accepts only HTTP(S) targets without credentials, raw control characters, or literal local/private/reserved addresses. Valid paths and CDN query parameters, including expiring signatures, are preserved. This browser-facing check does not replace DNS validation or an application-owned media proxy.
 

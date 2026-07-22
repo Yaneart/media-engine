@@ -78,6 +78,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | KinoBD streaming       | Discovers normalized player options for movies, series, and anime                  | None                      |
 | FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available | None                      |
 | DDBB streaming         | Opt-in independent Kinopoisk/IMDb route to generic movie, series, and anime embeds | None                      |
+| AniLiberty streaming   | Opt-in exact title/year anime episodes with direct first-party HLS qualities       | None                      |
 | Experimental streaming | Deterministic configured options for development and tests                         | Application configuration |
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
@@ -91,6 +92,15 @@ translation URLs, and bounds response bytes, output count, validation count/conc
 and validation time. It removes only confirmed unavailable options and keeps transient checks as
 `unknown`. The upstream has no published first-party usage or rate-limit contract, so the provider
 remains explicit opt-in pending repeated reliability checks.
+
+AniLiberty streaming is exported but not enabled in API defaults. The upstream release catalog has
+no normalized external IDs, so the adapter requires title and year, accepts only a unique exact
+normalized identity, and checks the same identity again on release details. Ambiguous, missing,
+yearless, season-number, or ordinary episode-number queries return no result. Generic anime queries
+return a bounded episode map; exact anime lookup uses `absoluteEpisodeNumber`. Safe 480p, 720p, and
+1080p URLs are classified as direct HLS, while upstream geo/copyright flags become normalized
+`region_locked` or `temporarily_unavailable` states. Search results, episode arrays, and response
+bytes are bounded, and API calls use the hardened default transport.
 
 ## Provider contract
 

@@ -9,6 +9,7 @@ This project follows semantic versioning after the first stable release. Before 
 ### Added
 
 - Added an explicit opt-in `ddbbStreamingProvider()` with no-token Kinopoisk/IMDb lookup, diversity-first embed mapping, strict nullable response parsing, bounded live validation, and no unsupported exact-episode claim. It is exported from `@media-engine/providers` but remains outside API defaults pending reliability review.
+- Added an explicit opt-in `aniLibertyStreamingProvider()` with no-token exact title/year identity, bounded episode mapping, direct 480p/720p/1080p HLS options, normalized release block states, and no ambiguous season/episode guesses. It remains outside API defaults pending the source reliability checkpoint.
 
 ### Changed
 
