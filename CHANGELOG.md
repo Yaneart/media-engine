@@ -13,6 +13,7 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- The repository API now enables the bounded DDBB and AniLiberty streaming providers by default after repeated reliability, missing-result, diversity, timeout, and direct-HLS checks. Direct package consumers still configure their own provider list.
 - Details lookup now requires a namespaced external ID. The ambiguous `DetailsQuery.id` field is deprecated, and id-only core/API/SDK requests return `INVALID_QUERY` or HTTP 400 instead of a cacheable successful null response.
 - Search provider metadata now distinguishes primary, retry, fallback, ID-enrichment, and poster-enrichment phases. Mandatory retryable fallback degradation remains cache-safe, while optional enrichment failures return bounded warnings and debug counters without discarding base results.
 - Shared provider HTTP errors retain their response status through `getProviderHttpStatus`, allowing adapters to distinguish confirmed absence from other non-retryable responses.

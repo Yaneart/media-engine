@@ -44,7 +44,7 @@ GET /docs-json
 
 Disconnect media-запроса передается в core как abort signal. Если на тот же запрос еще подписан другой HTTP caller, общая provider operation продолжает работу; иначе queued/running provider work отменяется, а брошенный ответ не кешируется.
 
-Локальные настройки читаются из `.env`. Основные значения, включая порт и тайм-ауты провайдеров, перечислены в корневом `.env.example`. Metadata, KinoBD streaming и FlixHQ используют независимые бюджеты времени; увеличенный тайм-аут FlixHQ не обрезается более коротким общим streaming timeout.
+Локальные настройки читаются из `.env`. Основные значения, включая порт и тайм-ауты провайдеров, перечислены в корневом `.env.example`. Metadata, generic streaming и FlixHQ используют независимые бюджеты времени; KinoBD, DDBB и AniLiberty делят ограниченный generic streaming budget, а увеличенный timeout FlixHQ им не обрезается. В default streaming-набор входят KinoBD, FlixHQ, DDBB и AniLiberty; ни один из них не требует credentials вызывающей стороны.
 
 `/health/live` проверяет только способность процесса API отвечать на HTTP-запросы. `/health/ready` и обратно совместимый `/health` дополнительно проверяют circuits провайдеров и возвращают `status: "degraded"`, если хотя бы один circuit открыт или восстанавливается. Degraded readiness остаётся HTTP 200, поскольку API всё ещё может отдавать частичные результаты.
 

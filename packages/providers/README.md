@@ -87,7 +87,8 @@ const result = await media.getAvailability({
 
 These are third-party player targets, not videos hosted by Media Engine. Availability depends on the upstream source and the user's environment.
 
-`ddbbStreamingProvider()` is intentionally not enabled by the repository API defaults. It accepts
+The repository API enables `ddbbStreamingProvider()` after its repeated reliability/diversity
+checkpoint; direct package consumers still choose their own provider list explicitly. It accepts
 only Kinopoisk or IMDb IDs, returns generic movie/series/anime embeds, and does not claim exact
 season/episode mapping. Its diversity-first mapping keeps one main option per returned player before
 adding unique translation URLs. Missing nullable players produce no result; confirmed 404/410 or
@@ -104,12 +105,12 @@ const media = new MediaEngine({
 });
 ```
 
-`aniLibertyStreamingProvider()` is also outside the repository API defaults. Because AniLiberty
-does not publish MAL, AniList, or Shikimori IDs for releases, the adapter requires both title and
-year, accepts only one exact normalized match, and revalidates the loaded release before returning
-streams. It supports generic episode maps and exact `absoluteEpisodeNumber` queries, but does not
-guess season/episode mappings. Each safe first-party 480p/720p/1080p URL is returned as direct HLS;
-release geo and copyright blocks are preserved as normalized availability states.
+The repository API also enables `aniLibertyStreamingProvider()` after that checkpoint. Because
+AniLiberty does not publish MAL, AniList, or Shikimori IDs for releases, the adapter requires both
+title and year, accepts only one exact normalized match, and revalidates the loaded release before
+returning streams. It supports generic episode maps and exact `absoluteEpisodeNumber` queries, but
+does not guess season/episode mappings. Each safe first-party 480p/720p/1080p URL is returned as
+direct HLS; release geo and copyright blocks are preserved as normalized availability states.
 
 Live player validation removes an option only after HTTP 404/410 or a stable deletion marker. Rate limits, server errors, network failures, and validation timeouts keep the discovered option with `availability: "unknown"`, allowing the engine to expose the degradation and retry it instead of caching a transiently reduced result.
 

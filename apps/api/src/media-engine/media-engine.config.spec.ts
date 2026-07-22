@@ -32,7 +32,12 @@ describe('MediaEngine configuration', () => {
     ]);
     expect(
       engine.getStreamingProviders().map((provider) => provider.name),
-    ).toEqual(['kinobd-streaming', 'flixhq-streaming']);
+    ).toEqual([
+      'kinobd-streaming',
+      'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
+    ]);
   });
 
   it('creates no-token streaming providers by default', async () => {
@@ -41,9 +46,12 @@ describe('MediaEngine configuration', () => {
     expect(providers.map((provider) => provider.name)).toEqual([
       'kinobd-streaming',
       'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
     ]);
-    expect(providers[0]?.kind).toBe('streaming');
-    expect(providers[1]?.kind).toBe('streaming');
+    expect(providers.every((provider) => provider.kind === 'streaming')).toBe(
+      true,
+    );
   });
 
   it('uses a finite provider timeout by default', () => {

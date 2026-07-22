@@ -44,7 +44,7 @@ All media endpoints canonicalize trimmed IDs and language before provider/cache 
 
 Media request disconnects are forwarded to core as an abort signal. If another identical HTTP request is still subscribed, its shared provider work continues; otherwise queued/running provider work is cancelled and the abandoned response is not cached.
 
-Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts. Metadata, KinoBD streaming, and FlixHQ keep independent timeout budgets; the larger FlixHQ value is not capped by the shorter generic streaming timeout.
+Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts. Metadata, generic streaming, and FlixHQ keep independent timeout budgets; KinoBD, DDBB, and AniLiberty share the bounded generic streaming budget, while the larger FlixHQ value is not capped by it. The default streaming set is KinoBD, FlixHQ, DDBB, and AniLiberty; none requires caller credentials.
 
 `/health/live` only confirms that the API process can answer HTTP requests. `/health/ready` and the backward-compatible `/health` also inspect provider circuits and return `status: "degraded"` when at least one circuit is open or recovering. Degraded readiness remains HTTP 200 because the API can still return partial results.
 

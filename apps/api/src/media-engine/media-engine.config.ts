@@ -44,9 +44,18 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
 export async function createConfiguredStreamingProviders(): Promise<
   StreamingProvider[]
 > {
-  const { flixHqStreamingProvider, kinobdStreamingProvider } =
-    await import('@media-engine/providers');
-  return [kinobdStreamingProvider(), flixHqStreamingProvider()];
+  const {
+    aniLibertyStreamingProvider,
+    ddbbStreamingProvider,
+    flixHqStreamingProvider,
+    kinobdStreamingProvider,
+  } = await import('@media-engine/providers');
+  return [
+    kinobdStreamingProvider(),
+    flixHqStreamingProvider(),
+    ddbbStreamingProvider(),
+    aniLibertyStreamingProvider(),
+  ];
 }
 
 // EN: Create the API-wide engine instance used by Nest dependency injection.
@@ -77,6 +86,8 @@ export async function createMediaEngine(
       wikidata: metadataTimeoutMs,
       'kinobd-streaming': streamingTimeoutMs,
       'flixhq-streaming': flixHqTimeoutMs,
+      'ddbb-streaming': streamingTimeoutMs,
+      'aniliberty-streaming': streamingTimeoutMs,
     },
   });
 }
@@ -93,8 +104,8 @@ export function readFlixHqStreamingProviderTimeoutMs(
   );
 }
 
-// Streaming lookup performs candidate search, player loading, and bounded iframe validation.
-// Streaming lookup выполняет поиск кандидата, загрузку плееров и ограниченную проверку iframe.
+// Streaming lookup covers bounded KinoBD, DDBB, and AniLiberty network work.
+// Streaming lookup ограничивает сетевую работу KinoBD, DDBB и AniLiberty.
 export function readStreamingProviderTimeoutMs(
   env: MediaEngineEnv = process.env,
 ): number {

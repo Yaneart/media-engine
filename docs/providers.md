@@ -77,24 +77,25 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | ---------------------- | ---------------------------------------------------------------------------------- | ------------------------- |
 | KinoBD streaming       | Discovers normalized player options for movies, series, and anime                  | None                      |
 | FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available | None                      |
-| DDBB streaming         | Opt-in independent Kinopoisk/IMDb route to generic movie, series, and anime embeds | None                      |
-| AniLiberty streaming   | Opt-in exact title/year anime episodes with direct first-party HLS qualities       | None                      |
+| DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds        | None                      |
+| AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities              | None                      |
 | Experimental streaming | Deterministic configured options for development and tests                         | Application configuration |
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
 
 KinoBD streaming shares one fixed wall deadline and a default 24-attempt child-request budget across candidate search, optional anime lookup, player loading, retries, and iframe validation. Live validation uses three workers by default, checks at most eight players, and does not start an optional nested iframe check without enough remaining time for its full validation window. The public limits are capped at 50 search candidates, 16 validated players, four validation workers, 64 child attempts, and 10 seconds for individual validation or Shikimori helper timeouts. Its optional player audit callback exposes bounded counters without changing availability results.
 
-DDBB streaming is exported but not enabled in API defaults. It uses only caller-supplied normalized
-Kinopoisk/IMDb IDs and makes one generic lookup; exact episode queries do not select it. The adapter
-strictly parses nullable player responses, preserves one main option per player before unique
-translation URLs, and bounds response bytes, output count, validation count/concurrency/body bytes,
-and validation time. It removes only confirmed unavailable options and keeps transient checks as
-`unknown`. The upstream has no published first-party usage or rate-limit contract, so the provider
-remains explicit opt-in pending repeated reliability checks.
+DDBB streaming is enabled in repository API defaults after the repeated reliability/diversity
+checkpoint. It uses only caller-supplied normalized Kinopoisk/IMDb IDs and makes one generic lookup;
+exact episode queries do not select it. The adapter strictly parses nullable player responses,
+preserves one main option per player before unique translation URLs, and bounds response bytes,
+output count, validation count/concurrency/body bytes, and validation time. It removes only
+confirmed unavailable options and keeps transient checks as `unknown`. The upstream still has no
+published first-party usage or rate-limit contract; direct package consumers can omit it from their
+configured provider list.
 
-AniLiberty streaming is exported but not enabled in API defaults. The upstream release catalog has
-no normalized external IDs, so the adapter requires title and year, accepts only a unique exact
+AniLiberty streaming is also enabled in repository API defaults. The upstream release catalog has no
+normalized external IDs, so the adapter requires title and year, accepts only a unique exact
 normalized identity, and checks the same identity again on release details. Ambiguous, missing,
 yearless, season-number, or ordinary episode-number queries return no result. Generic anime queries
 return a bounded episode map; exact anime lookup uses `absoluteEpisodeNumber`. Safe 480p, 720p, and
