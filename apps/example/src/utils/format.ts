@@ -39,29 +39,44 @@ export function getAvailabilityOptions(state: AvailabilityState): AvailabilityOp
 }
 
 export function groupAvailabilityOptions(options: AvailabilityOption[]): AvailabilityOptionGroup[] {
-  const groups = new Map<string, Map<string, Map<string, AvailabilityOption[]>>>();
+  const groups = new Map<
+    string,
+    {
+      label: string;
+      players: Map<string, { label: string; variants: Map<string, AvailabilityOption[]> }>;
+    }
+  >();
 
   for (const option of options) {
-    const groupLabel = [formatEpisodeRef(option), formatTranslationGroup(option)]
-      .filter(Boolean)
-      .join(" · ");
-    const playerLabel = option.player.label;
+    const episodeLabel = formatEpisodeRef(option);
+    const groupKey = episodeLabel ?? "general";
+    const playerKey = normalizePlayerLabel(option.player.label);
     const variantKey = formatPlayerVariantKey(option);
-    const playerGroups = groups.get(groupLabel) ?? new Map();
-    const variants = playerGroups.get(playerLabel) ?? new Map();
+    const group = groups.get(groupKey) ?? {
+      label: episodeLabel ?? "General players",
+      players: new Map(),
+    };
+    const player = group.players.get(playerKey) ?? {
+      label: formatPlayerLabel(option.player.label),
+      variants: new Map(),
+    };
+    const variants = player.variants;
     const variantOptions = variants.get(variantKey) ?? [];
 
     variantOptions.push(option);
     variants.set(variantKey, variantOptions);
-    playerGroups.set(playerLabel, variants);
-    groups.set(groupLabel, playerGroups);
+    group.players.set(playerKey, player);
+    groups.set(groupKey, group);
   }
 
-  return [...groups.entries()].map(([label, playerGroups]) => ({
-    label,
-    players: [...playerGroups.entries()].map(([playerLabel, variants]) => ({
-      label: playerLabel,
-      variants: [...variants.values()].map((variantOptions) => ({
+  return [...groups.entries()].map(([key, group]) => ({
+    key,
+    label: group.label,
+    players: [...group.players.entries()].map(([playerKey, player]) => ({
+      key: playerKey,
+      label: player.label,
+      variants: [...player.variants.entries()].map(([variantKey, variantOptions]) => ({
+        key: variantKey,
         label: formatPlayerVariantLabel(variantOptions[0]!),
         options: variantOptions.toSorted(compareAvailabilityOptions),
       })),
@@ -71,7 +86,7 @@ export function groupAvailabilityOptions(options: AvailabilityOption[]): Availab
 
 export function formatPlayerMeta(option: AvailabilityOption): string {
   return [
-    option.provider,
+    formatTranslationTag(option),
     option.player.kind,
     option.availability === "available" ? undefined : option.availability.replaceAll("_", " "),
   ]
@@ -95,15 +110,14 @@ export function getEpisodesCount(details: MediaDetails): number | undefined {
   return "episodesCount" in details ? details.episodesCount : undefined;
 }
 
-function formatTranslationGroup(option: AvailabilityOption): string {
-  return formatTranslationTag(option) ?? "Other translations";
-}
-
 export interface AvailabilityOptionGroup {
+  key: string;
   label: string;
   players: Array<{
+    key: string;
     label: string;
     variants: Array<{
+      key: string;
       label: string;
       options: AvailabilityOption[];
     }>;
@@ -124,11 +138,43 @@ function formatPlayerVariantKey(option: AvailabilityOption): string {
 function formatPlayerVariantLabel(option: AvailabilityOption): string {
   const translation = option.translation?.title?.trim();
 
-  return !translation || translation === option.player.label ? "Default" : translation;
+  return !translation ||
+    normalizePlayerLabel(translation) === normalizePlayerLabel(option.player.label)
+    ? `Default · ${formatProviderLabel(option.provider)}`
+    : `${translation} · ${formatProviderLabel(option.provider)}`;
 }
 
 function compareAvailabilityOptions(left: AvailabilityOption, right: AvailabilityOption): number {
   return (right.quality?.height ?? 0) - (left.quality?.height ?? 0);
+}
+
+function normalizePlayerLabel(value: string): string {
+  return value.normalize("NFKC").trim().toLocaleLowerCase();
+}
+
+export function formatPlayerLabel(value: string): string {
+  const knownLabels: Record<string, string> = {
+    alloha: "Alloha",
+    collaps: "Collaps",
+    flixcdn: "FlixCDN",
+    hdvb: "HDVB",
+    kodik: "Kodik",
+    veoveo: "Veoveo",
+    vibix: "Vibix",
+  };
+
+  return knownLabels[normalizePlayerLabel(value)] ?? value.trim();
+}
+
+function formatProviderLabel(value: string): string {
+  const knownLabels: Record<string, string> = {
+    "aniliberty-streaming": "AniLiberty",
+    "ddbb-streaming": "DDBB",
+    "flixhq-streaming": "FlixHQ",
+    "kinobd-streaming": "KinoBD",
+  };
+
+  return knownLabels[value] ?? value;
 }
 
 function formatTranslationTag(option: AvailabilityOption): string | undefined {

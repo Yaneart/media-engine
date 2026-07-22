@@ -329,92 +329,43 @@
   font-size: 0.95rem;
 }
 
-.player-groups,
-.player-list {
+.player-picker {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.player-groups {
-  margin: 4px 0 0;
-}
-
-.player-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.player-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.player-group__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #5b6876;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.player-option {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  align-items: center;
-  padding: 10px;
-  border: 1px solid #edf0f2;
+  margin: 4px 0 0;
+  padding: 12px;
+  border: 1px solid #dfe7e8;
   border-radius: 8px;
+  background: #f8fbfb;
 }
 
-.player-family {
-  overflow: hidden;
-  border: 1px solid #edf0f2;
-  border-radius: 8px;
+.player-picker .field {
+  gap: 4px;
 }
 
-.player-family summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px;
-  cursor: pointer;
+.player-picker .field select {
+  min-height: 40px;
 }
 
-.player-family[open] summary {
-  border-bottom: 1px solid #edf0f2;
-}
-
-.player-family .player-list {
-  gap: 0;
-}
-
-.player-family .player-option {
-  border: 0;
-  border-radius: 0;
-}
-
-.player-family .player-option + .player-option {
-  border-top: 1px solid #edf0f2;
-}
-
-.player-option__main {
+.player-picker__selection {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 3px;
+  padding-top: 2px;
 }
 
-.player-option__main strong,
-.player-option__main span {
+.player-picker__selection strong,
+.player-picker__selection span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.player-picker__selection span {
+  color: #5c6671;
+  font-size: 0.82rem;
 }
 
 .player-option__action {
@@ -432,10 +383,9 @@
   cursor: pointer;
 }
 
-.player-option__qualities {
+.player-picker__qualities {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 6px;
 }
 

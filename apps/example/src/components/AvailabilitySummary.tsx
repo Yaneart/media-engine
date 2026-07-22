@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   type AvailabilityOptionGroup,
+  formatPlayerLabel,
   formatPlayerMeta,
   formatProviderFailure,
   formatQualityLabel,
@@ -60,93 +61,152 @@ export function AvailabilitySummary({ state }: { state: AvailabilityState }) {
         </ul>
       ) : null}
       {options.length > 0 ? (
-        <div className="player-groups">
-          {optionGroups.map((group) => (
-            <section className="player-group" key={group.label}>
-              <div className="player-group__heading">
-                <span>{group.label}</span>
-                <span>
-                  {group.players.reduce(
-                    (count, playerGroup) => count + playerGroup.variants.length,
-                    0,
-                  )}
-                </span>
-              </div>
-              {group.players.map((playerGroup) => (
-                <PlayerFamily
-                  key={playerGroup.label}
-                  onSelect={setSelectedOptionId}
-                  playerGroup={playerGroup}
-                  selectedOptionId={selectedOption?.id}
-                />
-              ))}
-            </section>
-          ))}
-        </div>
+        <PlayerPicker
+          groups={optionGroups}
+          onSelect={setSelectedOptionId}
+          selectedOption={selectedOption!}
+        />
       ) : null}
       {selectedOption ? <PlayerPreview key={selectedOption.id} option={selectedOption} /> : null}
     </section>
   );
 }
 
-type PlayerGroup = AvailabilityOptionGroup["players"][number];
-
-function PlayerFamily({
+function PlayerPicker({
+  groups,
   onSelect,
-  playerGroup,
-  selectedOptionId,
+  selectedOption,
 }: {
+  groups: AvailabilityOptionGroup[];
   onSelect: (optionId: string) => void;
-  playerGroup: PlayerGroup;
-  selectedOptionId?: string;
+  selectedOption: AvailabilityOption;
 }) {
-  const [open, setOpen] = useState(playerGroup.variants.length <= 4);
+  const selectedGroup =
+    groups.find((group) => containsOption(group, selectedOption.id)) ?? groups[0]!;
+  const selectedPlayer =
+    selectedGroup.players.find((player) => containsOption(player, selectedOption.id)) ??
+    selectedGroup.players[0]!;
+  const selectedVariant =
+    selectedPlayer.variants.find((variant) => containsOption(variant, selectedOption.id)) ??
+    selectedPlayer.variants[0]!;
 
   return (
-    <details
-      className="player-family"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-      open={open}
-    >
-      <summary>
-        <strong>{playerGroup.label}</strong>
-        <span>{playerGroup.variants.length} variants</span>
-      </summary>
-      <ul className="player-list">
-        {playerGroup.variants.map((variant) => (
-          <li className="player-option" key={`${playerGroup.label}:${variant.options[0]?.id}`}>
-            <div className="player-option__main">
-              <strong>{variant.label}</strong>
-              <span>{formatPlayerMeta(variant.options[0]!)}</span>
-            </div>
-            <div className="player-option__qualities">
-              {variant.options.map((option) => (
-                <button
-                  aria-pressed={selectedOptionId === option.id}
-                  className="player-option__action"
-                  key={option.id}
-                  onClick={() => onSelect(option.id)}
-                  type="button"
-                >
-                  {formatQualityLabel(option)}
-                </button>
-              ))}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </details>
+    <div className="player-picker">
+      {groups.length > 1 ? (
+        <label className="field">
+          <span>Playback scope</span>
+          <select
+            onChange={(event) =>
+              onSelect(firstOption(findGroup(groups, event.currentTarget.value)).id)
+            }
+            value={selectedGroup.key}
+          >
+            {groups.map((group) => (
+              <option key={group.key} value={group.key}>
+                {group.label} ({countOptions(group)})
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <label className="field">
+        <span>Player</span>
+        <select
+          onChange={(event) =>
+            onSelect(firstOption(findPlayer(selectedGroup, event.currentTarget.value)).id)
+          }
+          value={selectedPlayer.key}
+        >
+          {selectedGroup.players.map((player) => (
+            <option key={player.key} value={player.key}>
+              {player.label} ({player.variants.length})
+            </option>
+          ))}
+        </select>
+      </label>
+      {selectedPlayer.variants.length > 1 ? (
+        <label className="field">
+          <span>Voiceover / source</span>
+          <select
+            onChange={(event) => onSelect(event.currentTarget.value)}
+            value={selectedVariant.options[0]!.id}
+          >
+            {selectedPlayer.variants.map((variant) => (
+              <option key={variant.key} value={variant.options[0]!.id}>
+                {variant.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <div className="player-picker__selection">
+        <strong>{selectedVariant.label}</strong>
+        <span>{formatPlayerMeta(selectedOption)}</span>
+      </div>
+      {selectedVariant.options.length > 1 ? (
+        <div className="player-picker__qualities" aria-label="Stream quality">
+          {selectedVariant.options.map((option) => (
+            <button
+              aria-pressed={selectedOption.id === option.id}
+              className="player-option__action"
+              key={option.id}
+              onClick={() => onSelect(option.id)}
+              type="button"
+            >
+              {formatQualityLabel(option)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type PlayerGroup = AvailabilityOptionGroup["players"][number];
+type PlayerVariant = PlayerGroup["variants"][number];
+
+function containsOption(
+  value: AvailabilityOptionGroup | PlayerGroup | PlayerVariant,
+  optionId: string,
+): boolean {
+  if ("options" in value) return value.options.some((option) => option.id === optionId);
+  if ("variants" in value)
+    return value.variants.some((variant) => containsOption(variant, optionId));
+  return value.players.some((player) => containsOption(player, optionId));
+}
+
+function firstOption(value: AvailabilityOptionGroup | PlayerGroup): AvailabilityOption {
+  return "players" in value
+    ? value.players[0]!.variants[0]!.options[0]!
+    : value.variants[0]!.options[0]!;
+}
+
+function findGroup(groups: AvailabilityOptionGroup[], key: string): AvailabilityOptionGroup {
+  return groups.find((group) => group.key === key) ?? groups[0]!;
+}
+
+function findPlayer(group: AvailabilityOptionGroup, key: string): PlayerGroup {
+  return group.players.find((player) => player.key === key) ?? group.players[0]!;
+}
+
+function countOptions(group: AvailabilityOptionGroup): number {
+  return group.players.reduce(
+    (count, player) =>
+      count +
+      player.variants.reduce((variantCount, variant) => variantCount + variant.options.length, 0),
+    0,
   );
 }
 
 function PlayerPreview({ option }: { option: AvailabilityOption }) {
   const [embedEnabled, setEmbedEnabled] = useState(false);
-  const title = `${option.player.label}${option.translation?.title ? ` — ${option.translation.title}` : ""}`;
+  const playerLabel = formatPlayerLabel(option.player.label);
+  const title = `${playerLabel}${option.translation?.title ? ` — ${option.translation.title}` : ""}`;
 
   if (option.player.kind === "external") {
     return (
       <div className="player-preview">
-        <strong>{option.player.label}</strong>
+        <strong>{playerLabel}</strong>
         <a href={option.access.url} rel="noopener noreferrer" target="_blank">
           Open external player
         </a>
