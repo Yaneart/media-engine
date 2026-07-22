@@ -24,11 +24,16 @@ The `0.1.x` releases established and hardened the first public baseline:
    player, video proxy, BitTorrent client, storage, or transcoder.
 3. Use the repository API and example applications as an opt-in reference playback stand:
    verify direct HLS/MP4 and controlled torrent handoff end to end without moving player or
-   P2P runtime responsibilities into the public Media Engine packages.
+   P2P runtime responsibilities into the public Media Engine packages. The torrent stand should
+   prove progressive 2160p startup, seeking, buffering, session cleanup, and an honest
+   remux/transcode-required state for browser-incompatible containers or codecs.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before
    preparing `1.0.0`.
+6. Finish with a minimal beginner quick start that shows, without requiring architecture
+   knowledge, how to connect Media Engine to a NestJS backend and how a frontend should call that
+   backend through the SDK.
 
 ## Later
 

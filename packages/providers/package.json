@@ -28,7 +28,9 @@
     "anilist",
     "tvmaze",
     "wikidata",
-    "no-token"
+    "no-token",
+    "torrent",
+    "yts"
   ],
   "type": "module",
   "engines": {

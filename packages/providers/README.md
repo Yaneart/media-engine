@@ -132,6 +132,28 @@ output URL policy; playback network policy remains the consuming application's r
 
 Before built-in providers expose artwork, player, or subtitle URLs, one output policy accepts only HTTP(S) targets without credentials, raw control characters, or literal local/private/reserved addresses. Valid paths and CDN query parameters, including expiring signatures, are preserved. This browser-facing check does not replace DNS validation or an application-owned media proxy.
 
+## Torrent discovery sources
+
+`ytsTorrentProvider()` is an opt-in no-key movie source. It resolves an exact IMDb identity or one
+exact title/year match and returns normalized 720p/1080p/2160p-style magnet candidates with size,
+release metadata, and best-effort peer counts.
+
+```ts
+const media = new MediaEngine({
+  torrentProviders: [ytsTorrentProvider()],
+  providerTimeouts: { "yts-torrent": 15_000 },
+});
+
+const torrents = await media.discoverTorrents({
+  type: "movie",
+  ids: { imdb: "tt1375666" },
+});
+```
+
+The provider does not download torrent metadata, contact trackers, join a swarm, or play video. The
+repository API keeps torrent providers disabled until the planned English/Russian source
+reliability and diversity checkpoint.
+
 Provider options, limitations, and safety rules are summarized in the [provider guide](https://github.com/Yaneart/media-engine/blob/main/docs/providers.md).
 
 ## License

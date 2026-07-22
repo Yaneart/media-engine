@@ -1,0 +1,119 @@
+# Torrent source research — 2026-07-22
+
+## Scope
+
+This checkpoint looks for complementary English/international and Russian-language torrent
+discovery sources. A built-in source must work without an API key, access token, account, private
+cookie, caller-domain binding, or bundled torrent runtime. Media Engine reads bounded catalog
+metadata and returns a normalized handoff; it does not download torrent payloads or join swarms.
+
+Every accepted adapter is a separate review and commit checkpoint. Sources are not enabled in the
+repository API until a later combined reliability, diversity, and duplicate-info-hash audit.
+
+## Decision summary
+
+| Candidate        | Language/catalog                  | Decision                         | Evidence and boundary                                                                                                                          |
+| ---------------- | --------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| YTS              | English/international movies      | **Accept; first opt-in adapter** | Current no-key JSON API supports IMDb/title lookup and returns hash, quality, size, peers, and upload time. Movie-only scope is explicit.      |
+| Bitsearch        | Broad international catalog       | **Accept for later experiment**  | Public no-key JSON API currently allows 200 requests/day per IP and returns structured hashes, sizes, categories, verification, and peers.     |
+| Magnetz          | Broad international magnet index  | **Accept for later experiment**  | Public no-auth JSON/OpenAPI contract returns ready magnet URIs, info hash, size, verification, peers, timestamps, and optional file details.   |
+| JacRed           | Russian/multilingual tracker data | **Accept for later experiment**  | Current public no-token API indexes 16 trackers and returns magnet, source, Russian/original title, year, quality, voice, season, size, peers. |
+| Direct Rutor     | Russian releases                  | **Defer**                        | It is public and no-account, but exposes a website/search HTML contract rather than a documented bounded API. Recheck only as a fallback.      |
+| TorAPI           | Russian tracker aggregator        | **Defer as unavailable**         | The project documents a no-token API and self-hosting, but its advertised public Vercel deployment returned HTTP 402 `DEPLOYMENT_DISABLED`.    |
+| Direct RuTracker | Russian releases                  | **Reject as built-in lookup**    | Search remains account-oriented and would require credentials/cookies or an intermediary. Public magnets on known pages do not fix discovery.  |
+| Torrentio        | Multi-index Stremio aggregation   | **Defer**                        | The public addon is useful but has no sufficiently clear first-party standalone usage/rate-limit contract for a generic built-in client.       |
+
+## English/international sources
+
+### YTS — accepted first
+
+The current [YTS API documentation](https://yts.proxyninja.net/api) names
+`https://movies-api.accel.li/api/v2/` as the v2 base URL, explicitly permits free application use
+without an API key, asks clients to cache and keep rates reasonable, and documents title/IMDb
+queries. The list response provides one movie identity and one or more release variants.
+
+Fresh checks for `tt1375666` and `tt0111161` returned exact Inception and The Shawshank Redemption
+identities with 720p/1080p/2160p variants, 40-character info hashes, byte sizes, codecs, seeders,
+leechers, and upload timestamps. A deliberately missing IMDb ID returned HTTP 200 with
+`movie_count: 0`, providing an honest empty-result signal. The former `yts.mx` host did not resolve
+from this environment; the adapter therefore follows the currently documented base and keeps it
+configurable.
+
+Initial adapter rules:
+
+- movies only; series/anime/episode queries are skipped;
+- exact IMDb match, or one exact normalized title plus exact year;
+- strict bounded JSON parsing and safe HTTP source URLs;
+- one magnet candidate per unique validated info hash;
+- no torrent download, file probing, tracker connection, or peer connection;
+- remain opt-in until the combined source checkpoint.
+
+Implementation checkpoint: the opt-in adapter was added with focused config, parser, matching,
+mapping, fault, timeout, and cancellation tests. Two sequential engine passes returned the same
+identities and hashes for Inception, Dune: Part One, and The Shawshank Redemption. Valid calls took
+about 1.5–10.0 seconds in this network; the deliberately missing IMDb lookup returned no candidates
+in about 2.3 seconds. Dune exposed seven variants, including an available 2160p WEB candidate with
+73 reported seeders. Inception and Shawshank also exposed 2160p variants, but their current zero
+seeder counts were honestly mapped as `unseeded`. No provider failures or identity drift occurred.
+
+The 10-second tail is too close to a normal shared provider deadline for default wiring. Direct
+consumers should give this opt-in source its own 15-second engine budget while it is monitored.
+
+### Bitsearch — accepted for a separate experiment
+
+The current [Bitsearch API documentation](https://bitsearch.eu/api) publishes a no-key tier of 200
+requests/day per IP, explicit rate-limit headers, bounded pagination, and structured search/detail
+responses. A fresh `Inception 2010` search returned five JSON results in about one second, including
+verified YTS hashes and an independent large multilingual release. This broad catalog can add
+series and non-YTS releases, but needs stricter title/year/type/episode matching than YTS and must
+respect the small anonymous quota.
+
+### Magnetz — accepted for a separate experiment
+
+The current [Magnetz API documentation](https://magnetz.eu/apis) states that authentication is not
+required and documents search, detail, and info-hash routes. A fresh `Inception 2010` query returned
+25 candidates with ready magnet links, verification, timestamps, peers, and stable detail IDs. The
+sample overlapped all three YTS hashes, so its future value must be measured on series, anime, and
+non-YTS movies and duplicate hashes must remain visible to the later deduplication audit.
+
+## Russian-language sources
+
+### JacRed — accepted for a separate experiment
+
+The [JacRed public site](https://jacred.su/) describes an open API without registration or tokens.
+Its current status response reported 16 trackers and more than 3.3 million indexed torrents. A
+fresh Russian `Интерстеллар` plus year query returned 185 matches across RuTracker, Rutor, Kinozal,
+BitRu, MegaPeer, NNMClub, and other sources. Results included Russian/original names, exact year,
+quality/HDR, voice labels, categories, size, seeders/peers, magnet, and source URL; a deliberately
+missing query returned an empty result.
+
+There is current route drift: the documentation/OpenAPI advertises `/api/v1/search`, while the live
+first-party web client calls `https://api.jacred.su/api/search`; the former returned 404 and the
+latter returned healthy data. A future opt-in adapter must therefore use a configurable base/path,
+strictly pin the observed schema, treat route drift as a provider failure, and pass two independent
+live checkpoints before default wiring.
+
+### TorAPI and direct trackers
+
+[TorAPI](https://github.com/Lifailon/TorAPI) is MIT-licensed, documents no-token aggregation of
+RuTracker, Kinozal, Rutor, and NoNameClub, and can be self-hosted. Its advertised public deployment
+was disabled during this checkpoint, so it cannot currently be a zero-setup built-in source.
+
+Rutor remains a possible independent fallback because its official status page identifies current
+domains and its public pages expose torrent metadata without an account. It has no current formal
+JSON/Torznab contract suitable for this project, so direct HTML parsing is deferred rather than
+silently lowering the provider acceptance standard. Direct RuTracker discovery is excluded because
+it would reintroduce account/cookie handling.
+
+## Planned order
+
+1. YTS opt-in movie adapter.
+2. JacRed opt-in Russian/multilingual adapter after confirming the live route twice.
+3. Bitsearch broad international adapter with explicit anonymous quota handling.
+4. Magnetz only if its independent coverage remains material after info-hash comparison.
+5. Combined reliability/diversity/deduplication checkpoint before any default API wiring.
+
+After source discovery is stable, the repository reference applications may add an optional torrent
+runtime demonstration. A selected 2160p candidate can be progressively buffered and served to a
+browser, but codec/container compatibility may require remuxing or transcoding. That runtime stays
+outside the public core/providers/SDK packages.

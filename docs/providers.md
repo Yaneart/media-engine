@@ -103,6 +103,36 @@ return a bounded episode map; exact anime lookup uses `absoluteEpisodeNumber`. S
 `region_locked` or `temporarily_unavailable` states. Search results, episode arrays, and response
 bytes are bounded, and API calls use the hardened default transport.
 
+## Torrent discovery providers
+
+| Provider    | Main role                                        | Credentials | Default API |
+| ----------- | ------------------------------------------------ | ----------- | ----------- |
+| YTS torrent | Exact IMDb or exact title/year movie magnet data | None        | No          |
+
+`ytsTorrentProvider()` uses the current documented no-key YTS JSON endpoint and is intentionally
+opt-in. It supports movies only. IMDb lookup must return the same IMDb identity; title lookup
+requires an exact normalized title and year and accepts only one matching movie. Each unique valid
+info hash becomes a magnet handoff with normalized quality/source/codec, byte size, upload time, and
+best-effort peer counts. Zero seeders are reported as `unseeded`, not silently promoted to
+available.
+
+The provider does not download `.torrent` files, inspect their payload, contact trackers, join a
+swarm, or stream media. Its API base is configurable because the upstream has migrated domains.
+The repository API keeps zero torrent providers configured until the separate English/Russian
+source reliability and diversity checkpoint is complete.
+
+```ts
+const media = new MediaEngine({
+  torrentProviders: [ytsTorrentProvider()],
+  providerTimeouts: { "yts-torrent": 15_000 },
+});
+
+const result = await media.discoverTorrents({
+  type: "movie",
+  ids: { imdb: "tt1375666" },
+});
+```
+
 ## Provider contract
 
 A metadata provider declares:
