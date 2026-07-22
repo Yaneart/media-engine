@@ -2,7 +2,7 @@
 
 **English** | [Русский](https://github.com/Yaneart/media-engine/blob/main/apps/example/README.ru.md)
 
-This small app lets you try Media Engine in a browser. It can search, open details, choose an episode, and show available player options.
+This small app lets you try Media Engine in a browser. It can search, open details, choose an episode, and show available player options. Player results are grouped by episode, player family, translation, and quality while distinct voiceovers remain selectable.
 
 ## Run it
 
@@ -32,7 +32,7 @@ pnpm --filter @media-engine/example typecheck
 pnpm --filter @media-engine/example build
 ```
 
-This is a demonstration, not a finished movie website. Third-party players may not work in every browser, country, or network. Embed players are not loaded automatically: the external link is the default, while embedded playback requires an explicit click and runs with a restricted iframe policy that preserves the third-party player origin and sends no referrer.
+This is a demonstration, not a finished movie website. Third-party players may not work in every browser, country, or network. Direct HLS options use native browser playback when available and load `hls.js` lazily otherwise. Embed players are not loaded automatically: the external link is the default, while embedded playback requires an explicit click and runs with a restricted iframe policy that preserves the third-party player origin and sends only the frontend origin as its referrer. Some player hosts reject completely referrerless requests.
 
 The example does not ship a universal `frame-src` Content Security Policy because player hosts are dynamic. A production deployment should disable embeds or set CSP to an explicit allowlist that matches its selected providers; the external-link flow remains available when framing is blocked.
 

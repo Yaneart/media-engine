@@ -123,7 +123,9 @@ KinoBD по умолчанию ограничивает один availability lo
 DDBB ограничивает размер JSON-ответа, количество output options и live validations, concurrency,
 размер validation body и timeout каждого плеера. Его default transport применяет ту же hardened
 политику DNS, redirects и connection pinning к endpoint DDBB и возвращённым плеерам. Пользовательский
-`fetch` остаётся явной доверенной границей для тестов/self-hosted окружений.
+`fetch` остаётся явной доверенной границей для тестов/self-hosted окружений. Варианты за пределом
+ограниченного числа проверок остаются видимыми со статусом `availability: "unknown"` и никогда не
+показываются как успешно проверенные.
 
 AniLiberty ограничивает число search-кандидатов и эпизодов релиза, размер JSON, retry и общее время
 провайдера через общие engine/provider-механизмы. Default transport применяет hardened DNS,

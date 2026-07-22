@@ -121,7 +121,9 @@ FlixHQ site navigation cannot leave its configured origin, including through red
 DDBB caps its JSON response, output option count, live validation count, validation concurrency,
 validation body size, and per-player timeout. Its default transport applies the same hardened DNS,
 redirect, and connection-pinning policy to the DDBB endpoint and returned players. A custom `fetch`
-is the same explicit trusted test/self-hosted boundary used by the other streaming providers.
+is the same explicit trusted test/self-hosted boundary used by the other streaming providers. Options
+beyond the bounded validation count remain visible with `availability: "unknown"`; they are never
+presented as successfully checked.
 
 AniLiberty bounds search candidates, release episodes, JSON bytes, retries, and total provider time
 through the shared engine/provider controls. Its default transport uses the hardened DNS, redirect,

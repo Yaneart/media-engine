@@ -29,7 +29,10 @@ export async function filterDdbbPlayerOptions(
           ? { ...check.option, availability: "unknown" as const }
           : check.option,
       ),
-    ...optionsSkippedByLimit,
+    ...optionsSkippedByLimit.map((option) => ({
+      ...option,
+      availability: "unknown" as const,
+    })),
   ];
 }
 

@@ -371,6 +371,38 @@
   border-radius: 8px;
 }
 
+.player-family {
+  overflow: hidden;
+  border: 1px solid #edf0f2;
+  border-radius: 8px;
+}
+
+.player-family summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.player-family[open] summary {
+  border-bottom: 1px solid #edf0f2;
+}
+
+.player-family .player-list {
+  gap: 0;
+}
+
+.player-family .player-option {
+  border: 0;
+  border-radius: 0;
+}
+
+.player-family .player-option + .player-option {
+  border-top: 1px solid #edf0f2;
+}
+
 .player-option__main {
   display: flex;
   min-width: 0;
@@ -396,6 +428,20 @@
   font-size: 0.84rem;
   font-weight: 700;
   text-decoration: none;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.player-option__qualities {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.player-option__action[aria-pressed="true"] {
+  border-color: #2f6f73;
+  background: #edf3f3;
 }
 
 .player-option__action:focus,
@@ -424,12 +470,28 @@
   margin-top: 4px;
 }
 
-.player-preview iframe {
+.player-preview iframe,
+.player-preview video {
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 1px solid #d8dee4;
   border-radius: 8px;
   background: #18202a;
+}
+
+.stream-player {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stream-player__error {
+  padding: 8px 10px;
+  border: 1px solid #d78a8a;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #8a3333;
+  font-size: 0.82rem;
 }
 
 .player-preview__actions {

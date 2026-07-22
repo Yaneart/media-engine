@@ -38,38 +38,49 @@ export function getAvailabilityOptions(state: AvailabilityState): AvailabilityOp
   return state.status === "success" || state.status === "empty" ? state.response.options : [];
 }
 
-export function groupAvailabilityOptions(
-  options: AvailabilityOption[],
-): Array<{ label: string; options: AvailabilityOption[] }> {
-  const groups = new Map<string, AvailabilityOption[]>();
+export function groupAvailabilityOptions(options: AvailabilityOption[]): AvailabilityOptionGroup[] {
+  const groups = new Map<string, Map<string, Map<string, AvailabilityOption[]>>>();
 
   for (const option of options) {
-    const label = formatTranslationGroup(option);
-    const group = groups.get(label);
+    const groupLabel = [formatEpisodeRef(option), formatTranslationGroup(option)]
+      .filter(Boolean)
+      .join(" · ");
+    const playerLabel = option.player.label;
+    const variantKey = formatPlayerVariantKey(option);
+    const playerGroups = groups.get(groupLabel) ?? new Map();
+    const variants = playerGroups.get(playerLabel) ?? new Map();
+    const variantOptions = variants.get(variantKey) ?? [];
 
-    if (group) {
-      group.push(option);
-    } else {
-      groups.set(label, [option]);
-    }
+    variantOptions.push(option);
+    variants.set(variantKey, variantOptions);
+    playerGroups.set(playerLabel, variants);
+    groups.set(groupLabel, playerGroups);
   }
 
-  return [...groups.entries()].map(([label, groupOptions]) => ({
+  return [...groups.entries()].map(([label, playerGroups]) => ({
     label,
-    options: groupOptions,
+    players: [...playerGroups.entries()].map(([playerLabel, variants]) => ({
+      label: playerLabel,
+      variants: [...variants.values()].map((variantOptions) => ({
+        label: formatPlayerVariantLabel(variantOptions[0]!),
+        options: variantOptions.toSorted(compareAvailabilityOptions),
+      })),
+    })),
   }));
 }
 
 export function formatPlayerMeta(option: AvailabilityOption): string {
   return [
+    option.provider,
     option.player.kind,
-    formatTranslationTag(option),
-    option.translation?.title,
-    option.quality?.label,
-    formatEpisodeRef(option),
+    option.availability === "available" ? undefined : option.availability.replaceAll("_", " "),
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+export function formatQualityLabel(option: AvailabilityOption): string {
+  return option.quality?.label ?? "Default";
 }
 
 export function formatProviderFailure(
@@ -86,6 +97,38 @@ export function getEpisodesCount(details: MediaDetails): number | undefined {
 
 function formatTranslationGroup(option: AvailabilityOption): string {
   return formatTranslationTag(option) ?? "Other translations";
+}
+
+export interface AvailabilityOptionGroup {
+  label: string;
+  players: Array<{
+    label: string;
+    variants: Array<{
+      label: string;
+      options: AvailabilityOption[];
+    }>;
+  }>;
+}
+
+function formatPlayerVariantKey(option: AvailabilityOption): string {
+  return [
+    option.provider,
+    option.player.providerPlayerId,
+    option.translation?.id,
+    option.translation?.title,
+    option.translation?.team,
+    formatEpisodeRef(option),
+  ].join("\u0000");
+}
+
+function formatPlayerVariantLabel(option: AvailabilityOption): string {
+  const translation = option.translation?.title?.trim();
+
+  return !translation || translation === option.player.label ? "Default" : translation;
+}
+
+function compareAvailabilityOptions(left: AvailabilityOption, right: AvailabilityOption): number {
+  return (right.quality?.height ?? 0) - (left.quality?.height ?? 0);
 }
 
 function formatTranslationTag(option: AvailabilityOption): string | undefined {

@@ -191,3 +191,48 @@ test("ddbbStreamingProvider bounds concurrent player validation", async () => {
   assert.equal(result?.options.length, 4);
   assert.equal(maximumActive, 2);
 });
+
+test("ddbbStreamingProvider never marks validation-limit skips as available", async () => {
+  const requestedHosts: string[] = [];
+  const provider = ddbbStreamingProvider({
+    baseUrl: BASE_URL,
+    playerValidationLimit: 1,
+    fetch: async (input) => {
+      const url = new URL(input.toString());
+      requestedHosts.push(url.hostname);
+
+      if (url.hostname === "ddbb.test") {
+        return Response.json({
+          data: [
+            {
+              type: "Validated",
+              iframeUrl: "https://validated.test/embed",
+              translations: [],
+            },
+            {
+              type: "Skipped",
+              iframeUrl: "https://skipped.test/embed",
+              translations: [],
+            },
+          ],
+        });
+      }
+
+      return new Response("<html>player</html>");
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "movie", ids: { kinopoisk: "258687" } },
+    {},
+  );
+
+  assert.deepEqual(
+    result?.options.map((option) => [option.player.label, option.availability]),
+    [
+      ["Validated", "available"],
+      ["Skipped", "unknown"],
+    ],
+  );
+  assert.deepEqual(requestedHosts, ["ddbb.test", "validated.test"]);
+});
