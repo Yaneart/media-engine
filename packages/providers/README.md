@@ -138,14 +138,26 @@ Before built-in providers expose artwork, player, or subtitle URLs, one output p
 exact title/year match and returns normalized 720p/1080p/2160p-style magnet candidates with size,
 release metadata, and best-effort peer counts.
 
+`jacRedTorrentProvider()` is an opt-in no-key Russian/multilingual source for exact title/year
+movie, series, and anime lookup. It can filter a requested season, but intentionally returns no
+result for exact ordinary or absolute episode queries. Returned title, year, category, season,
+info hash, source URL, release metadata, and peer fields are bounded and revalidated. Its
+`baseUrl` and `searchPath` are configurable because the live first-party route and published route
+currently differ.
+
 ```ts
 const media = new MediaEngine({
-  torrentProviders: [ytsTorrentProvider()],
-  providerTimeouts: { "yts-torrent": 15_000 },
+  torrentProviders: [ytsTorrentProvider(), jacRedTorrentProvider()],
+  providerTimeouts: {
+    "yts-torrent": 15_000,
+    "jacred-torrent": 20_000,
+  },
 });
 
 const torrents = await media.discoverTorrents({
   type: "movie",
+  title: "Inception",
+  year: 2010,
   ids: { imdb: "tt1375666" },
 });
 ```

@@ -8,6 +8,7 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added an explicit opt-in `jacRedTorrentProvider()` for exact title/year Russian and multilingual movie, series-season, and anime magnet discovery. It pins the observed no-key public route behind configurable base/path options, strictly bounds nullable JSON, revalidates title/year/type/season identity, deduplicates validated info hashes, and normalizes release and peer metadata without guessing exact episodes. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added an explicit opt-in `ytsTorrentProvider()` with no-key exact IMDb or exact title/year movie lookup, strict bounded JSON parsing, unique magnet handoffs, normalized quality/release metadata, and honest peer availability. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added a separate normalized torrent-discovery contract across core, REST API/OpenAPI, and SDK. It defines provider capabilities, typed candidates and handoff data, attribution, bounded orchestration, cancellation, caching, health telemetry, and partial failures without bundling a torrent source, client, player, proxy, storage, or transcoder.
 - Added an explicit opt-in `ddbbStreamingProvider()` with no-token Kinopoisk/IMDb lookup, diversity-first embed mapping, strict nullable response parsing, bounded live validation, and no unsupported exact-episode claim. It is exported from `@media-engine/providers` but remains outside API defaults pending reliability review.

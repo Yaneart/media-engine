@@ -93,6 +93,24 @@ latter returned healthy data. A future opt-in adapter must therefore use a confi
 strictly pin the observed schema, treat route drift as a provider failure, and pass two independent
 live checkpoints before default wiring.
 
+Implementation checkpoint: the opt-in adapter now uses the twice-confirmed `/api/search` route with
+configurable base/path, exact title plus year identity, category and optional season revalidation,
+strict nullable/schema/byte/result bounds, hardened transport, canonical 40-character info-hash
+magnet handoffs, and source attribution. It deliberately skips exact episode queries because the
+public result schema exposes seasons but no stable episode field. A fresh direct-provider matrix
+returned 12 unique Dune hashes for the Russian title, 16 for the English title, 16 Breaking Bad
+season-pack hashes, 14 Game of Thrones season-pack hashes, and 17 Attack on Titan anime hashes;
+the missing-title control was honestly empty. Valid calls completed in about 1.3–2.3 seconds and
+covered RuTracker, Rutor, Kinozal, NNMClub, BitRu, Selezen, and Toloka source links without parser
+or transport failures. The provider remains opt-in until the combined source checkpoint.
+
+A second pass retained the same top hashes and useful source diversity for Interstellar, Game of
+Thrones season 1, and Attack on Titan season 1. One missing-title control transiently exhausted a
+15-second budget after the earlier healthy empty result; two immediate bounded repeats with a
+20-second budget returned the same honest empty result in about 1.8 and 2.3 seconds. This tail
+supports keeping JacRed opt-in and documenting a 20-second provider budget until the combined
+reliability checkpoint rather than treating one fast pass as default-readiness evidence.
+
 ### TorAPI and direct trackers
 
 [TorAPI](https://github.com/Lifailon/TorAPI) is MIT-licensed, documents no-token aggregation of

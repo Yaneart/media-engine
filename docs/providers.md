@@ -105,9 +105,10 @@ bytes are bounded, and API calls use the hardened default transport.
 
 ## Torrent discovery providers
 
-| Provider    | Main role                                        | Credentials | Default API |
-| ----------- | ------------------------------------------------ | ----------- | ----------- |
-| YTS torrent | Exact IMDb or exact title/year movie magnet data | None        | No          |
+| Provider       | Main role                                                 | Credentials | Default API |
+| -------------- | --------------------------------------------------------- | ----------- | ----------- |
+| YTS torrent    | Exact IMDb or exact title/year movie magnet data          | None        | No          |
+| JacRed torrent | Exact title/year Russian and multilingual tracker results | None        | No          |
 
 `ytsTorrentProvider()` uses the current documented no-key YTS JSON endpoint and is intentionally
 opt-in. It supports movies only. IMDb lookup must return the same IMDb identity; title lookup
@@ -116,6 +117,16 @@ info hash becomes a magnet handoff with normalized quality/source/codec, byte si
 best-effort peer counts. Zero seeders are reported as `unseeded`, not silently promoted to
 available.
 
+`jacRedTorrentProvider()` is also opt-in. It requires an exact title and year, supports movies,
+generic series/anime packs, and a requested season, and rechecks the returned localized/original
+title, year, category, and season before mapping candidates. Exact ordinary/absolute episode
+queries are deliberately skipped because the public endpoint exposes a season filter but no stable
+episode field. Unique validated 40-character info hashes become canonical magnet handoffs; source
+URLs, release quality/source/codec/HDR, byte size, dates, and reported seed/peer counts are bounded
+and normalized. The live first-party frontend route is currently `/api/search`, while the public
+site/OpenAPI still advertises a non-working `/api/v1/search`, so both `baseUrl` and `searchPath` are
+configurable and route/schema drift is surfaced as a provider failure.
+
 The provider does not download `.torrent` files, inspect their payload, contact trackers, join a
 swarm, or stream media. Its API base is configurable because the upstream has migrated domains.
 The repository API keeps zero torrent providers configured until the separate English/Russian
@@ -123,12 +134,17 @@ source reliability and diversity checkpoint is complete.
 
 ```ts
 const media = new MediaEngine({
-  torrentProviders: [ytsTorrentProvider()],
-  providerTimeouts: { "yts-torrent": 15_000 },
+  torrentProviders: [ytsTorrentProvider(), jacRedTorrentProvider()],
+  providerTimeouts: {
+    "yts-torrent": 15_000,
+    "jacred-torrent": 20_000,
+  },
 });
 
 const result = await media.discoverTorrents({
   type: "movie",
+  title: "Inception",
+  year: 2010,
   ids: { imdb: "tt1375666" },
 });
 ```
