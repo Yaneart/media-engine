@@ -17,13 +17,14 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 ## Current focus
 
-1. Revalidate the access model, response contracts, and live reliability of candidate
-   streaming sources before integrating them.
-2. Add Kinobox and DDBB as independent providers when they pass those checks; add DDBB
-   Live only if repeated measurements show that it is stable enough. RHServ is excluded.
+1. Add DDBB as an independent opt-in provider to create a general movie/series/anime lookup
+   path that does not depend on KinoBD.
+2. Add AniLiberty as a separate opt-in anime provider using its public release API and direct
+   HLS, with strict title/year identity matching and no ambiguous guesses.
 3. Stabilize each accepted provider with bounded requests, typed failures, deterministic
    tests, clear attribution, predictable folders, isolated outage behavior, and accurate
-   `embed` versus direct-stream classification for consuming applications.
+   `embed` versus direct-stream classification for consuming applications. Consider default
+   API enablement only after repeated live reliability checks.
 4. Design a separate normalized torrent-discovery contract and add only accepted torrent
    sources. Media Engine will return typed candidates and playback handoff data without
    bundling a frontend player, video proxy, BitTorrent client, storage, or transcoder.
@@ -45,7 +46,10 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 ## Principles
 
-- built-in providers should not require private credentials or account cookies;
+- built-in providers must not require API keys, access tokens, private credentials, account
+  cookies, or caller-domain binding;
+- Kinobox, DDBB Live, RHServ, and token/account-bound downstream balancers are excluded from the
+  current integration path;
 - metadata and streaming remain separate layers;
 - torrent discovery remains separate from immediate stream availability and playback;
 - external IDs and provider attribution stay visible;

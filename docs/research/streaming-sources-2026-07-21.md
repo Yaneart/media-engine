@@ -1,6 +1,227 @@
-# Streaming source research — 2026-07-21
+# Streaming source research — 2026-07-21, updated 2026-07-22
 
-## Decision summary
+## 2026-07-22 follow-up
+
+This follow-up supersedes the original Kinobox `defer` decision and evaluates the additional
+Lampa/Skaz and Kinogo leads supplied after the first checkpoint. It also records a small shortlist
+of independent no-key services discovered while separating actual provider contracts from frontend
+aggregators and advertising wrappers. No production adapter was created.
+
+### Updated decision summary
+
+| Candidate              | Decision                                      | Main reason                                                                                                                                                            |
+| ---------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kinobox                | **Reject as a built-in public provider**      | The owner closed the public API on 2025-07-01 and moved the maintained product to paid domain-bound or private-source deployments.                                     |
+| Skaz/Lampac itself     | **Reject as one aggregate provider**          | Its public routes require an account and its real adapters live server-side, but its balancer list is useful for finding upstreams to integrate independently.         |
+| AniLiberty             | **Proceed as an opt-in experiment**           | Its current first-party OpenAPI exposes no-key title search, honest missing results, episode maps, and working first-party HLS; external-ID matching still needs care. |
+| Videasy                | **Defer for manual playback validation**      | First-party docs expose direct TMDB and AniList embeds, but valid and missing outer pages are indistinguishable, so constructed options must remain `unknown`.         |
+| Kinogo page scraping   | **Reject**                                    | The supplied page is Cloudflare-gated and exposes a changing website/ad integration, not an ID-based provider API with a bounded availability contract.                |
+| VidLink                | **Defer**                                     | Movie/episode identity is useful, but sandboxed embeds are explicitly rejected and the sampled anime endpoint produced an undefined stream.                            |
+| VidCore                | **Defer for a browser playback checkpoint**   | Its documented availability endpoint is promising, but all five returned HLS targets were HTTP 451 from this network and source latency was highly variable.           |
+| VidSrc `.ru` / `.link` | **Reject from this checkpoint**               | Missing and valid IDs are indistinguishable at the outer endpoint; `.link` is a wrapper around another embed service and `.ru` loads a shared ad-supported shell.      |
+| APIPlayer              | **Defer as currently unavailable**            | The documented no-key contract is suitable, but every sampled embed/list/subtitle request returned Cloudflare 502.                                                     |
+| DDBB                   | **Proceed only as the approved opt-in chunk** | The prior measured contract is still the approved general movie/series integration target; AniLiberty is now a separate stronger anime-specific candidate.             |
+
+### Kinobox closure and current service model
+
+The old public API did not migrate to another free domain. The first-party Kinobox chat explains
+the observed shutdown:
+
+- the [2025-06-16 owner announcement](https://t.me/KinoboxChat/10041) says the service would enter a
+  closed mode on 2025-07-01, public API access would be closed, and personal application/source
+  deployments would be sold with or without domain binding;
+- the [2025-11-03 update](https://t.me/KinoboxChat/10045) describes continued commercial
+  development, new Veoveo support, per-IP request limits, and a paid domain-bound/private-source
+  model;
+- a [2026-03-09 archived homepage](https://web.archive.org/web/20260309014026id_/https://kinobox.tv/)
+  contains only embedded copies of those two announcements;
+- `kinobox.tv`, `/api`, and `/docs` now returned 404 or intermittent transport failures from the
+  same address; `kinobox.in` redirected to `on.kinohub.vip`, which also failed direct TLS reads in
+  this checkpoint;
+- no current first-party public repository, public replacement API, or no-key usage contract was
+  found. Third-party repositories still calling `api.kinobox.tv` preserve the obsolete client
+  contract and are not evidence that the public service remains supported.
+
+The old docs were genuine and useful historically, but they no longer authorize or describe a
+public built-in provider. Kinobox may only be reconsidered as a separately configured commercial
+integration after a user supplies their own licensed deployment and its explicit contract; it must
+not be shipped as a default no-token provider.
+
+### Lampa by Skaz and `skaz.tv/o.js`
+
+`lampa.byskaz.ru` is a Lampa application shell. The supplied `skaz.tv/o.js` is a Lampac client that:
+
+- races `online3/4/5/7.skaz.tv` or their `onlinecf` variants and chooses a mirror;
+- sends TMDB, Kinopoisk, IMDb, title, year, type, and locale context to server-side `lite/events`,
+  `externalids`, and per-balancer routes;
+- can receive player qualities, subtitles, episode lists, and direct playback calls;
+- lists many downstream labels, including Collaps, Kodik, Alloha, Vibix, VideoCDN, Veoveo,
+  Videasy, VidSrc, VidLink, TwoEmbed, AutoEmbed, and others.
+
+That list is useful as a discovery index. It can be used to identify independently operated sources,
+read their own current documentation, and implement original Media Engine adapters against their
+public contracts. The upstream adapters and availability logic live on the Skaz/Lampac server, so
+copying the frontend plugin would not give Media Engine those providers.
+Fresh unauthenticated calls to `/lite/withsearch` and `/lite/events` returned
+`{"accsdb":true,...}` and required a Lampa synchronization account. The client additionally uses
+plain HTTP mirrors, WebSocket/RCH callbacks, `eval`/`evalrun`, and server-directed browser requests.
+Those mechanisms are outside the project's credential-free and bounded-trust model. Do not create a
+Skaz/Lampac provider and do not execute or port this client code.
+
+#### What the Skaz source map adds
+
+The static synchronization list contained 52 distinct labels. They do not prove that every source is
+currently healthy, but they are useful leads. Comparing the list with the repository and current
+public contracts produced these groups:
+
+- Alloha, Ashdi, CDNMovies, HDVB, Kinotochka, Kodik, Vibix, VideoCDN, and Videoseed are already in
+  KinoBD streaming's default player allowlist. Separate adapters would add value only if their own
+  public contract creates a genuinely independent lookup path, not merely another route to the same
+  iframe;
+- Filmix/FXAPI, KinoPub, Rezka/RHS-related labels, and several `rc/*` variants are credentialed,
+  account-oriented, private, or server-side routes rather than suitable built-in no-key contracts;
+- AnimeGo, AnimeVost, AnimeBest, AniMedia, AnimeLib, MoonAnime, and similar site labels did not expose
+  a current first-party ID-based streaming API in this checkpoint. Website scraping would inherit
+  the same brittle HTML/anti-bot problems as Kinogo;
+- generic constructed-embed labels such as AutoEmbed, TwoEmbed, VidSrc, Hydraflix, and SmashyStream
+  need an honest availability signal or must be returned only as `unknown`; several lack current
+  first-party documentation or a durable active domain;
+- AniLibria/AniLiberty and Videasy did expose useful current first-party contracts and were tested
+  separately below.
+
+### Supplied Kinogo page
+
+The exact `lv.kinogo.ec/9545-sosny.html` request redirected to HTTPS and then returned a Cloudflare
+challenge. The apex and a related mirror behaved the same. Public urlscan records for other recent
+Kinogo detail pages showed a DataLife Engine website, changing hashed frontend assets, and an
+`agl010.pro` script/iframe chain. Inspection of that chain identified it as an advertising loader,
+not a movie lookup API. No stable Kinopoisk/IMDb/TMDB availability endpoint, provider attribution,
+rate limit, or response schema was exposed.
+
+The exact page's actual player upstream cannot be claimed from this evidence. Even if a browser can
+render it, a Cloudflare-protected site scraper would be brittle, hard to test deterministically, and
+unable to distinguish a valid metadata page from playable availability without browser execution.
+Do not add Kinogo page scraping as either metadata or streaming infrastructure.
+
+### Independent shortlist checks
+
+#### AniLiberty — proceed as an opt-in experiment
+
+The old AniLibria V3 repository now marks itself deprecated and points to the current
+[first-party AniLiberty API V1](https://anilibria.top/api/docs/v1). Its OpenAPI publishes no-key
+release search, release details, and episode detail routes. Live checks against both documented
+hosts showed:
+
+- `GET /api/v1/app/search/releases?query=One%20Piece` returned 11 candidates; an intentionally
+  missing query returned an empty array;
+- exact release reads returned complete episode arrays with ordinals, opening/ending markers,
+  duration, 480p/720p/1080p HLS, geo/copyright flags, and update timestamps;
+- a nonexistent release ID returned HTTP 404 rather than a generic player shell;
+- sampled One Piece and One Punch Man 720p playlists returned HTTP 200 with
+  `application/x-mpegURL` and valid media-segment entries;
+- the API required no account, cookie, API key, or copied Lampac logic.
+
+This is a technically viable independent Media Engine provider, especially for Russian anime
+voiceover. It should search by normalized title plus year, select only a strong unique match, map
+episode `ordinal` to `absoluteEpisodeNumber`, expose the first-party HLS qualities, preserve block
+flags, and return `null` on ambiguous or missing matches. The main limitation is identity: the API
+does not expose MAL, AniList, or Shikimori IDs, so the adapter must not guess solely from a loose title
+match. Keep it explicit opt-in until matching and usage boundaries are reviewed.
+
+#### Videasy — useful direct embed, pending manual playback
+
+The current [first-party Videasy documentation](https://www.videasy.to/) publishes predictable
+no-key embed URLs for TMDB movies, exact TMDB TV episodes, AniList anime episodes, and AniList anime
+movies. This would give Media Engine a direct AniList/TMDB path without first discovering a title on
+FlixHQ, even though FlixHQ sometimes already returns a Videasy player downstream.
+
+Live outer-page checks returned 200 for Interstellar, Game of Thrones S01E01, One Piece episode 1,
+and deliberately missing movie/series/anime IDs. The valid and missing pages used the same Next.js
+shell and provided no server-side availability result. The responses did not set `X-Frame-Options`
+or a restrictive `frame-ancestors` policy, and the sampled anime player code did not contain
+VidLink-style sandbox rejection, but this does not prove successful playback in the reference
+stand's restricted iframe.
+
+A future Videasy adapter can therefore construct exact TMDB/AniList embed URLs, but it must label
+them `availability: "unknown"`. Before enabling it, manually verify first frame, seek, missing-ID
+error UI, advertisements/redirects, and movie/series/anime playback with the existing sandbox. Do
+not call its private player internals or turn their current implementation details into our API.
+
+#### AutoEmbed variants — not a standalone provider yet
+
+`autoembed.app` documents IMDb/TMDB movie and exact-episode embeds, but all three sampled player
+requests timed out without response. `autoembed.co` stayed reachable, but its outer page simply
+constructed three iframes (its own player, TwoEmbed, and VidSrc) for both valid and impossible IDs;
+the direct player also returned nearly identical 200 shells for both. This is another aggregator
+without honest availability, not a stronger independent source than AniLiberty or a direct Videasy
+embed.
+
+#### VidLink — defer
+
+The [first-party VidLink documentation](https://vidlink.pro/) provides TMDB movie URLs, exact TMDB
+season/episode URLs, and MAL anime episode URLs. Valid Interstellar and Game of Thrones pages returned
+200 with matching metadata in roughly 4.2–5.5 seconds; an invalid TMDB ID returned 500. This is
+better identity/error signaling than an always-200 constructed embed.
+
+Blocking findings:
+
+- its current player code explicitly replaces the page with `Please Disable Sandbox` when the
+  iframe has a sandbox attribute, conflicting with the repository's restricted embed policy;
+- the One Piece MAL episode sample returned 200 but constructed a worker URL containing
+  `url=undefined`;
+- a successful metadata page does not prove that the client-side protected source lookup found a
+  playable stream;
+- no explicit rate-limit or durable service-status contract was found.
+
+Recheck only with a permitted real-browser playback matrix and a security decision about unsandboxed
+third-party embeds. Do not weaken the reference stand's sandbox policy to accommodate it.
+
+#### VidCore — defer for browser validation
+
+The [VidCore documentation](https://www.vidcore.org/),
+[REST reference](https://www.vidcore.org/docs/rest-api-reference), and
+[terms](https://www.vidcore.org/terms) explicitly describe no-key TMDB embeds, exact TV episodes,
+metadata, and a public source endpoint. The endpoint returned `available: 1` for two movies and three
+exact TV/anime episodes, and `available: 0` for a deliberately missing ID. Observed source responses
+also included provider labels, HLS typing, and latency metadata.
+
+However, a second checkpoint immediately fetched each selected HLS target and received HTTP 451 for
+all five. API source selection ranged from about 0.8 seconds to 8.8 seconds and sometimes selected a
+different fastest upstream for the same title. The public status page asserts page/API availability
+but does not report downstream stream health, and no concrete rate limit was published. Therefore:
+
+- do not expose the returned URLs as normalized direct HLS yet;
+- do not treat `available: 1` as proven playback;
+- a future experiment may validate only the documented VidCore embed in a sandboxed real browser,
+  including first frame, seek, missing-title behavior, advertising, redirects, cancellation, and
+  repeated movie/episode coverage.
+
+#### VidSrc variants and APIPlayer
+
+- `vidsrc.link` returned a simple iframe wrapper around `vsembed.ru` for both valid and missing IDs;
+  it did not independently validate availability.
+- `vidsrc.ru` returned the same small SPA shell for valid and invalid IDs and loaded a third-party ad
+  script. Its outer response cannot support honest availability semantics.
+- [APIPlayer documentation](https://apiplayer.ru/docs) is comparatively clear: no API key, IMDb/TMDB
+  movie and exact episode embeds, public lists/subtitles, and a stated 60 requests/minute limit. In
+  this live checkpoint, however, all sampled movie, series, anime, missing-ID, list, and subtitle
+  requests returned Cloudflare 502 with `Retry-After: 60`. Keep it deferred until two healthy
+  checkpoints demonstrate the documented contract.
+
+### Follow-up conclusion
+
+The Skaz client itself should not be transplanted, but its source map did produce integrations that
+can be designed independently. AniLiberty is the strongest newly identified source and is technically
+ready for a small explicit opt-in provider experiment. Videasy is the next useful direct adapter once
+manual sandboxed playback is confirmed; until then it can only promise an `unknown` constructed
+embed. Kinobox is a closed commercial product, Kinogo remains unsuitable for scraping, and VidLink
+and VidCore stay in the playback-validation backlog.
+
+The previously approved general-purpose production chunk remains opt-in DDBB, with DDBB Live
+excluded and no default API enablement. If anime coverage is prioritized first, AniLiberty can be
+implemented as a separate smaller chunk before DDBB without depending on Skaz or copying its code.
+
+## Original 2026-07-21 decision summary
 
 | Candidate | Decision                              | Main reason                                                                                                                                                                   |
 | --------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -9,9 +230,8 @@
 | DDBB Live | **Reject as an independent provider** | It returned the same payloads and upstream players as DDBB, with worse tail latency and an additional timeout; it is a mirror, not an independent source.                     |
 | RHServ    | **Reject**                            | Excluded by the approved development plan and not re-evaluated.                                                                                                               |
 
-No production adapter should be created from this checkpoint. DDBB is the only candidate worth
-reconsidering after its usage boundary is clarified. Kinobox should be rechecked only after its
-official API is restored.
+At that original checkpoint, no production adapter was ready. Its DDBB findings remain relevant,
+while the 2026-07-22 follow-up above supersedes the old Kinobox and next-candidate conclusions.
 
 ## Scope and method
 
@@ -273,14 +493,23 @@ worse observed tail latency and an additional timeout. Do not create a separate 
 If DDBB is accepted later, a user-supplied base URL can cover controlled mirror experiments without
 hard-coding DDBB Live as another source.
 
-## Required next decision
+## Required next action
 
-Stage 2 should remain paused. The next useful action is to clarify DDBB's permitted API usage,
-attribution, contact, and rate limit with the service owner or another first-party statement.
+The user confirmed that any provider requiring a token, key, account, private credential, or domain
+binding is out of scope and delegated source ordering on 2026-07-22. Proceed in three separate
+commit-sized chunks:
 
-After that:
+1. implement DDBB as an explicit opt-in independent general provider, using Kinopoisk/IMDb lookup,
+   `embed` only, no exact episode-mapping claim, strict nullable parsing, bounded
+   validation/concurrency/timeouts, cancellation, typed errors, attribution, fixtures and fault
+   tests, and no initial default API enablement;
+2. after DDBB is committed, implement AniLiberty as a separate opt-in anime provider using strict
+   title/year matching, honest ambiguity/missing behavior, absolute episode ordinals, direct HLS
+   qualities, block flags, bounded calls, and no dependency on Skaz;
+3. after both providers are committed, run a dedicated reliability/diversity checkpoint and decide
+   whether either belongs in API defaults. Count independent lookup paths and usable options, not
+   merely repeated downstream player labels.
 
-1. If clarified positively, implement DDBB alone as one explicit opt-in provider chunk.
-2. If the boundary remains unknown, leave DDBB deferred and do not add placeholder code.
-3. Recheck Kinobox only after its official API visibly recovers.
-4. Do not implement DDBB Live independently.
+Keep Videasy deferred until manual sandboxed playback validation. Do not implement DDBB Live,
+Kinobox, Skaz/Lampac, Kinogo scraping, VidLink, VidCore, VidSrc, APIPlayer, or direct token-bound
+Alloha/Kodik/Vibix/VideoCDN/HDVB-style integrations in these chunks.

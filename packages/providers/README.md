@@ -16,6 +16,7 @@ npm install @media-engine/core @media-engine/providers
 import { MediaEngine } from "@media-engine/core";
 import {
   aniListProvider,
+  ddbbStreamingProvider,
   flixHqStreamingProvider,
   kinobdProvider,
   kinobdStreamingProvider,
@@ -64,6 +65,7 @@ provider calls omit it and use the platform timers.
 
 - `kinobdStreamingProvider()` — movie, series, and anime player options;
 - `flixHqStreamingProvider()` — international movie and selected series-episode options;
+- `ddbbStreamingProvider()` — opt-in Kinopoisk/IMDb lookup through an independent DDBB player route;
 - `experimentalStreamingProvider()` — data configured by your own application, useful in tests and UI work.
 
 ```ts
@@ -84,11 +86,32 @@ const result = await media.getAvailability({
 
 These are third-party player targets, not videos hosted by Media Engine. Availability depends on the upstream source and the user's environment.
 
+`ddbbStreamingProvider()` is intentionally not enabled by the repository API defaults. It accepts
+only Kinopoisk or IMDb IDs, returns generic movie/series/anime embeds, and does not claim exact
+season/episode mapping. Its diversity-first mapping keeps one main option per returned player before
+adding unique translation URLs. Missing nullable players produce no result; confirmed 404/410 or
+stable deletion markers are removed, while transient validation failures remain `unknown`.
+
+```ts
+const media = new MediaEngine({
+  streamingProviders: [
+    kinobdStreamingProvider(),
+    flixHqStreamingProvider(),
+    ddbbStreamingProvider(), // explicit opt-in
+  ],
+});
+```
+
 Live player validation removes an option only after HTTP 404/410 or a stable deletion marker. Rate limits, server errors, network failures, and validation timeouts keep the discovered option with `availability: "unknown"`, allowing the engine to expose the degradation and retry it instead of caching a transiently reduced result.
 
 KinoBD bounds one availability lookup to 24 child HTTP attempts by default and validates at most eight discovered players through three workers. Public tuning remains bounded (`childRequestLimit` up to 64, `playerValidationLimit` up to 16, and `playerValidationConcurrency` up to 4). Nested iframe validation starts only when the fixed provider deadline can still grant a full validation window. `onPlayerAudit` receives additive `metrics` for discovered and validated players, limit/budget skips, transient unknown results, confirmed removals, and consumed child requests.
 
 FlixHQ site navigation cannot leave its configured origin, including through redirects. External player and subtitle checks resolve every A/AAAA answer, reject private, local, reserved, multicast, or mixed public/private destinations, validate every bounded redirect hop, and pin the connection to the approved address. A custom provider `fetch` is an explicit trusted transport injection intended for controlled tests or self-hosted environments; it is responsible for equivalent network policy.
+
+DDBB caps its JSON response, output option count, live validation count, validation concurrency,
+validation body size, and per-player timeout. Its default transport applies the same hardened DNS,
+redirect, and connection-pinning policy to the DDBB endpoint and returned players. A custom `fetch`
+is the same explicit trusted test/self-hosted boundary used by the other streaming providers.
 
 Before built-in providers expose artwork, player, or subtitle URLs, one output policy accepts only HTTP(S) targets without credentials, raw control characters, or literal local/private/reserved addresses. Valid paths and CDN query parameters, including expiring signatures, are preserved. This browser-facing check does not replace DNS validation or an application-owned media proxy.
 
