@@ -2,13 +2,19 @@ import {
   DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS,
   DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
   DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
+  DEFAULT_MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
+  DEFAULT_MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS,
+  createConfiguredTorrentProviders,
   createConfiguredStreamingProviders,
   createMediaEngine,
   readFlixHqStreamingProviderTimeoutMs,
+  readJacRedTorrentProviderTimeoutMs,
   readProviderTimeoutMs,
   readStreamingProviderTimeoutMs,
+  readTorrentProviderNames,
+  readTorrentProviderTimeoutMs,
 } from './media-engine.config';
 
 describe('MediaEngine configuration', () => {
@@ -64,6 +70,57 @@ describe('MediaEngine configuration', () => {
     expect(providers.every((provider) => provider.kind === 'streaming')).toBe(
       true,
     );
+  });
+
+  it('keeps torrent providers disabled until an explicit allowlist is configured', async () => {
+    await expect(createConfiguredTorrentProviders({})).resolves.toEqual([]);
+    expect(readTorrentProviderNames({})).toEqual([]);
+  });
+
+  it('creates explicitly selected torrent providers in configured order', async () => {
+    const env = {
+      MEDIA_ENGINE_TORRENT_PROVIDERS:
+        ' magnetz-torrent, yts-torrent, jacred-torrent, bitsearch-torrent ',
+    };
+    const providers = await createConfiguredTorrentProviders(env);
+
+    expect(providers.map((provider) => provider.name)).toEqual([
+      'magnetz-torrent',
+      'yts-torrent',
+      'jacred-torrent',
+      'bitsearch-torrent',
+    ]);
+    expect(providers.every((provider) => provider.kind === 'torrent')).toBe(
+      true,
+    );
+    expect(readTorrentProviderNames(env)).toEqual([
+      'magnetz-torrent',
+      'yts-torrent',
+      'jacred-torrent',
+      'bitsearch-torrent',
+    ]);
+  });
+
+  it('rejects empty, duplicate, and unsupported torrent provider names', () => {
+    for (const value of [
+      'yts-torrent,',
+      'yts-torrent,yts-torrent',
+      'unknown-torrent',
+    ]) {
+      expect(() =>
+        readTorrentProviderNames({ MEDIA_ENGINE_TORRENT_PROVIDERS: value }),
+      ).toThrow(/MEDIA_ENGINE_TORRENT_PROVIDERS/);
+    }
+  });
+
+  it('registers selected torrent providers on the configured engine', async () => {
+    const engine = await createMediaEngine({
+      MEDIA_ENGINE_TORRENT_PROVIDERS: 'yts-torrent,magnetz-torrent',
+    });
+
+    expect(
+      engine.getTorrentProviders().map((provider) => provider.name),
+    ).toEqual(['yts-torrent', 'magnetz-torrent']);
   });
 
   it('uses a finite provider timeout by default', () => {
@@ -131,6 +188,42 @@ describe('MediaEngine configuration', () => {
     expect(() =>
       readFlixHqStreamingProviderTimeoutMs({
         MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS: '0',
+      }),
+    ).toThrow(/positive integer/);
+  });
+
+  it('uses separate bounded defaults for torrent and JacRed work', () => {
+    expect(readTorrentProviderTimeoutMs({})).toBe(
+      DEFAULT_MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS,
+    );
+    expect(readJacRedTorrentProviderTimeoutMs({})).toBe(
+      DEFAULT_MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS,
+    );
+    expect(readJacRedTorrentProviderTimeoutMs({})).toBeGreaterThan(
+      readTorrentProviderTimeoutMs({}),
+    );
+  });
+
+  it('allows and validates torrent timeout overrides', () => {
+    expect(
+      readTorrentProviderTimeoutMs({
+        MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS: ' 12000 ',
+      }),
+    ).toBe(12_000);
+    expect(
+      readJacRedTorrentProviderTimeoutMs({
+        MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS: ' 18000 ',
+      }),
+    ).toBe(18_000);
+
+    expect(() =>
+      readTorrentProviderTimeoutMs({
+        MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS: '0',
+      }),
+    ).toThrow(/positive integer/);
+    expect(() =>
+      readJacRedTorrentProviderTimeoutMs({
+        MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS: '-1',
       }),
     ).toThrow(/positive integer/);
   });

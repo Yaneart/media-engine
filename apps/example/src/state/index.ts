@@ -1,4 +1,10 @@
-import type { AvailabilityResponse, DetailsResponse, MediaSummary, SearchResponse } from "../api";
+import type {
+  AvailabilityResponse,
+  DetailsResponse,
+  MediaSummary,
+  SearchResponse,
+  TorrentResponse,
+} from "../api";
 
 export type SearchState =
   | { status: "idle" }
@@ -22,3 +28,10 @@ export type AvailabilityState =
   | { status: "error"; item?: MediaSummary; message: string };
 
 export type AvailabilityOption = AvailabilityResponse["options"][number];
+
+export type TorrentState =
+  | { status: "idle" }
+  | { status: "loading"; item: MediaSummary }
+  | { status: "success"; item: MediaSummary; response: TorrentResponse }
+  | { status: "empty"; item: MediaSummary; response: TorrentResponse }
+  | { status: "error"; item?: MediaSummary; message: string };

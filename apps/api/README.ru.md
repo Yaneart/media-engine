@@ -44,11 +44,30 @@ GET /docs-json
 
 Все media endpoints приводят ID и language к canonical-виду до обращения к провайдерам/cache; эквивалентные top-level и `ids.*` формы используют один cache key. Некорректные известные ID и слишком длинные поля возвращают HTTP 400. `GET /media/search?...&limit=0` — намеренный zero-work probe с пустым ответом без вызова провайдеров.
 
-`GET /media/torrents` только ищет кандидаты и возвращает handoff. Он не запускает torrent-клиент, не подключается к swarm, не загружает и не хранит media, не проксирует трафик и не транскодирует видео. В этом contract-only блоке torrent-провайдер не настроен, поэтому корректный запрос возвращает пустой успешный ответ, а `/providers/torrent` — пустой список до добавления принятого источника.
+`GET /media/torrents` только ищет кандидаты и возвращает handoff. Он не запускает torrent-клиент, не
+подключается к swarm, не загружает и не хранит media, не проксирует трафик и не транскодирует видео.
+По умолчанию torrent-провайдеры выключены. Нужное подмножество включается точным списком через
+запятую:
+
+```dotenv
+MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent,bitsearch-torrent,magnetz-torrent
+MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS=15000
+MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS=20000
+```
+
+Поддерживаемые имена: `yts-torrent`, `jacred-torrent`, `bitsearch-torrent` и `magnetz-torrent`.
+Неизвестные, повторные или пустые элементы останавливают startup. Порядок сохраняется для
+interleaving результатов. Оставляйте список пустым, если владелец deployment не принял анонимные
+квоты и timeout budget источников; включение discovery не включает torrent playback.
+
+```bash
+curl 'http://127.0.0.1:3000/providers/torrent'
+curl 'http://127.0.0.1:3000/media/torrents?type=movie&title=Dune&year=2021&imdb=tt1160419&limit=20'
+```
 
 Disconnect media-запроса передается в core как abort signal. Если на тот же запрос еще подписан другой HTTP caller, общая provider operation продолжает работу; иначе queued/running provider work отменяется, а брошенный ответ не кешируется.
 
-Локальные настройки читаются из `.env`. Основные значения, включая порт и тайм-ауты провайдеров, перечислены в корневом `.env.example`. Metadata, generic streaming и FlixHQ используют независимые бюджеты времени; KinoBD, DDBB и AniLiberty делят ограниченный generic streaming budget, а увеличенный timeout FlixHQ им не обрезается. В default streaming-набор входят KinoBD, FlixHQ, DDBB и AniLiberty; ни один из них не требует credentials вызывающей стороны.
+Локальные настройки читаются из `.env`. Основные значения, включая порт и тайм-ауты провайдеров, перечислены в корневом `.env.example`. Metadata, generic streaming, FlixHQ, generic torrent discovery и JacRed используют независимые бюджеты времени; KinoBD, DDBB и AniLiberty делят ограниченный generic streaming budget, а увеличенные timeout FlixHQ и JacRed им не обрезаются. В default streaming-набор входят KinoBD, FlixHQ, DDBB и AniLiberty; ни один из них не требует credentials вызывающей стороны. Torrent discovery остаётся явно включаемым.
 
 `/health/live` проверяет только способность процесса API отвечать на HTTP-запросы. `/health/ready` и обратно совместимый `/health` дополнительно проверяют circuits провайдеров и возвращают `status: "degraded"`, если хотя бы один circuit открыт или восстанавливается. Degraded readiness остаётся HTTP 200, поскольку API всё ещё может отдавать частичные результаты.
 

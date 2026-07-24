@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import "./App.css";
-import { getMediaAvailability, getMediaDetails, searchMedia } from "./api";
+import { discoverMediaTorrents, getMediaAvailability, getMediaDetails, searchMedia } from "./api";
 import { DetailsPanel, SearchPanel } from "./components";
 import { hasDetailsLookup } from "./utils/format";
-import type { AvailabilityMediaInput, MediaSummary, SearchFormQuery } from "./api";
-import type { AvailabilityState, DetailsState, SearchState } from "./state";
+import type {
+  AvailabilityMediaInput,
+  MediaSummary,
+  SearchFormQuery,
+  TorrentMediaInput,
+} from "./api";
+import type { AvailabilityState, DetailsState, SearchState, TorrentState } from "./state";
 
 // EN: Root React component for the Media Engine example application shell.
 // RU: Корневой React component для оболочки example приложения Media Engine.
@@ -23,18 +28,24 @@ function App() {
   const [availabilityState, setAvailabilityState] = useState<AvailabilityState>({
     status: "idle",
   });
+  const [torrentState, setTorrentState] = useState<TorrentState>({
+    status: "idle",
+  });
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const detailsAbortControllerRef = useRef<AbortController | null>(null);
   const availabilityAbortControllerRef = useRef<AbortController | null>(null);
+  const torrentAbortControllerRef = useRef<AbortController | null>(null);
   const searchRequestIdRef = useRef(0);
   const detailsRequestIdRef = useRef(0);
   const availabilityRequestIdRef = useRef(0);
+  const torrentRequestIdRef = useRef(0);
 
   useEffect(() => {
     return () => {
       searchAbortControllerRef.current?.abort();
       detailsAbortControllerRef.current?.abort();
       availabilityAbortControllerRef.current?.abort();
+      torrentAbortControllerRef.current?.abort();
     };
   }, []);
 
@@ -54,8 +65,10 @@ function App() {
     searchAbortControllerRef.current?.abort();
     detailsAbortControllerRef.current?.abort();
     availabilityAbortControllerRef.current?.abort();
+    torrentAbortControllerRef.current?.abort();
     detailsRequestIdRef.current += 1;
     availabilityRequestIdRef.current += 1;
+    torrentRequestIdRef.current += 1;
 
     const abortController = new AbortController();
     const requestId = searchRequestIdRef.current + 1;
@@ -65,6 +78,7 @@ function App() {
     setSearchState({ status: "loading" });
     setDetailsState({ status: "idle" });
     setAvailabilityState({ status: "idle" });
+    setTorrentState({ status: "idle" });
 
     try {
       const response = await searchMedia(
@@ -100,19 +114,25 @@ function App() {
     if (!hasDetailsLookup(item)) {
       detailsAbortControllerRef.current?.abort();
       availabilityAbortControllerRef.current?.abort();
+      torrentAbortControllerRef.current?.abort();
       detailsRequestIdRef.current += 1;
       availabilityRequestIdRef.current += 1;
+      torrentRequestIdRef.current += 1;
       setDetailsState({
         status: "error",
         item,
         message: "This result does not include external IDs for details lookup.",
       });
+      setAvailabilityState({ status: "idle" });
+      setTorrentState({ status: "idle" });
       return;
     }
 
     detailsAbortControllerRef.current?.abort();
     availabilityAbortControllerRef.current?.abort();
+    torrentAbortControllerRef.current?.abort();
     availabilityRequestIdRef.current += 1;
+    torrentRequestIdRef.current += 1;
 
     const abortController = new AbortController();
     const requestId = detailsRequestIdRef.current + 1;
@@ -127,6 +147,7 @@ function App() {
       status: "loading",
       item,
     });
+    setTorrentState({ status: "idle" });
 
     try {
       const response = await getMediaDetails(item, abortController.signal);
@@ -195,6 +216,41 @@ function App() {
     }
   }
 
+  async function loadTorrents(item: MediaSummary, torrentItem: TorrentMediaInput = item) {
+    torrentAbortControllerRef.current?.abort();
+
+    const abortController = new AbortController();
+    const requestId = torrentRequestIdRef.current + 1;
+    torrentRequestIdRef.current = requestId;
+    torrentAbortControllerRef.current = abortController;
+
+    setTorrentState({ status: "loading", item });
+
+    try {
+      const response = await discoverMediaTorrents(torrentItem, abortController.signal);
+
+      if (abortController.signal.aborted || requestId !== torrentRequestIdRef.current) {
+        return;
+      }
+
+      setTorrentState(
+        response.candidates.length > 0
+          ? { status: "success", item, response }
+          : { status: "empty", item, response },
+      );
+    } catch (error) {
+      if (abortController.signal.aborted || requestId !== torrentRequestIdRef.current) {
+        return;
+      }
+
+      setTorrentState({
+        status: "error",
+        item,
+        message: error instanceof Error ? error.message : "Torrent discovery request failed.",
+      });
+    }
+  }
+
   return (
     <main className="app-shell">
       <section className="overview" aria-labelledby="app-title">
@@ -252,8 +308,10 @@ function App() {
           <SearchPanel onDetails={handleDetails} state={searchState} />
           <DetailsPanel
             availabilityState={availabilityState}
+            onDiscoverTorrents={loadTorrents}
             onLoadAvailability={loadAvailability}
             state={detailsState}
+            torrentState={torrentState}
           />
         </div>
       </section>

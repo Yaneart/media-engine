@@ -129,7 +129,7 @@ Torrent discovery is a separate provider category and operation. A `TorrentDisco
 
 Candidate order is deterministic: the engine preserves each provider's order while interleaving configured sources before applying the public limit. It deduplicates repeated `provider` plus `id` identities but does not collapse matching info hashes from different providers because their attribution, source URL, display title, and reported peer state may differ. The combined live checkpoint confirmed material peer-count differences for identical hashes, so consumers may group hashes for presentation but should preserve every source observation.
 
-The repository API still configures no torrent source by default after the combined source checkpoint. `discoverTorrents()` therefore returns a successful empty response until an application supplies a `TorrentProvider`; exported YTS, JacRed, Bitsearch, and Magnetz adapters remain explicit opt-ins because their quotas and timeout tails require application-owned request budgets.
+The repository API still configures no torrent source by default after the combined source checkpoint. `discoverTorrents()` therefore returns a successful empty response until an application supplies a `TorrentProvider`. The repository Nest API can explicitly enable the exported YTS, JacRed, Bitsearch, and Magnetz adapters through `MEDIA_ENGINE_TORRENT_PROVIDERS`; strict startup validation preserves the configured order and rejects unknown, duplicate, or empty entries. Generic torrent and JacRed timeout budgets are configured separately because quotas and long tails remain deployment-owned decisions.
 
 ## Errors and partial failures
 
