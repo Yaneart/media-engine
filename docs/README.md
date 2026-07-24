@@ -8,6 +8,7 @@ This directory contains current technical documentation for Media Engine.
 - [Providers](providers.md) lists the built-in providers and their safety boundaries.
 - [Quality gates](quality-gates.md) documents deterministic CI and classified live smoke policy.
 - [Roadmap](roadmap.md) contains a short public view of completed and planned work.
+- [Reference torrent playback](reference-torrent-playback.md) defines the optional external TorServer boundary and its pinned-contract policy.
 
 The TypeScript declarations exported by the packages are the source of truth for exact fields. Package READMEs contain installation and quick-start examples.
 

@@ -42,6 +42,11 @@ The NestJS application wires providers into `MediaEngine` and exposes health, pr
 
 Torrent discovery is intentionally independent from streaming availability. Core can select torrent providers and return typed handoff candidates, but it never contains a BitTorrent client, player, proxy, storage, or transcoder. Those runtime responsibilities belong to consuming applications.
 
+An optional private reference-playback module is being built inside `apps/api`. Its bounded client
+talks only to an operator-configured external TorServer process; no browser request controls that
+target. TorServer remains a separately licensed process outside every public package, and the
+client is not connected to public endpoints in its first slice.
+
 ### `apps/example`
 
 The React application demonstrates search, details, episode selection, and player choice through the API. It does not call upstream providers directly.
@@ -107,6 +112,7 @@ packages/core       framework-independent engine
 packages/providers  concrete provider adapters
 packages/sdk        typed HTTP client
 apps/api            NestJS API
+  reference-playback private, opt-in external-runtime integration
 apps/example        React example
 scripts             live quality and latency checks
 docs                current technical documentation

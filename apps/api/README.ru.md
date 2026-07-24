@@ -60,6 +60,11 @@ MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS=20000
 interleaving результатов. Оставляйте список пустым, если владелец deployment не принял анонимные
 квоты и timeout budget источников; включение discovery не включает torrent playback.
 
+В репозитории уже есть первый приватный bounded client contract для отдельно запущенного
+reference-компонента TorServer, но он ещё не подключён к HTTP route и не меняет discovery-only
+границу. Лицензионная граница, проверенная версия и upgrade policy описаны в документе
+[Reference torrent playback](../../docs/reference-torrent-playback.md).
+
 ```bash
 curl 'http://127.0.0.1:3000/providers/torrent'
 curl 'http://127.0.0.1:3000/media/torrents?type=movie&title=Dune&year=2021&imdb=tt1160419&limit=20'

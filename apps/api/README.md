@@ -59,6 +59,11 @@ Unknown, duplicate, or empty list entries fail startup. Configured order is pres
 interleaving. Keep the list empty unless the deployment owner accepts the providers' anonymous
 quotas and timeout budget; enabling discovery does not enable torrent playback.
 
+The repository contains the first private, bounded client contract for a separately running
+TorServer reference component, but it is not wired to an HTTP route and does not change that
+discovery-only boundary. See [Reference torrent playback](../../docs/reference-torrent-playback.md)
+for the license, reviewed-version, and upgrade policy.
+
 ```bash
 curl 'http://127.0.0.1:3000/providers/torrent'
 curl 'http://127.0.0.1:3000/media/torrents?type=movie&title=Dune&year=2021&imdb=tt1160419&limit=20'
