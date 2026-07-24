@@ -184,9 +184,11 @@ const torrents = await media.discoverTorrents({
 });
 ```
 
-The provider does not download torrent metadata, contact trackers, join a swarm, or play video. The
-repository API keeps torrent providers disabled until the planned English/Russian source
-reliability and diversity checkpoint.
+The provider does not download torrent metadata, contact trackers, join a swarm, or play video.
+The completed multi-source checkpoint kept repository API defaults empty: Bitsearch has a small
+anonymous daily quota, Magnetz exposes burst-sensitive limits, and JacRed still has an occasional
+long timeout tail. Applications can opt into any subset explicitly and monitor it with
+`pnpm smoke:torrents`; package consumers remain in control of their own request budget.
 
 Provider options, limitations, and safety rules are summarized in the [provider guide](https://github.com/Yaneart/media-engine/blob/main/docs/providers.md).
 

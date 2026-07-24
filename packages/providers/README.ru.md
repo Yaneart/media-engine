@@ -187,8 +187,10 @@ const torrents = await media.discoverTorrents({
 ```
 
 Провайдер не загружает torrent metadata, не обращается к trackers, не подключается к swarm и не
-воспроизводит видео. API репозитория оставляет torrent-провайдеры выключенными до общего checkpoint
-надёжности и разнообразия русских и английских источников.
+воспроизводит видео. После общего multi-source checkpoint torrent-провайдеры остались выключенными
+в API defaults: у Bitsearch небольшая суточная анонимная квота, Magnetz чувствителен к burst-нагрузке,
+а у JacRed сохраняется редкий длинный timeout tail. Приложение явно выбирает нужное подмножество и
+может контролировать его командой `pnpm smoke:torrents`, сохраняя собственный request budget.
 
 Настройки, ограничения и правила безопасности кратко описаны в [документации провайдеров](https://github.com/Yaneart/media-engine/blob/main/docs/providers.md).
 

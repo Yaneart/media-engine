@@ -153,10 +153,13 @@ bounded 0–100 numeric range without exposing those ranking fields. Live respon
 30-request limit but short bursts have still produced transient 429s, so request starts are
 serialized one second apart and a conservative 15-second provider budget is recommended.
 
-The provider does not download `.torrent` files, inspect their payload, contact trackers, join a
-swarm, or stream media. Its API base is configurable because the upstream has migrated domains.
-The repository API keeps zero torrent providers configured until the separate English/Russian
-source reliability and diversity checkpoint is complete.
+The providers do not download `.torrent` files, inspect their payload, contact trackers, join a
+swarm, or stream media. Their API bases remain configurable where upstream domains or routes have
+drifted. The completed English/Russian checkpoint kept zero repository API defaults: Bitsearch's
+200-request anonymous daily quota is unsuitable for implicit fan-out, Magnetz has burst-sensitive
+limits without a complete published reset policy, and JacRed produced one recoverable 20-second
+timeout in 18 combined calls. Applications should opt into a deliberate subset and can run
+`pnpm smoke:torrents -- --passes 2 --json` for a fresh machine-readable checkpoint.
 
 ```ts
 const media = new MediaEngine({

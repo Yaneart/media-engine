@@ -172,6 +172,37 @@ it would reintroduce account/cookie handling.
 4. Magnetz opt-in broad international adapter with provider-local request pacing.
 5. Combined reliability/diversity/deduplication checkpoint before any default API wiring.
 
+## Combined source checkpoint — complete
+
+Two fresh sequential engine passes exercised Inception, Dune, The Shawshank Redemption, Russian
+Interstellar, Game of Thrones season one and S01E10, Breaking Bad season one, Attack on Titan season
+one, and a deliberately missing control. Across 18 operations the four adapters returned 836
+provider-attributed candidates representing 742 per-operation unique info hashes. Every candidate
+had a validated hash and magnet handoff, both missing controls were honestly empty, and healthy
+cases retained their first hashes across passes.
+
+YTS completed 10/10 selected calls, Bitsearch 18/18, and Magnetz 18/18. JacRed completed 17/18; one
+Game of Thrones season lookup exhausted its dedicated 20-second budget, while the next calls
+recovered. Healthy p95/max timings were approximately 0.88/0.89 seconds for YTS, 1.02/1.12 seconds
+for Bitsearch, 1.12/1.13 seconds for Magnetz, and 2.42 seconds for JacRed before its timeout. The
+failure remained isolated and Bitsearch/Magnetz still returned the season result.
+
+Cross-provider overlap accounted for 94 repeated candidate observations across both passes, about
+11% of the raw list. Most overlap was Bitsearch/Magnetz, followed by their shared YTS hashes;
+JacRed was largely independent. The engine deliberately keeps those observations separate. A Dune
+sample showed the same hash reported with 0 seeders by one source and 1,050 by another, alongside
+different source URLs and display titles. Collapsing to one candidate would discard useful
+provenance and freshness evidence; consumers may group by uppercase info hash for presentation
+while retaining all source observations. Interleaving also limited the practical effect: the first
+10 Dune candidates were all unique and the first 20 contained one repeated hash.
+
+Decision: all four adapters remain accepted and opt-in, while repository API defaults stay empty.
+Bitsearch's documented 200-request daily anonymous quota is too small for implicit public fan-out;
+Magnetz exposed a 30-request header but also returned burst 429s without a complete published reset
+policy; JacRed still has a rare long tail. The sources are suitable when an application explicitly
+chooses its subset, caching, timeout, and request budget. `pnpm smoke:torrents` now provides a
+repeatable one-pass check; `-- --passes 2 --json` produces the fuller machine-readable checkpoint.
+
 After source discovery is stable, the repository reference applications may add an optional torrent
 runtime demonstration. A selected 2160p candidate can be progressively buffered and served to a
 browser, but codec/container compatibility may require remuxing or transcoding. That runtime stays

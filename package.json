@@ -33,6 +33,7 @@
     "smoke:search-quality:quick": "pnpm build && node scripts/search-quality-smoke.mjs --matrix quick --strict",
     "smoke:search-quality:scheduled": "pnpm build && node scripts/search-quality-smoke.mjs --matrix full --max-warnings 4 --json",
     "smoke:source-filter-audit": "pnpm build && node scripts/source-filter-audit.mjs",
+    "smoke:torrents": "pnpm build && node scripts/torrent-source-smoke.mjs",
     "smoke:providers": "pnpm build && node scripts/provider-smoke.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm build:check && pnpm test:unit && pnpm test:scripts",

@@ -127,9 +127,9 @@ Torrent discovery is a separate provider category and operation. A `TorrentDisco
 
 `torrentProviders` are selected by media type, supported external IDs or title lookup, episode capability, and an optional provider filter. Calls use the same bounded timeout, cancellation, concurrency, circuit-breaker, partial-failure, cache, and identical-request coalescing behavior as other provider operations. Handoff data is never served from the stale metadata cache and an advertised `expiresAt` bounds its normal cache lifetime. `limit: 0` is a zero-work response.
 
-Candidate order is deterministic: the engine preserves each provider's order while interleaving configured sources before applying the public limit. It deduplicates repeated `provider` plus `id` identities but does not collapse matching info hashes from different providers because their attribution and handoff path may differ.
+Candidate order is deterministic: the engine preserves each provider's order while interleaving configured sources before applying the public limit. It deduplicates repeated `provider` plus `id` identities but does not collapse matching info hashes from different providers because their attribution, source URL, display title, and reported peer state may differ. The combined live checkpoint confirmed material peer-count differences for identical hashes, so consumers may group hashes for presentation but should preserve every source observation.
 
-This contract-only release configures no torrent source in the repository API. `discoverTorrents()` therefore returns a successful empty response until an application supplies a `TorrentProvider` or a later accepted source is added.
+The repository API still configures no torrent source by default after the combined source checkpoint. `discoverTorrents()` therefore returns a successful empty response until an application supplies a `TorrentProvider`; exported YTS, JacRed, Bitsearch, and Magnetz adapters remain explicit opt-ins because their quotas and timeout tails require application-owned request budgets.
 
 ## Errors and partial failures
 

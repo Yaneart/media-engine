@@ -18,6 +18,7 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- Added a repeatable combined torrent-source smoke gate and completed the YTS/JacRed/Bitsearch/Magnetz reliability and info-hash-overlap checkpoint. All four adapters remain explicit opt-ins, repository API defaults stay empty because anonymous quotas and timeout tails require application-owned budgets, and matching hashes from different providers retain separate peer/source observations instead of losing provenance through cross-provider collapse.
 - The repository API now enables the bounded DDBB and AniLiberty streaming providers by default after repeated reliability, missing-result, diversity, timeout, and direct-HLS checks. Direct package consumers still configure their own provider list.
 - Details lookup now requires a namespaced external ID. The ambiguous `DetailsQuery.id` field is deprecated, and id-only core/API/SDK requests return `INVALID_QUERY` or HTTP 400 instead of a cacheable successful null response.
 - Search provider metadata now distinguishes primary, retry, fallback, ID-enrichment, and poster-enrichment phases. Mandatory retryable fallback degradation remains cache-safe, while optional enrichment failures return bounded warnings and debug counters without discarding base results.
