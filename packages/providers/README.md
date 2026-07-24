@@ -145,12 +145,25 @@ info hash, source URL, release metadata, and peer fields are bounded and revalid
 `baseUrl` and `searchPath` are configurable because the live first-party route and published route
 currently differ.
 
+`bitsearchTorrentProvider()` is an opt-in no-key broad international source. It requires title and
+year, pins movie/TV/anime categories, and revalidates the exact release title, explicit year, media
+type, requested season, and requested ordinary or absolute episode before returning a candidate.
+It consumes only the documented bounded search response, remembers an exhausted anonymous quota
+from `X-RateLimit-*`, and emits one canonical magnet per validated info hash. The public anonymous
+tier is currently limited to 200 requests/day per IP, so applications should keep engine caching
+enabled and avoid speculative calls.
+
 ```ts
 const media = new MediaEngine({
-  torrentProviders: [ytsTorrentProvider(), jacRedTorrentProvider()],
+  torrentProviders: [
+    ytsTorrentProvider(),
+    jacRedTorrentProvider(),
+    bitsearchTorrentProvider(),
+  ],
   providerTimeouts: {
     "yts-torrent": 15_000,
     "jacred-torrent": 20_000,
+    "bitsearch-torrent": 15_000,
   },
 });
 

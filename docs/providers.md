@@ -105,10 +105,11 @@ bytes are bounded, and API calls use the hardened default transport.
 
 ## Torrent discovery providers
 
-| Provider       | Main role                                                 | Credentials | Default API |
-| -------------- | --------------------------------------------------------- | ----------- | ----------- |
-| YTS torrent    | Exact IMDb or exact title/year movie magnet data          | None        | No          |
-| JacRed torrent | Exact title/year Russian and multilingual tracker results | None        | No          |
+| Provider          | Main role                                                 | Credentials | Default API |
+| ----------------- | --------------------------------------------------------- | ----------- | ----------- |
+| YTS torrent       | Exact IMDb or exact title/year movie magnet data          | None        | No          |
+| JacRed torrent    | Exact title/year Russian and multilingual tracker results | None        | No          |
+| Bitsearch torrent | Strict movie, TV, and anime international magnet search   | None        | No          |
 
 `ytsTorrentProvider()` uses the current documented no-key YTS JSON endpoint and is intentionally
 opt-in. It supports movies only. IMDb lookup must return the same IMDb identity; title lookup
@@ -127,6 +128,18 @@ and normalized. The live first-party frontend route is currently `/api/search`, 
 site/OpenAPI still advertises a non-working `/api/v1/search`, so both `baseUrl` and `searchPath` are
 configurable and route/schema drift is surfaced as a provider failure.
 
+`bitsearchTorrentProvider()` is opt-in and uses the documented anonymous JSON search API without an
+account or key. It requires title and year, selects the upstream movie/TV/anime category, and then
+requires an exact normalized title, explicit year, matching category, and requested season/episode
+markers in every returned release. It deliberately skips external-ID-only and underidentified
+episode queries. Search JSON, result count, strings, dates, numeric fields, IDs, and info hashes are
+bounded; duplicate hashes collapse into canonical magnet handoffs with normalized release and peer
+metadata. The adapter observes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
+`X-RateLimit-Reset`; after a provider instance sees zero remaining requests it rejects further work
+locally until reset instead of spending more network calls. The anonymous upstream tier currently
+allows 200 requests/day per IP, so cache-backed use and a conservative 15-second provider budget
+are recommended until the combined source checkpoint.
+
 The provider does not download `.torrent` files, inspect their payload, contact trackers, join a
 swarm, or stream media. Its API base is configurable because the upstream has migrated domains.
 The repository API keeps zero torrent providers configured until the separate English/Russian
@@ -134,10 +147,15 @@ source reliability and diversity checkpoint is complete.
 
 ```ts
 const media = new MediaEngine({
-  torrentProviders: [ytsTorrentProvider(), jacRedTorrentProvider()],
+  torrentProviders: [
+    ytsTorrentProvider(),
+    jacRedTorrentProvider(),
+    bitsearchTorrentProvider(),
+  ],
   providerTimeouts: {
     "yts-torrent": 15_000,
     "jacred-torrent": 20_000,
+    "bitsearch-torrent": 15_000,
   },
 });
 

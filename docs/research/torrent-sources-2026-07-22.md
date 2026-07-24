@@ -15,7 +15,7 @@ repository API until a later combined reliability, diversity, and duplicate-info
 | Candidate        | Language/catalog                  | Decision                         | Evidence and boundary                                                                                                                          |
 | ---------------- | --------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | YTS              | English/international movies      | **Accept; first opt-in adapter** | Current no-key JSON API supports IMDb/title lookup and returns hash, quality, size, peers, and upload time. Movie-only scope is explicit.      |
-| Bitsearch        | Broad international catalog       | **Accept for later experiment**  | Public no-key JSON API currently allows 200 requests/day per IP and returns structured hashes, sizes, categories, verification, and peers.     |
+| Bitsearch        | Broad international catalog       | **Accepted; opt-in adapter**     | Public no-key JSON API currently allows 200 requests/day per IP and returns structured hashes, sizes, categories, verification, and peers.     |
 | Magnetz          | Broad international magnet index  | **Accept for later experiment**  | Public no-auth JSON/OpenAPI contract returns ready magnet URIs, info hash, size, verification, peers, timestamps, and optional file details.   |
 | JacRed           | Russian/multilingual tracker data | **Accept for later experiment**  | Current public no-token API indexes 16 trackers and returns magnet, source, Russian/original title, year, quality, voice, season, size, peers. |
 | Direct Rutor     | Russian releases                  | **Defer**                        | It is public and no-account, but exposes a website/search HTML contract rather than a documented bounded API. Recheck only as a fallback.      |
@@ -67,6 +67,25 @@ responses. A fresh `Inception 2010` search returned five JSON results in about o
 verified YTS hashes and an independent large multilingual release. This broad catalog can add
 series and non-YTS releases, but needs stricter title/year/type/episode matching than YTS and must
 respect the small anonymous quota.
+
+Implementation checkpoint: the exported opt-in adapter now uses only one bounded search request and
+does not call the detail route. It requires title plus year, pins category 2/3/4 for movie/TV/anime,
+and rechecks exact normalized title, explicit year, category, season ranges, and exact ordinary or
+absolute episode markers. It rejects external-ID-only and incomplete episode queries. Response
+bytes, result counts, strings, IDs, dates, peer counts, and 40-character info hashes are bounded;
+unique hashes become canonical magnets with source attribution and normalized release metadata.
+
+The live API redirected the former `.to` documentation URL to `bitsearch.eu`. Anonymous responses
+confirmed `X-RateLimit-Limit: 200`, a decrementing remaining count, and an ISO UTC midnight reset.
+The adapter records those headers and, after observing zero remaining, refuses further network work
+until the reset time. Live direct-provider checks returned 34 exact Dune 2021 candidates, 36
+Inception 2010 candidates, five Game of Thrones season-one candidates, one exact S01E10 candidate,
+one category-correct Attack on Titan anime candidate, and an honest empty missing control. Five
+calls completed in about 0.8-0.9 seconds; the first cold Dune call took about 11.1 seconds. The
+source therefore remains opt-in with a recommended 15-second budget until the combined checkpoint.
+A second post-build pass retained the same first Dune, exact Game of Thrones S01E10, and Attack on
+Titan hashes, again returned an empty missing control, and completed each call in about 0.5-0.7
+seconds.
 
 ### Magnetz — accepted for a separate experiment
 
