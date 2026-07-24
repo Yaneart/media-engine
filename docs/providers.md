@@ -110,6 +110,7 @@ bytes are bounded, and API calls use the hardened default transport.
 | YTS torrent       | Exact IMDb or exact title/year movie magnet data          | None        | No          |
 | JacRed torrent    | Exact title/year Russian and multilingual tracker results | None        | No          |
 | Bitsearch torrent | Strict movie, TV, and anime international magnet search   | None        | No          |
+| Magnetz torrent   | Strict international magnet meta-search                   | None        | No          |
 
 `ytsTorrentProvider()` uses the current documented no-key YTS JSON endpoint and is intentionally
 opt-in. It supports movies only. IMDb lookup must return the same IMDb identity; title lookup
@@ -140,6 +141,18 @@ locally until reset instead of spending more network calls. The anonymous upstre
 allows 200 requests/day per IP, so cache-backed use and a conservative 15-second provider budget
 are recommended until the combined source checkpoint.
 
+`magnetzTorrentProvider()` is opt-in and uses the documented no-auth JSON search API. It requires
+title and year and locally revalidates exact normalized title, explicit year, and any requested
+season, ordinary episode, or absolute episode marker. One operation makes only one first-page
+search request and never amplifies it through the detail endpoints. Response bytes, pagination,
+result count, strings, dates, numeric fields, same-origin source URLs, magnet/info-hash agreement,
+and peer counts are strictly bounded. Duplicate hashes collapse into canonical magnet handoffs.
+The published OpenAPI currently disagrees with live responses on its server domain and the ranges
+of `score` and `health`; the adapter pins the observed `magnetz.eu` route and accepts the observed
+bounded 0–100 numeric range without exposing those ranking fields. Live responses advertise a
+30-request limit but short bursts have still produced transient 429s, so request starts are
+serialized one second apart and a conservative 15-second provider budget is recommended.
+
 The provider does not download `.torrent` files, inspect their payload, contact trackers, join a
 swarm, or stream media. Its API base is configurable because the upstream has migrated domains.
 The repository API keeps zero torrent providers configured until the separate English/Russian
@@ -151,11 +164,13 @@ const media = new MediaEngine({
     ytsTorrentProvider(),
     jacRedTorrentProvider(),
     bitsearchTorrentProvider(),
+    magnetzTorrentProvider(),
   ],
   providerTimeouts: {
     "yts-torrent": 15_000,
     "jacred-torrent": 20_000,
     "bitsearch-torrent": 15_000,
+    "magnetz-torrent": 15_000,
   },
 });
 

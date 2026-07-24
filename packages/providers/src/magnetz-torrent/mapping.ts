@@ -8,17 +8,17 @@ import {
   createTorrentEpisodeRef,
   mapTorrentReleaseTitle,
 } from "../shared/torrent-release-metadata.js";
-import type { BitsearchTorrentRelease } from "./client.js";
+import type { MagnetzTorrentRelease } from "./client.js";
 
-export function mapBitsearchTorrentResponse(
+export function mapMagnetzTorrentResponse(
   provider: string,
   providerUrl: string,
-  releases: BitsearchTorrentRelease[],
+  releases: MagnetzTorrentRelease[],
   query: TorrentDiscoveryQuery,
 ): TorrentDiscoveryResponse | null {
   const checkedAt = new Date().toISOString();
   const candidates = deduplicateReleases(releases).map((release) =>
-    mapCandidate(provider, providerUrl, release, query, checkedAt),
+    mapCandidate(provider, release, query, checkedAt),
   );
 
   if (candidates.length === 0) return null;
@@ -38,12 +38,10 @@ export function mapBitsearchTorrentResponse(
 
 function mapCandidate(
   provider: string,
-  providerUrl: string,
-  release: BitsearchTorrentRelease,
+  release: MagnetzTorrentRelease,
   query: TorrentDiscoveryQuery,
   checkedAt: string,
 ): TorrentCandidate {
-  const sourceUrl = new URL(`/torrent/${release.id}`, `${providerUrl}/`).href;
   const episode = createTorrentEpisodeRef(query);
 
   return {
@@ -51,26 +49,25 @@ function mapCandidate(
     provider,
     title: release.title,
     infoHash: release.infoHash,
-    ...(release.sizeBytes !== undefined ? { sizeBytes: release.sizeBytes } : {}),
-    ...(release.createdAt ? { publishedAt: release.createdAt } : {}),
+    sizeBytes: release.sizeBytes,
+    publishedAt: release.createdAt,
     ...(episode ? { episode } : {}),
     release: mapTorrentReleaseTitle(release.title),
     peers: {
-      ...(release.seeders !== undefined ? { seeders: release.seeders } : {}),
-      ...(release.leechers !== undefined ? { leechers: release.leechers } : {}),
-      checkedAt: release.updatedAt ?? checkedAt,
+      seeders: release.seeders,
+      leechers: release.leechers,
+      checkedAt,
     },
     handoff: {
       kind: "magnet",
       uri: createCanonicalMagnetUri(release.infoHash, release.title),
     },
-    availability:
-      release.seeders === undefined ? "unknown" : release.seeders > 0 ? "available" : "unseeded",
-    sourceUrl,
+    availability: release.seeders > 0 ? "available" : "unseeded",
+    sourceUrl: release.sourceUrl,
   };
 }
 
-function deduplicateReleases(releases: BitsearchTorrentRelease[]): BitsearchTorrentRelease[] {
+function deduplicateReleases(releases: MagnetzTorrentRelease[]): MagnetzTorrentRelease[] {
   const seen = new Set<string>();
 
   return releases.filter((release) => {

@@ -16,7 +16,7 @@ repository API until a later combined reliability, diversity, and duplicate-info
 | ---------------- | --------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | YTS              | English/international movies      | **Accept; first opt-in adapter** | Current no-key JSON API supports IMDb/title lookup and returns hash, quality, size, peers, and upload time. Movie-only scope is explicit.      |
 | Bitsearch        | Broad international catalog       | **Accepted; opt-in adapter**     | Public no-key JSON API currently allows 200 requests/day per IP and returns structured hashes, sizes, categories, verification, and peers.     |
-| Magnetz          | Broad international magnet index  | **Accept for later experiment**  | Public no-auth JSON/OpenAPI contract returns ready magnet URIs, info hash, size, verification, peers, timestamps, and optional file details.   |
+| Magnetz          | Broad international magnet index  | **Accepted; opt-in adapter**     | Public no-auth search adds material independent movie, series, and anime hashes; burst requests require conservative local pacing.             |
 | JacRed           | Russian/multilingual tracker data | **Accept for later experiment**  | Current public no-token API indexes 16 trackers and returns magnet, source, Russian/original title, year, quality, voice, season, size, peers. |
 | Direct Rutor     | Russian releases                  | **Defer**                        | It is public and no-account, but exposes a website/search HTML contract rather than a documented bounded API. Recheck only as a fallback.      |
 | TorAPI           | Russian tracker aggregator        | **Defer as unavailable**         | The project documents a no-token API and self-hosting, but its advertised public Vercel deployment returned HTTP 402 `DEPLOYMENT_DISABLED`.    |
@@ -87,13 +87,35 @@ A second post-build pass retained the same first Dune, exact Game of Thrones S01
 Titan hashes, again returned an empty missing control, and completed each call in about 0.5-0.7
 seconds.
 
-### Magnetz — accepted for a separate experiment
+### Magnetz — accepted and implemented as an opt-in adapter
 
 The current [Magnetz API documentation](https://magnetz.eu/apis) states that authentication is not
 required and documents search, detail, and info-hash routes. A fresh `Inception 2010` query returned
 25 candidates with ready magnet links, verification, timestamps, peers, and stable detail IDs. The
 sample overlapped all three YTS hashes, so its future value must be measured on series, anime, and
 non-YTS movies and duplicate hashes must remain visible to the later deduplication audit.
+
+That comparison now justifies a separate adapter. A paced six-query pass across Inception, Dune,
+The Shawshank Redemption, Game of Thrones season one, Breaking Bad season one, and Attack on Titan
+season one produced 109 strict Magnetz matches. Only 32 hashes overlapped the existing YTS, JacRed,
+and Bitsearch union; 77 were unique, 47 of those reported seeders, and 14 unique releases were
+2160p/4K. Attack on Titan contributed 12 strict hashes where the comparison union returned none.
+An earlier unpaced burst produced two transient 429s, while the repeated pass with three-second
+spacing completed all six queries without an error. Successful Magnetz calls were about 0.75–0.92
+seconds in that checkpoint.
+
+The implemented provider therefore performs only one bounded page-one search request, with no
+per-result detail fan-out, and spaces starts from one provider instance by one second. It requires
+title and year, applies the same strict exact-title/year/season/episode identity checks as the
+Bitsearch adapter, validates that the returned magnet agrees with the 40-character info hash, and
+normalizes source, codec, resolution, container, HDR, size, timestamp, peers, and source
+attribution. It remains opt-in until the combined reliability/diversity/deduplication checkpoint.
+
+The live contract also drifts from the published OpenAPI: the schema advertises a `magnetz.app`
+server while the working documented service is `magnetz.eu`, and live `score`/`health` values can
+exceed the documented 0–1 range. The adapter pins the configurable live base/path, accepts only a
+bounded observed numeric range, and does not expose those ranking values. Responses advertised
+`X-RateLimit-Limit: 30`, but no stable public reset/quota policy was found.
 
 ## Russian-language sources
 
@@ -147,7 +169,7 @@ it would reintroduce account/cookie handling.
 1. YTS opt-in movie adapter.
 2. JacRed opt-in Russian/multilingual adapter after confirming the live route twice.
 3. Bitsearch broad international adapter with explicit anonymous quota handling.
-4. Magnetz only if its independent coverage remains material after info-hash comparison.
+4. Magnetz opt-in broad international adapter with provider-local request pacing.
 5. Combined reliability/diversity/deduplication checkpoint before any default API wiring.
 
 After source discovery is stable, the repository reference applications may add an optional torrent

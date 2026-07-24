@@ -4,6 +4,7 @@ import {
   type TorrentDiscoveryQuery,
 } from "@media-engine/core";
 import { fetchJson } from "../shared/index.js";
+import { createTorrentReleaseSearchTerm } from "../shared/torrent-release-matching.js";
 import type { BitsearchTorrentConfig } from "./config.js";
 
 const INFO_HASH = /^[a-f\d]{40}$/iu;
@@ -56,19 +57,7 @@ export async function searchBitsearchTorrents(
 }
 
 export function createBitsearchSearchTerm(query: TorrentDiscoveryQuery): string {
-  const parts = [query.title!.trim(), String(query.year)];
-
-  if (query.absoluteEpisodeNumber !== undefined) {
-    parts.push(`E${formatEpisodeNumber(query.absoluteEpisodeNumber)}`);
-  } else if (query.seasonNumber !== undefined && query.episodeNumber !== undefined) {
-    parts.push(
-      `S${formatEpisodeNumber(query.seasonNumber)}E${formatEpisodeNumber(query.episodeNumber)}`,
-    );
-  } else if (query.seasonNumber !== undefined) {
-    parts.push(`S${formatEpisodeNumber(query.seasonNumber)}`);
-  }
-
-  return parts.join(" ");
+  return createTorrentReleaseSearchTerm(query);
 }
 
 export function createBitsearchTorrentSearchUrl(
@@ -192,10 +181,6 @@ function mapQueryCategory(type: TorrentDiscoveryQuery["type"]): number {
   if (type === "movie") return 2;
   if (type === "series") return 3;
   return 4;
-}
-
-function formatEpisodeNumber(value: number): string {
-  return String(value).padStart(2, "0");
 }
 
 function readString(value: unknown, maxLength: number): string | undefined {

@@ -153,17 +153,26 @@ from `X-RateLimit-*`, and emits one canonical magnet per validated info hash. Th
 tier is currently limited to 200 requests/day per IP, so applications should keep engine caching
 enabled and avoid speculative calls.
 
+`magnetzTorrentProvider()` is an opt-in no-key international meta-search source. It performs one
+bounded first-page search request, then revalidates exact title, year, season, and ordinary or
+absolute episode markers locally. It never fans out into per-result detail calls. The adapter emits
+one canonical magnet per validated info hash, preserves reported peer state and source attribution,
+and spaces request starts by one second because the live service has returned short burst 429s even
+while its rate-limit header still reported capacity.
+
 ```ts
 const media = new MediaEngine({
   torrentProviders: [
     ytsTorrentProvider(),
     jacRedTorrentProvider(),
     bitsearchTorrentProvider(),
+    magnetzTorrentProvider(),
   ],
   providerTimeouts: {
     "yts-torrent": 15_000,
     "jacred-torrent": 20_000,
     "bitsearch-torrent": 15_000,
+    "magnetz-torrent": 15_000,
   },
 });
 
