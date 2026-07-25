@@ -8,10 +8,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "coverage:unit": "pnpm test:unit",
     "lint": "oxlint",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "tsc -b --noEmit"
+    "test": "pnpm test:unit && pnpm typecheck",
+    "test:unit": "node --test server/*.test.ts"
   },
   "dependencies": {
     "@media-engine/sdk": "workspace:*",

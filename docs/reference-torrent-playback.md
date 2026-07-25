@@ -135,9 +135,16 @@ Keep any external instance on a firewall-restricted private path: in the reviewe
 Basic Auth covers management endpoints but the media `/play` routes are registered outside that
 authenticated route group.
 
-The API now provides bounded Range delivery, but no player UI, remuxer, or transcoder yet.
-`conversion_required` therefore remains an honest state rather than a claim that the browser can
-play the selected file. `GET /media/torrents` itself remains discovery-only.
+The example app now provides an opt-in native browser player flow. Its Vite dev/preview server is a
+narrow same-origin lifecycle BFF that injects the operator Bearer token from server-only environment
+state. The token is never compiled into the frontend or persisted by the browser; native media uses
+only the expiring `streamUrl`. Direct files expose playback, seeking, buffering diagnostics, manual
+status refresh, and explicit cleanup. Ambiguous torrents expose bounded file selection.
+
+There is still no remuxer or transcoder. `conversion_required` therefore remains an honest visible
+state and is never attached to the browser player. `GET /media/torrents` itself remains
+discovery-only. A static production deployment must implement an equivalent authenticated BFF or
+leave reference playback disabled.
 
 ## Русский
 
@@ -185,6 +192,11 @@ create/status/stop уже требуют независимый Bearer token. Д
 можно явно передать URL и парные Basic credentials; host-local экземпляр доступен из Compose как
 `http://host.docker.internal:8090`. Внешний экземпляр должен оставаться за firewall в приватной
 сети: у проверенного релиза Basic Auth защищает management endpoints, но `/play` зарегистрирован
-вне authenticated route group. Range gateway уже доступен, но UI, remux и transcode остаются
-следующими независимыми этапами; magnet, target URL и file path от браузера не принимаются. Переход
-на другую версию TorServer требует повторной проверки контракта и нового immutable digest.
+вне authenticated route group. Example теперь содержит опциональный нативный player flow: Vite
+dev/preview server добавляет операторский token только на server-side lifecycle BFF, а браузер
+получает лишь временный `streamUrl`. Direct-файлы поддерживают seek/buffering diagnostics и явный
+cleanup; неоднозначные torrents предлагают ограниченный выбор файла. Remux и transcode всё ещё не
+реализованы, поэтому `conversion_required` честно показывается и не подключается к `<video>`.
+Magnet, target URL и file path от браузера не принимаются. Статическому production deployment нужен
+эквивалентный authenticated BFF, иначе player должен остаться выключенным. Переход на другую версию
+TorServer требует повторной проверки контракта и нового immutable digest.

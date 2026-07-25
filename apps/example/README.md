@@ -2,7 +2,7 @@
 
 **English** | [Русский](https://github.com/Yaneart/media-engine/blob/main/apps/example/README.ru.md)
 
-This small app lets you try Media Engine in a browser. It can search, open details, choose an episode, show available player options, and explicitly discover configured torrent candidates. Player results are grouped by episode, player family, translation, and quality while distinct voiceovers remain selectable. Torrent observations are grouped by info hash for presentation while every provider source remains selectable.
+This small app lets you try Media Engine in a browser. It can search, open details, choose an episode, show available player options, explicitly discover configured torrent candidates, and exercise the optional reference torrent playback path. Player results are grouped by episode, player family, translation, and quality while distinct voiceovers remain selectable. Torrent observations are grouped by info hash for presentation while every provider source remains selectable.
 
 ## Run it
 
@@ -32,8 +32,27 @@ MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent,bitsearch-torrent,magn
 
 The Details panel sends no torrent request until **Find torrent candidates** is pressed. It can
 select a generic release, season/episode, or absolute anime episode, switch between observations
-of the same hash, copy the magnet handoff, and open the provider source page. It does not start a
-BitTorrent client, join a swarm, or download media.
+of the same hash, copy the magnet handoff, open the provider source page, and start an enabled
+reference playback session. The browser itself does not run a BitTorrent client: the API delegates
+transport to the separately running TorServer process.
+
+Reference playback also requires the paired server-side settings from the root `.env.example` and
+the explicit Compose profile:
+
+```dotenv
+MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090
+MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<at-least-32-random-characters>
+```
+
+```bash
+docker compose --profile torrent-playback up
+```
+
+The Vite dev/preview server acts as a narrow same-origin lifecycle BFF. It injects the operator
+Bearer token on the server and returns only the session snapshot; the token is never prefixed with
+`VITE_`, bundled, stored, or sent to the browser. Native `<video>` receives only the expiring
+capability `streamUrl`. A static production deployment must provide equivalent authenticated BFF
+routes or leave the reference player disabled.
 
 The browser uses `@media-engine/sdk`. Provider code and any server configuration stay outside the frontend.
 
@@ -44,7 +63,7 @@ pnpm --filter @media-engine/example typecheck
 pnpm --filter @media-engine/example build
 ```
 
-This is a demonstration, not a finished movie website. Third-party players and torrent source pages may not work in every browser, country, or network. Direct HLS options use native browser playback when available and load `hls.js` lazily otherwise. Embed players are not loaded automatically: the external link is the default, while embedded playback requires an explicit click and runs with a restricted iframe policy that preserves the third-party player origin and sends only the frontend origin as its referrer. Some player hosts reject completely referrerless requests.
+This is a demonstration, not a finished movie website. Third-party players and torrent source pages may not work in every browser, country, or network. Direct HLS options use native browser playback when available and load `hls.js` lazily otherwise. Torrent files classified as `conversion_required` are reported honestly and are not attached to `<video>` because the reference path has no remuxer or transcoder. Embed players are not loaded automatically: the external link is the default, while embedded playback requires an explicit click and runs with a restricted iframe policy that preserves the third-party player origin and sends only the frontend origin as its referrer. Some player hosts reject completely referrerless requests.
 
 The example does not ship a universal `frame-src` Content Security Policy because player hosts are dynamic. A production deployment should disable embeds or set CSP to an explicit allowlist that matches its selected providers; the external-link flow remains available when framing is blocked.
 

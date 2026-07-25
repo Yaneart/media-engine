@@ -270,7 +270,14 @@
 
 .torrent-discovery,
 .torrent-results,
-.torrent-candidate {
+.torrent-candidate,
+.reference-player,
+.reference-player-shell,
+.reference-player__status,
+.reference-player__media,
+.reference-player__file,
+.reference-player__notice,
+.reference-player__error {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -309,6 +316,64 @@
 
 .torrent-candidate {
   padding-top: 4px;
+}
+
+.reference-player-shell {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid #dfe7e8;
+}
+
+.reference-player-shell > span,
+.reference-player__status strong {
+  color: #18202a;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.reference-player {
+  padding: 12px;
+  border: 1px solid #cfdfe0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.reference-player__status strong {
+  text-transform: capitalize;
+}
+
+.reference-player__selection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.reference-player__media video {
+  width: 100%;
+  max-height: 360px;
+  border-radius: 6px;
+  background: #111820;
+}
+
+.reference-player__notice {
+  padding: 10px;
+  border: 1px solid #d8c98f;
+  border-radius: 8px;
+  background: #fffbed;
+  color: #66551d;
+}
+
+.reference-player__error {
+  padding: 10px;
+  border: 1px solid #d78a8a;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #8a3333;
+}
+
+.reference-player__file {
+  overflow-wrap: anywhere;
 }
 
 .torrent-candidate > span,
@@ -558,7 +623,8 @@
   .search-form,
   .workspace,
   .result-card,
-  .details-grid {
+  .details-grid,
+  .reference-player__selection {
     grid-template-columns: 1fr;
   }
 

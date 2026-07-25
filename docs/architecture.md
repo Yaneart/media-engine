@@ -50,7 +50,7 @@ licensed process outside every public package, and playback remains outside the 
 
 ### `apps/example`
 
-The React application demonstrates search, details, episode selection, and player choice through the API. It does not call upstream providers directly.
+The React application demonstrates search, details, episode selection, player choice, torrent discovery, and the optional reference torrent player flow. It does not call upstream providers directly. Its Vite dev/preview server provides a narrow same-origin lifecycle BFF so the operator playback token remains server-side; native media receives only the expiring stream capability. Static production deployments must supply an equivalent authenticated backend boundary or keep this optional flow disabled.
 
 ## Request flow
 

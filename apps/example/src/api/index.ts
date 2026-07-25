@@ -128,7 +128,7 @@ export function inferTitleLanguage(title: string): "ru" | "ja" | "en" {
   return "en";
 }
 
-function getApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   const configuredUrl = import.meta.env.VITE_MEDIA_ENGINE_API_URL;
 
   return configuredUrl?.trim() || DEFAULT_API_URL;

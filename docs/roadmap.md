@@ -33,9 +33,11 @@ The `0.1.x` releases established and hardened the first public baseline:
    SDK. The official TorServer image is now pinned by release tag/digest behind an explicit Compose
    profile with no host port and bounded resources. Bounded GET/HEAD Range delivery is complete via
    an expiring capability URL, with strict upstream validation, backpressure, disconnect cleanup,
-   independent concurrency, and idle limits. Continue with the reference player flow without
-   moving P2P runtime responsibilities into the public packages. The completed stand should prove
-   progressive 2160p startup, seeking, buffering, cleanup, and honest conversion-required states.
+   independent concurrency, and idle limits. The opt-in example player flow now keeps lifecycle
+   credentials behind a same-origin server boundary, uses the expiring capability in native media,
+   exposes file selection and cleanup, and keeps conversion-required states honest without moving
+   P2P runtime responsibilities into the public packages. Complete live reference-stand proof for
+   progressive 2160p startup, seeking, buffering, and cleanup across representative files.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

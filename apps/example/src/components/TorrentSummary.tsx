@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { TorrentCandidate } from "../api";
 import type { TorrentState } from "../state";
+import { ReferenceTorrentPlayer } from "./ReferenceTorrentPlayer";
 
 interface TorrentCandidateGroup {
   key: string;
@@ -10,7 +11,7 @@ interface TorrentCandidateGroup {
 
 export function TorrentSummary({ state }: { state: TorrentState }) {
   const [selectedGroupKey, setSelectedGroupKey] = useState<string>();
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string>();
+  const [selectedCandidateKey, setSelectedCandidateKey] = useState<string>();
   const [copyStatus, setCopyStatus] = useState<string>();
 
   if (state.status === "idle") {
@@ -43,8 +44,9 @@ export function TorrentSummary({ state }: { state: TorrentState }) {
 
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey) ?? groups[0]!;
   const selectedCandidate =
-    selectedGroup.observations.find((candidate) => candidate.id === selectedCandidateId) ??
-    selectedGroup.representative;
+    selectedGroup.observations.find(
+      (candidate) => getTorrentCandidateKey(candidate) === selectedCandidateKey,
+    ) ?? selectedGroup.representative;
 
   async function copyHandoff() {
     try {
@@ -73,7 +75,7 @@ export function TorrentSummary({ state }: { state: TorrentState }) {
             );
             if (!group) return;
             setSelectedGroupKey(group.key);
-            setSelectedCandidateId(group.representative.id);
+            setSelectedCandidateKey(getTorrentCandidateKey(group.representative));
             setCopyStatus(undefined);
           }}
           value={selectedGroup.key}
@@ -91,13 +93,16 @@ export function TorrentSummary({ state }: { state: TorrentState }) {
           <span>Source observation</span>
           <select
             onChange={(event) => {
-              setSelectedCandidateId(event.target.value);
+              setSelectedCandidateKey(event.target.value);
               setCopyStatus(undefined);
             }}
-            value={selectedCandidate.id}
+            value={getTorrentCandidateKey(selectedCandidate)}
           >
             {selectedGroup.observations.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
+              <option
+                key={getTorrentCandidateKey(candidate)}
+                value={getTorrentCandidateKey(candidate)}
+              >
                 {formatSourceObservation(candidate)}
               </option>
             ))}
@@ -135,6 +140,13 @@ export function TorrentSummary({ state }: { state: TorrentState }) {
             {copyStatus}
           </span>
         ) : null}
+        <section className="reference-player-shell" aria-label="Reference torrent player">
+          <span>Reference playback</span>
+          <ReferenceTorrentPlayer
+            key={`${selectedCandidate.provider}:${selectedCandidate.id}`}
+            candidate={selectedCandidate}
+          />
+        </section>
       </div>
     </div>
   );
@@ -162,6 +174,10 @@ function compareTorrentCandidates(left: TorrentCandidate, right: TorrentCandidat
     availabilityRank(right.availability) - availabilityRank(left.availability) ||
     (right.peers?.seeders ?? -1) - (left.peers?.seeders ?? -1)
   );
+}
+
+function getTorrentCandidateKey(candidate: TorrentCandidate): string {
+  return `${candidate.provider}:${candidate.id}`;
 }
 
 function availabilityRank(value: TorrentCandidate["availability"]): number {
