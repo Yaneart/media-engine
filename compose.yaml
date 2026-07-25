@@ -24,6 +24,24 @@ services:
       MEDIA_ENGINE_TORRENT_PROVIDERS: ${MEDIA_ENGINE_TORRENT_PROVIDERS:-}
       MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS:-15000}
       MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS:-20000}
+      MEDIA_ENGINE_TORRENT_CANDIDATE_TTL_MS: ${MEDIA_ENGINE_TORRENT_CANDIDATE_TTL_MS:-300000}
+      MEDIA_ENGINE_TORRENT_CANDIDATE_CATALOG_SIZE: ${MEDIA_ENGINE_TORRENT_CANDIDATE_CATALOG_SIZE:-500}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_SESSION_TTL_MS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_SESSION_TTL_MS:-1800000}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_START_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_START_TIMEOUT_MS:-45000}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_SESSIONS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_SESSIONS:-8}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STARTING: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STARTING:-2}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_OFFERED_FILES: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_OFFERED_FILES:-100}
+      MEDIA_ENGINE_TORRSERVER_URL: ${MEDIA_ENGINE_TORRSERVER_URL:-}
+      MEDIA_ENGINE_TORRSERVER_USERNAME: ${MEDIA_ENGINE_TORRSERVER_USERNAME:-}
+      MEDIA_ENGINE_TORRSERVER_PASSWORD: ${MEDIA_ENGINE_TORRSERVER_PASSWORD:-}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN: ${MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN:-}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS:-60000}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS:-10}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - torrent-playback
     command: npm --prefix apps/api run start:dev
     healthcheck:
       test:
@@ -56,3 +74,53 @@ services:
       timeout: 3s
       retries: 5
       start_period: 20s
+
+  # This separately licensed GPL-3.0 component is opt-in and is never published to the host.
+  torrserver:
+    profiles:
+      - torrent-playback
+    image: ghcr.io/yourok/torrserver:MatriX.141.1@sha256:e44f08ec579615a783c3ab45e00595f50e9e5f94810dc06910c201edecd6205b
+    environment:
+      TS_PORT: 8090
+      TS_IP: 0.0.0.0
+      TS_RDB: 1
+      TS_HTTPAUTH: 0
+      TS_CONF_PATH: /opt/ts/config
+      TS_LOG_PATH: /tmp/torrserver.log
+      TS_TORR_DIR: /opt/ts/torrents
+    expose:
+      - "8090"
+    networks:
+      - torrent-playback
+    read_only: true
+    tmpfs:
+      - /opt/ts/config:rw,nosuid,nodev,noexec,size=16777216
+      - /opt/ts/torrents:rw,nosuid,nodev,noexec,size=16777216
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 256
+    mem_limit: ${MEDIA_ENGINE_TORRSERVER_MEMORY_LIMIT:-1g}
+    cpus: ${MEDIA_ENGINE_TORRSERVER_CPUS:-2.0}
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "2"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:8090/echo
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+networks:
+  torrent-playback:
+    driver: bridge

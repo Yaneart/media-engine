@@ -12,11 +12,14 @@ commit its executable, or add it to the dependency graphs and tarballs of `@medi
 `@media-engine/providers`, or `@media-engine/sdk`. Operators who later enable the reference path
 remain responsible for the separately distributed TorServer component and its license terms.
 
-The private client contract was reviewed against TorServer `MatriX.141.1`, source commit
-`49cef22fc02c501d844cfebe7a7c00ad0c6758f2`. A later Docker block will pin a reviewed official image
-by both release tag and immutable digest. Upgrading that pin requires reviewing the `/echo`,
-`POST /torrents`, and `/play/{hash}/{fileId}` behavior again and rerunning the contract tests; the
-deployment must never silently follow `latest`.
+The private client contract and official container were reviewed against TorServer
+`MatriX.141.1`, source commit `49cef22fc02c501d844cfebe7a7c00ad0c6758f2`. Compose pins the
+multi-architecture GHCR image by both that release tag and immutable index digest
+`sha256:e44f08ec579615a783c3ab45e00595f50e9e5f94810dc06910c201edecd6205b`; it never follows
+`latest`. The image metadata identifies the reviewed commit and release, while its `/echo` endpoint
+reports the upstream binary line `MatriX.141`. Upgrading the pin requires reviewing `/echo`,
+`POST /torrents`, and `/play/{hash}/{fileId}` again, resolving and recording the new registry
+digest, and rerunning the contract and Compose checks.
 
 ## Current implementation boundary
 
@@ -76,9 +79,46 @@ returns only `disabled`, `ok`, or `unavailable` plus the healthy TorServer versi
 separate from mandatory Media Engine readiness. A TorServer outage therefore does not degrade
 `/health/ready`.
 
-These routes manage metadata/session lifecycle only. They do not start TorServer and do not yet
-stream media to a browser; protected Range delivery, Docker opt-in, and UI remain later independent
-stages. `GET /media/torrents` itself remains discovery-only.
+## Opt-in Docker profile
+
+Default `docker compose up` starts only the API and example. To use the reviewed repository-managed
+TorServer, copy `.env.example` to `.env`, generate a dedicated token with
+`openssl rand -base64 32`, and set:
+
+```dotenv
+MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090
+MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generated-operator-secret>
+```
+
+Then start the explicit profile:
+
+```bash
+docker compose --profile torrent-playback up
+```
+
+The TorServer container has no `ports` mapping. Only the API joins its dedicated Compose network;
+the example remains on the default network. The container uses a read-only root filesystem,
+drops Linux capabilities, prevents privilege escalation, rotates bounded logs, and defaults to one
+GiB RAM, two CPUs, and 256 PIDs. Its writable config, torrent-autoload, and `/tmp` paths are bounded
+ephemeral tmpfs mounts. TorServer itself runs in read-only-settings mode, which keeps its upstream
+in-memory piece cache at the reviewed 64 MiB default and prevents runtime settings mutation.
+Restarting the container intentionally discards its config/database and autoload scratch; Media
+Engine adds candidates with `save_to_db: false` and owns the bounded session lifecycle.
+
+The bundled service does not enable TorServer Basic Auth. It is not reachable from the host or the
+example network, and the exposed Media Engine create/status/stop routes require their independent
+operator Bearer token. This is safer than automatically enabling the upstream flag: TorServer
+silently skips its auth middleware when `accs.db` is absent or unreadable. An operator-managed
+external TorServer may enable upstream Basic Auth explicitly; configure its exact URL and paired
+`MEDIA_ENGINE_TORRSERVER_USERNAME`/`MEDIA_ENGINE_TORRSERVER_PASSWORD` in the API environment. A
+host-local instance is reachable from repository Compose as `http://host.docker.internal:8090`.
+Keep any external instance on a firewall-restricted private path: in the reviewed release, upstream
+Basic Auth covers management endpoints but the media `/play` routes are registered outside that
+authenticated route group.
+
+These routes still manage metadata/session lifecycle only and do not yet stream media to a browser;
+protected Range delivery and UI remain later independent stages. `GET /media/torrents` itself
+remains discovery-only.
 
 ## Русский
 
@@ -105,6 +145,19 @@ App-specific routes create/status/stop теперь доступны тольк�
 в минуту; глобального списка сессий нет. Публичный playback health сообщает только
 disabled/ok/unavailable и не влияет на основную `/health/ready`.
 
-TorServer пока не запускается репозиторием, media streaming/Range отсутствует, а magnet, target URL
-и file path от браузера не принимаются. Версия Docker позже будет закреплена одновременно release
-tag и immutable digest; переход на другую версию потребует повторной проверки контракта.
+Обычный `docker compose up` TorServer не запускает. После настройки
+`MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и отдельного playback token официальный image
+можно явно включить командой `docker compose --profile torrent-playback up`. Релиз
+`MatriX.141.1` закреплён одновременно tag и immutable digest; host port отсутствует, а отдельную
+Compose-сеть с сервисом разделяет только API. Read-only rootfs/settings, bounded ephemeral tmpfs,
+ротация логов и лимиты RAM/CPU/PID удерживают deployment в заданных границах; upstream memory
+cache остаётся на проверенном default 64 MiB.
+
+Во встроенном профиле Basic Auth TorServer не включён: сервис изолирован сетью, а внешние
+create/status/stop уже требуют независимый Bearer token. Для operator-managed внешнего TorServer
+можно явно передать URL и парные Basic credentials; host-local экземпляр доступен из Compose как
+`http://host.docker.internal:8090`. Внешний экземпляр должен оставаться за firewall в приватной
+сети: у проверенного релиза Basic Auth защищает management endpoints, но `/play` зарегистрирован
+вне authenticated route group. Media streaming/Range всё ещё отсутствует, а magnet, target URL и
+file path от браузера не принимаются. Переход на другую версию TorServer требует повторной проверки
+контракта и нового immutable digest.

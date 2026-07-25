@@ -69,6 +69,8 @@ TorServer URL and a separate high-entropy playback token:
 
 ```dotenv
 MEDIA_ENGINE_TORRSERVER_URL=http://127.0.0.1:8090
+MEDIA_ENGINE_TORRSERVER_USERNAME=
+MEDIA_ENGINE_TORRSERVER_PASSWORD=
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
@@ -81,9 +83,26 @@ arbitrary magnets, hashes, paths, and TorServer targets are rejected. There is n
 list. The public playback health route is rate-limited, remains separate from mandatory API
 readiness, and reports only `disabled`, `ok`, or `unavailable` plus the healthy version.
 
-This A3 API manages sessions only; media streaming/Range delivery is a later block. It is not part
-of the public SDK. See [Reference torrent playback](../../docs/reference-torrent-playback.md) for
-the lifecycle, license, reviewed-version, and upgrade policy.
+For the repository-managed option, set `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` in
+`.env` and start `docker compose --profile torrent-playback up`. Default Compose never starts
+TorServer. The official `MatriX.141.1` multi-arch image is pinned by immutable digest, has no host
+port, and shares a dedicated network only with the API. Its root filesystem is read-only; config
+and torrent-autoload scratch are bounded ephemeral tmpfs mounts, upstream settings stay read-only
+with the 64 MiB memory cache, container logs rotate, and CPU/RAM/PID limits apply. The bundled
+service deliberately uses no TorServer Basic Auth because it is network-isolated and the public
+API already requires its independent playback Bearer token. This avoids the upstream behavior
+where enabling auth without a valid `accs.db` leaves requests unprotected.
+
+An already installed local or remote TorServer remains supported through an explicit URL. From
+Compose, use `http://host.docker.internal:8090` for a host-local instance; configure the paired
+username/password only if that instance has TorServer Basic Auth enabled. The repository profile
+does not start in that case. Keep external TorServer ports firewall-restricted to trusted backend
+traffic; Basic Auth in the reviewed release does not wrap its media `/play` routes.
+
+This A4 deployment still manages sessions only; media streaming/Range delivery is a later block.
+It is not part of the public SDK. See
+[Reference torrent playback](../../docs/reference-torrent-playback.md) for the lifecycle, license,
+reviewed image, and upgrade policy.
 
 ```bash
 curl 'http://127.0.0.1:3000/providers/torrent'

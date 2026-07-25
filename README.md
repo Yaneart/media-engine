@@ -76,6 +76,19 @@ pnpm dev:compose
 
 Then open <http://127.0.0.1:5173>. The API runs on <http://127.0.0.1:3000>, and its Swagger page is at <http://127.0.0.1:3000/docs>.
 
+The separately licensed TorServer reference component is never started by that default command.
+To opt in, copy `.env.example` to `.env`, set
+`MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` together with a freshly generated
+`MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN`, and run:
+
+```bash
+docker compose --profile torrent-playback up
+```
+
+The pinned TorServer service is reachable only by the API over a private Compose network; it has no
+host port. The current reference API manages sessions only—browser Range delivery is the next
+independent stage.
+
 ## A small but important warning
 
 Media Engine works with public third-party sources. They can be slow, unavailable, or change without warning. The engine limits failures and returns partial results when it can, but it cannot promise that every source or player will always work.

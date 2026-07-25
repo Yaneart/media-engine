@@ -30,9 +30,10 @@ The `0.1.x` releases established and hardened the first public baseline:
    lifecycle now revalidate handoffs, coalesce identical hashes, select safe files, and clean up by
    reference count. App-specific protected create/status/stop routes, a separate optional health
    probe, Bearer authorization, and strict playback rate limits are complete without expanding the
-   SDK. Continue with opt-in pinned deployment and protected Range delivery without moving P2P
-   runtime responsibilities into the public packages. The completed stand should prove progressive
-   2160p startup, seeking, buffering, cleanup, and honest conversion-required states.
+   SDK. The official TorServer image is now pinned by release tag/digest behind an explicit Compose
+   profile with no host port and bounded resources. Continue with protected Range delivery without
+   moving P2P runtime responsibilities into the public packages. The completed stand should prove
+   progressive 2160p startup, seeking, buffering, cleanup, and honest conversion-required states.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

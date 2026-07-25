@@ -163,7 +163,9 @@ core or SDK API. They remain disabled without paired operator-owned TorServer UR
 token settings. Create/status/stop require the separate Bearer token, accept no magnet/hash/path,
 have their own strict rate limit, and never expose a global session list. The health route is a
 separate optional probe and does not affect normal readiness. This contract currently manages
-sessions only; media Range delivery is not part of this block.
+sessions only; media Range delivery is not part of this block. The optional repository Compose
+profile is a deployment concern outside the public packages: default Compose does not start it,
+and the pinned TorServer container exposes no host port.
 
 `GET /health` includes process-local provider counters and circuit states. These diagnostics contain provider names, success/failure counts, timestamps, and recovery delay only; they do not expose credentials or provider internals.
 
