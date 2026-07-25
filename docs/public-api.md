@@ -152,6 +152,7 @@ GET /reference/torrent-playback/health
 POST /reference/torrent-playback/sessions
 GET /reference/torrent-playback/sessions/:id
 DELETE /reference/torrent-playback/sessions/:id
+GET|HEAD /reference/torrent-playback/sessions/:id/stream
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
@@ -162,8 +163,10 @@ The `/reference/torrent-playback/*` routes are an optional repository-applicatio
 core or SDK API. They remain disabled without paired operator-owned TorServer URL and playback
 token settings. Create/status/stop require the separate Bearer token, accept no magnet/hash/path,
 have their own strict rate limit, and never expose a global session list. The health route is a
-separate optional probe and does not affect normal readiness. This contract currently manages
-sessions only; media Range delivery is not part of this block. The optional repository Compose
+separate optional probe and does not affect normal readiness. A session snapshot contains an
+expiring high-entropy `streamUrl`; its unauthenticated GET/HEAD route is a short-lived browser-media
+capability with independent concurrency and idle limits, strict single-range validation,
+backpressure, and cancellation. It never accepts a caller-controlled TorServer target. The optional repository Compose
 profile is a deployment concern outside the public packages: default Compose does not start it,
 and the pinned TorServer container exposes no host port.
 

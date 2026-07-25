@@ -6,6 +6,7 @@ export type TorrentPlaybackSessionErrorCode =
   | 'candidate_identity_mismatch'
   | 'invalid_file_selection'
   | 'session_not_found'
+  | 'session_not_streamable'
   | 'session_capacity_exceeded'
   | 'start_capacity_exceeded'
   | 'aborted';

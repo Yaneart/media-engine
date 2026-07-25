@@ -40,6 +40,7 @@ GET /reference/torrent-playback/health
 POST /reference/torrent-playback/sessions
 GET /reference/torrent-playback/sessions/:id
 DELETE /reference/torrent-playback/sessions/:id
+GET|HEAD /reference/torrent-playback/sessions/:id/stream
 GET /docs
 GET /docs-json
 ```
@@ -75,6 +76,8 @@ MEDIA_ENGINE_TORRSERVER_PASSWORD=
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
+MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
+MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 ```
 
 Создайте токен через `openssl rand -base64 32`; не добавляйте его во frontend bundle или browser
@@ -83,6 +86,12 @@ storage. Для create/status/stop нужен `Authorization: Bearer <token>`. �
 magnet, hash, path и TorServer target запрещены. Глобального списка сессий нет. Публичный
 rate-limited health отделён от обязательной API readiness и сообщает только `disabled`, `ok` или
 `unavailable`, а при успехе — версию.
+
+Snapshot сессии содержит короткоживущий высокоэнтропийный `streamUrl`, доступный после выбора
+файла. Это capability для browser media без Bearer header; считайте URL секретом, не сохраняйте и
+не логируйте его. GET/HEAD gateway нормализует один Range, сохраняет backpressure, отменяет
+upstream при disconnect и имеет отдельные лимиты активных потоков и idle timeout. Hash, file ID и
+URL TorServer по-прежнему берутся только из server-owned состояния сессии.
 
 Для варианта под управлением репозитория задайте в `.env`
 `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и запустите
@@ -102,8 +111,8 @@ username/password задавайте только когда на нём дей�
 только доверенным backend-трафиком: в проверенном релизе Basic Auth не охватывает media route
 `/play`.
 
-Текущий A4 deployment всё ещё только управляет сессиями; media streaming/Range появится отдельным
-следующим блоком. В публичный SDK эти routes не входят. Детали lifecycle, лицензионная граница,
+Range delivery уже реализован, но player UI и conversion pipeline остаются следующими отдельными
+блоками. В публичный SDK эти routes не входят. Детали lifecycle, лицензионная граница,
 закреплённый image и upgrade policy описаны в документе
 [Reference torrent playback](../../docs/reference-torrent-playback.md).
 

@@ -25,6 +25,7 @@ import type {
   CreateTorrentPlaybackSessionInput,
   TorrentPlaybackSessionSnapshot,
   TorrentPlaybackSessionState,
+  TorrentPlaybackStreamSource,
 } from './types';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
@@ -246,6 +247,34 @@ export class TorrentPlaybackSessionService {
     return structuredClone(session.snapshot);
   }
 
+  getStreamSource(sessionId: string): TorrentPlaybackStreamSource {
+    if (this.client === undefined || this.shuttingDown) {
+      throw new TorrentPlaybackSessionError(
+        'disabled',
+        'Reference torrent playback is disabled.',
+      );
+    }
+
+    const session = this.getActiveSession(sessionId);
+    const selectedFile = session.snapshot.selectedFile;
+
+    if (
+      selectedFile === undefined ||
+      (session.state !== 'ready' && session.state !== 'conversion_required')
+    ) {
+      throw new TorrentPlaybackSessionError(
+        'session_not_streamable',
+        'The playback session does not have a selected streamable file.',
+      );
+    }
+
+    return {
+      target: this.client.createPlayTarget(session.infoHash, selectedFile.id),
+      file: structuredClone(selectedFile),
+      signal: session.controller.signal,
+    };
+  }
+
   async stopSession(
     sessionId: string,
   ): Promise<TorrentPlaybackSessionSnapshot> {
@@ -292,6 +321,20 @@ export class TorrentPlaybackSessionService {
       'session_capacity_exceeded',
       'The torrent playback session limit is currently reached.',
     );
+  }
+
+  private getActiveSession(sessionId: string): InternalTorrentPlaybackSession {
+    const session = this.sessions.get(sessionId);
+
+    if (session === undefined || session.expiresAtMs <= this.now()) {
+      if (session !== undefined) {
+        void this.expireSession(session);
+      }
+
+      throw sessionNotFoundError();
+    }
+
+    return session;
   }
 
   private createStartingSession(

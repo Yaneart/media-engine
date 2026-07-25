@@ -23,6 +23,21 @@ export {
   type ReferencePlaybackHealthClient,
 } from './runtime';
 export {
+  DEFAULT_TORRENT_PLAYBACK_MAX_STREAMS,
+  DEFAULT_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS,
+  readTorrentPlaybackStreamConfig,
+  type TorrentPlaybackStreamConfig,
+  type TorrentPlaybackStreamEnv,
+} from './stream-config';
+export {
+  TorrentPlaybackStreamError,
+  TorrentPlaybackStreamGateway,
+  type OpenTorrentPlaybackStream,
+  type TorrentPlaybackStreamErrorCode,
+  type TorrentPlaybackStreamFetch,
+  type TorrentPlaybackStreamRequest,
+} from './stream-gateway';
+export {
   TorrentPlaybackSessionService,
   type TorrentPlaybackTorrServerClient,
 } from './session-service';
@@ -34,4 +49,5 @@ export type {
   TorrentPlaybackSessionErrorInfo,
   TorrentPlaybackSessionSnapshot,
   TorrentPlaybackSessionState,
+  TorrentPlaybackStreamSource,
 } from './types';

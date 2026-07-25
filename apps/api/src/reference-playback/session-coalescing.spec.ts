@@ -198,7 +198,7 @@ describe('TorrentPlaybackSessionService resource bounds', () => {
     now += TEST_PLAYBACK_CONFIG.sessionTtlMs + 1;
 
     try {
-      service.getSession(session.id);
+      service.getStreamSource(session.id);
       throw new Error('Expected the expired session lookup to fail.');
     } catch (error) {
       expect(error).toMatchObject({ code: 'session_not_found' });

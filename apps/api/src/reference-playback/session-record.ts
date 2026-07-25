@@ -34,6 +34,7 @@ export function createSessionRecord(
     resourceReleased: false,
     snapshot: {
       id,
+      streamUrl: `/reference/torrent-playback/sessions/${id}/stream`,
       state: 'starting',
       provider: input.provider,
       candidateId: input.candidateId,

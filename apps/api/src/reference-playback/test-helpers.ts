@@ -74,5 +74,10 @@ export function mockTorrServerClient(
     add: jest.fn().mockResolvedValue(torrent),
     waitForMetadata: jest.fn().mockResolvedValue(torrent),
     drop: jest.fn().mockResolvedValue(undefined),
+    createPlayTarget: jest.fn((hash: string, fileId: number) => ({
+      url: new URL(`http://torrserver.test/play/${hash}/${fileId}`),
+      hash,
+      fileId,
+    })),
   };
 }

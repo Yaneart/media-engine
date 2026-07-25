@@ -40,6 +40,7 @@ GET /reference/torrent-playback/health
 POST /reference/torrent-playback/sessions
 GET /reference/torrent-playback/sessions/:id
 DELETE /reference/torrent-playback/sessions/:id
+GET|HEAD /reference/torrent-playback/sessions/:id/stream
 GET /docs
 GET /docs-json
 ```
@@ -74,6 +75,8 @@ MEDIA_ENGINE_TORRSERVER_PASSWORD=
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
+MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
+MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 ```
 
 Generate the token with `openssl rand -base64 32`; do not place it in a frontend bundle or browser
@@ -82,6 +85,12 @@ provider/candidate ID previously returned by this API and an optional server-off
 arbitrary magnets, hashes, paths, and TorServer targets are rejected. There is no global session
 list. The public playback health route is rate-limited, remains separate from mandatory API
 readiness, and reports only `disabled`, `ok`, or `unavailable` plus the healthy version.
+
+Session snapshots include an expiring high-entropy `streamUrl`, usable only after file selection.
+It is the browser media capability and therefore needs no Bearer header; treat it as a secret and
+never persist or log it. Its GET/HEAD gateway supports one normalized Range, preserves
+backpressure, cancels on disconnect, and has independent active-stream and idle limits. Hashes,
+file IDs, and TorServer URLs still come only from server-owned session state.
 
 For the repository-managed option, set `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` in
 `.env` and start `docker compose --profile torrent-playback up`. Default Compose never starts
@@ -99,8 +108,8 @@ username/password only if that instance has TorServer Basic Auth enabled. The re
 does not start in that case. Keep external TorServer ports firewall-restricted to trusted backend
 traffic; Basic Auth in the reviewed release does not wrap its media `/play` routes.
 
-This A4 deployment still manages sessions only; media streaming/Range delivery is a later block.
-It is not part of the public SDK. See
+Range delivery is implemented, but the player UI and conversion pipeline remain separate later
+blocks. It is not part of the public SDK. See
 [Reference torrent playback](../../docs/reference-torrent-playback.md) for the lifecycle, license,
 reviewed image, and upgrade policy.
 

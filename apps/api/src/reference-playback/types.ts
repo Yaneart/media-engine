@@ -29,6 +29,7 @@ export interface TorrentPlaybackSessionErrorInfo {
 
 export interface TorrentPlaybackSessionSnapshot {
   id: string;
+  streamUrl: string;
   state: TorrentPlaybackSessionState;
   provider: string;
   candidateId: string;
@@ -40,6 +41,16 @@ export interface TorrentPlaybackSessionSnapshot {
   selectedFile?: TorrentPlaybackFile;
   files?: TorrentPlaybackFile[];
   error?: TorrentPlaybackSessionErrorInfo;
+}
+
+export interface TorrentPlaybackStreamSource {
+  target: {
+    url: URL;
+    hash: string;
+    fileId: number;
+  };
+  file: TorrentPlaybackFile;
+  signal: AbortSignal;
 }
 
 export interface CreateTorrentPlaybackSessionInput {

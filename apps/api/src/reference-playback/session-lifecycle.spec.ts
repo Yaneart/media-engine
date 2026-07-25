@@ -37,6 +37,9 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
 
     expect(session).toMatchObject({
       id: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      streamUrl: expect.stringMatching(
+        /^\/reference\/torrent-playback\/sessions\/[A-Za-z0-9_-]{43}\/stream$/,
+      ),
       state: 'ready',
       infoHash: TEST_HASH,
       compatibility: 'direct',
@@ -51,9 +54,22 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
       },
     ]);
     expect(service.getSession(session.id)).toEqual(session);
+    expect(service.getStreamSource(session.id)).toMatchObject({
+      target: {
+        url: new URL(`http://torrserver.test/play/${TEST_HASH}/1`),
+        hash: TEST_HASH,
+        fileId: 1,
+      },
+      file: session.selectedFile,
+      signal: expect.any(AbortSignal),
+    });
 
     const stopped = await service.stopSession(session.id);
     expect(stopped.state).toBe('stopped');
+    expectSessionError(
+      () => service.getStreamSource(session.id),
+      'session_not_streamable',
+    );
     expect((await service.stopSession(session.id)).state).toBe('stopped');
     expect(client.drop.mock.calls).toHaveLength(1);
   });
@@ -72,6 +88,10 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
 
     expect(selection.state).toBe('file_selection_required');
     expect(selection.files?.map((file) => file.id)).toEqual([2, 1]);
+    expectSessionError(
+      () => service.getStreamSource(selection.id),
+      'session_not_streamable',
+    );
 
     const selected = await service.createSession({
       provider: 'test-torrent',
@@ -286,6 +306,15 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
 
 function createCatalog(): TorrentCandidateCatalog {
   return new TorrentCandidateCatalog(TEST_PLAYBACK_CONFIG);
+}
+
+function expectSessionError(action: () => unknown, code: string): void {
+  try {
+    action();
+    throw new Error('Expected playback session operation to fail.');
+  } catch (error) {
+    expect(error).toMatchObject({ code });
+  }
 }
 
 function createService(

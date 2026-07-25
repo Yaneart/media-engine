@@ -261,6 +261,9 @@ describe('Media Engine API (e2e)', () => {
 
   it('exposes disabled reference playback separately and rate limits its routes', async () => {
     await request(app.getHttpServer())
+      .get(`/reference/torrent-playback/sessions/${'a'.repeat(43)}/stream`)
+      .expect(503);
+    await request(app.getHttpServer())
       .get('/reference/torrent-playback/health')
       .expect(200)
       .expect({ status: 'disabled' });
@@ -293,7 +296,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.3.0',
+      version: '0.4.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/health/live');
@@ -310,6 +313,13 @@ describe('Media Engine API (e2e)', () => {
     expect(body.paths).toHaveProperty(
       '/reference/torrent-playback/sessions/{id}',
     );
+    expect(body.paths).toHaveProperty(
+      '/reference/torrent-playback/sessions/{id}/stream',
+    );
+    const streamPath =
+      body.paths['/reference/torrent-playback/sessions/{id}/stream'];
+    expect(isRecord(streamPath) && isRecord(streamPath.get)).toBe(true);
+    expect(isRecord(streamPath) && isRecord(streamPath.head)).toBe(true);
 
     const detailsParameterNames = getOpenApiParameterNames(
       body.paths,

@@ -31,7 +31,9 @@ The `0.1.x` releases established and hardened the first public baseline:
    reference count. App-specific protected create/status/stop routes, a separate optional health
    probe, Bearer authorization, and strict playback rate limits are complete without expanding the
    SDK. The official TorServer image is now pinned by release tag/digest behind an explicit Compose
-   profile with no host port and bounded resources. Continue with protected Range delivery without
+   profile with no host port and bounded resources. Bounded GET/HEAD Range delivery is complete via
+   an expiring capability URL, with strict upstream validation, backpressure, disconnect cleanup,
+   independent concurrency, and idle limits. Continue with the reference player flow without
    moving P2P runtime responsibilities into the public packages. The completed stand should prove
    progressive 2160p startup, seeking, buffering, cleanup, and honest conversion-required states.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental

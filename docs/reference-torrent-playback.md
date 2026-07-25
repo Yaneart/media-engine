@@ -52,10 +52,20 @@ The API application now also owns a private bounded candidate catalog and sessio
   `stopped`. File classification is deliberately limited to `direct`, `remux_required`,
   `transcode_required`, or `unknown`; it describes reference-path preparation and is not a promise
   that a particular browser supports the codecs.
+- every session snapshot contains an expiring high-entropy `streamUrl`, usable only while a file is
+  selected and the session is ready or conversion-required. The API
+  resolves its TorServer `/play/{hash}/{fileId}` target exclusively from server-owned session
+  state and streams the response with backpressure instead of buffering media in memory;
+- the stream gateway accepts `GET` and `HEAD`, normalizes exactly one satisfiable byte range,
+  forwards only `Range` and bounded cache validators, rejects redirects and inconsistent upstream
+  status/length/range headers, and returns only a small safe set of media/cache headers;
+- browser and session cancellation abort upstream work. Eight simultaneous response bodies and a
+  30-second body-idle timeout are the defaults; excess streams fail immediately rather than queue.
 
 The default private limits are a 500-entry/five-minute candidate catalog, eight total sessions,
-two concurrent starts, a 45-second start budget, a 30-minute session TTL, and at most 100 offered
-files. Their strict `MEDIA_ENGINE_TORRENT_CANDIDATE_*` and
+two concurrent starts, a 45-second start budget, a 30-minute session TTL, at most 100 offered
+files, eight active streams, and a 30-second stream-idle timeout. Their strict
+`MEDIA_ENGINE_TORRENT_CANDIDATE_*` and
 `MEDIA_ENGINE_TORRENT_PLAYBACK_*` settings are listed in `.env.example`; they do not enable a
 playback route or TorServer process.
 
@@ -66,13 +76,22 @@ GET /reference/torrent-playback/health
 POST /reference/torrent-playback/sessions
 GET /reference/torrent-playback/sessions/:id
 DELETE /reference/torrent-playback/sessions/:id
+GET|HEAD /reference/torrent-playback/sessions/:id/stream
 ```
 
 Playback stays disabled unless `MEDIA_ENGINE_TORRSERVER_URL` and a separate 32-512 character
 `MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` are configured together. Create, status, and stop require the
 token as an Authorization Bearer secret. The server compares a fixed-size digest, never returns the
-token, and does not add it to the SDK or frontend. The routes have a separate strict process-local
-rate limit (10 requests per minute by default) and expose no global session list.
+token, and does not add it to the SDK or frontend. Those lifecycle routes have a separate strict
+process-local rate limit (10 requests per minute by default) and expose no global session list.
+
+The stream route deliberately cannot require an Authorization header because native browser media
+elements cannot attach the operator Bearer secret. Instead, the 256-bit random session ID is a
+short-lived capability embedded in `streamUrl`; it expires, stops working when the session is
+stopped, and must be treated as a secret. Do not persist it, include it in analytics, or place it in
+cross-origin links. Responses use `Cache-Control: private, no-store`. Stream traffic is excluded
+from the lifecycle request counter because browser seeking may open several ranges; its independent
+active-stream and idle-time bounds protect the backend.
 
 The public reference health probe is rate-limited but does not require the playback token. It
 returns only `disabled`, `ok`, or `unavailable` plus the healthy TorServer version and remains
@@ -116,9 +135,9 @@ Keep any external instance on a firewall-restricted private path: in the reviewe
 Basic Auth covers management endpoints but the media `/play` routes are registered outside that
 authenticated route group.
 
-These routes still manage metadata/session lifecycle only and do not yet stream media to a browser;
-protected Range delivery and UI remain later independent stages. `GET /media/torrents` itself
-remains discovery-only.
+The API now provides bounded Range delivery, but no player UI, remuxer, or transcoder yet.
+`conversion_required` therefore remains an honest state rather than a claim that the browser can
+play the selected file. `GET /media/torrents` itself remains discovery-only.
 
 ## Русский
 
@@ -145,6 +164,14 @@ App-specific routes create/status/stop теперь доступны тольк�
 в минуту; глобального списка сессий нет. Публичный playback health сообщает только
 disabled/ok/unavailable и не влияет на основную `/health/ready`.
 
+Сессия с выбранным файлом возвращает короткоживущий `streamUrl` для `GET`/`HEAD`. Его случайный
+256-битный ID служит capability, потому что нативный browser media element не умеет добавлять
+операторский Bearer token. URL нужно считать секретом: не сохранять, не отправлять в аналитику и не
+передавать между origin. После expiry или stop он перестаёт работать. Gateway разрешает только один
+валидный byte range, безопасные cache validators и ограниченный набор response headers; redirect и
+несогласованные 200/206/304/416 отклоняются. Поток идёт с backpressure без полной буферизации,
+disconnect отменяет upstream. По умолчанию разрешено восемь активных потоков с idle timeout 30 с.
+
 Обычный `docker compose up` TorServer не запускает. После настройки
 `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и отдельного playback token официальный image
 можно явно включить командой `docker compose --profile torrent-playback up`. Релиз
@@ -158,6 +185,6 @@ create/status/stop уже требуют независимый Bearer token. Д
 можно явно передать URL и парные Basic credentials; host-local экземпляр доступен из Compose как
 `http://host.docker.internal:8090`. Внешний экземпляр должен оставаться за firewall в приватной
 сети: у проверенного релиза Basic Auth защищает management endpoints, но `/play` зарегистрирован
-вне authenticated route group. Media streaming/Range всё ещё отсутствует, а magnet, target URL и
-file path от браузера не принимаются. Переход на другую версию TorServer требует повторной проверки
-контракта и нового immutable digest.
+вне authenticated route group. Range gateway уже доступен, но UI, remux и transcode остаются
+следующими независимыми этапами; magnet, target URL и file path от браузера не принимаются. Переход
+на другую версию TorServer требует повторной проверки контракта и нового immutable digest.

@@ -6,6 +6,10 @@ import { ReferencePlaybackController } from './controller';
 import { TorrentPlaybackSessionError } from './errors';
 import { ReferencePlaybackRuntime } from './runtime';
 import { TorrentPlaybackSessionService } from './session-service';
+import {
+  TorrentPlaybackStreamError,
+  TorrentPlaybackStreamGateway,
+} from './stream-gateway';
 import { ReferencePlaybackTokenGuard } from './token.guard';
 import type { TorrentPlaybackSessionSnapshot } from './types';
 
@@ -13,6 +17,7 @@ const SESSION_ID = 's'.repeat(43);
 const TOKEN = 'operator-token-that-is-at-least-32-characters';
 const SESSION: TorrentPlaybackSessionSnapshot = {
   id: SESSION_ID,
+  streamUrl: `/reference/torrent-playback/sessions/${SESSION_ID}/stream`,
   state: 'ready',
   provider: 'test-torrent',
   candidateId: 'candidate-1',
@@ -41,6 +46,9 @@ describe('ReferencePlaybackController', () => {
     getSession: jest.Mock;
     stopSession: jest.Mock;
   };
+  let streams: {
+    open: jest.Mock;
+  };
 
   beforeEach(async () => {
     runtime = {
@@ -55,12 +63,30 @@ describe('ReferencePlaybackController', () => {
         .fn()
         .mockResolvedValue({ ...SESSION, state: 'stopped' }),
     };
+    streams = {
+      open: jest.fn().mockResolvedValue({
+        status: 200,
+        headers: new Headers({
+          'accept-ranges': 'bytes',
+          'content-length': '5',
+          'content-type': 'video/mp4',
+        }),
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('media'));
+            controller.close();
+          },
+        }),
+        close: jest.fn(),
+      }),
+    };
     const module = await Test.createTestingModule({
       controllers: [ReferencePlaybackController],
       providers: [
         ReferencePlaybackTokenGuard,
         { provide: ReferencePlaybackRuntime, useValue: runtime },
         { provide: TorrentPlaybackSessionService, useValue: sessions },
+        { provide: TorrentPlaybackStreamGateway, useValue: streams },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -174,5 +200,49 @@ describe('ReferencePlaybackController', () => {
       .get('/reference/torrent-playback/sessions/short')
       .set('Authorization', `Bearer ${TOKEN}`)
       .expect(404);
+  });
+
+  it('serves the capability stream without bearer auth and preserves range headers', async () => {
+    await request(app.getHttpServer())
+      .get(SESSION.streamUrl)
+      .set('Range', 'bytes=0-4')
+      .expect('Accept-Ranges', 'bytes')
+      .expect('Content-Type', 'video/mp4')
+      .expect('Content-Length', '5')
+      .expect(200);
+
+    expect(streams.open).toHaveBeenCalledWith(SESSION_ID, {
+      method: 'GET',
+      range: 'bytes=0-4',
+      ifRange: undefined,
+      ifNoneMatch: undefined,
+      ifModifiedSince: undefined,
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('supports HEAD and exposes safe range failures', async () => {
+    streams.open
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers({ 'content-length': '1000' }),
+        body: null,
+        close: jest.fn(),
+      })
+      .mockRejectedValueOnce(
+        new TorrentPlaybackStreamError(
+          'invalid_range',
+          'The requested byte range is invalid.',
+          1_000,
+        ),
+      );
+
+    await request(app.getHttpServer()).head(SESSION.streamUrl).expect(200);
+    await request(app.getHttpServer())
+      .get(SESSION.streamUrl)
+      .set('Range', 'bytes=0-1,4-5')
+      .expect('Accept-Ranges', 'bytes')
+      .expect('Content-Range', 'bytes */1000')
+      .expect(416);
   });
 });

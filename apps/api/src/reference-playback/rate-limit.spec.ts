@@ -16,6 +16,8 @@ describe('reference playback rate-limit matcher', () => {
     ['POST', '/reference/torrent-playback/health'],
     ['GET', '/reference/torrent-playback/sessions'],
     ['POST', `/reference/torrent-playback/sessions/${'a'.repeat(43)}`],
+    ['GET', `/reference/torrent-playback/sessions/${'a'.repeat(43)}/stream`],
+    ['HEAD', `/reference/torrent-playback/sessions/${'a'.repeat(43)}/stream`],
     ['GET', '/media/torrents'],
     ['GET', '/reference/torrent-playback/sessions/bad/path'],
   ])('ignores %s %s', (method, path) => {

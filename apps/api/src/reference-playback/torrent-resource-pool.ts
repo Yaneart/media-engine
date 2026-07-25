@@ -1,5 +1,6 @@
 import type {
   TorrServerAddOptions,
+  TorrServerPlayTarget,
   TorrServerRequestOptions,
   TorrServerTorrent,
 } from './torrserver';
@@ -14,6 +15,7 @@ export interface TorrentPlaybackTorrServerClient {
     options?: TorrServerRequestOptions,
   ): Promise<TorrServerTorrent>;
   drop(hash: string, options?: TorrServerRequestOptions): Promise<void>;
+  createPlayTarget(hash: string, fileId: number): TorrServerPlayTarget;
 }
 
 export interface SharedTorrentResource {
