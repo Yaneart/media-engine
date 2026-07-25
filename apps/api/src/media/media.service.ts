@@ -21,6 +21,7 @@ import {
   type TorrentProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
+import { TorrentCandidateCatalog } from '../reference-playback';
 
 // EN: Raw query shape received from HTTP before API-level normalization.
 // RU: Сырая форма query из HTTP до нормализации на уровне API.
@@ -70,6 +71,7 @@ export class MediaService {
   constructor(
     @Inject(MEDIA_ENGINE)
     private readonly mediaEngine: MediaEngine,
+    private readonly torrentCandidateCatalog: TorrentCandidateCatalog,
   ) {}
 
   // EN: Convert HTTP query parameters into a core SearchQuery and run search.
@@ -111,12 +113,14 @@ export class MediaService {
     query: TorrentDiscoveryHttpQuery,
     options?: MediaEngineOperationOptions,
   ): Promise<TorrentDiscoveryResponse> {
-    return runEngineRequest(() =>
+    const response = await runEngineRequest(() =>
       this.mediaEngine.discoverTorrents(
         toTorrentDiscoveryQuery(query),
         options,
       ),
     );
+    this.torrentCandidateCatalog.record(response);
+    return response;
   }
 
   // EN: Return safe provider metadata from the configured core engine.

@@ -59,10 +59,12 @@ Unknown, duplicate, or empty list entries fail startup. Configured order is pres
 interleaving. Keep the list empty unless the deployment owner accepts the providers' anonymous
 quotas and timeout budget; enabling discovery does not enable torrent playback.
 
-The repository contains the first private, bounded client contract for a separately running
-TorServer reference component, but it is not wired to an HTTP route and does not change that
-discovery-only boundary. See [Reference torrent playback](../../docs/reference-torrent-playback.md)
-for the license, reviewed-version, and upgrade policy.
+The repository contains a private bounded TorServer client plus a short-lived server-owned
+candidate catalog and playback-session lifecycle. Sessions can resolve only a provider and
+candidate ID previously returned by this API; arbitrary magnets and file paths are not accepted.
+The lifecycle is not wired to an HTTP route yet and does not change the discovery-only boundary.
+See [Reference torrent playback](../../docs/reference-torrent-playback.md) for the lifecycle,
+license, reviewed-version, and upgrade policy.
 
 ```bash
 curl 'http://127.0.0.1:3000/providers/torrent'

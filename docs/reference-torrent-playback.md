@@ -20,7 +20,7 @@ deployment must never silently follow `latest`.
 
 ## Current implementation boundary
 
-The first private slice lives under `apps/api/src/reference-playback/torrserver`. It provides:
+The private TorServer client lives under `apps/api/src/reference-playback/torrserver`. It provides:
 
 - an exact operator-owned HTTP(S) base URL with optional paired Basic credentials;
 - separate response-start, complete-request, and metadata-poll timeout budgets;
@@ -32,9 +32,33 @@ The response-start budget covers DNS, connection establishment, and receipt of r
 the complete-request budget remains active while the bounded body is read. Credentials, magnets,
 upstream response bodies, and configured targets are not copied into client errors.
 
-This slice is not wired to a public HTTP endpoint and starts no TorServer process. Session/catalog
-ownership, authorization, Docker opt-in, the Range gateway, and browser UI are later independent
-stages. Until those stages are complete, `GET /media/torrents` remains discovery-only.
+The API application now also owns a private bounded candidate catalog and session lifecycle:
+
+- successful `GET /media/torrents` responses copy candidates into a fresh-only, process-local
+  catalog keyed by exact provider and candidate ID; the default cap is 500 entries and the default
+  TTL is five minutes or the candidate's earlier advertised expiry;
+- session creation resolves only that server-owned copy, revalidates provider/ID, magnet/info-hash
+  agreement, handoff kind, expiry, and optional server-offered file ID, and never accepts a magnet,
+  hash, path, or TorServer target from a caller;
+- TorServer add/metadata work is bounded by total/concurrent-start limits and high-entropy session
+  IDs. Identical info hashes share preparation and use reference counting; the final stop, expiry,
+  cancellation, or application shutdown performs one best-effort `drop`;
+- sanitized video files are selected automatically only for an unambiguous movie or requested
+  episode. Ambiguous metadata produces `file_selection_required` with a bounded safe list;
+- states are `starting`, `file_selection_required`, `ready`, `conversion_required`, `failed`, and
+  `stopped`. File classification is deliberately limited to `direct`, `remux_required`,
+  `transcode_required`, or `unknown`; it describes reference-path preparation and is not a promise
+  that a particular browser supports the codecs.
+
+The default private limits are a 500-entry/five-minute candidate catalog, eight total sessions,
+two concurrent starts, a 45-second start budget, a 30-minute session TTL, and at most 100 offered
+files. Their strict `MEDIA_ENGINE_TORRENT_CANDIDATE_*` and
+`MEDIA_ENGINE_TORRENT_PLAYBACK_*` settings are listed in `.env.example`; they do not enable a
+playback route or TorServer process.
+
+The catalog/session service is not wired to a public playback HTTP endpoint and starts no
+TorServer process. Authorization, Docker opt-in, the Range gateway, and browser UI are later
+independent stages. Until those stages are complete, `GET /media/torrents` remains discovery-only.
 
 ## Русский
 
@@ -43,9 +67,16 @@ handoff. Опциональный reference playback будет использо
 внешний GPL-3.0 компонент; его исходный код, бинарник и container layers не входят в этот MIT
 репозиторий и публичные npm-пакеты.
 
-Текущий приватный client slice только фиксирует и тестирует ограниченный контракт TorServer
-`MatriX.141.1`: operator-owned URL, парные Basic credentials, timeout/concurrency/resource limits,
-health/add/get/poll/drop и server-controlled play target. Он ещё не подключён к HTTP API, не
-запускает TorServer и не принимает magnet, target URL или file path от браузера. Версия Docker
-позже будет закреплена одновременно release tag и immutable digest; переход на другую версию
-потребует повторной проверки контракта.
+Приватный слой фиксирует ограниченный контракт TorServer `MatriX.141.1`: operator-owned URL, парные
+Basic credentials, timeout/concurrency/resource limits, health/add/get/poll/drop и
+server-controlled play target. API теперь также хранит короткоживущую bounded-копию кандидатов,
+возвращённых `GET /media/torrents`, и строит приватные playback-сессии только по точным
+`provider + candidateId` и опциональному server-offered `fileId`. Перед TorServer повторно
+проверяются magnet/info hash, identity, handoff и expiry; одинаковые hash используют общую
+подготовку и refcount до финального cleanup.
+
+Неоднозначный набор файлов возвращает внутреннее состояние `file_selection_required`; состояния
+conversion и совместимость direct/remux/transcode/unknown не обещают поддержку конкретным
+браузером. Playback route всё ещё отсутствует, TorServer не запускается, а magnet, target URL и
+file path от браузера не принимаются. Версия Docker позже будет закреплена одновременно release
+tag и immutable digest; переход на другую версию потребует повторной проверки контракта.

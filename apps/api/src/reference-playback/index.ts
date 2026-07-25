@@ -1,0 +1,32 @@
+export { TorrentCandidateCatalog } from './candidate-catalog';
+export {
+  DEFAULT_TORRENT_CANDIDATE_CATALOG_SIZE,
+  DEFAULT_TORRENT_CANDIDATE_TTL_MS,
+  DEFAULT_TORRENT_PLAYBACK_MAX_OFFERED_FILES,
+  DEFAULT_TORRENT_PLAYBACK_MAX_SESSIONS,
+  DEFAULT_TORRENT_PLAYBACK_MAX_STARTING,
+  DEFAULT_TORRENT_PLAYBACK_SESSION_TTL_MS,
+  DEFAULT_TORRENT_PLAYBACK_START_TIMEOUT_MS,
+  readTorrentPlaybackConfig,
+  type TorrentPlaybackConfig,
+  type TorrentPlaybackEnv,
+} from './config';
+export {
+  isTorrentPlaybackSessionError,
+  TorrentPlaybackSessionError,
+  type TorrentPlaybackSessionErrorCode,
+} from './errors';
+export { ReferencePlaybackModule } from './reference-playback.module';
+export {
+  TorrentPlaybackSessionService,
+  type TorrentPlaybackTorrServerClient,
+} from './session-service';
+export type {
+  CataloguedTorrentCandidate,
+  CreateTorrentPlaybackSessionInput,
+  TorrentPlaybackCompatibility,
+  TorrentPlaybackFile,
+  TorrentPlaybackSessionErrorInfo,
+  TorrentPlaybackSessionSnapshot,
+  TorrentPlaybackSessionState,
+} from './types';

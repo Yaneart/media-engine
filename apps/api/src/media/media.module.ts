@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { MediaEngineModule } from '../media-engine';
+import { ReferencePlaybackModule } from '../reference-playback';
 import { MediaController } from './media.controller';
 import { MediaService } from './media.service';
 import { ProvidersController } from './providers.controller';
 
 @Module({
-  imports: [MediaEngineModule],
+  imports: [MediaEngineModule, ReferencePlaybackModule],
   controllers: [MediaController, ProvidersController],
   providers: [MediaService],
 })

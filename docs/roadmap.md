@@ -26,10 +26,12 @@ The `0.1.x` releases established and hardened the first public baseline:
 3. Use the repository API and example applications as an opt-in reference playback stand:
    env-gated torrent discovery and source-preserving candidate selection are complete. A private
    bounded client now defines the reviewed contract with an external, separately licensed
-   TorServer process; it is not exposed through HTTP yet. Continue with server-owned candidate
-   sessions, protected Range delivery, and opt-in pinned deployment without moving P2P runtime
-   responsibilities into the public packages. The completed stand should prove progressive 2160p
-   startup, seeking, buffering, cleanup, and honest conversion-required states.
+   TorServer process. A fresh-only server-owned candidate catalog and bounded private session
+   lifecycle now revalidate handoffs, coalesce identical hashes, select safe files, and clean up by
+   reference count; they are not exposed through HTTP yet. Continue with protected session routes,
+   Range delivery, and opt-in pinned deployment without moving P2P runtime responsibilities into
+   the public packages. The completed stand should prove progressive 2160p startup, seeking,
+   buffering, cleanup, and honest conversion-required states.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

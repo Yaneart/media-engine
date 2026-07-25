@@ -15,10 +15,12 @@ import {
   type TorrentProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
+import { TorrentCandidateCatalog } from '../reference-playback';
 import { MediaModule } from './media.module';
 
 describe('MediaController', () => {
   let app: INestApplication<App>;
+  let torrentCandidateCatalog: TorrentCandidateCatalog;
   let mediaEngine: jest.Mocked<
     Pick<
       MediaEngine,
@@ -194,6 +196,7 @@ describe('MediaController', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    torrentCandidateCatalog = moduleFixture.get(TorrentCandidateCatalog);
     await app.init();
   });
 
@@ -545,6 +548,44 @@ describe('MediaController', () => {
       },
       { signal: expect.any(AbortSignal) },
     );
+  });
+
+  it('records only server-side copies of torrent candidates returned by discovery', async () => {
+    mediaEngine.discoverTorrents.mockResolvedValueOnce({
+      ...torrentResponse,
+      candidates: [
+        {
+          id: 'candidate-1',
+          provider: 'torrent-catalog',
+          title: 'Dark S01E02',
+          infoHash: 'a'.repeat(40),
+          handoff: {
+            kind: 'magnet',
+            uri: `magnet:?xt=urn:btih:${'a'.repeat(40)}`,
+          },
+          availability: 'available',
+        },
+      ],
+    });
+
+    await request(app.getHttpServer())
+      .get('/media/torrents')
+      .query({ type: 'series', title: 'Dark', seasonNumber: '1' })
+      .expect(200);
+
+    const catalogued = torrentCandidateCatalog.get(
+      'torrent-catalog',
+      'candidate-1',
+    );
+    expect(catalogued).toMatchObject({
+      candidate: {
+        provider: 'torrent-catalog',
+        id: 'candidate-1',
+        infoHash: 'a'.repeat(40),
+      },
+      query: torrentResponse.query,
+    });
+    expect(JSON.stringify(catalogued)).toContain('magnet:?');
   });
 
   it('returns 400 for invalid torrent query parameters before core execution', async () => {
