@@ -25,6 +25,8 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- The React example now presents online players and torrent playback as separate accessible tabs. Player counts and warnings are compact, torrent release selection and playback are primary actions, and magnet hashes, handoff URIs, source links, and selected-file paths remain available in collapsed technical details instead of crowding the viewing flow.
+
 - Added a repeatable combined torrent-source smoke gate and completed the YTS/JacRed/Bitsearch/Magnetz reliability and info-hash-overlap checkpoint. All four adapters remain explicit opt-ins, repository API defaults stay empty because anonymous quotas and timeout tails require application-owned budgets, and matching hashes from different providers retain separate peer/source observations instead of losing provenance through cross-provider collapse.
 - The repository API now enables the bounded DDBB and AniLiberty streaming providers by default after repeated reliability, missing-result, diversity, timeout, and direct-HLS checks. Direct package consumers still configure their own provider list.
 - Details lookup now requires a namespaced external ID. The ambiguous `DetailsQuery.id` field is deprecated, and id-only core/API/SDK requests return `INVALID_QUERY` or HTTP 400 instead of a cacheable successful null response.
@@ -52,6 +54,7 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Fixed
 
+- Reference torrent playback no longer classifies known H.265/HEVC/x265 or H.266/VVC files as browser-direct merely because they use an MP4 container. Codec metadata and bounded filename markers now conservatively require transcoding, preventing the example from attaching unsupported 10-bit HEVC files to native video. The expiring stream capability also opts out of the API-wide same-origin resource policy so a separately hosted browser frontend can load compatible direct media.
 - DDBB options beyond the bounded live-validation limit are now reported as `unknown` instead of inheriting an unverified `available` status. The example groups episodes, player families, translations, and qualities without collapsing distinct voiceovers, plays direct HLS options through a lazy browser runtime instead of opening manifests as downloads, and sends an origin-only referrer required by otherwise valid Alloha embeds.
 - Cinemeta untyped IMDb details lookups no longer turn movie/series branch outages into cacheable successful null responses.
 - AniList HTTP-200 GraphQL rate-limit and server errors now remain retryable provider failures, while validation errors and malformed payloads receive non-retryable typed categories.

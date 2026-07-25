@@ -257,6 +257,11 @@ export class ReferencePlaybackController {
     request: Request,
     response: Response,
   ): Promise<void> {
+    // The expiring high-entropy stream URL is intentionally usable by native media
+    // hosted on a separate frontend origin. Override Helmet's API-wide same-origin
+    // default only for this capability route.
+    response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
     try {
       await runWithHttpRequestSignal(request, response, async (signal) => {
         const opened = await this.streams.open(parseSessionId(id), {

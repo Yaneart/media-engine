@@ -51,11 +51,14 @@ The API application now also owns a private bounded candidate catalog and sessio
 - states are `starting`, `file_selection_required`, `ready`, `conversion_required`, `failed`, and
   `stopped`. File classification is deliberately limited to `direct`, `remux_required`,
   `transcode_required`, or `unknown`; it describes reference-path preparation and is not a promise
-  that a particular browser supports the codecs.
+  that a particular browser supports the codecs. Known H.265/HEVC/x265 and H.266/VVC files are
+  classified conservatively as transcode-required even inside MP4 because native support is not a
+  portable browser baseline;
 - every session snapshot contains an expiring high-entropy `streamUrl`, usable only while a file is
   selected and the session is ready or conversion-required. The API
   resolves its TorServer `/play/{hash}/{fileId}` target exclusively from server-owned session
-  state and streams the response with backpressure instead of buffering media in memory;
+  state, permits this capability route to load from a separate frontend origin, and streams the
+  response with backpressure instead of buffering media in memory;
 - the stream gateway accepts `GET` and `HEAD`, normalizes exactly one satisfiable byte range,
   forwards only `Range` and bounded cache validators, rejects redirects and inconsistent upstream
   status/length/range headers, and returns only a small safe set of media/cache headers;
@@ -162,7 +165,9 @@ server-controlled play target. API теперь также хранит коро
 подготовку и refcount до финального cleanup.
 
 Неоднозначный набор файлов возвращает `file_selection_required`; состояния conversion и
-совместимость direct/remux/transcode/unknown не обещают поддержку конкретным браузером.
+совместимость direct/remux/transcode/unknown не обещают поддержку конкретным браузером. Известные
+H.265/HEVC/x265 и H.266/VVC консервативно требуют transcode даже в MP4, поскольку их нативная
+поддержка не является переносимым browser baseline.
 
 App-specific routes create/status/stop теперь доступны только при совместной настройке точного
 `MEDIA_ENGINE_TORRSERVER_URL` и отдельного `MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` длиной 32-512
@@ -174,7 +179,8 @@ disabled/ok/unavailable и не влияет на основную `/health/read
 Сессия с выбранным файлом возвращает короткоживущий `streamUrl` для `GET`/`HEAD`. Его случайный
 256-битный ID служит capability, потому что нативный browser media element не умеет добавлять
 операторский Bearer token. URL нужно считать секретом: не сохранять, не отправлять в аналитику и не
-передавать между origin. После expiry или stop он перестаёт работать. Gateway разрешает только один
+передавать посторонним клиентам. Stream route явно разрешает загрузку из отдельного frontend origin;
+после expiry или stop URL перестаёт работать. Gateway разрешает только один
 валидный byte range, безопасные cache validators и ограниченный набор response headers; redirect и
 несогласованные 200/206/304/416 отклоняются. Поток идёт с backpressure без полной буферизации,
 disconnect отменяет upstream. По умолчанию разрешено восемь активных потоков с idle timeout 30 с.

@@ -167,7 +167,12 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
   }
 
   if (state.status === "checking") {
-    return <span className="muted">Checking reference player configuration.</span>;
+    return (
+      <div className="playback-empty-state">
+        <strong>Checking player configuration</strong>
+        <span>Confirming that private torrent playback is enabled.</span>
+      </div>
+    );
   }
 
   if (state.status === "disabled") {
@@ -175,7 +180,7 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
       <span className="muted">
         {state.reason === "candidate"
           ? "This source does not expose a safe server-catalogued magnet handoff for reference playback."
-          : "Reference playback is disabled. Discovery remains available without exposing an operator token."}
+          : "Torrent playback is disabled. Discovery remains available without exposing an operator token."}
       </span>
     );
   }
@@ -184,7 +189,7 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
     return (
       <div className="reference-player__error" role="alert">
         <span>{state.message}</span>
-        <button className="details-button" onClick={() => void start()} type="button">
+        <button className="playback-primary-action" onClick={() => void start()} type="button">
           Try again
         </button>
       </div>
@@ -194,12 +199,12 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
   if (state.status === "idle" || state.status === "starting") {
     return (
       <button
-        className="details-button"
+        className="playback-primary-action"
         disabled={state.status === "starting"}
         onClick={() => void start()}
         type="button"
       >
-        {state.status === "starting" ? "Preparing playback..." : "Start reference playback"}
+        {state.status === "starting" ? "Preparing torrent..." : "Start torrent playback"}
       </button>
     );
   }
@@ -210,9 +215,13 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
   return (
     <div className="reference-player">
       <div className="reference-player__status">
-        <strong>{formatState(session.state)}</strong>
+        <div className="reference-player__status-heading">
+          <strong className={`playback-status playback-status--${session.state}`}>
+            {formatState(session.state)}
+          </strong>
+          <span>Expires {new Date(session.expiresAt).toLocaleTimeString()}</span>
+        </div>
         <span>{mediaStatus}</span>
-        <span>Expires {new Date(session.expiresAt).toLocaleString()}</span>
       </div>
 
       {session.state === "file_selection_required" && session.files?.length ? (
@@ -259,16 +268,16 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
       <div className="torrent-candidate__actions">
         {session.state !== "stopped" ? (
           <button className="details-button" onClick={() => void refresh()} type="button">
-            Refresh status
+            Refresh
           </button>
         ) : null}
         {session.state !== "stopped" ? (
-          <button className="details-button" onClick={() => void stop()} type="button">
-            Stop and clean up
+          <button className="playback-stop-action" onClick={() => void stop()} type="button">
+            Stop playback
           </button>
         ) : (
-          <button className="details-button" onClick={() => void start()} type="button">
-            Start again
+          <button className="playback-primary-action" onClick={() => void start()} type="button">
+            Play again
           </button>
         )}
       </div>
@@ -296,7 +305,11 @@ function FileSelection({
           ))}
         </select>
       </label>
-      <button className="details-button" onClick={() => void onSelect(fileId)} type="button">
+      <button
+        className="playback-primary-action"
+        onClick={() => void onSelect(fileId)}
+        type="button"
+      >
         Use selected file
       </button>
     </div>
@@ -305,12 +318,12 @@ function FileSelection({
 
 function SelectedFile({ file }: { file: TorrentPlaybackFile }) {
   return (
-    <div className="reference-player__file">
+    <details className="reference-player__file">
+      <summary>
+        Selected file · {formatBytes(file.length)} · {formatCompatibility(file.compatibility)}
+      </summary>
       <strong>{file.path}</strong>
-      <span>
-        {formatBytes(file.length)} · {formatCompatibility(file.compatibility)}
-      </span>
-    </div>
+    </details>
   );
 }
 

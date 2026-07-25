@@ -8,11 +8,8 @@ import {
   getEpisodesCount,
 } from "../utils/format";
 import type { AvailabilityState, DetailsState, TorrentState } from "../state";
-import { AvailabilitySummary } from "./AvailabilitySummary";
 import { DetailValue, MediaPoster, MetaList } from "./common";
-import { EpisodeAvailabilityControls } from "./EpisodeAvailabilityControls";
-import { TorrentDiscoveryControls } from "./TorrentDiscoveryControls";
-import { TorrentSummary } from "./TorrentSummary";
+import { PlaybackPanel } from "./PlaybackPanel";
 
 export function DetailsPanel({
   availabilityState,
@@ -91,6 +88,16 @@ export function DetailsPanel({
           <DetailValue label="Episodes" value={formatCount(getEpisodesCount(details))} />
         </div>
 
+        <PlaybackPanel
+          availabilityState={availabilityState}
+          details={details}
+          item={state.item}
+          key={`${state.item.type}:${state.item.id}`}
+          onDiscoverTorrents={onDiscoverTorrents}
+          onLoadAvailability={onLoadAvailability}
+          torrentState={torrentState}
+        />
+
         <section className="detail-section">
           <span>Genres</span>
           <div className="chips">
@@ -127,34 +134,6 @@ export function DetailsPanel({
             ))}
             {!details.sourceProviders?.length ? <span className="muted">No sources</span> : null}
           </div>
-        </section>
-
-        {details.type === "series" ? (
-          <EpisodeAvailabilityControls
-            details={details}
-            item={state.item}
-            loading={availabilityState.status === "loading"}
-            onLoadAvailability={onLoadAvailability}
-          />
-        ) : null}
-
-        <AvailabilitySummary state={availabilityState} />
-
-        <section className="detail-section">
-          <TorrentDiscoveryControls
-            details={details}
-            item={state.item}
-            loading={torrentState.status === "loading"}
-            onDiscover={onDiscoverTorrents}
-          />
-          <TorrentSummary
-            key={
-              torrentState.status === "success" || torrentState.status === "empty"
-                ? torrentState.response.checkedAt
-                : torrentState.status
-            }
-            state={torrentState}
-          />
         </section>
       </div>
     </aside>

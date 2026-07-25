@@ -99,6 +99,10 @@ describe('torrent file selection', () => {
 
   it.each([
     ['movie.mp4', {}, 'direct'],
+    ['movie.x264.aac.mp4', { videoCodec: 'x264' }, 'direct'],
+    ['movie.mp4', { videoCodec: 'x265' }, 'transcode_required'],
+    ['movie.H.265.10bit.mp4', {}, 'transcode_required'],
+    ['movie.HEVC.mkv', {}, 'transcode_required'],
     ['movie.mkv', {}, 'remux_required'],
     ['movie.avi', { videoCodec: 'XviD' }, 'transcode_required'],
     ['movie.mp4', { audioCodec: 'DTS-HD' }, 'transcode_required'],

@@ -40,11 +40,19 @@ const TRANSCODE_CONTAINERS = new Set([
 ]);
 const TRANSCODE_VIDEO_CODECS = [
   'divx',
+  'h.265',
+  'h.266',
+  'h265',
+  'h266',
+  'hevc',
   'mpeg-2',
   'mpeg2',
   'theora',
   'vc-1',
   'vc1',
+  'vvc',
+  'x265',
+  'x266',
   'xvid',
 ];
 const TRANSCODE_AUDIO_CODECS = ['dts', 'truehd', 'wma'];
@@ -124,10 +132,13 @@ export function classifyTorrentFile(
 ): TorrentPlaybackCompatibility {
   const videoCodec = candidate.release?.videoCodec?.toLowerCase();
   const audioCodec = candidate.release?.audioCodec?.toLowerCase();
+  const normalizedPath = path.toLowerCase();
 
   if (
     includesAny(videoCodec, TRANSCODE_VIDEO_CODECS) ||
-    includesAny(audioCodec, TRANSCODE_AUDIO_CODECS)
+    includesAny(audioCodec, TRANSCODE_AUDIO_CODECS) ||
+    includesAny(normalizedPath, TRANSCODE_VIDEO_CODECS) ||
+    includesAny(normalizedPath, TRANSCODE_AUDIO_CODECS)
   ) {
     return 'transcode_required';
   }

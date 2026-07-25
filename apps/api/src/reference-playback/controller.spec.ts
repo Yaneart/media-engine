@@ -207,6 +207,7 @@ describe('ReferencePlaybackController', () => {
       .get(SESSION.streamUrl)
       .set('Range', 'bytes=0-4')
       .expect('Accept-Ranges', 'bytes')
+      .expect('Cross-Origin-Resource-Policy', 'cross-origin')
       .expect('Content-Type', 'video/mp4')
       .expect('Content-Length', '5')
       .expect(200);
@@ -237,11 +238,15 @@ describe('ReferencePlaybackController', () => {
         ),
       );
 
-    await request(app.getHttpServer()).head(SESSION.streamUrl).expect(200);
+    await request(app.getHttpServer())
+      .head(SESSION.streamUrl)
+      .expect('Cross-Origin-Resource-Policy', 'cross-origin')
+      .expect(200);
     await request(app.getHttpServer())
       .get(SESSION.streamUrl)
       .set('Range', 'bytes=0-1,4-5')
       .expect('Accept-Ranges', 'bytes')
+      .expect('Cross-Origin-Resource-Policy', 'cross-origin')
       .expect('Content-Range', 'bytes */1000')
       .expect(416);
   });

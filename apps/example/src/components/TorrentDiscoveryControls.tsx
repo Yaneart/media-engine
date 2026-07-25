@@ -52,7 +52,6 @@ export function TorrentDiscoveryControls({
 
   return (
     <form className="torrent-discovery" onSubmit={handleSubmit}>
-      <span>Torrent discovery</span>
       {episodic ? (
         <div className="torrent-discovery__fields">
           <label className="field">
@@ -89,7 +88,7 @@ export function TorrentDiscoveryControls({
           ) : null}
         </div>
       ) : null}
-      <button className="details-button" disabled={loading} type="submit">
+      <button className="playback-primary-action" disabled={loading} type="submit">
         {loading ? "Searching torrents..." : "Find torrent candidates"}
       </button>
       {validationMessage ? (
@@ -98,7 +97,7 @@ export function TorrentDiscoveryControls({
         </span>
       ) : null}
       <span className="muted">
-        Explicit discovery only. The browser does not start a torrent client or download media.
+        Search is explicit. Playback starts only after you choose a release.
       </span>
     </form>
   );

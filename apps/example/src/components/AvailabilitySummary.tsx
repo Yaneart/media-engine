@@ -23,19 +23,19 @@ export function AvailabilitySummary({ state }: { state: AvailabilityState }) {
 
   if (state.status === "loading") {
     return (
-      <section className="detail-section" aria-live="polite">
-        <span>Players</span>
-        <span className="muted">Loading player options.</span>
-      </section>
+      <div className="playback-empty-state" aria-live="polite">
+        <strong>Loading players</strong>
+        <span>Checking configured online providers.</span>
+      </div>
     );
   }
 
   if (state.status === "error") {
     return (
-      <section className="detail-section" aria-live="assertive">
-        <span>Players</span>
-        <span className="muted">{state.message}</span>
-      </section>
+      <div className="playback-empty-state playback-empty-state--error" aria-live="assertive">
+        <strong>Online players unavailable</strong>
+        <span>{state.message}</span>
+      </div>
     );
   }
 
@@ -45,20 +45,31 @@ export function AvailabilitySummary({ state }: { state: AvailabilityState }) {
   const unverifiedCount = options.filter((option) => option.availability === "unknown").length;
 
   return (
-    <section className="detail-section" aria-live="polite">
-      <span>Players</span>
-      <span className="muted">
-        {state.response.options.length > 0
-          ? `${state.response.options.length} options returned · ${verifiedCount} verified${unverifiedCount > 0 ? ` · ${unverifiedCount} unverified` : ""}`
-          : "No player options returned."}
-        {failedCount > 0 ? ` ${failedCount} provider failures.` : ""}
-      </span>
+    <div className="playback-mode__content" aria-live="polite">
+      <div className="playback-stats" aria-label="Online player availability">
+        <span>
+          <strong>{state.response.options.length}</strong> options
+        </span>
+        <span>
+          <strong>{verifiedCount}</strong> verified
+        </span>
+        {unverifiedCount > 0 ? (
+          <span>
+            <strong>{unverifiedCount}</strong> unverified
+          </span>
+        ) : null}
+      </div>
       {failedProviders.length > 0 ? (
-        <ul className="provider-failures">
-          {failedProviders.map((failure) => (
-            <li key={`${failure.provider}:${failure.code}`}>{formatProviderFailure(failure)}</li>
-          ))}
-        </ul>
+        <details className="provider-warnings">
+          <summary>
+            {failedCount} provider {failedCount === 1 ? "warning" : "warnings"}
+          </summary>
+          <ul className="provider-failures">
+            {failedProviders.map((failure) => (
+              <li key={`${failure.provider}:${failure.code}`}>{formatProviderFailure(failure)}</li>
+            ))}
+          </ul>
+        </details>
       ) : null}
       {options.length > 0 ? (
         <PlayerPicker
@@ -68,7 +79,13 @@ export function AvailabilitySummary({ state }: { state: AvailabilityState }) {
         />
       ) : null}
       {selectedOption ? <PlayerPreview key={selectedOption.id} option={selectedOption} /> : null}
-    </section>
+      {options.length === 0 ? (
+        <div className="playback-empty-state">
+          <strong>No online players found</strong>
+          <span>Try the torrent tab or select another title.</span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
