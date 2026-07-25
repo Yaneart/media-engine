@@ -17,6 +17,8 @@ export interface RateLimitOptions {
   windowMs: number;
   maxRequests: number;
   now?: () => number;
+  matches?: (request: Request) => boolean;
+  message?: string;
 }
 
 // Apply one bounded process-local budget across the expensive public media routes.
@@ -26,14 +28,11 @@ export function createRateLimitMiddleware(
 ): RequestHandler {
   const entries = new Map<string, RateLimitEntry>();
   const now = options.now ?? Date.now;
+  const matches = options.matches ?? isExpensiveMediaRequest;
   let nextCleanupAt = 0;
 
   return (request: Request, response: Response, next: NextFunction): void => {
-    if (
-      options.maxRequests === 0 ||
-      request.method !== 'GET' ||
-      !RATE_LIMITED_PATHS.has(normalizePath(request.path))
-    ) {
+    if (options.maxRequests === 0 || !matches(request)) {
       next();
       return;
     }
@@ -78,10 +77,18 @@ export function createRateLimitMiddleware(
     response.status(429).json({
       statusCode: 429,
       message:
+        options.message ??
         'Too many media requests. Retry after the current rate-limit window.',
       error: 'Too Many Requests',
     });
   };
+}
+
+function isExpensiveMediaRequest(request: Request): boolean {
+  return (
+    request.method === 'GET' &&
+    RATE_LIMITED_PATHS.has(normalizePath(request.path))
+  );
 }
 
 function normalizePath(path: string): string {

@@ -36,6 +36,10 @@ GET /media/search
 GET /media/details
 GET /media/availability
 GET /media/torrents
+GET /reference/torrent-playback/health
+POST /reference/torrent-playback/sessions
+GET /reference/torrent-playback/sessions/:id
+DELETE /reference/torrent-playback/sessions/:id
 GET /docs
 GET /docs-json
 ```
@@ -59,12 +63,27 @@ Unknown, duplicate, or empty list entries fail startup. Configured order is pres
 interleaving. Keep the list empty unless the deployment owner accepts the providers' anonymous
 quotas and timeout budget; enabling discovery does not enable torrent playback.
 
-The repository contains a private bounded TorServer client plus a short-lived server-owned
-candidate catalog and playback-session lifecycle. Sessions can resolve only a provider and
-candidate ID previously returned by this API; arbitrary magnets and file paths are not accepted.
-The lifecycle is not wired to an HTTP route yet and does not change the discovery-only boundary.
-See [Reference torrent playback](../../docs/reference-torrent-playback.md) for the lifecycle,
-license, reviewed-version, and upgrade policy.
+The repository contains an app-specific, protected TorServer reference API on top of a short-lived
+server-owned candidate catalog. It is disabled unless an operator configures both an exact
+TorServer URL and a separate high-entropy playback token:
+
+```dotenv
+MEDIA_ENGINE_TORRSERVER_URL=http://127.0.0.1:8090
+MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
+MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
+MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
+```
+
+Generate the token with `openssl rand -base64 32`; do not place it in a frontend bundle or browser
+storage. Create, status, and stop calls require `Authorization: Bearer <token>`. They accept only a
+provider/candidate ID previously returned by this API and an optional server-offered file ID;
+arbitrary magnets, hashes, paths, and TorServer targets are rejected. There is no global session
+list. The public playback health route is rate-limited, remains separate from mandatory API
+readiness, and reports only `disabled`, `ok`, or `unavailable` plus the healthy version.
+
+This A3 API manages sessions only; media streaming/Range delivery is a later block. It is not part
+of the public SDK. See [Reference torrent playback](../../docs/reference-torrent-playback.md) for
+the lifecycle, license, reviewed-version, and upgrade policy.
 
 ```bash
 curl 'http://127.0.0.1:3000/providers/torrent'

@@ -56,9 +56,29 @@ files. Their strict `MEDIA_ENGINE_TORRENT_CANDIDATE_*` and
 `MEDIA_ENGINE_TORRENT_PLAYBACK_*` settings are listed in `.env.example`; they do not enable a
 playback route or TorServer process.
 
-The catalog/session service is not wired to a public playback HTTP endpoint and starts no
-TorServer process. Authorization, Docker opt-in, the Range gateway, and browser UI are later
-independent stages. Until those stages are complete, `GET /media/torrents` remains discovery-only.
+The repository API now exposes the app-specific session lifecycle through:
+
+```text
+GET /reference/torrent-playback/health
+POST /reference/torrent-playback/sessions
+GET /reference/torrent-playback/sessions/:id
+DELETE /reference/torrent-playback/sessions/:id
+```
+
+Playback stays disabled unless `MEDIA_ENGINE_TORRSERVER_URL` and a separate 32-512 character
+`MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` are configured together. Create, status, and stop require the
+token as an Authorization Bearer secret. The server compares a fixed-size digest, never returns the
+token, and does not add it to the SDK or frontend. The routes have a separate strict process-local
+rate limit (10 requests per minute by default) and expose no global session list.
+
+The public reference health probe is rate-limited but does not require the playback token. It
+returns only `disabled`, `ok`, or `unavailable` plus the healthy TorServer version and remains
+separate from mandatory Media Engine readiness. A TorServer outage therefore does not degrade
+`/health/ready`.
+
+These routes manage metadata/session lifecycle only. They do not start TorServer and do not yet
+stream media to a browser; protected Range delivery, Docker opt-in, and UI remain later independent
+stages. `GET /media/torrents` itself remains discovery-only.
 
 ## Русский
 
@@ -75,8 +95,16 @@ server-controlled play target. API теперь также хранит коро
 проверяются magnet/info hash, identity, handoff и expiry; одинаковые hash используют общую
 подготовку и refcount до финального cleanup.
 
-Неоднозначный набор файлов возвращает внутреннее состояние `file_selection_required`; состояния
-conversion и совместимость direct/remux/transcode/unknown не обещают поддержку конкретным
-браузером. Playback route всё ещё отсутствует, TorServer не запускается, а magnet, target URL и
-file path от браузера не принимаются. Версия Docker позже будет закреплена одновременно release
+Неоднозначный набор файлов возвращает `file_selection_required`; состояния conversion и
+совместимость direct/remux/transcode/unknown не обещают поддержку конкретным браузером.
+
+App-specific routes create/status/stop теперь доступны только при совместной настройке точного
+`MEDIA_ENGINE_TORRSERVER_URL` и отдельного `MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` длиной 32-512
+символов. Токен передаётся как Bearer, сравнивается через fixed-size digest, не возвращается API и
+не входит в SDK/frontend. Отдельный строгий rate limit по умолчанию разрешает 10 playback-запросов
+в минуту; глобального списка сессий нет. Публичный playback health сообщает только
+disabled/ok/unavailable и не влияет на основную `/health/ready`.
+
+TorServer пока не запускается репозиторием, media streaming/Range отсутствует, а magnet, target URL
+и file path от браузера не принимаются. Версия Docker позже будет закреплена одновременно release
 tag и immutable digest; переход на другую версию потребует повторной проверки контракта.

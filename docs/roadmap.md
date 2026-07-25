@@ -28,10 +28,11 @@ The `0.1.x` releases established and hardened the first public baseline:
    bounded client now defines the reviewed contract with an external, separately licensed
    TorServer process. A fresh-only server-owned candidate catalog and bounded private session
    lifecycle now revalidate handoffs, coalesce identical hashes, select safe files, and clean up by
-   reference count; they are not exposed through HTTP yet. Continue with protected session routes,
-   Range delivery, and opt-in pinned deployment without moving P2P runtime responsibilities into
-   the public packages. The completed stand should prove progressive 2160p startup, seeking,
-   buffering, cleanup, and honest conversion-required states.
+   reference count. App-specific protected create/status/stop routes, a separate optional health
+   probe, Bearer authorization, and strict playback rate limits are complete without expanding the
+   SDK. Continue with opt-in pinned deployment and protected Range delivery without moving P2P
+   runtime responsibilities into the public packages. The completed stand should prove progressive
+   2160p startup, seeking, buffering, cleanup, and honest conversion-required states.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

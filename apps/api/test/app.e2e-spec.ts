@@ -24,6 +24,10 @@ const testRuntimeConfig: ApiRuntimeConfig = {
     windowMs: 60_000,
     maxRequests: 2,
   },
+  playbackRateLimit: {
+    windowMs: 60_000,
+    maxRequests: 2,
+  },
 };
 
 describe('Media Engine API (e2e)', () => {
@@ -255,6 +259,25 @@ describe('Media Engine API (e2e)', () => {
     await request(app.getHttpServer()).get('/health/live').expect(200);
   });
 
+  it('exposes disabled reference playback separately and rate limits its routes', async () => {
+    await request(app.getHttpServer())
+      .get('/reference/torrent-playback/health')
+      .expect(200)
+      .expect({ status: 'disabled' });
+    await request(app.getHttpServer())
+      .post('/reference/torrent-playback/sessions')
+      .send({ provider: 'mock', candidateId: 'candidate' })
+      .expect(503);
+
+    const limited = await request(app.getHttpServer())
+      .get('/reference/torrent-playback/health')
+      .expect(429);
+    expect(limited.headers['ratelimit-limit']).toBe('2');
+    expect(limited.body).toMatchObject({
+      message: expect.stringContaining('torrent playback'),
+    });
+  });
+
   it('/docs-json (GET)', async () => {
     const response = await request(app.getHttpServer())
       .get('/docs-json')
@@ -270,7 +293,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.2.0',
+      version: '0.3.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/health/live');
@@ -282,6 +305,11 @@ describe('Media Engine API (e2e)', () => {
     expect(body.paths).toHaveProperty('/providers');
     expect(body.paths).toHaveProperty('/providers/streaming');
     expect(body.paths).toHaveProperty('/providers/torrent');
+    expect(body.paths).toHaveProperty('/reference/torrent-playback/health');
+    expect(body.paths).toHaveProperty('/reference/torrent-playback/sessions');
+    expect(body.paths).toHaveProperty(
+      '/reference/torrent-playback/sessions/{id}',
+    );
 
     const detailsParameterNames = getOpenApiParameterNames(
       body.paths,

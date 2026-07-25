@@ -148,11 +148,22 @@ GET /media/search
 GET /media/details
 GET /media/availability
 GET /media/torrents
+GET /reference/torrent-playback/health
+POST /reference/torrent-playback/sessions
+GET /reference/torrent-playback/sessions/:id
+DELETE /reference/torrent-playback/sessions/:id
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
 
 The media endpoints connect request/response disconnect events to the engine operation signal and remove their lifecycle listeners when the operation settles. An HTTP client that closes early therefore stops waiting immediately and cancels shared provider work only when no other identical request is still subscribed.
+
+The `/reference/torrent-playback/*` routes are an optional repository-application contract, not a
+core or SDK API. They remain disabled without paired operator-owned TorServer URL and playback
+token settings. Create/status/stop require the separate Bearer token, accept no magnet/hash/path,
+have their own strict rate limit, and never expose a global session list. The health route is a
+separate optional probe and does not affect normal readiness. This contract currently manages
+sessions only; media Range delivery is not part of this block.
 
 `GET /health` includes process-local provider counters and circuit states. These diagnostics contain provider names, success/failure counts, timestamps, and recovery delay only; they do not expose credentials or provider internals.
 

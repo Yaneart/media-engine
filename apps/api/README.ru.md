@@ -36,6 +36,10 @@ GET /media/search
 GET /media/details
 GET /media/availability
 GET /media/torrents
+GET /reference/torrent-playback/health
+POST /reference/torrent-playback/sessions
+GET /reference/torrent-playback/sessions/:id
+DELETE /reference/torrent-playback/sessions/:id
 GET /docs
 GET /docs-json
 ```
@@ -60,11 +64,27 @@ MEDIA_ENGINE_JACRED_TORRENT_PROVIDER_TIMEOUT_MS=20000
 interleaving результатов. Оставляйте список пустым, если владелец deployment не принял анонимные
 квоты и timeout budget источников; включение discovery не включает torrent playback.
 
-В репозитории уже есть приватный bounded client TorServer, короткоживущий server-owned каталог
-кандидатов и lifecycle playback-сессий. Сессия может разрешить только `provider + candidateId`,
-ранее возвращённые этим API; произвольные magnet и file path не принимаются. Lifecycle ещё не
-подключён к HTTP route и не меняет discovery-only границу. Детали lifecycle, лицензионная граница,
-проверенная версия и upgrade policy описаны в документе
+В репозитории есть отдельный защищённый reference API TorServer поверх короткоживущего server-owned
+каталога кандидатов. Он выключен, пока оператор одновременно не задаст точный URL TorServer и
+отдельный высокоэнтропийный playback token:
+
+```dotenv
+MEDIA_ENGINE_TORRSERVER_URL=http://127.0.0.1:8090
+MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
+MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
+MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
+```
+
+Создайте токен через `openssl rand -base64 32`; не добавляйте его во frontend bundle или browser
+storage. Для create/status/stop нужен `Authorization: Bearer <token>`. Эти routes принимают только
+ранее возвращённые API `provider + candidateId` и опциональный server-offered `fileId`; произвольные
+magnet, hash, path и TorServer target запрещены. Глобального списка сессий нет. Публичный
+rate-limited health отделён от обязательной API readiness и сообщает только `disabled`, `ok` или
+`unavailable`, а при успехе — версию.
+
+Текущий A3 API только управляет сессиями; media streaming/Range появится отдельным следующим
+блоком. В публичный SDK эти routes не входят. Детали lifecycle, лицензионная граница, проверенная
+версия и upgrade policy описаны в документе
 [Reference torrent playback](../../docs/reference-torrent-playback.md).
 
 ```bash

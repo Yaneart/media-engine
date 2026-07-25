@@ -18,6 +18,11 @@ export {
 } from './errors';
 export { ReferencePlaybackModule } from './reference-playback.module';
 export {
+  ReferencePlaybackRuntime,
+  type ReferencePlaybackHealth,
+  type ReferencePlaybackHealthClient,
+} from './runtime';
+export {
   TorrentPlaybackSessionService,
   type TorrentPlaybackTorrServerClient,
 } from './session-service';

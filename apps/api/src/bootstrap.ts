@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { createRateLimitMiddleware } from './rate-limit';
+import { isReferencePlaybackRequest } from './reference-playback/rate-limit';
 import type { ApiRuntimeConfig } from './runtime-config';
 import { createSecurityHeadersMiddleware } from './security';
 import { setupOpenApi } from './openapi';
@@ -12,7 +13,7 @@ export function configureApiApplication(
 ): void {
   app.enableCors({
     origin: config.corsOrigins,
-    methods: ['GET', 'HEAD', 'OPTIONS'],
+    methods: ['GET', 'HEAD', 'POST', 'DELETE', 'OPTIONS'],
   });
   app.use(
     createSecurityHeadersMiddleware({
@@ -20,5 +21,13 @@ export function configureApiApplication(
     }),
   );
   app.use(createRateLimitMiddleware(config.rateLimit));
+  app.use(
+    createRateLimitMiddleware({
+      ...config.playbackRateLimit,
+      matches: isReferencePlaybackRequest,
+      message:
+        'Too many torrent playback requests. Retry after the current rate-limit window.',
+    }),
+  );
   setupOpenApi(app);
 }
