@@ -42,10 +42,11 @@ playback session. BitTorrent-клиент не запускается в бра�
 ```dotenv
 MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<не-менее-32-случайных-символов>
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080
 ```
 
 ```bash
-docker compose --profile torrent-playback up
+docker compose --profile torrent-playback up --build
 ```
 
 Vite dev/preview server работает как узкий same-origin lifecycle BFF. Он добавляет операторский

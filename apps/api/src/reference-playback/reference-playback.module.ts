@@ -4,6 +4,8 @@ import { readTorrentPlaybackConfig } from './config';
 import { ReferencePlaybackController } from './controller';
 import { readReferencePlaybackHttpConfig } from './http-config';
 import { readTorrentPlaybackMediaProbeConfig } from './media-probe-config';
+import { readTorrentMediaWorkerClientConfig } from './media-worker-config';
+import { WorkerTorrentMediaProbe } from './media-worker-client';
 import {
   FfprobeTorrentMediaProbe,
   type TorrentMediaProbe,
@@ -54,21 +56,8 @@ const TORRENT_MEDIA_PROBE = Symbol('TORRENT_MEDIA_PROBE');
     {
       provide: TORRENT_MEDIA_PROBE,
       inject: [TORRSERVER_CLIENT_CONFIG],
-      useFactory: (clientConfig: TorrServerClientConfig | undefined) => {
-        const probeConfig = readTorrentPlaybackMediaProbeConfig();
-
-        if (probeConfig === undefined || clientConfig === undefined) {
-          return undefined;
-        }
-
-        if (clientConfig.username !== undefined) {
-          throw new Error(
-            'Local ffprobe inspection cannot be combined with TorServer Basic Auth; use the heuristic fallback or a future isolated worker.',
-          );
-        }
-
-        return new FfprobeTorrentMediaProbe(probeConfig);
-      },
+      useFactory: (clientConfig: TorrServerClientConfig | undefined) =>
+        createConfiguredTorrentMediaProbe(clientConfig),
     },
     {
       provide: TorrentPlaybackSessionService,
@@ -107,3 +96,38 @@ const TORRENT_MEDIA_PROBE = Symbol('TORRENT_MEDIA_PROBE');
   ],
 })
 export class ReferencePlaybackModule {}
+
+export function createConfiguredTorrentMediaProbe(
+  clientConfig: TorrServerClientConfig | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): TorrentMediaProbe | undefined {
+  const probeConfig = readTorrentPlaybackMediaProbeConfig(env);
+  const workerConfig = readTorrentMediaWorkerClientConfig(env);
+
+  if (probeConfig !== undefined && workerConfig !== undefined) {
+    throw new Error(
+      'Configure either MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL or MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH, not both.',
+    );
+  }
+
+  if (clientConfig === undefined) {
+    return undefined;
+  }
+
+  if (
+    clientConfig.username !== undefined &&
+    (probeConfig !== undefined || workerConfig !== undefined)
+  ) {
+    throw new Error(
+      'Media inspection cannot pass TorServer Basic Auth credentials to ffprobe; leave probing disabled for this upstream.',
+    );
+  }
+
+  if (workerConfig !== undefined) {
+    return new WorkerTorrentMediaProbe(workerConfig);
+  }
+
+  return probeConfig === undefined
+    ? undefined
+    : new FfprobeTorrentMediaProbe(probeConfig);
+}

@@ -38,9 +38,10 @@ The `0.1.x` releases established and hardened the first public baseline:
    exposes file selection and cleanup, and keeps conversion-required states honest without moving
    P2P runtime responsibilities into the public packages. Complete live reference-stand proof for
    progressive 2160p startup, seeking, buffering, and cleanup across representative files. A
-   host-only opt-in bounded ffprobe adapter now replaces release-name heuristics with exact primary
-   stream/container classification before readiness; next move that contract behind an isolated
-   container-native worker before implementing remux or transcode jobs.
+   bounded ffprobe adapter now replaces release-name heuristics with exact primary stream/container
+   classification before readiness, and repository Compose runs that contract behind a private
+   container-native worker without placing FFmpeg or media input in the API process. Next implement
+   bounded remux jobs, then transcode jobs, without expanding public package responsibilities.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

@@ -42,10 +42,11 @@ the explicit Compose profile:
 ```dotenv
 MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<at-least-32-random-characters>
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080
 ```
 
 ```bash
-docker compose --profile torrent-playback up
+docker compose --profile torrent-playback up --build
 ```
 
 The Vite dev/preview server acts as a narrow same-origin lifecycle BFF. It injects the operator

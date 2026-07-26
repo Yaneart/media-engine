@@ -79,15 +79,16 @@ Then open <http://127.0.0.1:5173>. The API runs on <http://127.0.0.1:3000>, and 
 The separately licensed TorServer reference component is never started by that default command.
 To opt in, copy `.env.example` to `.env`, set
 `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` together with a freshly generated
-`MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN`, and run:
+`MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` and
+`MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080`, and run:
 
 ```bash
-docker compose --profile torrent-playback up
+docker compose --profile torrent-playback up --build
 ```
 
-The pinned TorServer service is reachable only by the API over a private Compose network; it has no
-host port. The current reference API manages sessions only—browser Range delivery is the next
-independent stage.
+The pinned TorServer and bounded media worker are reachable only over a private Compose network and
+have no host ports. Direct browser Range playback, seeking, and cleanup are available; files that
+need remux or transcode remain explicit conversion-required states.
 
 ## A small but important warning
 

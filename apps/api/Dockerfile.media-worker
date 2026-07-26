@@ -1,0 +1,33 @@
+FROM node:24-bookworm-slim AS build
+
+RUN corepack enable
+WORKDIR /workspace
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/example/package.json apps/example/package.json
+COPY packages/core/package.json packages/core/package.json
+COPY packages/providers/package.json packages/providers/package.json
+COPY packages/sdk/package.json packages/sdk/package.json
+RUN pnpm install --frozen-lockfile
+
+COPY scripts scripts
+COPY packages/core packages/core
+COPY packages/providers packages/providers
+COPY apps/api apps/api
+RUN pnpm --filter @media-engine/api... build
+
+FROM node:24-bookworm-slim AS runtime
+
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends ca-certificates ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+COPY --from=build --chown=node:node /workspace/apps/api/dist ./dist
+
+USER node
+EXPOSE 8080
+CMD ["node", "dist/src/torrent-media-worker.js"]

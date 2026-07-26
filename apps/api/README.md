@@ -79,6 +79,8 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH=
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_TIMEOUT_MS=25000
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS=20000
 ```
 
@@ -97,21 +99,26 @@ and body-idle limits. A transient transport or TorServer 5xx failure receives at
 before any response bytes, inside the same media-header budget. Hashes, file IDs, and TorServer
 URLs still come only from server-owned session state.
 
-An optional exact media inspection step can be enabled for host deployments by setting
-`MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH` to a reviewed absolute executable path. The subprocess
-uses no shell, receives only the server-owned TorServer play URL, inherits no application secrets,
-rejects redirects and non-HTTP protocols, and has fixed CPU/allocation/probe-analysis/output bounds plus a
-configurable 20-second timeout inside the existing session-start budget. Exact container, primary
-video/audio codec, pixel format, and dimensions replace release-name heuristics before the session
-becomes ready. Inspection failure is explicit and cleans the torrent resource instead of claiming
-direct playback. Leave this option blank with TorServer Basic Auth or the stock Node Compose image;
-the next isolated-worker phase will supply container-native probing without placing FFmpeg in the
-API process.
+Exact media inspection is enabled in repository Compose by setting
+`MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080`. The private
+worker has no host port, constructs the TorServer target from API-owned hash/file ID, accepts no URL
+from the request, and runs `ffprobe` in its own read-only bounded container without mounting the
+repository or receiving application secrets. Its no-shell subprocess rejects redirects and
+non-HTTP protocols and has fixed CPU/allocation/probe-analysis/output bounds plus a 20-second
+budget; the worker and API add separate 22/25-second outer budgets inside session start. Exact
+container, primary codecs, pixel format, and dimensions replace release-name heuristics before
+readiness. Failure stays explicit and cleans the torrent resource.
 
-For the repository-managed option, set `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` in
-`.env` and start `docker compose --profile torrent-playback up`. Default Compose never starts
-TorServer. The official `MatriX.141.1` multi-arch image is pinned by immutable digest, has no host
-port, and shares a dedicated network only with the API. Its root filesystem is read-only; config
+Native host deployments may instead configure a reviewed absolute
+`MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH`; configure only one probe mode. Both modes remain
+disabled when blank, and neither passes TorServer Basic Auth credentials to `ffprobe`.
+
+For the repository-managed option, set `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` and
+`MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080` in `.env`, then
+start `docker compose --profile torrent-playback up --build`. Default Compose starts neither
+TorServer nor the worker. The official `MatriX.141.1` multi-arch image is pinned by immutable
+digest, has no host port, and shares a dedicated network only with the API and worker. Its root
+filesystem is read-only; config
 and torrent-autoload scratch are bounded ephemeral tmpfs mounts, upstream settings stay read-only
 with the 64 MiB memory cache, container logs rotate, and CPU/RAM/PID limits apply. The bundled
 service deliberately uses no TorServer Basic Auth because it is network-isolated and the public

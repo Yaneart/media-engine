@@ -184,6 +184,89 @@ export function parseFfprobeOutput(value: string): TorrentMediaProbeResult {
   };
 }
 
+export function parseTorrentMediaProbeResult(
+  value: unknown,
+): TorrentMediaProbeResult {
+  if (!isRecord(value) || !Array.isArray(value.formatNames)) {
+    throw probeError('invalid_response');
+  }
+
+  if (
+    value.formatNames.length === 0 ||
+    value.formatNames.length > MAX_FORMAT_NAMES
+  ) {
+    throw probeError('invalid_response');
+  }
+
+  const formatNames = value.formatNames.map((name) =>
+    readToken(name, 64, /^[a-z0-9_]+$/),
+  );
+  const video = parseNormalizedStream(value.video, 'video');
+  const audio =
+    value.audio === undefined
+      ? undefined
+      : parseNormalizedStream(value.audio, 'audio');
+
+  return {
+    formatNames: [...new Set(formatNames)],
+    video: {
+      codecName: video.codecName,
+      ...(video.profile === undefined ? {} : { profile: video.profile }),
+      ...(video.pixelFormat === undefined
+        ? {}
+        : { pixelFormat: video.pixelFormat }),
+      ...(video.width === undefined ? {} : { width: video.width }),
+      ...(video.height === undefined ? {} : { height: video.height }),
+    },
+    ...(audio === undefined
+      ? {}
+      : {
+          audio: {
+            codecName: audio.codecName,
+            ...(audio.profile === undefined ? {} : { profile: audio.profile }),
+          },
+        }),
+  };
+}
+
+function parseNormalizedStream(
+  value: unknown,
+  type: ParsedStream['type'],
+): ParsedStream {
+  if (!isRecord(value)) {
+    throw probeError('invalid_response');
+  }
+
+  return {
+    type,
+    codecName: readToken(
+      value.codecName,
+      MAX_CODEC_NAME_LENGTH,
+      /^[a-z0-9_]+$/,
+    ),
+    ...(value.profile === undefined
+      ? {}
+      : { profile: readText(value.profile, MAX_PROFILE_LENGTH) }),
+    ...(type === 'audio' || value.pixelFormat === undefined
+      ? {}
+      : {
+          pixelFormat: readToken(
+            value.pixelFormat,
+            MAX_PIXEL_FORMAT_LENGTH,
+            /^[a-z0-9_]+$/,
+          ),
+        }),
+    ...(type === 'audio' || value.width === undefined
+      ? {}
+      : { width: readInteger(value.width, 1, MAX_DIMENSION) }),
+    ...(type === 'audio' || value.height === undefined
+      ? {}
+      : { height: readInteger(value.height, 1, MAX_DIMENSION) }),
+    defaultStream: false,
+    attachedPicture: false,
+  };
+}
+
 interface ParsedStream {
   type: 'video' | 'audio';
   codecName: string;

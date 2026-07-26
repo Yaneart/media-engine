@@ -79,15 +79,16 @@ pnpm dev:compose
 Отдельно лицензируемый reference-компонент TorServer этой обычной командой не запускается. Для
 явного включения скопируйте `.env.example` в `.env`, задайте
 `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` вместе со свежим
-`MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` и запустите:
+`MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` и
+`MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080`, затем запустите:
 
 ```bash
-docker compose --profile torrent-playback up
+docker compose --profile torrent-playback up --build
 ```
 
-Закреплённый TorServer доступен только API через отдельную Compose-сеть и не публикует host port.
-Сейчас reference API управляет только сессиями; browser Range delivery будет следующим отдельным
-этапом.
+Закреплённые TorServer и bounded media worker доступны только через отдельную Compose-сеть и не
+публикуют host ports. Direct browser Range playback, seek и cleanup уже доступны; файлы, которым
+нужны remux или transcode, честно остаются в состоянии conversion required.
 
 ## Небольшое, но важное предупреждение
 

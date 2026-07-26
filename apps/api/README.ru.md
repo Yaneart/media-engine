@@ -80,6 +80,8 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH=
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_TIMEOUT_MS=25000
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS=20000
 ```
 
@@ -98,19 +100,26 @@ media headers и body idle timeout. Transient transport-сбой или TorServe
 одного повтора до отправки response bytes и внутри того же media-header budget. Hash, file ID и
 URL TorServer по-прежнему берутся только из server-owned состояния сессии.
 
-Для host deployment можно опционально включить точную проверку media, задав
-`MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH` как проверенный абсолютный путь к executable. Процесс
-запускается без shell, получает только server-owned TorServer play URL, не наследует секреты
-приложения, запрещает redirects и не-HTTP protocols и ограничен по CPU/allocation/анализу/output и
-настраиваемым 20-секундным timeout внутри общего session-start budget. Точные container, primary
-video/audio codec, pixel format и dimensions заменяют эвристику release name до перехода сессии в
-ready. Ошибка inspection явно завершает сессию и очищает torrent resource вместо ложного direct.
-Оставьте option пустой при TorServer Basic Auth и в штатном Node Compose image; следующий этап с
-изолированным worker добавит container-native probe без размещения FFmpeg в API process.
+В repository Compose точная media inspection включается через
+`MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080`. Приватный worker
+не имеет host port, сам строит TorServer target из API-owned hash/file ID, не принимает URL в
+request и запускает `ffprobe` в отдельном read-only bounded container без mount репозитория и
+секретов приложения. No-shell subprocess запрещает redirects и не-HTTP protocols и ограничен по
+CPU/allocation/анализу/output с 20-секундным бюджетом; worker и API добавляют отдельные внешние
+бюджеты 22/25 секунд внутри session start. Точные container, primary codecs, pixel format и
+dimensions заменяют release-name эвристику до ready. Ошибка явно завершает сессию и очищает
+torrent resource.
+
+Native host deployment вместо worker может задать проверенный абсолютный
+`MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH`; одновременно разрешён только один режим. Оба режима
+остаются выключенными при пустых значениях и не передают TorServer Basic Auth credentials в
+`ffprobe`.
 
 Для варианта под управлением репозитория задайте в `.env`
-`MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и запустите
-`docker compose --profile torrent-playback up`. Обычный Compose TorServer не запускает.
+`MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и
+`MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080`, затем запустите
+`docker compose --profile torrent-playback up --build`. Обычный Compose не запускает TorServer и
+worker.
 Официальный multi-arch image `MatriX.141.1` закреплён immutable digest, не имеет host port и делит
 отдельную сеть только с API. Root filesystem доступна только для чтения; config и каталог
 автозагрузки torrent ограничены ephemeral tmpfs, upstream settings работают в read-only режиме с

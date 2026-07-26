@@ -32,6 +32,8 @@ services:
       MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STARTING: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STARTING:-2}
       MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_OFFERED_FILES: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_OFFERED_FILES:-100}
       MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH: ${MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH:-}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL:-}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_TIMEOUT_MS:-25000}
       MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS:-20000}
       MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS:-8}
       MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS:-30000}
@@ -123,6 +125,60 @@ services:
       test:
         - CMD-SHELL
         - wget -q -O /dev/null http://127.0.0.1:8090/echo
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  torrent-media-worker:
+    profiles:
+      - torrent-playback
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.media-worker
+    image: media-engine/torrent-media-worker:dev
+    depends_on:
+      torrserver:
+        condition: service_healthy
+    environment:
+      MEDIA_ENGINE_TORRSERVER_URL: ${MEDIA_ENGINE_TORRSERVER_URL:-http://torrserver:8090}
+      MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH: /usr/bin/ffprobe
+      MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS:-20000}
+      MEDIA_ENGINE_TORRENT_MEDIA_WORKER_HOST: 0.0.0.0
+      MEDIA_ENGINE_TORRENT_MEDIA_WORKER_PORT: 8080
+      MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_CONCURRENCY: ${MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_CONCURRENCY:-2}
+      MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_REQUEST_BYTES: ${MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_REQUEST_BYTES:-16384}
+      MEDIA_ENGINE_TORRENT_MEDIA_WORKER_REQUEST_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_MEDIA_WORKER_REQUEST_TIMEOUT_MS:-22000}
+    expose:
+      - "8080"
+    networks:
+      - torrent-playback
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16777216
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 128
+    mem_limit: ${MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MEMORY_LIMIT:-512m}
+    cpus: ${MEDIA_ENGINE_TORRENT_MEDIA_WORKER_CPUS:-1.0}
+    restart: unless-stopped
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "2"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
       timeout: 3s
       retries: 5

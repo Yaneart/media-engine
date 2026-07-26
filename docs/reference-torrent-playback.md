@@ -48,13 +48,12 @@ The API application now also owns a private bounded candidate catalog and sessio
   cancellation, or application shutdown performs one best-effort `drop`;
 - sanitized video files are selected automatically only for an unambiguous movie or requested
   episode. Ambiguous metadata produces `file_selection_required` with a bounded safe list;
-- host deployments may opt into exact bounded `ffprobe` inspection through a reviewed absolute
-  executable path. It runs after server-owned file selection and before ready/conversion state,
-  uses only the server-owned HTTP(S) play target, no shell or inherited application secrets, no
-  redirects, one CPU, bounded allocation/probe/output, and a 20-second default timeout inside the
-  existing start budget. Probe failure is explicit and releases the torrent resource. The stock
-  Node Compose image deliberately has no FFmpeg binary; container-native probing belongs to the
-  next isolated worker phase;
+- exact bounded inspection can run in the private container-native worker after server-owned file
+  selection and before ready/conversion state. The API sends only hash/file ID and bounded file
+  metadata; the worker constructs the HTTP(S) TorServer target and accepts no caller URL. It has no
+  host port, repository mount, or application secrets, while its no-shell `ffprobe` subprocess
+  rejects redirects and has fixed CPU/allocation/probe/output/time bounds. Native hosts retain an
+  exclusive reviewed-path fallback. Probe failure is explicit and releases the torrent resource;
 - states are `starting`, `file_selection_required`, `ready`, `conversion_required`, `failed`, and
   `stopped`. File classification is deliberately limited to `direct`, `remux_required`,
   `transcode_required`, or `unknown`; it describes reference-path preparation and is not a promise
@@ -121,16 +120,18 @@ TorServer, copy `.env.example` to `.env`, generate a dedicated token with
 ```dotenv
 MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generated-operator-secret>
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080
 ```
 
 Then start the explicit profile:
 
 ```bash
-docker compose --profile torrent-playback up
+docker compose --profile torrent-playback up --build
 ```
 
-The TorServer container has no `ports` mapping. Only the API joins its dedicated Compose network;
-the example remains on the default network. The container uses a read-only root filesystem,
+The TorServer and media-worker containers have no `ports` mapping. Only the API and worker join the
+dedicated Compose network; the example remains on the default network. Both containers use
+read-only root filesystems,
 drops Linux capabilities, prevents privilege escalation, rotates bounded logs, and defaults to one
 GiB RAM, two CPUs, and 256 PIDs. Its writable config, torrent-autoload, and `/tmp` paths are bounded
 ephemeral tmpfs mounts. TorServer itself runs in read-only-settings mode, which keeps its upstream
@@ -180,12 +181,13 @@ server-controlled play target. API теперь также хранит коро
 H.265/HEVC/x265 и H.266/VVC консервативно требуют transcode даже в MP4, поскольку их нативная
 поддержка не является переносимым browser baseline.
 
-Host deployment может опционально включить точный bounded `ffprobe` через проверенный абсолютный
-путь. Probe запускается после server-owned выбора файла и до ready/conversion state, без shell и
-унаследованных секретов, только для server-owned HTTP(S) play target, с запретом redirects и
-ограничениями CPU/allocation/probe/output и 20-секундным timeout внутри общего start budget. Ошибка
-явно завершает сессию и освобождает torrent resource. В штатном Node Compose image FFmpeg намеренно
-отсутствует: container-native probe относится к следующему isolated-worker этапу.
+Точная bounded inspection теперь может выполняться в приватном container-native worker после
+server-owned выбора файла и до ready/conversion state. API передаёт только hash/file ID и bounded
+метаданные файла; worker сам строит HTTP(S) TorServer target и не принимает caller URL. У него нет
+host port, mount репозитория или секретов приложения, а no-shell `ffprobe` ограничен по
+CPU/allocation/probe/output/time и запрещает redirects. Для native host остаётся взаимоисключающий
+fallback с проверенным абсолютным путём. Ошибка явно завершает сессию и освобождает torrent
+resource.
 
 App-specific routes create/status/stop теперь доступны только при совместной настройке точного
 `MEDIA_ENGINE_TORRSERVER_URL` и отдельного `MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` длиной 32-512
@@ -207,8 +209,9 @@ transport/5xx-сбоя без сброса общего бюджета. Disconne
 По умолчанию разрешено восемь активных потоков с body idle timeout 30 с.
 
 Обычный `docker compose up` TorServer не запускает. После настройки
-`MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и отдельного playback token официальный image
-можно явно включить командой `docker compose --profile torrent-playback up`. Релиз
+`MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090`, worker URL и отдельного playback token
+официальный image и worker можно явно включить командой
+`docker compose --profile torrent-playback up --build`. Релиз
 `MatriX.141.1` закреплён одновременно tag и immutable digest; host port отсутствует, а отдельную
 Compose-сеть с сервисом разделяет только API. Read-only rootfs/settings, bounded ephemeral tmpfs,
 ротация логов и лимиты RAM/CPU/PID удерживают deployment в заданных границах; upstream memory
