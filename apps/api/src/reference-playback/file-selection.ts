@@ -3,6 +3,7 @@ import type {
   TorrentDiscoveryQuery,
 } from '@media-engine/core';
 import type { TorrServerFile } from './torrserver';
+import type { TorrentMediaProbeResult } from './media-probe';
 import type {
   TorrentPlaybackCompatibility,
   TorrentPlaybackFile,
@@ -158,6 +159,72 @@ export function classifyTorrentFile(
   }
 
   return 'unknown';
+}
+
+export function classifyProbedTorrentFile(
+  path: string,
+  probe: TorrentMediaProbeResult,
+): TorrentPlaybackCompatibility {
+  const targetContainer = browserTargetContainer(probe);
+
+  if (targetContainer === undefined) {
+    return 'transcode_required';
+  }
+
+  const extension = fileExtension(path);
+  const formats = new Set(probe.formatNames);
+  const isDirectContainer =
+    (targetContainer === 'mp4' &&
+      (extension === 'mp4' || extension === 'm4v') &&
+      formats.has('mov')) ||
+    (targetContainer === 'webm' &&
+      extension === 'webm' &&
+      formats.has('webm')) ||
+    (targetContainer === 'ogg' && extension === 'ogv' && formats.has('ogg'));
+
+  return isDirectContainer ? 'direct' : 'remux_required';
+}
+
+type BrowserTargetContainer = 'mp4' | 'webm' | 'ogg';
+
+function browserTargetContainer(
+  probe: TorrentMediaProbeResult,
+): BrowserTargetContainer | undefined {
+  const videoCodec = probe.video.codecName;
+  const audioCodec = probe.audio?.codecName;
+  const pixelFormat = probe.video.pixelFormat;
+
+  if (
+    pixelFormat === undefined ||
+    (pixelFormat !== 'yuv420p' && pixelFormat !== 'yuvj420p')
+  ) {
+    return undefined;
+  }
+
+  if (
+    videoCodec === 'h264' &&
+    (audioCodec === undefined || audioCodec === 'aac')
+  ) {
+    return 'mp4';
+  }
+
+  if (
+    (videoCodec === 'vp8' || videoCodec === 'vp9' || videoCodec === 'av1') &&
+    (audioCodec === undefined ||
+      audioCodec === 'opus' ||
+      audioCodec === 'vorbis')
+  ) {
+    return 'webm';
+  }
+
+  if (
+    videoCodec === 'theora' &&
+    (audioCodec === undefined || audioCodec === 'vorbis')
+  ) {
+    return 'ogg';
+  }
+
+  return undefined;
 }
 
 function toPlaybackFile(

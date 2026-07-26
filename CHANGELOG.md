@@ -8,6 +8,13 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added an opt-in bounded host `ffprobe` adapter for selected torrent files. It runs after
+  server-owned selection and before readiness with an absolute executable path, no shell or
+  inherited application secrets, HTTP(S)-only input, redirects disabled, fixed resource/output
+  bounds, cancellation, and a configurable timeout. Exact primary video/audio codec, pixel format,
+  dimensions, and container now drive direct/remux/transcode classification when enabled; failures
+  remain explicit and clean up the torrent resource. The stock Compose API remains FFmpeg-free
+  pending the isolated worker phase.
 - Added the opt-in reference torrent player flow to the React example. A narrow same-origin Vite dev/preview BFF keeps the operator Bearer token server-side while the browser receives only session snapshots and the expiring stream capability; the UI supports bounded file selection, native direct playback, seek/buffering diagnostics, manual status refresh, explicit cleanup, and honest conversion-required states without adding remux/transcode or changing public package/SDK contracts.
 - Added the bounded reference torrent media gateway and advanced the REST/OpenAPI contract to 0.4.0. Ready sessions expose an expiring 256-bit capability URL for native browser GET/HEAD playback; the API derives TorServer targets only from server-owned state, validates one byte range and safe cache headers, rejects redirects and inconsistent 200/206/304/416 responses, streams with backpressure instead of buffering, cancels on disconnect, and enforces independent active-stream and idle limits.
 - Added an explicit `torrent-playback` Compose profile for the separately licensed official TorServer `MatriX.141.1` image, pinned by immutable multi-arch digest. Default Compose remains TorServer-free; the opt-in service has no host port, shares a dedicated network only with the API, uses read-only settings/rootfs and bounded ephemeral storage/logs/resources, and retains explicit external/local TorServer URL plus optional Basic-auth support.

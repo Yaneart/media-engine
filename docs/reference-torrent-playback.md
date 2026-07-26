@@ -48,6 +48,13 @@ The API application now also owns a private bounded candidate catalog and sessio
   cancellation, or application shutdown performs one best-effort `drop`;
 - sanitized video files are selected automatically only for an unambiguous movie or requested
   episode. Ambiguous metadata produces `file_selection_required` with a bounded safe list;
+- host deployments may opt into exact bounded `ffprobe` inspection through a reviewed absolute
+  executable path. It runs after server-owned file selection and before ready/conversion state,
+  uses only the server-owned HTTP(S) play target, no shell or inherited application secrets, no
+  redirects, one CPU, bounded allocation/probe/output, and a 20-second default timeout inside the
+  existing start budget. Probe failure is explicit and releases the torrent resource. The stock
+  Node Compose image deliberately has no FFmpeg binary; container-native probing belongs to the
+  next isolated worker phase;
 - states are `starting`, `file_selection_required`, `ready`, `conversion_required`, `failed`, and
   `stopped`. File classification is deliberately limited to `direct`, `remux_required`,
   `transcode_required`, or `unknown`; it describes reference-path preparation and is not a promise
@@ -172,6 +179,13 @@ server-controlled play target. API теперь также хранит коро
 совместимость direct/remux/transcode/unknown не обещают поддержку конкретным браузером. Известные
 H.265/HEVC/x265 и H.266/VVC консервативно требуют transcode даже в MP4, поскольку их нативная
 поддержка не является переносимым browser baseline.
+
+Host deployment может опционально включить точный bounded `ffprobe` через проверенный абсолютный
+путь. Probe запускается после server-owned выбора файла и до ready/conversion state, без shell и
+унаследованных секретов, только для server-owned HTTP(S) play target, с запретом redirects и
+ограничениями CPU/allocation/probe/output и 20-секундным timeout внутри общего start budget. Ошибка
+явно завершает сессию и освобождает torrent resource. В штатном Node Compose image FFmpeg намеренно
+отсутствует: container-native probe относится к следующему isolated-worker этапу.
 
 App-specific routes create/status/stop теперь доступны только при совместной настройке точного
 `MEDIA_ENGINE_TORRSERVER_URL` и отдельного `MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` длиной 32-512

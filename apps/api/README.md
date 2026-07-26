@@ -78,6 +78,8 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
 MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
+MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH=
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS=20000
 ```
 
 Generate the token with `openssl rand -base64 32`; do not place it in a frontend bundle or browser
@@ -94,6 +96,17 @@ backpressure, cancels on disconnect, and has independent active-stream, 30-secon
 and body-idle limits. A transient transport or TorServer 5xx failure receives at most one retry
 before any response bytes, inside the same media-header budget. Hashes, file IDs, and TorServer
 URLs still come only from server-owned session state.
+
+An optional exact media inspection step can be enabled for host deployments by setting
+`MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH` to a reviewed absolute executable path. The subprocess
+uses no shell, receives only the server-owned TorServer play URL, inherits no application secrets,
+rejects redirects and non-HTTP protocols, and has fixed CPU/allocation/probe-analysis/output bounds plus a
+configurable 20-second timeout inside the existing session-start budget. Exact container, primary
+video/audio codec, pixel format, and dimensions replace release-name heuristics before the session
+becomes ready. Inspection failure is explicit and cleans the torrent resource instead of claiming
+direct playback. Leave this option blank with TorServer Basic Auth or the stock Node Compose image;
+the next isolated-worker phase will supply container-native probing without placing FFmpeg in the
+API process.
 
 For the repository-managed option, set `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` in
 `.env` and start `docker compose --profile torrent-playback up`. Default Compose never starts

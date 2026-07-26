@@ -3,6 +3,11 @@ import { TorrentCandidateCatalog } from './candidate-catalog';
 import { readTorrentPlaybackConfig } from './config';
 import { ReferencePlaybackController } from './controller';
 import { readReferencePlaybackHttpConfig } from './http-config';
+import { readTorrentPlaybackMediaProbeConfig } from './media-probe-config';
+import {
+  FfprobeTorrentMediaProbe,
+  type TorrentMediaProbe,
+} from './media-probe';
 import { ReferencePlaybackRuntime } from './runtime';
 import { TorrentPlaybackSessionService } from './session-service';
 import { readTorrentPlaybackStreamConfig } from './stream-config';
@@ -16,6 +21,7 @@ import {
 
 const TORRSERVER_CLIENT_CONFIG = Symbol('TORRSERVER_CLIENT_CONFIG');
 const TORRSERVER_CLIENT = Symbol('TORRSERVER_CLIENT');
+const TORRENT_MEDIA_PROBE = Symbol('TORRENT_MEDIA_PROBE');
 
 @Module({
   controllers: [ReferencePlaybackController],
@@ -46,14 +52,36 @@ const TORRSERVER_CLIENT = Symbol('TORRSERVER_CLIENT');
         new TorrentCandidateCatalog(readTorrentPlaybackConfig()),
     },
     {
+      provide: TORRENT_MEDIA_PROBE,
+      inject: [TORRSERVER_CLIENT_CONFIG],
+      useFactory: (clientConfig: TorrServerClientConfig | undefined) => {
+        const probeConfig = readTorrentPlaybackMediaProbeConfig();
+
+        if (probeConfig === undefined || clientConfig === undefined) {
+          return undefined;
+        }
+
+        if (clientConfig.username !== undefined) {
+          throw new Error(
+            'Local ffprobe inspection cannot be combined with TorServer Basic Auth; use the heuristic fallback or a future isolated worker.',
+          );
+        }
+
+        return new FfprobeTorrentMediaProbe(probeConfig);
+      },
+    },
+    {
       provide: TorrentPlaybackSessionService,
-      inject: [TorrentCandidateCatalog, TORRSERVER_CLIENT],
+      inject: [TorrentCandidateCatalog, TORRSERVER_CLIENT, TORRENT_MEDIA_PROBE],
       useFactory: (
         catalog: TorrentCandidateCatalog,
         client: TorrServerClient | undefined,
+        mediaProbe: TorrentMediaProbe | undefined,
       ) => {
         const config = readTorrentPlaybackConfig();
-        return new TorrentPlaybackSessionService(catalog, client, config);
+        return new TorrentPlaybackSessionService(catalog, client, config, {
+          mediaProbe,
+        });
       },
     },
     {

@@ -9,7 +9,11 @@ import {
   isTorrentPlaybackSessionError,
   TorrentPlaybackSessionError,
 } from './errors';
-import { selectTorrentFile } from './file-selection';
+import { classifyProbedTorrentFile, selectTorrentFile } from './file-selection';
+import {
+  isTorrentMediaProbeError,
+  type TorrentMediaProbe,
+} from './media-probe';
 import {
   createSessionRecord,
   failSessionRecord,
@@ -23,6 +27,7 @@ import {
 } from './torrent-resource-pool';
 import type {
   CreateTorrentPlaybackSessionInput,
+  TorrentPlaybackFile,
   TorrentPlaybackSessionSnapshot,
   TorrentPlaybackSessionState,
   TorrentPlaybackStreamSource,
@@ -40,6 +45,7 @@ interface TorrentPlaybackSessionDependencies {
     milliseconds: number,
   ) => ReturnType<typeof setTimeout>;
   clearTimer?: (timer: ReturnType<typeof setTimeout>) => void;
+  mediaProbe?: TorrentMediaProbe;
 }
 
 export class TorrentPlaybackSessionService {
@@ -49,6 +55,7 @@ export class TorrentPlaybackSessionService {
   private readonly createId: () => string;
   private readonly setTimer: TorrentPlaybackSessionDependencies['setTimer'];
   private readonly clearTimer: TorrentPlaybackSessionDependencies['clearTimer'];
+  private readonly mediaProbe: TorrentMediaProbe | undefined;
   private startingSessions = 0;
   private shuttingDown = false;
 
@@ -63,6 +70,7 @@ export class TorrentPlaybackSessionService {
       dependencies.createId ?? (() => randomBytes(32).toString('base64url'));
     this.setTimer = dependencies.setTimer ?? setTimeout;
     this.clearTimer = dependencies.clearTimer ?? clearTimeout;
+    this.mediaProbe = dependencies.mediaProbe;
     this.resourcePool =
       client === undefined ? undefined : new TorrentResourcePool(client);
   }
@@ -181,13 +189,17 @@ export class TorrentPlaybackSessionService {
         });
       }
 
-      const compatibility = selection.selected.compatibility;
+      const selectedFile = await this.inspectSelectedFile(
+        session,
+        selection.selected,
+      );
+      const compatibility = selectedFile.compatibility;
       return this.updateSession(
         session,
         compatibility === 'direct' ? 'ready' : 'conversion_required',
         {
           compatibility,
-          selectedFile: selection.selected,
+          selectedFile,
         },
       );
     } catch (error) {
@@ -208,7 +220,8 @@ export class TorrentPlaybackSessionService {
       if (
         options.signal?.aborted ||
         session.state === 'stopped' ||
-        (isTorrentPlaybackSessionError(error) && error.code === 'aborted')
+        (isTorrentPlaybackSessionError(error) && error.code === 'aborted') ||
+        (isTorrentMediaProbeError(error) && error.code === 'aborted')
       ) {
         await this.stopInternal(session);
         throw abortedError();
@@ -219,11 +232,8 @@ export class TorrentPlaybackSessionService {
         throw error;
       }
 
-      const failed = this.failSession(
-        session,
-        mapUpstreamErrorCode(error),
-        'TorServer could not prepare the selected torrent.',
-      );
+      const failure = mapPreparationFailure(error);
+      const failed = this.failSession(session, failure.code, failure.message);
       await this.releaseResource(session);
       return failed;
     } finally {
@@ -321,6 +331,26 @@ export class TorrentPlaybackSessionService {
       'session_capacity_exceeded',
       'The torrent playback session limit is currently reached.',
     );
+  }
+
+  private async inspectSelectedFile(
+    session: InternalTorrentPlaybackSession,
+    file: TorrentPlaybackFile,
+  ): Promise<TorrentPlaybackFile> {
+    if (this.mediaProbe === undefined) {
+      return file;
+    }
+
+    const target = this.client!.createPlayTarget(session.infoHash, file.id);
+    const result = await this.mediaProbe.probe({
+      target,
+      file,
+      signal: session.controller.signal,
+    });
+    return {
+      ...file,
+      compatibility: classifyProbedTorrentFile(file.path, result),
+    };
   }
 
   private getActiveSession(sessionId: string): InternalTorrentPlaybackSession {
@@ -437,10 +467,27 @@ export class TorrentPlaybackSessionService {
   }
 }
 
-function mapUpstreamErrorCode(error: unknown): string {
-  return isTorrServerClientError(error)
-    ? `torrserver_${error.code}`
-    : 'torrserver_unavailable';
+function mapPreparationFailure(error: unknown): {
+  code: string;
+  message: string;
+} {
+  if (isTorrentMediaProbeError(error)) {
+    return {
+      code:
+        error.code === 'timeout' ? 'media_probe_timeout' : 'media_probe_failed',
+      message:
+        error.code === 'timeout'
+          ? 'Media inspection did not finish within the configured budget.'
+          : 'The selected media file could not be inspected safely.',
+    };
+  }
+
+  return {
+    code: isTorrServerClientError(error)
+      ? `torrserver_${error.code}`
+      : 'torrserver_unavailable',
+    message: 'TorServer could not prepare the selected torrent.',
+  };
 }
 
 function sessionNotFoundError(): TorrentPlaybackSessionError {

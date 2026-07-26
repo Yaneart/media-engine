@@ -79,6 +79,8 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
 MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
+MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH=
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS=20000
 ```
 
 Создайте токен через `openssl rand -base64 32`; не добавляйте его во frontend bundle или browser
@@ -95,6 +97,16 @@ upstream при disconnect и имеет отдельные лимиты акт�
 media headers и body idle timeout. Transient transport-сбой или TorServer 5xx получает не более
 одного повтора до отправки response bytes и внутри того же media-header budget. Hash, file ID и
 URL TorServer по-прежнему берутся только из server-owned состояния сессии.
+
+Для host deployment можно опционально включить точную проверку media, задав
+`MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH` как проверенный абсолютный путь к executable. Процесс
+запускается без shell, получает только server-owned TorServer play URL, не наследует секреты
+приложения, запрещает redirects и не-HTTP protocols и ограничен по CPU/allocation/анализу/output и
+настраиваемым 20-секундным timeout внутри общего session-start budget. Точные container, primary
+video/audio codec, pixel format и dimensions заменяют эвристику release name до перехода сессии в
+ready. Ошибка inspection явно завершает сессию и очищает torrent resource вместо ложного direct.
+Оставьте option пустой при TorServer Basic Auth и в штатном Node Compose image; следующий этап с
+изолированным worker добавит container-native probe без размещения FFmpeg в API process.
 
 Для варианта под управлением репозитория задайте в `.env`
 `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и запустите

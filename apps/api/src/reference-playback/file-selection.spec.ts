@@ -1,4 +1,9 @@
-import { classifyTorrentFile, selectTorrentFile } from './file-selection';
+import {
+  classifyProbedTorrentFile,
+  classifyTorrentFile,
+  selectTorrentFile,
+} from './file-selection';
+import type { TorrentMediaProbeResult } from './media-probe';
 import { torrentCandidate } from './test-helpers';
 
 describe('torrent file selection', () => {
@@ -115,4 +120,64 @@ describe('torrent file selection', () => {
       );
     },
   );
+});
+
+describe('probed torrent file classification', () => {
+  const probe = (
+    video: string,
+    audio: string | undefined,
+    options: { formatNames?: string[]; pixelFormat?: string } = {},
+  ): TorrentMediaProbeResult => ({
+    formatNames: options.formatNames ?? ['mov', 'mp4'],
+    video: {
+      codecName: video,
+      pixelFormat: options.pixelFormat ?? 'yuv420p',
+    },
+    ...(audio === undefined ? {} : { audio: { codecName: audio } }),
+  });
+
+  it.each([
+    ['movie.mp4', probe('h264', 'aac'), 'direct'],
+    [
+      'movie.mkv',
+      probe('h264', 'aac', { formatNames: ['matroska', 'webm'] }),
+      'remux_required',
+    ],
+    [
+      'movie.webm',
+      probe('vp9', 'opus', { formatNames: ['matroska', 'webm'] }),
+      'direct',
+    ],
+    [
+      'movie.mkv',
+      probe('vp9', 'opus', { formatNames: ['matroska', 'webm'] }),
+      'remux_required',
+    ],
+    [
+      'movie.ogv',
+      probe('theora', 'vorbis', { formatNames: ['ogg'] }),
+      'direct',
+    ],
+    ['movie.mp4', probe('hevc', 'aac'), 'transcode_required'],
+    ['movie.mp4', probe('h264', 'dts'), 'transcode_required'],
+    [
+      'movie.mp4',
+      probe('h264', 'aac', { pixelFormat: 'yuv420p10le' }),
+      'transcode_required',
+    ],
+  ] as const)(
+    'classifies exact streams in %s as %s',
+    (path, result, expected) => {
+      expect(classifyProbedTorrentFile(path, result)).toBe(expected);
+    },
+  );
+
+  it('does not trust a browser extension when ffprobe reports another container', () => {
+    expect(
+      classifyProbedTorrentFile(
+        'movie.mp4',
+        probe('h264', 'aac', { formatNames: ['matroska', 'webm'] }),
+      ),
+    ).toBe('remux_required');
+  });
 });

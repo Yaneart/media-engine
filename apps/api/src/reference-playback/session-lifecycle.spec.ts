@@ -1,4 +1,5 @@
 import { TorrentCandidateCatalog } from './candidate-catalog';
+import { TorrentMediaProbeError, type TorrentMediaProbe } from './media-probe';
 import { TorrentPlaybackSessionService } from './session-service';
 import {
   mockTorrServerClient,
@@ -212,6 +213,73 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
     expect(client.drop.mock.calls).toContainEqual([TEST_HASH]);
   });
 
+  it('uses exact probed streams instead of release-name heuristics', async () => {
+    const mediaProbe = {
+      probe: jest.fn().mockResolvedValue({
+        formatNames: ['mov', 'mp4'],
+        video: { codecName: 'h264', pixelFormat: 'yuv420p' },
+        audio: { codecName: 'aac' },
+      }),
+    } satisfies TorrentMediaProbe;
+    const { service } = createService({
+      candidate: torrentCandidate({ release: { videoCodec: 'x265' } }),
+      mediaProbe,
+    });
+
+    const session = await service.createSession({
+      provider: 'test-torrent',
+      candidateId: 'candidate-1',
+    });
+
+    expect(session).toMatchObject({
+      state: 'ready',
+      compatibility: 'direct',
+      selectedFile: { compatibility: 'direct' },
+    });
+    expect(mediaProbe.probe).toHaveBeenCalledWith({
+      target: {
+        url: new URL(`http://torrserver.test/play/${TEST_HASH}/1`),
+        hash: TEST_HASH,
+        fileId: 1,
+      },
+      file: expect.objectContaining({
+        id: 1,
+        compatibility: 'transcode_required',
+      }),
+      signal: expect.any(AbortSignal),
+    });
+    await service.stopSession(session.id);
+  });
+
+  it('reports bounded media probe failure and cleans the torrent resource', async () => {
+    const mediaProbe = {
+      probe: jest
+        .fn()
+        .mockRejectedValue(
+          new TorrentMediaProbeError(
+            'timeout',
+            'Media inspection exceeded its configured time budget.',
+          ),
+        ),
+    } satisfies TorrentMediaProbe;
+    const { service, client } = createService({ mediaProbe });
+
+    const session = await service.createSession({
+      provider: 'test-torrent',
+      candidateId: 'candidate-1',
+    });
+
+    expect(session).toMatchObject({
+      state: 'failed',
+      error: {
+        code: 'media_probe_timeout',
+        message:
+          'Media inspection did not finish within the configured budget.',
+      },
+    });
+    expect(client.drop.mock.calls).toContainEqual([TEST_HASH]);
+  });
+
   it('fails safely when metadata has no video and releases the resource', async () => {
     const { service, client } = createService({
       torrent: torrServerTorrent([
@@ -318,13 +386,17 @@ function expectSessionError(action: () => unknown, code: string): void {
 }
 
 function createService(
-  options: { torrent?: ReturnType<typeof torrServerTorrent> } = {},
+  options: {
+    torrent?: ReturnType<typeof torrServerTorrent>;
+    candidate?: ReturnType<typeof torrentCandidate>;
+    mediaProbe?: TorrentMediaProbe;
+  } = {},
 ): {
   service: TorrentPlaybackSessionService;
   client: ReturnType<typeof mockTorrServerClient>;
 } {
   const catalog = createCatalog();
-  catalog.record(torrentResponse([torrentCandidate()]));
+  catalog.record(torrentResponse([options.candidate ?? torrentCandidate()]));
   const client = mockTorrServerClient(options.torrent);
   return {
     client,
@@ -332,6 +404,7 @@ function createService(
       catalog,
       client,
       TEST_PLAYBACK_CONFIG,
+      { mediaProbe: options.mediaProbe },
     ),
   };
 }
