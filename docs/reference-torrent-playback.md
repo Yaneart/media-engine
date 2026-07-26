@@ -61,13 +61,17 @@ The API application now also owns a private bounded candidate catalog and sessio
   response with backpressure instead of buffering media in memory;
 - the stream gateway accepts `GET` and `HEAD`, normalizes exactly one satisfiable byte range,
   forwards only `Range` and bounded cache validators, rejects redirects and inconsistent upstream
-  status/length/range headers, and returns only a small safe set of media/cache headers;
+  status/length/range headers, and returns only a small safe set of media/cache headers. Opening a
+  stream has its own 30-second response-header budget, independent from the three-second TorServer
+  control connection timeout. One transient transport or 5xx failure may be retried before any
+  response bytes, without resetting that budget;
 - browser and session cancellation abort upstream work. Eight simultaneous response bodies and a
   30-second body-idle timeout are the defaults; excess streams fail immediately rather than queue.
 
 The default private limits are a 500-entry/five-minute candidate catalog, eight total sessions,
 two concurrent starts, a 45-second start budget, a 30-minute session TTL, at most 100 offered
-files, eight active streams, and a 30-second stream-idle timeout. Their strict
+files, eight active streams, a 30-second stream-header timeout, and a 30-second stream-idle timeout.
+Their strict
 `MEDIA_ENGINE_TORRENT_CANDIDATE_*` and
 `MEDIA_ENGINE_TORRENT_PLAYBACK_*` settings are listed in `.env.example`; they do not enable a
 playback route or TorServer process.
@@ -182,8 +186,11 @@ disabled/ok/unavailable и не влияет на основную `/health/read
 передавать посторонним клиентам. Stream route явно разрешает загрузку из отдельного frontend origin;
 после expiry или stop URL перестаёт работать. Gateway разрешает только один
 валидный byte range, безопасные cache validators и ограниченный набор response headers; redirect и
-несогласованные 200/206/304/416 отклоняются. Поток идёт с backpressure без полной буферизации,
-disconnect отменяет upstream. По умолчанию разрешено восемь активных потоков с idle timeout 30 с.
+несогласованные 200/206/304/416 отклоняются. Поток идёт с backpressure без полной буферизации.
+Ожидание media headers имеет отдельный общий бюджет 30 с и не использует трёхсекундный control
+connect timeout. До отправки response bytes допускается не более одного повтора transient
+transport/5xx-сбоя без сброса общего бюджета. Disconnect отменяет upstream и не запускает повтор.
+По умолчанию разрешено восемь активных потоков с body idle timeout 30 с.
 
 Обычный `docker compose up` TorServer не запускает. После настройки
 `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и отдельного playback token официальный image

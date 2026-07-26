@@ -304,7 +304,7 @@ describe('TorrentPlaybackStreamGateway', () => {
     const gateway = new TorrentPlaybackStreamGateway(
       sessions,
       CLIENT_CONFIG,
-      { maxStreams: 1, idleTimeoutMs: 10 },
+      { maxStreams: 1, headerTimeoutMs: 1_000, idleTimeoutMs: 10 },
       fetchMock,
     );
     const opened = await gateway.open(SESSION_ID, { method: 'GET' });
@@ -312,6 +312,7 @@ describe('TorrentPlaybackStreamGateway', () => {
 
     await expect(reader.read()).rejects.toMatchObject({
       code: 'upstream_timeout',
+      message: 'TorServer media delivery exceeded the idle timeout.',
     });
     opened.close();
   });
@@ -366,6 +367,143 @@ describe('TorrentPlaybackStreamGateway', () => {
 
     await expect(pending).rejects.toMatchObject({ code: 'aborted' });
     expect(upstreamSignal?.aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the media-header budget instead of the shorter control connect timeout', async () => {
+    const fetchMock = jest.fn<
+      ReturnType<TorrentPlaybackStreamFetch>,
+      Parameters<TorrentPlaybackStreamFetch>
+    >(
+      async () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve(
+                new Response(null, {
+                  status: 200,
+                  headers: { 'content-length': String(FILE_LENGTH) },
+                }),
+              ),
+            25,
+          );
+        }),
+    );
+    const sessions = {
+      getStreamSource: jest.fn().mockReturnValue(SOURCE),
+    } as unknown as TorrentPlaybackSessionService;
+    const gateway = new TorrentPlaybackStreamGateway(
+      sessions,
+      { ...CLIENT_CONFIG, connectTimeoutMs: 1 },
+      { maxStreams: 1, headerTimeoutMs: 1_000, idleTimeoutMs: 10_000 },
+      fetchMock,
+    );
+
+    const opened = await gateway.open(SESSION_ID, { method: 'HEAD' });
+
+    expect(opened).toMatchObject({ status: 200, body: null });
+    opened.close();
+  });
+
+  it('retries one transient response before exposing bytes and preserves Range', async () => {
+    const cancel = jest.fn();
+    const fetchMock = jest
+      .fn<
+        ReturnType<TorrentPlaybackStreamFetch>,
+        Parameters<TorrentPlaybackStreamFetch>
+      >()
+      .mockResolvedValueOnce(
+        new Response(new ReadableStream<Uint8Array>({ cancel }), {
+          status: 500,
+        }),
+      )
+      .mockImplementationOnce((_input, init) => {
+        expect(new Headers(init?.headers).get('range')).toBe('bytes=400-499');
+        return Promise.resolve(
+          new Response(new Uint8Array(100), {
+            status: 206,
+            headers: {
+              'content-range': `bytes 400-499/${FILE_LENGTH}`,
+              'content-length': '100',
+            },
+          }),
+        );
+      });
+
+    const opened = await createGateway(fetchMock).open(SESSION_ID, {
+      method: 'GET',
+      range: 'bytes=400-499',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(opened.status).toBe(206);
+    expect(await readBody(opened.body)).toHaveLength(100);
+    opened.close();
+  });
+
+  it('retries one transient transport failure before stream headers', async () => {
+    const fetchMock = jest
+      .fn<
+        ReturnType<TorrentPlaybackStreamFetch>,
+        Parameters<TorrentPlaybackStreamFetch>
+      >()
+      .mockRejectedValueOnce(new Error('transient connection reset'))
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { 'content-length': String(FILE_LENGTH) },
+        }),
+      );
+
+    const opened = await createGateway(fetchMock).open(SESSION_ID, {
+      method: 'HEAD',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(opened).toMatchObject({ status: 200, body: null });
+    opened.close();
+  });
+
+  it('never retries a transient failure more than once', async () => {
+    const fetchMock = jest
+      .fn<
+        ReturnType<TorrentPlaybackStreamFetch>,
+        Parameters<TorrentPlaybackStreamFetch>
+      >()
+      .mockResolvedValue(
+        new Response(null, {
+          status: 500,
+        }),
+      );
+
+    await expect(
+      createGateway(fetchMock).open(SESSION_ID, { method: 'GET' }),
+    ).rejects.toMatchObject({ code: 'upstream_unavailable' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the retry delay inside the original media-header budget', async () => {
+    const fetchMock = jest
+      .fn<
+        ReturnType<TorrentPlaybackStreamFetch>,
+        Parameters<TorrentPlaybackStreamFetch>
+      >()
+      .mockRejectedValue(new Error('transient connection reset'));
+    const sessions = {
+      getStreamSource: jest.fn().mockReturnValue(SOURCE),
+    } as unknown as TorrentPlaybackSessionService;
+    const gateway = new TorrentPlaybackStreamGateway(
+      sessions,
+      CLIENT_CONFIG,
+      { maxStreams: 1, headerTimeoutMs: 10, idleTimeoutMs: 10_000 },
+      fetchMock,
+    );
+
+    await expect(
+      gateway.open(SESSION_ID, { method: 'GET' }),
+    ).rejects.toMatchObject({ code: 'upstream_timeout' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('enforces the response-header timeout', async () => {
@@ -387,8 +525,8 @@ describe('TorrentPlaybackStreamGateway', () => {
     } as unknown as TorrentPlaybackSessionService;
     const gateway = new TorrentPlaybackStreamGateway(
       sessions,
-      { ...CLIENT_CONFIG, connectTimeoutMs: 10 },
-      { maxStreams: 1, idleTimeoutMs: 10_000 },
+      CLIENT_CONFIG,
+      { maxStreams: 1, headerTimeoutMs: 10, idleTimeoutMs: 10_000 },
       fetchMock,
     );
 
@@ -426,7 +564,7 @@ function createGateway(
   return new TorrentPlaybackStreamGateway(
     sessions,
     CLIENT_CONFIG,
-    { maxStreams, idleTimeoutMs: 10_000 },
+    { maxStreams, headerTimeoutMs: 10_000, idleTimeoutMs: 10_000 },
     fetchImplementation,
   );
 }

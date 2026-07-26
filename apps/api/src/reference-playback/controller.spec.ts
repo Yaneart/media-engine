@@ -250,4 +250,40 @@ describe('ReferencePlaybackController', () => {
       .expect('Content-Range', 'bytes */1000')
       .expect(416);
   });
+
+  it('reports upstream failures as 502 and media-header deadlines as 504', async () => {
+    streams.open
+      .mockRejectedValueOnce(
+        new TorrentPlaybackStreamError(
+          'upstream_unavailable',
+          'TorServer could not serve the selected media file.',
+        ),
+      )
+      .mockRejectedValueOnce(
+        new TorrentPlaybackStreamError(
+          'upstream_timeout',
+          'TorServer did not return stream headers within the configured budget.',
+        ),
+      );
+
+    await request(app.getHttpServer())
+      .get(SESSION.streamUrl)
+      .expect(502)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          statusCode: 502,
+          message: 'TorServer could not serve the selected media file.',
+        });
+      });
+    await request(app.getHttpServer())
+      .get(SESSION.streamUrl)
+      .expect(504)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          statusCode: 504,
+          message:
+            'TorServer did not return stream headers within the configured budget.',
+        });
+      });
+  });
 });

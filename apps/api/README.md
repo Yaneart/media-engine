@@ -76,6 +76,7 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
 MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
+MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 ```
 
@@ -89,8 +90,10 @@ readiness, and reports only `disabled`, `ok`, or `unavailable` plus the healthy 
 Session snapshots include an expiring high-entropy `streamUrl`, usable only after file selection.
 It is the browser media capability and therefore needs no Bearer header; treat it as a secret and
 never persist or log it. Its GET/HEAD gateway supports one normalized Range, preserves
-backpressure, cancels on disconnect, and has independent active-stream and idle limits. Hashes,
-file IDs, and TorServer URLs still come only from server-owned session state.
+backpressure, cancels on disconnect, and has independent active-stream, 30-second media-header,
+and body-idle limits. A transient transport or TorServer 5xx failure receives at most one retry
+before any response bytes, inside the same media-header budget. Hashes, file IDs, and TorServer
+URLs still come only from server-owned session state.
 
 For the repository-managed option, set `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` in
 `.env` and start `docker compose --profile torrent-playback up`. Default Compose never starts

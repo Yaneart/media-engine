@@ -6,6 +6,8 @@ import type { TorrentPlaybackFile } from './types';
 
 const MAX_RANGE_HEADER_LENGTH = 128;
 const MAX_VALIDATOR_HEADER_LENGTH = 512;
+const MAX_HEADER_ATTEMPTS = 2;
+const HEADER_RETRY_DELAY_MS = 500;
 const ETAG_PATTERN = /^(?:W\/)?"[\x21\x23-\x7e\x80-\xff]*"$/;
 
 export type TorrentPlaybackStreamErrorCode =
@@ -102,30 +104,35 @@ export class TorrentPlaybackStreamGateway {
       request.signal,
       source.signal,
     );
-    let connectTimedOut = false;
-    const connectTimer = setTimeout(() => {
-      connectTimedOut = true;
+    let headerTimedOut = false;
+    const headerTimer = setTimeout(() => {
+      headerTimedOut = true;
       controller.abort(
         new TorrentPlaybackStreamError(
           'upstream_timeout',
           'TorServer did not return stream headers within the configured budget.',
         ),
       );
-    }, this.clientConfig.connectTimeoutMs);
-    unrefTimer(connectTimer);
+    }, this.streamConfig.headerTimeoutMs);
+    unrefTimer(headerTimer);
 
     try {
-      const response = await this.fetchImplementation(source.target.url, {
-        method: request.method,
-        headers: createUpstreamHeaders(
-          this.clientConfig,
-          normalizedRequest.range,
-          normalizedRequest.validators,
-        ),
-        redirect: 'manual',
-        signal: controller.signal,
-      });
-      clearTimeout(connectTimer);
+      const response = await fetchWithTransientRetry(
+        this.fetchImplementation,
+        source.target.url,
+        {
+          method: request.method,
+          headers: createUpstreamHeaders(
+            this.clientConfig,
+            normalizedRequest.range,
+            normalizedRequest.validators,
+          ),
+          redirect: 'manual',
+          signal: controller.signal,
+        },
+        controller.signal,
+      );
+      clearTimeout(headerTimer);
 
       if (
         response.redirected ||
@@ -182,7 +189,7 @@ export class TorrentPlaybackStreamGateway {
         },
       };
     } catch (error) {
-      clearTimeout(connectTimer);
+      clearTimeout(headerTimer);
       detachSignals();
       release();
 
@@ -197,7 +204,7 @@ export class TorrentPlaybackStreamGateway {
         );
       }
 
-      if (connectTimedOut) {
+      if (headerTimedOut) {
         throw new TorrentPlaybackStreamError(
           'upstream_timeout',
           'TorServer did not return stream headers within the configured budget.',
@@ -210,6 +217,64 @@ export class TorrentPlaybackStreamGateway {
       );
     }
   }
+}
+
+async function fetchWithTransientRetry(
+  fetchImplementation: TorrentPlaybackStreamFetch,
+  input: string | URL | Request,
+  init: RequestInit,
+  signal: AbortSignal,
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < MAX_HEADER_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetchImplementation(input, init);
+
+      if (attempt + 1 < MAX_HEADER_ATTEMPTS && response.status >= 500) {
+        await cancelBody(response.body);
+        await waitForRetry(signal);
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error;
+
+      if (signal.aborted || attempt + 1 >= MAX_HEADER_ATTEMPTS) {
+        throw error;
+      }
+
+      await waitForRetry(signal);
+    }
+  }
+
+  throw lastError;
+}
+
+async function waitForRetry(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) {
+    throw readAbortReason(signal);
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', abort);
+      resolve();
+    }, HEADER_RETRY_DELAY_MS);
+    const abort = () => {
+      clearTimeout(timer);
+      reject(readAbortReason(signal));
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    unrefTimer(timer);
+  });
+}
+
+function readAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error('Torrent playback stream retry was aborted.');
 }
 
 function normalizeRequest(

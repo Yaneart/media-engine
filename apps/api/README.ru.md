@@ -77,6 +77,7 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
 MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
+MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_HEADER_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 ```
 
@@ -90,7 +91,9 @@ rate-limited health отделён от обязательной API readiness �
 Snapshot сессии содержит короткоживущий высокоэнтропийный `streamUrl`, доступный после выбора
 файла. Это capability для browser media без Bearer header; считайте URL секретом, не сохраняйте и
 не логируйте его. GET/HEAD gateway нормализует один Range, сохраняет backpressure, отменяет
-upstream при disconnect и имеет отдельные лимиты активных потоков и idle timeout. Hash, file ID и
+upstream при disconnect и имеет отдельные лимиты активных потоков, 30-секундного ожидания
+media headers и body idle timeout. Transient transport-сбой или TorServer 5xx получает не более
+одного повтора до отправки response bytes и внутри того же media-header budget. Hash, file ID и
 URL TorServer по-прежнему берутся только из server-owned состояния сессии.
 
 Для варианта под управлением репозитория задайте в `.env`

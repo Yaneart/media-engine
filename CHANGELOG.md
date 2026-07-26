@@ -54,6 +54,11 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Fixed
 
+- Reference torrent streaming now uses a separate bounded 30-second media-header budget instead of
+  the three-second TorServer control connection timeout. It retries at most one transient transport
+  or 5xx failure before exposing response bytes, preserves Range and cancellation semantics across
+  attempts, returns 502 for exhausted upstream failures and 504 for header deadlines, and retains
+  explicit post-header body-idle failure diagnostics.
 - Reference torrent playback no longer classifies known H.265/HEVC/x265 or H.266/VVC files as browser-direct merely because they use an MP4 container. Codec metadata and bounded filename markers now conservatively require transcoding, preventing the example from attaching unsupported 10-bit HEVC files to native video. The expiring stream capability also opts out of the API-wide same-origin resource policy so a separately hosted browser frontend can load compatible direct media.
 - DDBB options beyond the bounded live-validation limit are now reported as `unknown` instead of inheriting an unverified `available` status. The example groups episodes, player families, translations, and qualities without collapsing distinct voiceovers, plays direct HLS options through a lazy browser runtime instead of opening manifests as downloads, and sends an origin-only referrer required by otherwise valid Alloha embeds.
 - Cinemeta untyped IMDb details lookups no longer turn movie/series branch outages into cacheable successful null responses.
