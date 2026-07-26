@@ -72,7 +72,12 @@ TorServer URL and a separate high-entropy playback token:
 MEDIA_ENGINE_TORRSERVER_URL=http://127.0.0.1:8090
 MEDIA_ENGINE_TORRSERVER_USERNAME=
 MEDIA_ENGINE_TORRSERVER_PASSWORD=
+MEDIA_ENGINE_TORRSERVER_CONNECT_TIMEOUT_MS=15000
+MEDIA_ENGINE_TORRSERVER_REQUEST_TIMEOUT_MS=40000
+MEDIA_ENGINE_TORRSERVER_METADATA_TIMEOUT_MS=60000
+MEDIA_ENGINE_TORRSERVER_METADATA_POLL_INTERVAL_MS=250
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
+MEDIA_ENGINE_TORRENT_PLAYBACK_START_TIMEOUT_MS=120000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
 MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
@@ -81,13 +86,16 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH=
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_TIMEOUT_MS=25000
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_REMUX_TIMEOUT_MS=605000
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS=20000
 ```
 
 Generate the token with `openssl rand -base64 32`; do not place it in a frontend bundle or browser
 storage. Create, status, and stop calls require `Authorization: Bearer <token>`. They accept only a
 provider/candidate ID previously returned by this API and an optional server-offered file ID;
-arbitrary magnets, hashes, paths, and TorServer targets are rejected. There is no global session
+arbitrary handoffs, hashes, paths, and TorServer targets are rejected. Server-owned magnet
+candidates remain supported; only the exact hash-bound HTTPS YTS torrent-file URL may use the
+non-magnet path, and the TorServer result is revalidated. There is no global session
 list. The public playback health route is rate-limited, remains separate from mandatory API
 readiness, and reports only `disabled`, `ok`, or `unavailable` plus the healthy version.
 
@@ -107,11 +115,22 @@ repository or receiving application secrets. Its no-shell subprocess rejects red
 non-HTTP protocols and has fixed CPU/allocation/probe-analysis/output bounds plus a 20-second
 budget; the worker and API add separate 22/25-second outer budgets inside session start. Exact
 container, primary codecs, pixel format, and dimensions replace release-name heuristics before
-readiness. Failure stays explicit and cleans the torrent resource.
+readiness. When those exact streams are browser-compatible but the container is not, the same
+worker runs bounded asynchronous FFmpeg stream-copy remux into MP4, WebM, or OGG. The API accepts
+no caller URL, exposes the finished output only through the existing session capability, and
+removes it on stop, expiry, failure, worker restart, or output TTL. One remux, an eight-GiB
+per-output cap, a sixteen-GiB total reservation, and a ten-minute job budget are the defaults.
+Failure stays explicit and cleans the torrent resource.
+
+Media inspection retries one timeout. If both attempts time out, only a catalog-owned YTS
+torrent-file candidate already identified as H.264/x264 in MP4 may keep its conservative direct
+classification. MKV, HEVC/x265, unknown codecs, arbitrary URLs, and other providers still require
+exact inspection. TorServer add/metadata preparation separately retries one transient failure.
 
 Native host deployments may instead configure a reviewed absolute
 `MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH`; configure only one probe mode. Both modes remain
-disabled when blank, and neither passes TorServer Basic Auth credentials to `ffprobe`.
+disabled when blank, and neither passes TorServer Basic Auth credentials to `ffprobe`. This
+native-host fallback performs inspection only; automatic remux requires the isolated worker URL.
 
 For the repository-managed option, set `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` and
 `MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080` in `.env`, then
@@ -131,8 +150,8 @@ username/password only if that instance has TorServer Basic Auth enabled. The re
 does not start in that case. Keep external TorServer ports firewall-restricted to trusted backend
 traffic; Basic Auth in the reviewed release does not wrap its media `/play` routes.
 
-Range delivery is implemented, but the player UI and conversion pipeline remain separate later
-blocks. It is not part of the public SDK. See
+Direct and remux Range delivery are implemented; codec transcoding remains a later block. This
+reference path is not part of the public SDK. See
 [Reference torrent playback](../../docs/reference-torrent-playback.md) for the lifecycle, license,
 reviewed image, and upgrade policy.
 

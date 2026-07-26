@@ -34,4 +34,5 @@ export interface TorrServerRequestOptions {
 
 export interface TorrServerAddOptions extends TorrServerRequestOptions {
   title?: string;
+  expectedHash?: string;
 }

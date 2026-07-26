@@ -7,6 +7,7 @@ export type TorrentPlaybackSessionState =
 
 export type TorrentPlaybackCompatibility =
   "direct" | "remux_required" | "transcode_required" | "unknown";
+export type TorrentPlaybackMode = "direct" | "remux";
 
 export interface TorrentPlaybackFile {
   id: number;
@@ -26,6 +27,7 @@ export interface TorrentPlaybackSession {
   updatedAt: string;
   expiresAt: string;
   compatibility?: TorrentPlaybackCompatibility;
+  playbackMode?: TorrentPlaybackMode;
   selectedFile?: TorrentPlaybackFile;
   files?: TorrentPlaybackFile[];
   error?: { code: string; message: string };

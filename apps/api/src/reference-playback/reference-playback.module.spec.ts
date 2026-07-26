@@ -1,6 +1,12 @@
 import { FfprobeTorrentMediaProbe } from './media-probe';
-import { WorkerTorrentMediaProbe } from './media-worker-client';
-import { createConfiguredTorrentMediaProbe } from './reference-playback.module';
+import {
+  WorkerTorrentMediaProbe,
+  WorkerTorrentMediaRemuxer,
+} from './media-worker-client';
+import {
+  createConfiguredTorrentMediaProbe,
+  createConfiguredTorrentMediaServices,
+} from './reference-playback.module';
 import type { TorrServerClientConfig } from './torrserver';
 
 const CLIENT_CONFIG: TorrServerClientConfig = {
@@ -59,6 +65,20 @@ describe('reference playback media probe wiring', () => {
         MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL:
           'http://torrent-media-worker:8080',
       }),
+    ).toBeUndefined();
+  });
+
+  it('enables remux only through the isolated worker mode', () => {
+    expect(
+      createConfiguredTorrentMediaServices(CLIENT_CONFIG, {
+        MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL:
+          'http://torrent-media-worker:8080',
+      }).remuxer,
+    ).toBeInstanceOf(WorkerTorrentMediaRemuxer);
+    expect(
+      createConfiguredTorrentMediaServices(CLIENT_CONFIG, {
+        MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH: '/usr/bin/ffprobe',
+      }).remuxer,
     ).toBeUndefined();
   });
 });

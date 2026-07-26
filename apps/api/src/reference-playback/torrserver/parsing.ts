@@ -127,6 +127,61 @@ export function normalizeMagnet(value: string): {
   return { value: normalized, infoHash: hashes[0] };
 }
 
+export function normalizeAddLink(
+  value: string,
+  expectedHash: string | undefined,
+): { value: string; infoHash: string } {
+  if (value.trim().toLowerCase().startsWith('magnet:?')) {
+    const magnet = normalizeMagnet(value);
+
+    if (
+      expectedHash !== undefined &&
+      magnet.infoHash !== normalizeInfoHash(expectedHash)
+    ) {
+      throw invalidMagnetError();
+    }
+
+    return magnet;
+  }
+
+  if (expectedHash === undefined) {
+    throw invalidTorrentFileError();
+  }
+
+  const infoHash = normalizeInfoHash(expectedHash);
+  return {
+    value: normalizeYtsTorrentFileUrl(value, infoHash),
+    infoHash,
+  };
+}
+
+function normalizeYtsTorrentFileUrl(value: string, infoHash: string): string {
+  const normalized = value.trim();
+  let url: URL;
+
+  try {
+    url = new URL(normalized);
+  } catch {
+    throw invalidTorrentFileError();
+  }
+
+  if (
+    normalized.length > 2_048 ||
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.hostname.toLowerCase() !== 'yts.gg' ||
+    url.port !== '' ||
+    url.pathname.toLowerCase() !== `/torrent/download/${infoHash}` ||
+    url.search !== '' ||
+    url.hash !== ''
+  ) {
+    throw invalidTorrentFileError();
+  }
+
+  return url.href;
+}
+
 export function normalizeOptionalTitle(
   value: string | undefined,
 ): string | undefined {
@@ -294,5 +349,12 @@ function invalidMagnetError(): TorrServerClientError {
   return new TorrServerClientError(
     'rejected',
     'TorServer handoff is not a valid bounded magnet URI.',
+  );
+}
+
+function invalidTorrentFileError(): TorrServerClientError {
+  return new TorrServerClientError(
+    'rejected',
+    'TorServer handoff is not an approved torrent-file URL.',
   );
 }

@@ -40,8 +40,11 @@ The `0.1.x` releases established and hardened the first public baseline:
    progressive 2160p startup, seeking, buffering, and cleanup across representative files. A
    bounded ffprobe adapter now replaces release-name heuristics with exact primary stream/container
    classification before readiness, and repository Compose runs that contract behind a private
-   container-native worker without placing FFmpeg or media input in the API process. Next implement
-   bounded remux jobs, then transcode jobs, without expanding public package responsibilities.
+   container-native worker without placing FFmpeg or media input in the API process. Bounded
+   asynchronous remux now repackages browser-compatible primary tracks from MKV/MOV/TS into
+   MP4/WebM/OGG without video re-encoding, serves the completed private output through the same
+   expiring Range capability, and cleans it on stop/expiry. Next implement bounded transcode jobs
+   without expanding public package responsibilities.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

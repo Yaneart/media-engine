@@ -56,7 +56,12 @@ export function createHardenedProviderFetch(
       visited.add(url.href);
 
       const addresses = await resolveAndValidate(options.provider, url, resolver);
-      const response = await transport(url, { ...init, redirect: "manual" }, addresses[0]!);
+      const response = await requestResolvedAddresses(
+        url,
+        { ...init, redirect: "manual" },
+        preferIpv4(addresses),
+        transport,
+      );
       const location = REDIRECT_STATUSES.has(response.status)
         ? response.headers.get("location")
         : null;
@@ -177,6 +182,17 @@ function assertSupportedRequest(init: RequestInit): void {
 
 function requestPinned(url: URL, init: RequestInit, address: ResolvedAddress): Promise<Response> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const resolveOnce = (response: Response) => {
+      if (settled) return;
+      settled = true;
+      resolve(response);
+    };
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
     const lookupPinned: LookupFunction = (_hostname, lookupOptions, callback) => {
       if (lookupOptions.all) {
         callback(null, [address]);
@@ -208,7 +224,7 @@ function requestPinned(url: URL, init: RequestInit, address: ResolvedAddress): P
           status !== 205 &&
           status !== 304;
         const body = hasBody ? (Readable.toWeb(incoming) as ReadableStream<Uint8Array>) : null;
-        resolve(
+        resolveOnce(
           new Response(body, {
             status,
             statusText: incoming.statusMessage,
@@ -218,9 +234,36 @@ function requestPinned(url: URL, init: RequestInit, address: ResolvedAddress): P
       },
     );
 
-    request.once("error", reject);
+    request.once("socket", (socket) => {
+      socket.once("error", rejectOnce);
+    });
+    request.once("error", rejectOnce);
     request.end();
   });
+}
+
+async function requestResolvedAddresses(
+  url: URL,
+  init: RequestInit,
+  addresses: ReadonlyArray<ResolvedAddress>,
+  transport: PinnedHttpTransport,
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (const address of addresses) {
+    try {
+      return await transport(url, init, address);
+    } catch (error) {
+      if (init.signal?.aborted) throw error;
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error("No validated provider address was available.");
+}
+
+function preferIpv4(addresses: ReadonlyArray<ResolvedAddress>): ReadonlyArray<ResolvedAddress> {
+  return [...addresses].sort((left, right) => left.family - right.family);
 }
 
 function isPublicIpv4(address: string): boolean {

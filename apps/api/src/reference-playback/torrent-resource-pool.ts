@@ -4,6 +4,9 @@ import type {
   TorrServerRequestOptions,
   TorrServerTorrent,
 } from './torrserver';
+import { isTorrServerClientError } from './torrserver';
+
+const MAX_PREPARE_ATTEMPTS = 2;
 
 export interface TorrentPlaybackTorrServerClient {
   add(
@@ -33,7 +36,7 @@ export class TorrentResourcePool {
 
   acquire(
     infoHash: string,
-    magnet: string,
+    handoff: string,
     title: string,
   ): SharedTorrentResource {
     const existing = this.resources.get(infoHash);
@@ -53,8 +56,8 @@ export class TorrentResourcePool {
     };
     resource.promise =
       predecessorCleanup === undefined
-        ? this.prepare(resource, magnet, title)
-        : predecessorCleanup.then(() => this.prepare(resource, magnet, title));
+        ? this.prepare(resource, handoff, title)
+        : predecessorCleanup.then(() => this.prepare(resource, handoff, title));
     this.resources.set(infoHash, resource);
     return resource;
   }
@@ -77,19 +80,38 @@ export class TorrentResourcePool {
 
   private async prepare(
     resource: SharedTorrentResource,
-    magnet: string,
+    handoff: string,
     title: string,
   ): Promise<TorrServerTorrent> {
-    const torrent = await this.client.add(magnet, {
-      title,
-      signal: resource.controller.signal,
-    });
+    let lastError: unknown;
 
-    return torrent.files.length > 0
-      ? torrent
-      : this.client.waitForMetadata(resource.hash, {
+    for (let attempt = 1; attempt <= MAX_PREPARE_ATTEMPTS; attempt += 1) {
+      try {
+        const torrent = await this.client.add(handoff, {
+          title,
+          expectedHash: resource.hash,
           signal: resource.controller.signal,
         });
+
+        return torrent.files.length > 0
+          ? torrent
+          : await this.client.waitForMetadata(resource.hash, {
+              signal: resource.controller.signal,
+            });
+      } catch (error) {
+        lastError = error;
+
+        if (
+          attempt === MAX_PREPARE_ATTEMPTS ||
+          resource.controller.signal.aborted ||
+          !isRetryablePreparationError(error)
+        ) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
   }
 
   private async drop(infoHash: string): Promise<void> {
@@ -99,4 +121,14 @@ export class TorrentResourcePool {
       // Cleanup is deliberately idempotent and best-effort during stop/expiry.
     }
   }
+}
+
+function isRetryablePreparationError(error: unknown): boolean {
+  return (
+    isTorrServerClientError(error) &&
+    (error.code === 'connect_timeout' ||
+      error.code === 'request_timeout' ||
+      error.code === 'metadata_timeout' ||
+      error.code === 'unavailable')
+  );
 }

@@ -15,6 +15,8 @@ export type TorrentPlaybackSessionState =
 export type TorrentPlaybackCompatibility =
   'direct' | 'remux_required' | 'transcode_required' | 'unknown';
 
+export type TorrentPlaybackMode = 'direct' | 'remux';
+
 export interface TorrentPlaybackFile {
   id: number;
   path: string;
@@ -38,6 +40,7 @@ export interface TorrentPlaybackSessionSnapshot {
   updatedAt: string;
   expiresAt: string;
   compatibility?: TorrentPlaybackCompatibility;
+  playbackMode?: TorrentPlaybackMode;
   selectedFile?: TorrentPlaybackFile;
   files?: TorrentPlaybackFile[];
   error?: TorrentPlaybackSessionErrorInfo;
@@ -46,8 +49,9 @@ export interface TorrentPlaybackSessionSnapshot {
 export interface TorrentPlaybackStreamSource {
   target: {
     url: URL;
-    hash: string;
-    fileId: number;
+    kind: 'torrserver' | 'media_worker';
+    hash?: string;
+    fileId?: number;
   };
   file: TorrentPlaybackFile;
   signal: AbortSignal;

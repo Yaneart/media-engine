@@ -63,7 +63,7 @@ export function createYtsTorrentCapabilities(): TorrentProviderCapabilities {
       byExternalIds: ["imdb"],
       byEpisode: false,
     },
-    features: ["magnet", "peer_stats", "release_metadata"],
+    features: ["magnet", "torrent_file", "peer_stats", "release_metadata"],
   };
 }
 

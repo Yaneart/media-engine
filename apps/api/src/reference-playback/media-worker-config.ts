@@ -5,15 +5,25 @@ export const DEFAULT_TORRENT_MEDIA_WORKER_MAX_CONCURRENCY = 2;
 export const DEFAULT_TORRENT_MEDIA_WORKER_MAX_REQUEST_BYTES = 16 * 1024;
 export const DEFAULT_TORRENT_MEDIA_WORKER_REQUEST_TIMEOUT_MS = 22_000;
 export const DEFAULT_TORRENT_MEDIA_WORKER_CLIENT_TIMEOUT_MS = 25_000;
+export const DEFAULT_TORRENT_MEDIA_WORKER_CLIENT_REMUX_TIMEOUT_MS =
+  10 * 60_000 + 5_000;
+export const DEFAULT_TORRENT_MEDIA_WORKER_MAX_REMUX_CONCURRENCY = 1;
+export const DEFAULT_TORRENT_MEDIA_WORKER_MAX_STORED_BYTES = 16 * 1024 ** 3;
+export const DEFAULT_TORRENT_MEDIA_WORKER_OUTPUT_TTL_MS = 30 * 60_000;
 
 const MAX_URL_LENGTH = 2_048;
 const MAX_CONCURRENCY = 16;
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_TIMEOUT_MS = 60_000;
+const MAX_REMUX_TIMEOUT_MS = 31 * 60_000;
+const MAX_STORED_BYTES = 64 * 1024 ** 3;
+const MAX_OUTPUT_TTL_MS = 24 * 60 * 60_000;
 
 export interface TorrentMediaWorkerClientConfig {
   baseUrl: URL;
   timeoutMs: number;
+  remuxTimeoutMs: number;
+  cleanupTimeoutMs: number;
   maxResponseBytes: number;
 }
 
@@ -23,16 +33,23 @@ export interface TorrentMediaWorkerServerConfig {
   maxConcurrency: number;
   maxRequestBytes: number;
   requestTimeoutMs: number;
+  maxRemuxConcurrency: number;
+  maxStoredBytes: number;
+  outputTtlMs: number;
 }
 
 export interface TorrentMediaWorkerEnv extends NodeJS.ProcessEnv {
   MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL?: string;
   MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_REMUX_TIMEOUT_MS?: string;
   MEDIA_ENGINE_TORRENT_MEDIA_WORKER_HOST?: string;
   MEDIA_ENGINE_TORRENT_MEDIA_WORKER_PORT?: string;
   MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_CONCURRENCY?: string;
   MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_REQUEST_BYTES?: string;
   MEDIA_ENGINE_TORRENT_MEDIA_WORKER_REQUEST_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_REMUX_CONCURRENCY?: string;
+  MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_STORED_BYTES?: string;
+  MEDIA_ENGINE_TORRENT_MEDIA_WORKER_OUTPUT_TTL_MS?: string;
 }
 
 export function readTorrentMediaWorkerClientConfig(
@@ -58,6 +75,14 @@ export function readTorrentMediaWorkerClientConfig(
       1_000,
       MAX_TIMEOUT_MS,
     ),
+    remuxTimeoutMs: readInteger(
+      env.MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_REMUX_TIMEOUT_MS,
+      'MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_REMUX_TIMEOUT_MS',
+      DEFAULT_TORRENT_MEDIA_WORKER_CLIENT_REMUX_TIMEOUT_MS,
+      10_000,
+      MAX_REMUX_TIMEOUT_MS,
+    ),
+    cleanupTimeoutMs: 5_000,
     maxResponseBytes: 64 * 1024,
   };
 }
@@ -107,6 +132,27 @@ export function readTorrentMediaWorkerServerConfig(
       DEFAULT_TORRENT_MEDIA_WORKER_REQUEST_TIMEOUT_MS,
       1_000,
       MAX_TIMEOUT_MS,
+    ),
+    maxRemuxConcurrency: readInteger(
+      env.MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_REMUX_CONCURRENCY,
+      'MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_REMUX_CONCURRENCY',
+      DEFAULT_TORRENT_MEDIA_WORKER_MAX_REMUX_CONCURRENCY,
+      1,
+      MAX_CONCURRENCY,
+    ),
+    maxStoredBytes: readInteger(
+      env.MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_STORED_BYTES,
+      'MEDIA_ENGINE_TORRENT_MEDIA_WORKER_MAX_STORED_BYTES',
+      DEFAULT_TORRENT_MEDIA_WORKER_MAX_STORED_BYTES,
+      64 * 1024 ** 2,
+      MAX_STORED_BYTES,
+    ),
+    outputTtlMs: readInteger(
+      env.MEDIA_ENGINE_TORRENT_MEDIA_WORKER_OUTPUT_TTL_MS,
+      'MEDIA_ENGINE_TORRENT_MEDIA_WORKER_OUTPUT_TTL_MS',
+      DEFAULT_TORRENT_MEDIA_WORKER_OUTPUT_TTL_MS,
+      10_000,
+      MAX_OUTPUT_TTL_MS,
     ),
   };
 }

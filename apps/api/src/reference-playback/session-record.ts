@@ -4,6 +4,7 @@ import type {
   TorrentPlaybackSessionSnapshot,
   TorrentPlaybackSessionState,
 } from './types';
+import type { TorrentMediaRemuxResult } from './media-remux';
 
 export interface InternalTorrentPlaybackSession {
   id: string;
@@ -14,6 +15,8 @@ export interface InternalTorrentPlaybackSession {
   expiryTimer?: ReturnType<typeof setTimeout>;
   resource?: SharedTorrentResource;
   resourceReleased: boolean;
+  remuxResult?: TorrentMediaRemuxResult;
+  remuxTask?: Promise<void>;
   snapshot: TorrentPlaybackSessionSnapshot;
 }
 
@@ -52,7 +55,7 @@ export function updateSessionRecord(
   now: number,
   values: Pick<
     TorrentPlaybackSessionSnapshot,
-    'compatibility' | 'selectedFile' | 'files'
+    'compatibility' | 'playbackMode' | 'selectedFile' | 'files'
   > = {},
 ): TorrentPlaybackSessionSnapshot {
   session.state = state;

@@ -68,6 +68,38 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
     };
   }, [candidate.id, candidate.provider, playableCandidate]);
 
+  useEffect(() => {
+    if (
+      state.status !== "active" ||
+      state.session.state !== "starting" ||
+      state.session.compatibility !== "remux_required"
+    ) {
+      return;
+    }
+
+    const sessionId = state.session.id;
+    const timer = window.setTimeout(() => {
+      const controller = new AbortController();
+      requestRef.current = controller;
+      void getReferencePlaybackSession(sessionId, controller.signal)
+        .then((session) => {
+          if (controller.signal.aborted) return;
+          activeSessionIdRef.current = session.state === "stopped" ? undefined : session.id;
+          setState({ status: "active", session });
+          setMediaStatus(describeSessionState(session));
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          setState({
+            status: "error",
+            message: error instanceof Error ? error.message : "Could not refresh remux status.",
+          });
+        });
+    }, 1_500);
+
+    return () => window.clearTimeout(timer);
+  }, [state]);
+
   async function start(fileId?: number) {
     requestRef.current?.abort();
     const controller = new AbortController();
@@ -210,7 +242,7 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
   }
 
   const { session } = state;
-  const directlyPlayable = session.state === "ready" && session.compatibility === "direct";
+  const playable = session.state === "ready" && session.playbackMode !== undefined;
 
   return (
     <div className="reference-player">
@@ -233,12 +265,19 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
           <strong>Browser playback intentionally withheld</strong>
           <span>
             This file is classified as {formatCompatibility(session.compatibility)}. The reference
-            path does not yet remux or transcode it.
+            path does not yet transcode it.
           </span>
         </div>
       ) : null}
 
-      {directlyPlayable ? (
+      {session.state === "starting" && session.compatibility === "remux_required" ? (
+        <div className="reference-player__notice" role="status">
+          <strong>Preparing a browser container</strong>
+          <span>The private worker is remuxing compatible tracks without re-encoding video.</span>
+        </div>
+      ) : null}
+
+      {playable ? (
         <div className="reference-player__media">
           <video
             aria-label={`Reference playback for ${candidate.title}`}
@@ -328,14 +367,16 @@ function SelectedFile({ file }: { file: TorrentPlaybackFile }) {
 }
 
 function describeSessionState(session: TorrentPlaybackSession): string {
-  if (session.state === "ready")
-    return "Direct file selected. Browser support still depends on its codecs.";
+  if (session.state === "ready" && session.playbackMode === "remux")
+    return "Browser-compatible tracks were remuxed without video re-encoding.";
+  if (session.state === "ready") return "Direct browser-compatible file selected.";
   if (session.state === "conversion_required")
     return "The selected file requires conversion before browser playback.";
   if (session.state === "file_selection_required")
     return "Choose one bounded video file from the torrent metadata.";
   if (session.state === "failed") return session.error?.message ?? "Playback preparation failed.";
   if (session.state === "stopped") return "Session stopped and torrent resources released.";
+  if (session.compatibility === "remux_required") return "Preparing a browser container.";
   return "Preparing torrent metadata.";
 }
 

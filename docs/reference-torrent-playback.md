@@ -40,9 +40,11 @@ The API application now also owns a private bounded candidate catalog and sessio
 - successful `GET /media/torrents` responses copy candidates into a fresh-only, process-local
   catalog keyed by exact provider and candidate ID; the default cap is 500 entries and the default
   TTL is five minutes or the candidate's earlier advertised expiry;
-- session creation resolves only that server-owned copy, revalidates provider/ID, magnet/info-hash
-  agreement, handoff kind, expiry, and optional server-offered file ID, and never accepts a magnet,
-  hash, path, or TorServer target from a caller;
+- session creation resolves only that server-owned copy, revalidates provider/ID, handoff/info-hash
+  agreement, handoff kind, expiry, and optional server-offered file ID, and never accepts a handoff,
+  hash, path, or TorServer target from a caller. Magnet handoffs remain supported; an HTTPS
+  torrent-file handoff is accepted only for the exact catalog-owned YTS URL whose path contains the
+  expected info hash, and TorServer's returned hash is checked again;
 - TorServer add/metadata work is bounded by total/concurrent-start limits and high-entropy session
   IDs. Identical info hashes share preparation and use reference counting; the final stop, expiry,
   cancellation, or application shutdown performs one best-effort `drop`;
@@ -53,7 +55,16 @@ The API application now also owns a private bounded candidate catalog and sessio
   metadata; the worker constructs the HTTP(S) TorServer target and accepts no caller URL. It has no
   host port, repository mount, or application secrets, while its no-shell `ffprobe` subprocess
   rejects redirects and has fixed CPU/allocation/probe/output/time bounds. Native hosts retain an
-  exclusive reviewed-path fallback. Probe failure is explicit and releases the torrent resource;
+  exclusive reviewed-path fallback. Inspection retries one timeout; only a catalog-owned YTS
+  torrent-file candidate already identified as an H.264/x264 MP4 may retain its conservative direct
+  classification after both attempts time out. MKV, HEVC/x265, unknown codecs, arbitrary URLs, and
+  other providers cannot use this fallback. Other probe failures are explicit and release the
+  torrent resource;
+- exact browser-compatible primary tracks in MKV/MOV/TS and other non-browser containers can be
+  remuxed asynchronously by the same private worker into MP4, WebM, or OGG without video
+  re-encoding. The worker accepts only the server-owned hash/file ID, target container, and bounded
+  file metadata; FFmpeg runs without a shell, credentials, redirects, or non-HTTP input. Separate
+  job concurrency, duration, per-output, total-storage-reservation, and output-TTL limits apply;
 - states are `starting`, `file_selection_required`, `ready`, `conversion_required`, `failed`, and
   `stopped`. File classification is deliberately limited to `direct`, `remux_required`,
   `transcode_required`, or `unknown`; it describes reference-path preparation and is not a promise
@@ -61,22 +72,28 @@ The API application now also owns a private bounded candidate catalog and sessio
   classified conservatively as transcode-required even inside MP4 because native support is not a
   portable browser baseline;
 - every session snapshot contains an expiring high-entropy `streamUrl`, usable only while a file is
-  selected and the session is ready or conversion-required. The API
-  resolves its TorServer `/play/{hash}/{fileId}` target exclusively from server-owned session
-  state, permits this capability route to load from a separate frontend origin, and streams the
-  response with backpressure instead of buffering media in memory;
+  selected and the session is ready. The API resolves either its TorServer
+  `/play/{hash}/{fileId}` target or a completed private worker output exclusively from server-owned
+  session state, permits this capability route to load from a separate frontend origin, and
+  streams the response with backpressure instead of buffering media in memory. TorServer Basic
+  credentials are never forwarded to the worker output;
 - the stream gateway accepts `GET` and `HEAD`, normalizes exactly one satisfiable byte range,
   forwards only `Range` and bounded cache validators, rejects redirects and inconsistent upstream
   status/length/range headers, and returns only a small safe set of media/cache headers. Opening a
-  stream has its own 30-second response-header budget, independent from the three-second TorServer
+  stream has its own 30-second response-header budget, independent from the 15-second TorServer
   control connection timeout. One transient transport or 5xx failure may be retried before any
   response bytes, without resetting that budget;
 - browser and session cancellation abort upstream work. Eight simultaneous response bodies and a
   30-second body-idle timeout are the defaults; excess streams fail immediately rather than queue.
 
 The default private limits are a 500-entry/five-minute candidate catalog, eight total sessions,
-two concurrent starts, a 45-second start budget, a 30-minute session TTL, at most 100 offered
+two concurrent starts, a 120-second start budget, a 30-minute session TTL, at most 100 offered
 files, eight active streams, a 30-second stream-header timeout, and a 30-second stream-idle timeout.
+TorServer control requests use separate 15-second connection, 40-second complete-request,
+60-second metadata, and 250-millisecond poll defaults. One transient preparation failure is retried
+inside the same session-start budget.
+Remux defaults are one active job, a ten-minute worker budget, an eight-GiB output cap, a
+sixteen-GiB total storage reservation, and a 30-minute output TTL.
 Their strict
 `MEDIA_ENGINE_TORRENT_CANDIDATE_*` and
 `MEDIA_ENGINE_TORRENT_PLAYBACK_*` settings are listed in `.env.example`; they do not enable a
@@ -131,10 +148,12 @@ docker compose --profile torrent-playback up --build
 
 The TorServer and media-worker containers have no `ports` mapping. Only the API and worker join the
 dedicated Compose network; the example remains on the default network. Both containers use
-read-only root filesystems,
-drops Linux capabilities, prevents privilege escalation, rotates bounded logs, and defaults to one
-GiB RAM, two CPUs, and 256 PIDs. Its writable config, torrent-autoload, and `/tmp` paths are bounded
-ephemeral tmpfs mounts. TorServer itself runs in read-only-settings mode, which keeps its upstream
+read-only root filesystems, drop Linux capabilities, prevent privilege escalation, rotate bounded
+logs, and have explicit RAM, CPU, and PID limits. TorServer writable config, torrent-autoload, and
+`/tmp` paths are bounded ephemeral tmpfs mounts. The worker uses a dedicated writable volume only
+for bounded remux outputs; it deletes recognized orphan outputs at startup and enforces its logical
+per-output/total reservation independently of the volume. TorServer itself runs in
+read-only-settings mode, which keeps its upstream
 in-memory piece cache at the reviewed 64 MiB default and prevents runtime settings mutation.
 Restarting the container intentionally discards its config/database and autoload scratch; Media
 Engine adds candidates with `save_to_db: false` and owns the bounded session lifecycle.
@@ -156,10 +175,13 @@ state. The token is never compiled into the frontend or persisted by the browser
 only the expiring `streamUrl`. Direct files expose playback, seeking, buffering diagnostics, manual
 status refresh, and explicit cleanup. Ambiguous torrents expose bounded file selection.
 
-There is still no remuxer or transcoder. `conversion_required` therefore remains an honest visible
-state and is never attached to the browser player. `GET /media/torrents` itself remains
-discovery-only. A static production deployment must implement an equivalent authenticated BFF or
-leave reference playback disabled.
+Browser-compatible files in non-browser containers now enter asynchronous remux, remain `starting`
+while FFmpeg stream-copies them, and become `ready` with `playbackMode: remux` when the bounded
+output is complete. The example polls this transition and then uses the same `streamUrl`.
+Transcode-required files remain an honest visible `conversion_required` state and are never
+attached to the browser player. `GET /media/torrents` itself remains discovery-only. A static
+production deployment must implement an equivalent authenticated BFF or leave reference playback
+disabled.
 
 ## Русский
 
@@ -173,7 +195,9 @@ Basic credentials, timeout/concurrency/resource limits, health/add/get/poll/drop
 server-controlled play target. API теперь также хранит короткоживущую bounded-копию кандидатов,
 возвращённых `GET /media/torrents`, и строит приватные playback-сессии только по точным
 `provider + candidateId` и опциональному server-offered `fileId`. Перед TorServer повторно
-проверяются magnet/info hash, identity, handoff и expiry; одинаковые hash используют общую
+проверяются handoff/info hash, identity и expiry; magnet остаётся разрешён, а torrent-file URL
+принимается только для server-owned кандидата YTS с ожидаемым hash в строгом HTTPS path. Hash,
+который вернул TorServer, проверяется ещё раз; одинаковые hash используют общую
 подготовку и refcount до финального cleanup.
 
 Неоднозначный набор файлов возвращает `file_selection_required`; состояния conversion и
@@ -186,8 +210,17 @@ server-owned выбора файла и до ready/conversion state. API пер�
 метаданные файла; worker сам строит HTTP(S) TorServer target и не принимает caller URL. У него нет
 host port, mount репозитория или секретов приложения, а no-shell `ffprobe` ограничен по
 CPU/allocation/probe/output/time и запрещает redirects. Для native host остаётся взаимоисключающий
-fallback с проверенным абсолютным путём. Ошибка явно завершает сессию и освобождает torrent
+fallback с проверенным абсолютным путём. Timeout inspection повторяется один раз. Только
+catalog-owned YTS torrent-file с уже определённым H.264/x264 MP4 может сохранить консервативный
+direct-режим после двух timeout; для MKV, HEVC/x265, неизвестного codec, произвольного URL и других
+providers этот fallback запрещён. Остальные ошибки явно завершают сессию и освобождают torrent
 resource.
+
+Browser-compatible primary tracks в MKV/MOV/TS и других неподходящих container теперь могут
+асинхронно stream-copy remux-иться тем же приватным worker в MP4, WebM или OGG без перекодирования
+видео. Worker принимает только server-owned hash/file ID, целевой container и bounded metadata;
+FFmpeg не получает shell, credentials, redirects или non-HTTP input. Отдельно ограничены
+concurrency, duration, размер одного результата, суммарная storage reservation и output TTL.
 
 App-specific routes create/status/stop теперь доступны только при совместной настройке точного
 `MEDIA_ENGINE_TORRSERVER_URL` и отдельного `MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` длиной 32-512
@@ -203,7 +236,7 @@ disabled/ok/unavailable и не влияет на основную `/health/read
 после expiry или stop URL перестаёт работать. Gateway разрешает только один
 валидный byte range, безопасные cache validators и ограниченный набор response headers; redirect и
 несогласованные 200/206/304/416 отклоняются. Поток идёт с backpressure без полной буферизации.
-Ожидание media headers имеет отдельный общий бюджет 30 с и не использует трёхсекундный control
+Ожидание media headers имеет отдельный общий бюджет 30 с и не использует 15-секундный control
 connect timeout. До отправки response bytes допускается не более одного повтора transient
 transport/5xx-сбоя без сброса общего бюджета. Disconnect отменяет upstream и не запускает повтор.
 По умолчанию разрешено восемь активных потоков с body idle timeout 30 с.
@@ -225,8 +258,10 @@ create/status/stop уже требуют независимый Bearer token. Д
 вне authenticated route group. Example теперь содержит опциональный нативный player flow: Vite
 dev/preview server добавляет операторский token только на server-side lifecycle BFF, а браузер
 получает лишь временный `streamUrl`. Direct-файлы поддерживают seek/buffering diagnostics и явный
-cleanup; неоднозначные torrents предлагают ограниченный выбор файла. Remux и transcode всё ещё не
-реализованы, поэтому `conversion_required` честно показывается и не подключается к `<video>`.
+cleanup; неоднозначные torrents предлагают ограниченный выбор файла. Совместимый remux остаётся в
+`starting`, затем переходит в `ready` с `playbackMode: remux` и воспроизводится через тот же
+`streamUrl`. Transcode ещё не реализован, поэтому `conversion_required` честно показывается и не
+подключается к `<video>`.
 Magnet, target URL и file path от браузера не принимаются. Статическому production deployment нужен
 эквивалентный authenticated BFF, иначе player должен остаться выключенным. Переход на другую версию
 TorServer требует повторной проверки контракта и нового immutable digest.

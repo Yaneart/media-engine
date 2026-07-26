@@ -87,8 +87,9 @@ docker compose --profile torrent-playback up --build
 ```
 
 The pinned TorServer and bounded media worker are reachable only over a private Compose network and
-have no host ports. Direct browser Range playback, seeking, and cleanup are available; files that
-need remux or transcode remain explicit conversion-required states.
+have no host ports. Direct browser Range playback, seeking, cleanup, and bounded stream-copy remux
+for compatible tracks in MKV/MOV/TS are available; files that need codec transcoding remain an
+explicit conversion-required state.
 
 ## A small but important warning
 

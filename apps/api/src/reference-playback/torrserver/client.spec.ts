@@ -130,6 +130,22 @@ describe('TorServer client', () => {
     expect(String(error)).not.toContain(MAGNET);
   });
 
+  it('adds an approved YTS torrent file with an exact expected identity', async () => {
+    const requests: Array<{ body?: string }> = [];
+    const client = createClient({}, async (_input, init) => {
+      requests.push({
+        body: typeof init?.body === 'string' ? init.body : undefined,
+      });
+      return jsonResponse(torrentStatus());
+    });
+    const url = `https://yts.gg/torrent/download/${HASH}`;
+
+    await expect(
+      client.add(url, { expectedHash: HASH, title: 'Fixture' }),
+    ).resolves.toMatchObject({ hash: HASH });
+    expect(JSON.parse(requests[0]?.body ?? '{}')).toMatchObject({ link: url });
+  });
+
   it('cancels pre-aborted and active requests', async () => {
     const fetchMock = jest.fn<Promise<Response>, Parameters<TestFetch>>(
       async () => new Promise(() => {}),

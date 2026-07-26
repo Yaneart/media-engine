@@ -9,18 +9,31 @@ import {
   isTorrentPlaybackSessionError,
   TorrentPlaybackSessionError,
 } from './errors';
-import { classifyProbedTorrentFile, selectTorrentFile } from './file-selection';
+import {
+  browserTargetContainer,
+  classifyProbedTorrentFile,
+  selectTorrentFile,
+} from './file-selection';
 import {
   isTorrentMediaProbeError,
   type TorrentMediaProbe,
 } from './media-probe';
+import {
+  containerExtension,
+  isTorrentMediaRemuxError,
+  type TorrentMediaRemuxContainer,
+  type TorrentMediaRemuxer,
+} from './media-remux';
 import {
   createSessionRecord,
   failSessionRecord,
   type InternalTorrentPlaybackSession,
   updateSessionRecord,
 } from './session-record';
-import { isTorrServerClientError } from './torrserver';
+import {
+  isTorrServerClientError,
+  type TorrServerPlayTarget,
+} from './torrserver';
 import {
   TorrentResourcePool,
   type TorrentPlaybackTorrServerClient,
@@ -34,6 +47,7 @@ import type {
 } from './types';
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
+const MAX_MEDIA_PROBE_ATTEMPTS = 2;
 
 export type { TorrentPlaybackTorrServerClient } from './torrent-resource-pool';
 
@@ -46,6 +60,7 @@ interface TorrentPlaybackSessionDependencies {
   ) => ReturnType<typeof setTimeout>;
   clearTimer?: (timer: ReturnType<typeof setTimeout>) => void;
   mediaProbe?: TorrentMediaProbe;
+  mediaRemuxer?: TorrentMediaRemuxer;
 }
 
 export class TorrentPlaybackSessionService {
@@ -56,6 +71,7 @@ export class TorrentPlaybackSessionService {
   private readonly setTimer: TorrentPlaybackSessionDependencies['setTimer'];
   private readonly clearTimer: TorrentPlaybackSessionDependencies['clearTimer'];
   private readonly mediaProbe: TorrentMediaProbe | undefined;
+  private readonly mediaRemuxer: TorrentMediaRemuxer | undefined;
   private startingSessions = 0;
   private shuttingDown = false;
 
@@ -71,6 +87,7 @@ export class TorrentPlaybackSessionService {
     this.setTimer = dependencies.setTimer ?? setTimeout;
     this.clearTimer = dependencies.clearTimer ?? clearTimeout;
     this.mediaProbe = dependencies.mediaProbe;
+    this.mediaRemuxer = dependencies.mediaRemuxer;
     this.resourcePool =
       client === undefined ? undefined : new TorrentResourcePool(client);
   }
@@ -112,7 +129,7 @@ export class TorrentPlaybackSessionService {
       );
     }
 
-    const { candidate, infoHash, magnet } = revalidatePlaybackCandidate(
+    const { candidate, infoHash, handoff } = revalidatePlaybackCandidate(
       catalogued,
       input,
       this.now(),
@@ -135,7 +152,7 @@ export class TorrentPlaybackSessionService {
     this.startingSessions += 1;
     const resource = this.resourcePool!.acquire(
       infoHash,
-      magnet,
+      handoff,
       candidate.title,
     );
     session.resource = resource;
@@ -189,16 +206,39 @@ export class TorrentPlaybackSessionService {
         });
       }
 
-      const selectedFile = await this.inspectSelectedFile(
+      const inspected = await this.inspectSelectedFile(
         session,
         selection.selected,
+        candidate,
       );
+      const selectedFile = inspected.file;
       const compatibility = selectedFile.compatibility;
+
+      if (
+        compatibility === 'remux_required' &&
+        inspected.remuxContainer !== undefined &&
+        this.mediaRemuxer !== undefined
+      ) {
+        const snapshot = this.updateSession(session, 'starting', {
+          compatibility,
+          selectedFile,
+        });
+        session.remuxTask = this.runRemux(
+          session,
+          selectedFile,
+          inspected.remuxContainer,
+        );
+        return snapshot;
+      }
+
       return this.updateSession(
         session,
         compatibility === 'direct' ? 'ready' : 'conversion_required',
         {
           compatibility,
+          ...(compatibility === 'direct'
+            ? { playbackMode: 'direct' as const }
+            : {}),
           selectedFile,
         },
       );
@@ -268,18 +308,34 @@ export class TorrentPlaybackSessionService {
     const session = this.getActiveSession(sessionId);
     const selectedFile = session.snapshot.selectedFile;
 
-    if (
-      selectedFile === undefined ||
-      (session.state !== 'ready' && session.state !== 'conversion_required')
-    ) {
+    if (selectedFile === undefined || session.state !== 'ready') {
       throw new TorrentPlaybackSessionError(
         'session_not_streamable',
         'The playback session does not have a selected streamable file.',
       );
     }
 
+    if (session.remuxResult !== undefined) {
+      return {
+        target: {
+          url: new URL(session.remuxResult.target.url),
+          kind: 'media_worker',
+        },
+        file: {
+          id: selectedFile.id,
+          path: `remux.${containerExtension(session.remuxResult.container)}`,
+          length: session.remuxResult.length,
+          compatibility: 'direct',
+        },
+        signal: session.controller.signal,
+      };
+    }
+
     return {
-      target: this.client.createPlayTarget(session.infoHash, selectedFile.id),
+      target: {
+        ...this.client.createPlayTarget(session.infoHash, selectedFile.id),
+        kind: 'torrserver',
+      },
       file: structuredClone(selectedFile),
       signal: session.controller.signal,
     };
@@ -336,21 +392,105 @@ export class TorrentPlaybackSessionService {
   private async inspectSelectedFile(
     session: InternalTorrentPlaybackSession,
     file: TorrentPlaybackFile,
-  ): Promise<TorrentPlaybackFile> {
+    candidate: Parameters<typeof selectTorrentFile>[1],
+  ): Promise<{
+    file: TorrentPlaybackFile;
+    remuxContainer?: TorrentMediaRemuxContainer;
+  }> {
     if (this.mediaProbe === undefined) {
-      return file;
+      return { file };
     }
 
     const target = this.client!.createPlayTarget(session.infoHash, file.id);
-    const result = await this.mediaProbe.probe({
-      target,
-      file,
-      signal: session.controller.signal,
-    });
+    let result;
+
+    try {
+      result = await this.probeSelectedFile(session, target, file);
+    } catch (error) {
+      if (
+        isTorrentMediaProbeError(error) &&
+        error.code === 'timeout' &&
+        isTrustedYtsDirectFallback(candidate, file)
+      ) {
+        return { file };
+      }
+
+      throw error;
+    }
+    const compatibility = classifyProbedTorrentFile(file.path, result);
     return {
-      ...file,
-      compatibility: classifyProbedTorrentFile(file.path, result),
+      file: { ...file, compatibility },
+      ...(compatibility === 'remux_required'
+        ? { remuxContainer: browserTargetContainer(result) }
+        : {}),
     };
+  }
+
+  private async probeSelectedFile(
+    session: InternalTorrentPlaybackSession,
+    target: TorrServerPlayTarget,
+    file: TorrentPlaybackFile,
+  ) {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_MEDIA_PROBE_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.mediaProbe!.probe({
+          target,
+          file,
+          signal: session.controller.signal,
+        });
+      } catch (error) {
+        lastError = error;
+
+        if (
+          attempt === MAX_MEDIA_PROBE_ATTEMPTS ||
+          session.controller.signal.aborted ||
+          !isTorrentMediaProbeError(error) ||
+          error.code !== 'timeout'
+        ) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  private async runRemux(
+    session: InternalTorrentPlaybackSession,
+    file: TorrentPlaybackFile,
+    container: TorrentMediaRemuxContainer,
+  ): Promise<void> {
+    try {
+      const result = await this.mediaRemuxer!.remux({
+        target: this.client!.createPlayTarget(session.infoHash, file.id),
+        file,
+        container,
+        signal: session.controller.signal,
+      });
+
+      if (session.state === 'stopped' || session.controller.signal.aborted) {
+        await this.mediaRemuxer!.release(result).catch(() => undefined);
+        return;
+      }
+
+      session.remuxResult = result;
+      this.updateSession(session, 'ready', {
+        compatibility: 'remux_required',
+        playbackMode: 'remux',
+        selectedFile: file,
+      });
+      await this.releaseResource(session);
+    } catch (error) {
+      if (session.state === 'stopped' || session.controller.signal.aborted) {
+        return;
+      }
+
+      const failure = mapRemuxFailure(error);
+      this.failSession(session, failure.code, failure.message);
+      await this.releaseResource(session);
+    }
   }
 
   private getActiveSession(sessionId: string): InternalTorrentPlaybackSession {
@@ -405,7 +545,7 @@ export class TorrentPlaybackSessionService {
     state: TorrentPlaybackSessionState,
     values: Pick<
       TorrentPlaybackSessionSnapshot,
-      'compatibility' | 'selectedFile' | 'files'
+      'compatibility' | 'playbackMode' | 'selectedFile' | 'files'
     > = {},
   ): TorrentPlaybackSessionSnapshot {
     return updateSessionRecord(session, state, this.now(), values);
@@ -427,6 +567,12 @@ export class TorrentPlaybackSessionService {
       this.updateSession(session, 'stopped');
     }
 
+    if (session.remuxTask !== undefined) {
+      await session.remuxTask.catch(() => undefined);
+    }
+    if (session.remuxResult !== undefined) {
+      await this.releaseRemuxResult(session);
+    }
     await this.releaseResource(session);
   }
 
@@ -459,12 +605,41 @@ export class TorrentPlaybackSessionService {
     await this.resourcePool!.release(resource);
   }
 
+  private async releaseRemuxResult(
+    session: InternalTorrentPlaybackSession,
+  ): Promise<void> {
+    const result = session.remuxResult;
+    if (result === undefined || this.mediaRemuxer === undefined) return;
+    session.remuxResult = undefined;
+    await this.mediaRemuxer.release(result).catch(() => undefined);
+  }
+
   private clearExpiryTimer(session: InternalTorrentPlaybackSession): void {
     if (session.expiryTimer !== undefined) {
       this.clearTimer!(session.expiryTimer);
       session.expiryTimer = undefined;
     }
   }
+}
+
+function isTrustedYtsDirectFallback(
+  candidate: Parameters<typeof selectTorrentFile>[1],
+  file: TorrentPlaybackFile,
+): boolean {
+  const codec = candidate.release?.videoCodec?.toLowerCase();
+  const path = file.path.toLowerCase();
+
+  return (
+    candidate.provider === 'yts-torrent' &&
+    candidate.handoff.kind === 'torrent_file' &&
+    file.compatibility === 'direct' &&
+    (path.endsWith('.mp4') || path.endsWith('.m4v')) &&
+    codec !== undefined &&
+    (codec.includes('x264') ||
+      codec.includes('h264') ||
+      codec.includes('h.264') ||
+      codec.includes('avc'))
+  );
 }
 
 function mapPreparationFailure(error: unknown): {
@@ -487,6 +662,29 @@ function mapPreparationFailure(error: unknown): {
       ? `torrserver_${error.code}`
       : 'torrserver_unavailable',
     message: 'TorServer could not prepare the selected torrent.',
+  };
+}
+
+function mapRemuxFailure(error: unknown): { code: string; message: string } {
+  if (isTorrentMediaRemuxError(error)) {
+    if (error.code === 'timeout') {
+      return {
+        code: 'media_remux_timeout',
+        message: 'Media remux did not finish within the configured budget.',
+      };
+    }
+
+    if (error.code === 'output_limit') {
+      return {
+        code: 'media_remux_output_limit',
+        message: 'The selected media exceeds the configured remux limit.',
+      };
+    }
+  }
+
+  return {
+    code: 'media_remux_failed',
+    message: 'The selected media file could not be remuxed safely.',
   };
 }
 

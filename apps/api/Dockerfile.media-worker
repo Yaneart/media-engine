@@ -26,6 +26,8 @@ RUN apt-get update \
 ENV NODE_ENV=production
 WORKDIR /app
 
+RUN install -d -o node -g node /var/lib/media-engine/remux
+
 COPY --from=build --chown=node:node /workspace/apps/api/dist ./dist
 
 USER node

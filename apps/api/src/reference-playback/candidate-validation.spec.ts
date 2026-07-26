@@ -11,7 +11,24 @@ describe('revalidatePlaybackCandidate', () => {
         { provider: 'test-torrent', candidateId: 'candidate-1' },
         now,
       ),
-    ).toMatchObject({ infoHash: TEST_HASH, magnet: TEST_MAGNET });
+    ).toMatchObject({ infoHash: TEST_HASH, handoff: TEST_MAGNET });
+  });
+
+  it('accepts an exact catalogued YTS torrent-file identity', () => {
+    const uri = `https://yts.gg/torrent/download/${TEST_HASH}`;
+    const candidate = torrentCandidate({
+      provider: 'yts-torrent',
+      id: `yts-torrent:${TEST_HASH}`,
+      handoff: { kind: 'torrent_file', uri },
+    });
+
+    expect(
+      revalidatePlaybackCandidate(
+        catalogued(candidate),
+        { provider: candidate.provider, candidateId: candidate.id },
+        now,
+      ),
+    ).toMatchObject({ infoHash: TEST_HASH, handoff: uri });
   });
 
   it.each([
@@ -45,6 +62,33 @@ describe('revalidatePlaybackCandidate', () => {
         handoff: { kind: 'magnet', uri: TEST_MAGNET, method: 'POST' },
       }),
       { provider: 'test-torrent', candidateId: 'candidate-1' },
+      'candidate_not_playable',
+    ],
+    [
+      'torrent file from another provider',
+      torrentCandidate({
+        handoff: {
+          kind: 'torrent_file',
+          uri: `https://yts.gg/torrent/download/${TEST_HASH}`,
+        },
+      }),
+      { provider: 'test-torrent', candidateId: 'candidate-1' },
+      'candidate_not_playable',
+    ],
+    [
+      'unapproved torrent file URL',
+      torrentCandidate({
+        provider: 'yts-torrent',
+        id: `yts-torrent:${TEST_HASH}`,
+        handoff: {
+          kind: 'torrent_file',
+          uri: `https://example.com/torrent/download/${TEST_HASH}`,
+        },
+      }),
+      {
+        provider: 'yts-torrent',
+        candidateId: `yts-torrent:${TEST_HASH}`,
+      },
       'candidate_not_playable',
     ],
   ] as const)('rejects %s', (_label, candidate, input, code) => {

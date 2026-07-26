@@ -13,6 +13,7 @@ const movie: YtsTorrentMovie = {
   torrents: [
     {
       hash: "CE9156EB497762F8B7577B71C0647A4B0C3423E1",
+      torrentUrl: "https://yts.gg/torrent/download/CE9156EB497762F8B7577B71C0647A4B0C3423E1",
       quality: "720p",
       sourceType: "bluray",
       videoCodec: "x264",
@@ -58,7 +59,7 @@ test("selectYtsTorrentMovie requires exact IMDb or unambiguous title and year", 
   );
 });
 
-test("mapYtsTorrentResponse creates deduplicated magnet candidates with honest peer state", () => {
+test("mapYtsTorrentResponse prefers torrent files and keeps magnet fallback", () => {
   const query = {
     type: "movie" as const,
     title: "Inception",
@@ -93,12 +94,13 @@ test("mapYtsTorrentResponse creates deduplicated magnet candidates with honest p
       checkedAt: result?.candidates[0]?.peers?.checkedAt,
     },
     handoff: {
-      kind: "magnet",
-      uri: "magnet:?xt=urn:btih:CE9156EB497762F8B7577B71C0647A4B0C3423E1&dn=Inception%20(2010)%20720p%20BLURAY%20%5BYTS%5D",
+      kind: "torrent_file",
+      uri: "https://yts.gg/torrent/download/CE9156EB497762F8B7577B71C0647A4B0C3423E1",
     },
     availability: "available",
     sourceUrl: "https://yts.test/movies/inception-2010",
   });
   assert.equal(result?.candidates[1]?.availability, "unseeded");
   assert.equal(result?.candidates[1]?.release?.source, "web");
+  assert.equal(result?.candidates[1]?.handoff.kind, "magnet");
 });

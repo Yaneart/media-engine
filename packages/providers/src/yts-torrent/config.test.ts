@@ -15,7 +15,7 @@ test("ytsTorrentProvider exposes no-key movie and IMDb capabilities", () => {
       byExternalIds: ["imdb"],
       byEpisode: false,
     },
-    features: ["magnet", "peer_stats", "release_metadata"],
+    features: ["magnet", "torrent_file", "peer_stats", "release_metadata"],
   });
 });
 

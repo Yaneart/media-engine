@@ -110,6 +110,32 @@ test("hardened fetch pins an approved external host and disables automatic redir
   ]);
 });
 
+test("hardened fetch prefers IPv4 and falls back across validated addresses", async () => {
+  const calls: string[] = [];
+  const request = createHardenedProviderFetch({
+    provider: "test-provider",
+    resolver: async () => [
+      { address: "2606:4700:4700::1111", family: 6 },
+      { address: "203.0.114.10", family: 4 },
+      { address: "203.0.114.11", family: 4 },
+    ],
+    transport: async (_url, _init, address) => {
+      calls.push(address.address);
+      if (address.address === "203.0.114.10") {
+        throw Object.assign(new Error("network unreachable"), {
+          code: "ENETUNREACH",
+        });
+      }
+      return new Response("fallback working");
+    },
+  });
+
+  const response = await request("https://player.example/embed");
+
+  assert.equal(await response.text(), "fallback working");
+  assert.deepEqual(calls, ["203.0.114.10", "203.0.114.11"]);
+});
+
 test("hardened fetch rejects a redirect from a public host to a private target", async () => {
   let calls = 0;
   const request = createHardenedProviderFetch({

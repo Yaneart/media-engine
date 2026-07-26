@@ -2,9 +2,9 @@ import { cancellableDelay } from './abort';
 import type { TorrServerClientConfig } from './config';
 import { TorrServerClientError, isTorrServerClientError } from './errors';
 import {
+  normalizeAddLink,
   normalizeFileId,
   normalizeInfoHash,
-  normalizeMagnet,
   normalizeOptionalTitle,
   parseTorrentResponse,
 } from './parsing';
@@ -70,22 +70,22 @@ export class TorrServerClient {
   }
 
   async add(
-    magnet: string,
+    link: string,
     options: TorrServerAddOptions = {},
   ): Promise<TorrServerTorrent> {
     const title = normalizeOptionalTitle(options.title);
-    const normalizedMagnet = normalizeMagnet(magnet);
+    const normalizedLink = normalizeAddLink(link, options.expectedHash);
     const response = await this.torrentAction(
       {
         action: 'add',
-        link: normalizedMagnet.value,
+        link: normalizedLink.value,
         save_to_db: false,
         ...(title === undefined ? {} : { title }),
       },
       options.signal,
     );
 
-    return this.parseExpectedTorrent(response, normalizedMagnet.infoHash);
+    return this.parseExpectedTorrent(response, normalizedLink.infoHash);
   }
 
   async get(

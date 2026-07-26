@@ -5,11 +5,15 @@ import { ReferencePlaybackController } from './controller';
 import { readReferencePlaybackHttpConfig } from './http-config';
 import { readTorrentPlaybackMediaProbeConfig } from './media-probe-config';
 import { readTorrentMediaWorkerClientConfig } from './media-worker-config';
-import { WorkerTorrentMediaProbe } from './media-worker-client';
+import {
+  WorkerTorrentMediaProbe,
+  WorkerTorrentMediaRemuxer,
+} from './media-worker-client';
 import {
   FfprobeTorrentMediaProbe,
   type TorrentMediaProbe,
 } from './media-probe';
+import type { TorrentMediaRemuxer } from './media-remux';
 import { ReferencePlaybackRuntime } from './runtime';
 import { TorrentPlaybackSessionService } from './session-service';
 import { readTorrentPlaybackStreamConfig } from './stream-config';
@@ -23,7 +27,7 @@ import {
 
 const TORRSERVER_CLIENT_CONFIG = Symbol('TORRSERVER_CLIENT_CONFIG');
 const TORRSERVER_CLIENT = Symbol('TORRSERVER_CLIENT');
-const TORRENT_MEDIA_PROBE = Symbol('TORRENT_MEDIA_PROBE');
+const TORRENT_MEDIA_SERVICES = Symbol('TORRENT_MEDIA_SERVICES');
 
 @Module({
   controllers: [ReferencePlaybackController],
@@ -54,22 +58,27 @@ const TORRENT_MEDIA_PROBE = Symbol('TORRENT_MEDIA_PROBE');
         new TorrentCandidateCatalog(readTorrentPlaybackConfig()),
     },
     {
-      provide: TORRENT_MEDIA_PROBE,
+      provide: TORRENT_MEDIA_SERVICES,
       inject: [TORRSERVER_CLIENT_CONFIG],
       useFactory: (clientConfig: TorrServerClientConfig | undefined) =>
-        createConfiguredTorrentMediaProbe(clientConfig),
+        createConfiguredTorrentMediaServices(clientConfig),
     },
     {
       provide: TorrentPlaybackSessionService,
-      inject: [TorrentCandidateCatalog, TORRSERVER_CLIENT, TORRENT_MEDIA_PROBE],
+      inject: [
+        TorrentCandidateCatalog,
+        TORRSERVER_CLIENT,
+        TORRENT_MEDIA_SERVICES,
+      ],
       useFactory: (
         catalog: TorrentCandidateCatalog,
         client: TorrServerClient | undefined,
-        mediaProbe: TorrentMediaProbe | undefined,
+        mediaServices: ConfiguredTorrentMediaServices,
       ) => {
         const config = readTorrentPlaybackConfig();
         return new TorrentPlaybackSessionService(catalog, client, config, {
-          mediaProbe,
+          mediaProbe: mediaServices.probe,
+          mediaRemuxer: mediaServices.remuxer,
         });
       },
     },
@@ -101,6 +110,18 @@ export function createConfiguredTorrentMediaProbe(
   clientConfig: TorrServerClientConfig | undefined,
   env: NodeJS.ProcessEnv = process.env,
 ): TorrentMediaProbe | undefined {
+  return createConfiguredTorrentMediaServices(clientConfig, env).probe;
+}
+
+export interface ConfiguredTorrentMediaServices {
+  probe?: TorrentMediaProbe;
+  remuxer?: TorrentMediaRemuxer;
+}
+
+export function createConfiguredTorrentMediaServices(
+  clientConfig: TorrServerClientConfig | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): ConfiguredTorrentMediaServices {
   const probeConfig = readTorrentPlaybackMediaProbeConfig(env);
   const workerConfig = readTorrentMediaWorkerClientConfig(env);
 
@@ -111,7 +132,7 @@ export function createConfiguredTorrentMediaProbe(
   }
 
   if (clientConfig === undefined) {
-    return undefined;
+    return {};
   }
 
   if (
@@ -119,15 +140,18 @@ export function createConfiguredTorrentMediaProbe(
     (probeConfig !== undefined || workerConfig !== undefined)
   ) {
     throw new Error(
-      'Media inspection cannot pass TorServer Basic Auth credentials to ffprobe; leave probing disabled for this upstream.',
+      'Media inspection/remux cannot pass TorServer Basic Auth credentials to subprocess input; leave the media worker disabled for this upstream.',
     );
   }
 
   if (workerConfig !== undefined) {
-    return new WorkerTorrentMediaProbe(workerConfig);
+    return {
+      probe: new WorkerTorrentMediaProbe(workerConfig),
+      remuxer: new WorkerTorrentMediaRemuxer(workerConfig),
+    };
   }
 
   return probeConfig === undefined
-    ? undefined
-    : new FfprobeTorrentMediaProbe(probeConfig);
+    ? {}
+    : { probe: new FfprobeTorrentMediaProbe(probeConfig) };
 }

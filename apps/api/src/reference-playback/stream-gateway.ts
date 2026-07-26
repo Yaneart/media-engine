@@ -2,7 +2,7 @@ import type { TorrentPlaybackStreamConfig } from './stream-config';
 import type { TorrentPlaybackSessionService } from './session-service';
 import type { TorrServerClientConfig } from './torrserver';
 import { hasControlCharacters } from './torrserver/validation';
-import type { TorrentPlaybackFile } from './types';
+import type { TorrentPlaybackFile, TorrentPlaybackStreamSource } from './types';
 
 const MAX_RANGE_HEADER_LENGTH = 128;
 const MAX_VALIDATOR_HEADER_LENGTH = 512;
@@ -124,6 +124,7 @@ export class TorrentPlaybackStreamGateway {
           method: request.method,
           headers: createUpstreamHeaders(
             this.clientConfig,
+            source.target.kind,
             normalizedRequest.range,
             normalizedRequest.validators,
           ),
@@ -401,6 +402,7 @@ function parseDecimal(value: string): number {
 
 function createUpstreamHeaders(
   config: TorrServerClientConfig,
+  targetKind: TorrentPlaybackStreamSource['target']['kind'],
   range: NormalizedRange | undefined,
   validators: Headers,
 ): Headers {
@@ -412,7 +414,11 @@ function createUpstreamHeaders(
   if (range !== undefined) headers.set('range', range.header);
   validators.forEach((value, name) => headers.set(name, value));
 
-  if (config.username !== undefined && config.password !== undefined) {
+  if (
+    targetKind === 'torrserver' &&
+    config.username !== undefined &&
+    config.password !== undefined
+  ) {
     headers.set(
       'authorization',
       `Basic ${Buffer.from(`${config.username}:${config.password}`, 'utf8').toString('base64')}`,

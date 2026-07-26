@@ -8,6 +8,13 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added bounded asynchronous torrent remux in the private media worker. Exact browser-compatible
+  H.264/AAC, VP8/VP9/AV1 with Opus/Vorbis, and Theora/Vorbis tracks can be stream-copied from
+  non-browser containers into MP4/WebM/OGG without video re-encoding; completed outputs use the
+  existing expiring Range capability and are removed on stop, expiry, failure, TTL, or worker
+  restart. Separate concurrency, time, per-output, total-storage-reservation, request, and cleanup
+  bounds keep FFmpeg and temporary media outside the API process and public packages.
+
 - Added a private container-native torrent media worker for repository Compose. The API sends only
   server-owned hash/file ID and bounded file metadata over a no-host-port network; the worker
   constructs the TorServer target and runs the existing bounded `ffprobe` contract in a separate
@@ -31,7 +38,7 @@ This project follows semantic versioning after the first stable release. Before 
 - Added an explicit opt-in `magnetzTorrentProvider()` for strict international movie, TV, and anime magnet meta-search through the documented no-auth API. It uses one bounded search request without detail fan-out, revalidates title/year/season/episode identity and magnet hashes, normalizes release and peer metadata, and spaces request starts after observed burst rate limits. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added an explicit opt-in `bitsearchTorrentProvider()` for broad international movie, TV, and anime magnet discovery through the documented no-key public API. It bounds the search contract, handles the small anonymous daily quota, revalidates exact title/year/type/season/episode identity, deduplicates strict info hashes, and normalizes release and peer metadata. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added an explicit opt-in `jacRedTorrentProvider()` for exact title/year Russian and multilingual movie, series-season, and anime magnet discovery. It pins the observed no-key public route behind configurable base/path options, strictly bounds nullable JSON, revalidates title/year/type/season identity, deduplicates validated info hashes, and normalizes release and peer metadata without guessing exact episodes. It remains outside API defaults pending the multi-source reliability checkpoint.
-- Added an explicit opt-in `ytsTorrentProvider()` with no-key exact IMDb or exact title/year movie lookup, strict bounded JSON parsing, unique magnet handoffs, normalized quality/release metadata, and honest peer availability. It remains outside API defaults pending the multi-source reliability checkpoint.
+- Added an explicit opt-in `ytsTorrentProvider()` with no-key exact IMDb or exact title/year movie lookup, strict bounded JSON parsing, hash-bound YTS torrent-file handoffs with magnet fallback, normalized quality/release metadata, and honest peer availability. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added a separate normalized torrent-discovery contract across core, REST API/OpenAPI, and SDK. It defines provider capabilities, typed candidates and handoff data, attribution, bounded orchestration, cancellation, caching, health telemetry, and partial failures without bundling a torrent source, client, player, proxy, storage, or transcoder.
 - Added an explicit opt-in `ddbbStreamingProvider()` with no-token Kinopoisk/IMDb lookup, diversity-first embed mapping, strict nullable response parsing, bounded live validation, and no unsupported exact-episode claim. It is exported from `@media-engine/providers` but remains outside API defaults pending reliability review.
 - Added an explicit opt-in `aniLibertyStreamingProvider()` with no-token exact title/year identity, bounded episode mapping, direct 480p/720p/1080p HLS options, normalized release block states, and no ambiguous season/episode guesses. It remains outside API defaults pending the source reliability checkpoint.
@@ -67,8 +74,20 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Fixed
 
+- Reference torrent startup now survives unreachable IPv6 provider addresses by preferring IPv4
+  and safely falling back across all validated public addresses. Outbound request/socket failures are
+  settled once instead of escaping as unhandled process errors, so refreshing the example cannot
+  terminate the API during a transient network route failure.
+- TorServer preparation now retries one transient add/metadata failure and uses explicit 15-second
+  connection, 40-second request, 60-second metadata, and 120-second session-start defaults. Exact
+  YTS candidates use their hash-bound HTTPS `.torrent` handoff because live DHT-only magnets can
+  lack discoverable metadata; the returned hash is still revalidated before file selection.
+- Slow peer startup no longer makes an otherwise direct trusted YTS H.264 MP4 fail solely because
+  bounded media inspection timed out twice. This narrow catalog-owned fallback never applies to
+  MKV, HEVC/x265, unknown codecs, arbitrary URLs, or non-YTS candidates; those retain exact probe,
+  remux, or transcode requirements.
 - Reference torrent streaming now uses a separate bounded 30-second media-header budget instead of
-  the three-second TorServer control connection timeout. It retries at most one transient transport
+  the TorServer control connection timeout. It retries at most one transient transport
   or 5xx failure before exposing response bytes, preserves Range and cancellation semantics across
   attempts, returns 502 for exhausted upstream failures and 504 for header deadlines, and retains
   explicit post-header body-idle failure diagnostics.

@@ -87,8 +87,9 @@ docker compose --profile torrent-playback up --build
 ```
 
 Закреплённые TorServer и bounded media worker доступны только через отдельную Compose-сеть и не
-публикуют host ports. Direct browser Range playback, seek и cleanup уже доступны; файлы, которым
-нужны remux или transcode, честно остаются в состоянии conversion required.
+публикуют host ports. Direct browser Range playback, seek, cleanup и bounded stream-copy remux
+совместимых дорожек из MKV/MOV/TS уже доступны; файлы, которым нужно перекодирование codec,
+честно остаются в состоянии conversion required.
 
 ## Небольшое, но важное предупреждение
 

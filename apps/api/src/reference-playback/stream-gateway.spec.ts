@@ -13,6 +13,7 @@ const SOURCE_CONTROLLER = new AbortController();
 const SOURCE: TorrentPlaybackStreamSource = {
   target: {
     url: new URL(`http://torrserver.test/play/${'a'.repeat(40)}/7`),
+    kind: 'torrserver',
     hash: 'a'.repeat(40),
     fileId: 7,
   },
@@ -73,6 +74,44 @@ describe('TorrentPlaybackStreamGateway', () => {
     expect(opened.headers.get('content-type')).toBe('video/mp4');
     expect(opened.headers.has('set-cookie')).toBe(false);
     expect(await readBody(opened.body)).toHaveLength(FILE_LENGTH);
+    opened.close();
+  });
+
+  it('never forwards TorServer credentials to a private media-worker output', async () => {
+    const workerSource: TorrentPlaybackStreamSource = {
+      ...SOURCE,
+      target: {
+        url: new URL(`http://media-worker.test/remux/${'r'.repeat(43)}`),
+        kind: 'media_worker',
+      },
+    };
+    const fetchMock = jest.fn<
+      ReturnType<TorrentPlaybackStreamFetch>,
+      Parameters<TorrentPlaybackStreamFetch>
+    >((_input, init) => {
+      expect(new Headers(init?.headers).has('authorization')).toBe(false);
+      return Promise.resolve(
+        new Response(null, {
+          status: 200,
+          headers: {
+            'content-length': String(FILE_LENGTH),
+            'content-type': 'video/mp4',
+          },
+        }),
+      );
+    });
+    const sessions = {
+      getStreamSource: jest.fn().mockReturnValue(workerSource),
+    } as unknown as TorrentPlaybackSessionService;
+    const gateway = new TorrentPlaybackStreamGateway(
+      sessions,
+      CLIENT_CONFIG,
+      { maxStreams: 1, headerTimeoutMs: 1_000, idleTimeoutMs: 1_000 },
+      fetchMock,
+    );
+
+    const opened = await gateway.open(SESSION_ID, { method: 'HEAD' });
+    expect(opened.status).toBe(200);
     opened.close();
   });
 

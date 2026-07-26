@@ -4,6 +4,7 @@ import type {
 } from '@media-engine/core';
 import type { TorrServerFile } from './torrserver';
 import type { TorrentMediaProbeResult } from './media-probe';
+import type { TorrentMediaRemuxContainer } from './media-remux';
 import type {
   TorrentPlaybackCompatibility,
   TorrentPlaybackFile,
@@ -185,11 +186,9 @@ export function classifyProbedTorrentFile(
   return isDirectContainer ? 'direct' : 'remux_required';
 }
 
-type BrowserTargetContainer = 'mp4' | 'webm' | 'ogg';
-
-function browserTargetContainer(
+export function browserTargetContainer(
   probe: TorrentMediaProbeResult,
-): BrowserTargetContainer | undefined {
+): TorrentMediaRemuxContainer | undefined {
   const videoCodec = probe.video.codecName;
   const audioCodec = probe.audio?.codecName;
   const pixelFormat = probe.video.pixelFormat;

@@ -1,6 +1,6 @@
 import type { TorrentCandidate } from '@media-engine/core';
 import { TorrentPlaybackSessionError } from './errors';
-import { normalizeMagnet } from './torrserver/parsing';
+import { normalizeAddLink } from './torrserver/parsing';
 import type {
   CataloguedTorrentCandidate,
   CreateTorrentPlaybackSessionInput,
@@ -9,7 +9,7 @@ import type {
 export interface ValidatedPlaybackCandidate {
   candidate: TorrentCandidate;
   infoHash: string;
-  magnet: string;
+  handoff: string;
 }
 
 export function revalidatePlaybackCandidate(
@@ -30,7 +30,8 @@ export function revalidatePlaybackCandidate(
   }
 
   if (
-    candidate.handoff.kind !== 'magnet' ||
+    (candidate.handoff.kind !== 'magnet' &&
+      candidate.handoff.kind !== 'torrent_file') ||
     candidate.infoHash === undefined ||
     candidate.handoff.headers !== undefined ||
     candidate.handoff.referer !== undefined ||
@@ -56,10 +57,21 @@ export function revalidatePlaybackCandidate(
     }
   }
 
-  let normalizedMagnet: ReturnType<typeof normalizeMagnet>;
+  const infoHash = candidate.infoHash.trim().toLowerCase();
+  let normalizedHandoff: ReturnType<typeof normalizeAddLink>;
 
   try {
-    normalizedMagnet = normalizeMagnet(candidate.handoff.uri);
+    if (
+      candidate.handoff.kind === 'torrent_file' &&
+      candidate.provider !== 'yts-torrent'
+    ) {
+      throw new Error('Unapproved torrent-file provider.');
+    }
+
+    normalizedHandoff = normalizeAddLink(
+      candidate.handoff.uri,
+      candidate.handoff.kind === 'torrent_file' ? infoHash : undefined,
+    );
   } catch {
     throw new TorrentPlaybackSessionError(
       'candidate_not_playable',
@@ -67,14 +79,12 @@ export function revalidatePlaybackCandidate(
     );
   }
 
-  const infoHash = candidate.infoHash.trim().toLowerCase();
-
-  if (normalizedMagnet.infoHash !== infoHash) {
+  if (normalizedHandoff.infoHash !== infoHash) {
     throw new TorrentPlaybackSessionError(
       'candidate_identity_mismatch',
       'The selected torrent candidate handoff has a different identity.',
     );
   }
 
-  return { candidate, infoHash, magnet: normalizedMagnet.value };
+  return { candidate, infoHash, handoff: normalizedHandoff.value };
 }

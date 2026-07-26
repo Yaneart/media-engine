@@ -1,6 +1,12 @@
 import { TorrentCandidateCatalog } from './candidate-catalog';
 import { TorrentMediaProbeError, type TorrentMediaProbe } from './media-probe';
+import {
+  TorrentMediaRemuxError,
+  type TorrentMediaRemuxResult,
+  type TorrentMediaRemuxer,
+} from './media-remux';
 import { TorrentPlaybackSessionService } from './session-service';
+import { TorrServerClientError } from './torrserver';
 import {
   mockTorrServerClient,
   TEST_HASH,
@@ -50,6 +56,7 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
     expect(client.add.mock.calls).toContainEqual([
       TEST_MAGNET,
       {
+        expectedHash: TEST_HASH,
         title: 'Example Movie 2026',
         signal: expect.any(AbortSignal),
       },
@@ -213,6 +220,26 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
     expect(client.drop.mock.calls).toContainEqual([TEST_HASH]);
   });
 
+  it('retries one transient TorServer preparation failure', async () => {
+    const { service, client } = createService();
+    client.add
+      .mockRejectedValueOnce(
+        new TorrServerClientError(
+          'request_timeout',
+          'TorServer request timed out.',
+        ),
+      )
+      .mockResolvedValueOnce(torrServerTorrent());
+
+    await expect(
+      service.createSession({
+        provider: 'test-torrent',
+        candidateId: 'candidate-1',
+      }),
+    ).resolves.toMatchObject({ state: 'ready' });
+    expect(client.add.mock.calls).toHaveLength(2);
+  });
+
   it('uses exact probed streams instead of release-name heuristics', async () => {
     const mediaProbe = {
       probe: jest.fn().mockResolvedValue({
@@ -251,6 +278,190 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
     await service.stopSession(session.id);
   });
 
+  it('prepares an exact remux asynchronously and cleans its private output', async () => {
+    const mediaProbe = {
+      probe: jest.fn().mockResolvedValue({
+        formatNames: ['matroska', 'webm'],
+        video: { codecName: 'h264', pixelFormat: 'yuv420p' },
+        audio: { codecName: 'aac' },
+      }),
+    } satisfies TorrentMediaProbe;
+    let finishRemux!: (result: TorrentMediaRemuxResult) => void;
+    const pendingRemux = new Promise<TorrentMediaRemuxResult>((resolve) => {
+      finishRemux = resolve;
+    });
+    const mediaRemuxer = {
+      remux: jest.fn().mockReturnValue(pendingRemux),
+      release: jest.fn().mockResolvedValue(undefined),
+    } satisfies TorrentMediaRemuxer;
+    const { service, client } = createService({
+      torrent: torrServerTorrent([
+        { id: 1, path: 'Example.Movie.2026.mkv', length: 1_000_000 },
+      ]),
+      mediaProbe,
+      mediaRemuxer,
+    });
+    const session = await service.createSession({
+      provider: 'test-torrent',
+      candidateId: 'candidate-1',
+    });
+
+    expect(session).toMatchObject({
+      state: 'starting',
+      compatibility: 'remux_required',
+      selectedFile: { id: 1, compatibility: 'remux_required' },
+    });
+    expectSessionError(
+      () => service.getStreamSource(session.id),
+      'session_not_streamable',
+    );
+    expect(mediaRemuxer.remux).toHaveBeenCalledWith({
+      target: client.createPlayTarget(TEST_HASH, 1),
+      file: expect.objectContaining({
+        id: 1,
+        path: expect.stringMatching(/\.mkv$/),
+      }),
+      container: 'mp4',
+      signal: expect.any(AbortSignal),
+    });
+
+    const result: TorrentMediaRemuxResult = {
+      id: 'r'.repeat(43),
+      target: {
+        url: new URL(`http://media-worker.test/remux/${'r'.repeat(43)}`),
+      },
+      length: 900_000,
+      container: 'mp4',
+      contentType: 'video/mp4',
+    };
+    finishRemux(result);
+    await waitFor(() => service.getSession(session.id).state === 'ready');
+
+    expect(service.getSession(session.id)).toMatchObject({
+      state: 'ready',
+      compatibility: 'remux_required',
+      playbackMode: 'remux',
+    });
+    expect(service.getStreamSource(session.id)).toMatchObject({
+      target: { url: result.target.url, kind: 'media_worker' },
+      file: {
+        id: 1,
+        path: 'remux.mp4',
+        length: 900_000,
+        compatibility: 'direct',
+      },
+    });
+
+    await service.stopSession(session.id);
+    expect(mediaRemuxer.release).toHaveBeenCalledWith(result);
+    expect(client.drop.mock.calls).toContainEqual([TEST_HASH]);
+  });
+
+  it('keeps transcode-required files unavailable to the stream capability', async () => {
+    const mediaProbe = {
+      probe: jest.fn().mockResolvedValue({
+        formatNames: ['matroska'],
+        video: { codecName: 'hevc', pixelFormat: 'yuv420p10le' },
+        audio: { codecName: 'aac' },
+      }),
+    } satisfies TorrentMediaProbe;
+    const { service } = createService({ mediaProbe });
+    const session = await service.createSession({
+      provider: 'test-torrent',
+      candidateId: 'candidate-1',
+    });
+
+    expect(session).toMatchObject({
+      state: 'conversion_required',
+      compatibility: 'transcode_required',
+    });
+    expectSessionError(
+      () => service.getStreamSource(session.id),
+      'session_not_streamable',
+    );
+    await service.stopSession(session.id);
+  });
+
+  it('fails an over-limit background remux and releases the torrent', async () => {
+    const mediaProbe = {
+      probe: jest.fn().mockResolvedValue({
+        formatNames: ['matroska'],
+        video: { codecName: 'h264', pixelFormat: 'yuv420p' },
+        audio: { codecName: 'aac' },
+      }),
+    } satisfies TorrentMediaProbe;
+    const mediaRemuxer = {
+      remux: jest
+        .fn()
+        .mockRejectedValue(
+          new TorrentMediaRemuxError('output_limit', 'private detail'),
+        ),
+      release: jest.fn(),
+    } satisfies TorrentMediaRemuxer;
+    const { service, client } = createService({
+      torrent: torrServerTorrent([
+        { id: 1, path: 'Example.Movie.2026.mkv', length: 1_000_000 },
+      ]),
+      mediaProbe,
+      mediaRemuxer,
+    });
+    const session = await service.createSession({
+      provider: 'test-torrent',
+      candidateId: 'candidate-1',
+    });
+    await waitFor(() => service.getSession(session.id).state === 'failed');
+
+    expect(service.getSession(session.id)).toMatchObject({
+      state: 'failed',
+      error: {
+        code: 'media_remux_output_limit',
+        message: 'The selected media exceeds the configured remux limit.',
+      },
+    });
+    expect(client.drop.mock.calls).toContainEqual([TEST_HASH]);
+  });
+
+  it('cancels an in-flight remux when its session is stopped', async () => {
+    const mediaProbe = {
+      probe: jest.fn().mockResolvedValue({
+        formatNames: ['matroska'],
+        video: { codecName: 'h264', pixelFormat: 'yuv420p' },
+        audio: { codecName: 'aac' },
+      }),
+    } satisfies TorrentMediaProbe;
+    let remuxSignal: AbortSignal | undefined;
+    const mediaRemuxer: TorrentMediaRemuxer = {
+      remux: ({ signal }) =>
+        new Promise((_resolve, reject) => {
+          remuxSignal = signal;
+          signal?.addEventListener(
+            'abort',
+            () =>
+              reject(new TorrentMediaRemuxError('aborted', 'private detail')),
+            { once: true },
+          );
+        }),
+      release: jest.fn(),
+    };
+    const { service, client } = createService({
+      torrent: torrServerTorrent([
+        { id: 1, path: 'Example.Movie.2026.mkv', length: 1_000_000 },
+      ]),
+      mediaProbe,
+      mediaRemuxer,
+    });
+    const session = await service.createSession({
+      provider: 'test-torrent',
+      candidateId: 'candidate-1',
+    });
+
+    await expect(service.stopSession(session.id)).resolves.toMatchObject({
+      state: 'stopped',
+    });
+    expect(remuxSignal?.aborted).toBe(true);
+    expect(client.drop.mock.calls).toContainEqual([TEST_HASH]);
+  });
+
   it('reports bounded media probe failure and cleans the torrent resource', async () => {
     const mediaProbe = {
       probe: jest
@@ -278,6 +489,69 @@ describe('TorrentPlaybackSessionService lifecycle', () => {
       },
     });
     expect(client.drop.mock.calls).toContainEqual([TEST_HASH]);
+    expect(mediaProbe.probe).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a timed-out media probe after the torrent stream warms up', async () => {
+    const mediaProbe = {
+      probe: jest
+        .fn()
+        .mockRejectedValueOnce(
+          new TorrentMediaProbeError(
+            'timeout',
+            'Media inspection exceeded its configured time budget.',
+          ),
+        )
+        .mockResolvedValueOnce({
+          formatNames: ['mov', 'mp4'],
+          video: { codecName: 'h264', pixelFormat: 'yuv420p' },
+          audio: { codecName: 'aac' },
+        }),
+    } satisfies TorrentMediaProbe;
+    const { service } = createService({ mediaProbe });
+
+    await expect(
+      service.createSession({
+        provider: 'test-torrent',
+        candidateId: 'candidate-1',
+      }),
+    ).resolves.toMatchObject({ state: 'ready' });
+    expect(mediaProbe.probe).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to direct only for an exact YTS torrent-file x264 MP4', async () => {
+    const candidate = torrentCandidate({
+      provider: 'yts-torrent',
+      id: `yts-torrent:${TEST_HASH}`,
+      handoff: {
+        kind: 'torrent_file',
+        uri: `https://yts.gg/torrent/download/${TEST_HASH}`,
+      },
+      release: { source: 'bluray', videoCodec: 'x264' },
+    });
+    const mediaProbe = {
+      probe: jest
+        .fn()
+        .mockRejectedValue(
+          new TorrentMediaProbeError(
+            'timeout',
+            'Media inspection exceeded its configured time budget.',
+          ),
+        ),
+    } satisfies TorrentMediaProbe;
+    const { service } = createService({ candidate, mediaProbe });
+
+    await expect(
+      service.createSession({
+        provider: candidate.provider,
+        candidateId: candidate.id,
+      }),
+    ).resolves.toMatchObject({
+      state: 'ready',
+      compatibility: 'direct',
+      playbackMode: 'direct',
+    });
+    expect(mediaProbe.probe).toHaveBeenCalledTimes(2);
   });
 
   it('fails safely when metadata has no video and releases the resource', async () => {
@@ -390,6 +664,7 @@ function createService(
     torrent?: ReturnType<typeof torrServerTorrent>;
     candidate?: ReturnType<typeof torrentCandidate>;
     mediaProbe?: TorrentMediaProbe;
+    mediaRemuxer?: TorrentMediaRemuxer;
   } = {},
 ): {
   service: TorrentPlaybackSessionService;
@@ -404,7 +679,18 @@ function createService(
       catalog,
       client,
       TEST_PLAYBACK_CONFIG,
-      { mediaProbe: options.mediaProbe },
+      {
+        mediaProbe: options.mediaProbe,
+        mediaRemuxer: options.mediaRemuxer,
+      },
     ),
   };
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error('Condition was not reached.');
 }

@@ -6,7 +6,7 @@ const SESSION_PATH = "/reference-player/sessions";
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
 const MAX_REQUEST_BYTES = 4_096;
 const MAX_RESPONSE_BYTES = 262_144;
-const REQUEST_TIMEOUT_MS = 50_000;
+const REQUEST_TIMEOUT_MS = 130_000;
 const MIN_TOKEN_LENGTH = 32;
 const MAX_TOKEN_LENGTH = 512;
 

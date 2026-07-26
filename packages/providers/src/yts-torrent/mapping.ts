@@ -86,8 +86,8 @@ function mapCandidate(
       checkedAt: new Date().toISOString(),
     },
     handoff: {
-      kind: "magnet",
-      uri: createMagnetUri(torrent.hash, title),
+      kind: torrent.torrentUrl ? "torrent_file" : "magnet",
+      uri: torrent.torrentUrl ?? createMagnetUri(torrent.hash, title),
     },
     availability:
       torrent.seeders === undefined ? "unknown" : torrent.seeders > 0 ? "available" : "unseeded",

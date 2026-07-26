@@ -73,7 +73,12 @@ interleaving результатов. Оставляйте список пуст�
 MEDIA_ENGINE_TORRSERVER_URL=http://127.0.0.1:8090
 MEDIA_ENGINE_TORRSERVER_USERNAME=
 MEDIA_ENGINE_TORRSERVER_PASSWORD=
+MEDIA_ENGINE_TORRSERVER_CONNECT_TIMEOUT_MS=15000
+MEDIA_ENGINE_TORRSERVER_REQUEST_TIMEOUT_MS=40000
+MEDIA_ENGINE_TORRSERVER_METADATA_TIMEOUT_MS=60000
+MEDIA_ENGINE_TORRSERVER_METADATA_POLL_INTERVAL_MS=250
 MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN=<generate-with-openssl-rand-base64-32>
+MEDIA_ENGINE_TORRENT_PLAYBACK_START_TIMEOUT_MS=120000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS=60000
 MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS=10
 MEDIA_ENGINE_TORRENT_PLAYBACK_MAX_STREAMS=8
@@ -82,13 +87,16 @@ MEDIA_ENGINE_TORRENT_PLAYBACK_STREAM_IDLE_TIMEOUT_MS=30000
 MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH=
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_TIMEOUT_MS=25000
+MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_REMUX_TIMEOUT_MS=605000
 MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_PROBE_TIMEOUT_MS=20000
 ```
 
 Создайте токен через `openssl rand -base64 32`; не добавляйте его во frontend bundle или browser
 storage. Для create/status/stop нужен `Authorization: Bearer <token>`. Эти routes принимают только
 ранее возвращённые API `provider + candidateId` и опциональный server-offered `fileId`; произвольные
-magnet, hash, path и TorServer target запрещены. Глобального списка сессий нет. Публичный
+handoff, hash, path и TorServer target запрещены. Server-owned magnet остаётся разрешён; вариант
+torrent-file принимается только для точного hash-bound HTTPS URL YTS, а результат TorServer снова
+проверяется. Глобального списка сессий нет. Публичный
 rate-limited health отделён от обязательной API readiness и сообщает только `disabled`, `ok` или
 `unavailable`, а при успехе — версию.
 
@@ -107,13 +115,23 @@ request и запускает `ffprobe` в отдельном read-only bounded 
 секретов приложения. No-shell subprocess запрещает redirects и не-HTTP protocols и ограничен по
 CPU/allocation/анализу/output с 20-секундным бюджетом; worker и API добавляют отдельные внешние
 бюджеты 22/25 секунд внутри session start. Точные container, primary codecs, pixel format и
-dimensions заменяют release-name эвристику до ready. Ошибка явно завершает сессию и очищает
-torrent resource.
+dimensions заменяют release-name эвристику до ready. Если точные дорожки совместимы с браузером,
+но container не подходит, тот же worker асинхронно выполняет bounded FFmpeg stream-copy remux в
+MP4, WebM или OGG. API не принимает caller URL, готовый результат доступен только через прежнюю
+session capability и удаляется при stop, expiry, failure, рестарте worker или по output TTL.
+Defaults: один remux, восемь GiB на результат, суммарная reservation 16 GiB и десятиминутный job
+budget. Ошибка явно завершает сессию и очищает torrent resource.
+
+Timeout media inspection повторяется один раз. Если обе попытки истекли, только catalog-owned YTS
+torrent-file, уже определённый как H.264/x264 в MP4, может сохранить консервативный direct-режим.
+Для MKV, HEVC/x265, неизвестного codec, произвольного URL и других providers по-прежнему требуется
+точная inspection. TorServer add/metadata отдельно повторяет один transient failure.
 
 Native host deployment вместо worker может задать проверенный абсолютный
 `MEDIA_ENGINE_TORRENT_PLAYBACK_FFPROBE_PATH`; одновременно разрешён только один режим. Оба режима
 остаются выключенными при пустых значениях и не передают TorServer Basic Auth credentials в
-`ffprobe`.
+`ffprobe`. Native-host fallback выполняет только inspection; автоматический remux требует URL
+изолированного worker.
 
 Для варианта под управлением репозитория задайте в `.env`
 `MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` и
@@ -135,8 +153,8 @@ username/password задавайте только когда на нём дей�
 только доверенным backend-трафиком: в проверенном релизе Basic Auth не охватывает media route
 `/play`.
 
-Range delivery уже реализован, но player UI и conversion pipeline остаются следующими отдельными
-блоками. В публичный SDK эти routes не входят. Детали lifecycle, лицензионная граница,
+Direct и remux Range delivery уже реализованы; codec transcoding остаётся следующим отдельным
+блоком. В публичный SDK эти routes не входят. Детали lifecycle, лицензионная граница,
 закреплённый image и upgrade policy описаны в документе
 [Reference torrent playback](../../docs/reference-torrent-playback.md).
 
