@@ -9,6 +9,7 @@ import {
   stopReferencePlaybackSession,
 } from "../api/reference-player";
 import type { TorrentPlaybackFile, TorrentPlaybackSession } from "../api/reference-player";
+import { canStartReferenceTorrentPlayback } from "./reference-playback-candidate";
 
 type PlayerState =
   | { status: "checking" }
@@ -24,7 +25,7 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
   const [buffered, setBuffered] = useState("No buffered media.");
   const activeSessionIdRef = useRef<string | undefined>(undefined);
   const requestRef = useRef<AbortController | undefined>(undefined);
-  const playableCandidate = candidate.handoff.kind === "magnet" && !candidate.handoff.headers;
+  const playableCandidate = canStartReferenceTorrentPlayback(candidate);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -211,7 +212,7 @@ export function ReferenceTorrentPlayer({ candidate }: { candidate: TorrentCandid
     return (
       <span className="muted">
         {state.reason === "candidate"
-          ? "This source does not expose a safe server-catalogued magnet handoff for reference playback."
+          ? "This source does not expose a supported server-catalogued torrent handoff for reference playback."
           : "Torrent playback is disabled. Discovery remains available without exposing an operator token."}
       </span>
     );

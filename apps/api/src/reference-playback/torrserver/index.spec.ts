@@ -6,10 +6,10 @@ describe('TorServer private module surface', () => {
     expect(torrServerModule.TorrServerClientError).toBeDefined();
     expect(torrServerModule.isTorrServerClientError).toBeDefined();
     expect(torrServerModule.readTorrServerClientConfig).toBeDefined();
-    expect(torrServerModule.DEFAULT_TORRSERVER_CONNECT_TIMEOUT_MS).toBe(3_000);
-    expect(torrServerModule.DEFAULT_TORRSERVER_REQUEST_TIMEOUT_MS).toBe(10_000);
+    expect(torrServerModule.DEFAULT_TORRSERVER_CONNECT_TIMEOUT_MS).toBe(15_000);
+    expect(torrServerModule.DEFAULT_TORRSERVER_REQUEST_TIMEOUT_MS).toBe(40_000);
     expect(torrServerModule.DEFAULT_TORRSERVER_METADATA_TIMEOUT_MS).toBe(
-      30_000,
+      60_000,
     );
     expect(torrServerModule.DEFAULT_TORRSERVER_MAX_CONCURRENCY).toBe(4);
   });

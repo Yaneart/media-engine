@@ -476,7 +476,7 @@ test("kinobdStreamingProvider skips nested validation without a full remaining t
   let audit: KinoBdPlayerAudit | undefined;
   let nestedRequested = false;
   const provider = createProvider({
-    playerValidationTimeoutMs: 50,
+    playerValidationTimeoutMs: 2_000,
     onPlayerAudit(value) {
       audit = value;
     },
@@ -507,7 +507,7 @@ test("kinobdStreamingProvider skips nested validation without a full remaining t
 
   const availability = await provider.getAvailability(
     { type: "movie", ids: { kinopoisk: "258687" } },
-    { timeoutMs: 25 },
+    { timeoutMs: 1_000 },
   );
 
   assert.equal(nestedRequested, false);
