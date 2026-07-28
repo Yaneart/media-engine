@@ -131,6 +131,8 @@ Candidate order is deterministic: the engine preserves each provider's order whi
 
 The repository Nest API exposes this package operation through an opt-in discovery-only bridge. Its default provider list remains empty; deployments explicitly select exported YTS, JacRed, Bitsearch, and Magnetz adapters. The bridge has no TorrServer, file-selection, session, stream-proxy, or playback responsibility.
 
+The repository additionally contains a private app-specific TorrServer adapter for the staged original-file playback implementation. It is not an SDK or REST API surface. The adapter accepts only server-resolved source bytes or hash-bound magnets and currently exposes internal health/version, add, metadata, exact-file target, and drop operations. Public sessions and byte streaming are later implementation blocks.
+
 ## Errors and partial failures
 
 Invalid queries throw `MediaEngineError`. Provider failures are normalized and include a stable code plus retryability. If at least one selected provider succeeds, the engine normally returns a partial response and records other failures in `meta.providers.failed`. If every selected provider fails, the operation throws.

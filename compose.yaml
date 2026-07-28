@@ -23,8 +23,20 @@ services:
       MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS:-15000}
       MEDIA_ENGINE_TORRENT_PROVIDERS: ${MEDIA_ENGINE_TORRENT_PROVIDERS:-}
       MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS:-15000}
+      MEDIA_ENGINE_TORRSERVER_URL: ${MEDIA_ENGINE_TORRSERVER_URL:-http://torrserver:8090}
+      MEDIA_ENGINE_TORRSERVER_EXPECTED_VERSION: ${MEDIA_ENGINE_TORRSERVER_EXPECTED_VERSION:-MatriX.141}
+      MEDIA_ENGINE_TORRSERVER_CONTROL_CONNECT_TIMEOUT_MS: ${MEDIA_ENGINE_TORRSERVER_CONTROL_CONNECT_TIMEOUT_MS:-3000}
+      MEDIA_ENGINE_TORRSERVER_CONTROL_REQUEST_TIMEOUT_MS: ${MEDIA_ENGINE_TORRSERVER_CONTROL_REQUEST_TIMEOUT_MS:-10000}
+      MEDIA_ENGINE_TORRSERVER_METADATA_TIMEOUT_MS: ${MEDIA_ENGINE_TORRSERVER_METADATA_TIMEOUT_MS:-60000}
+      MEDIA_ENGINE_TORRSERVER_METADATA_POLL_INTERVAL_MS: ${MEDIA_ENGINE_TORRSERVER_METADATA_POLL_INTERVAL_MS:-250}
+      MEDIA_ENGINE_TORRSERVER_COLD_STREAM_HEADER_TIMEOUT_MS: ${MEDIA_ENGINE_TORRSERVER_COLD_STREAM_HEADER_TIMEOUT_MS:-45000}
+      MEDIA_ENGINE_TORRSERVER_COLD_STREAM_INACTIVITY_TIMEOUT_MS: ${MEDIA_ENGINE_TORRSERVER_COLD_STREAM_INACTIVITY_TIMEOUT_MS:-30000}
+      MEDIA_ENGINE_TORRSERVER_MAX_TORRENT_BYTES: ${MEDIA_ENGINE_TORRSERVER_MAX_TORRENT_BYTES:-4194304}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - original-torrent-runtime
     command: npm --prefix apps/api run start:dev
     healthcheck:
       test:
@@ -36,6 +48,53 @@ services:
       timeout: 3s
       retries: 5
       start_period: 20s
+
+  # GPL-3.0 runtime is opt-in, internal-only, and pinned to the audited source revision.
+  torrserver:
+    profiles:
+      - torrent-runtime
+    image: ghcr.io/yourok/torrserver:MatriX.141.1@sha256:e44f08ec579615a783c3ab45e00595f50e9e5f94810dc06910c201edecd6205b
+    environment:
+      TS_PORT: 8090
+      TS_IP: 0.0.0.0
+      TS_RDB: 0
+      TS_HTTPAUTH: 0
+      TS_CONF_PATH: /opt/ts/config
+      TS_LOG_PATH: /tmp/torrserver.log
+      TS_TORR_DIR: /opt/ts/torrents
+    expose:
+      - "8090"
+    networks:
+      - original-torrent-runtime
+    read_only: true
+    tmpfs:
+      - /opt/ts/torrents:rw,nosuid,nodev,noexec,size=33554432
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864
+    volumes:
+      - torrserver-state:/opt/ts/config
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 256
+    mem_limit: ${MEDIA_ENGINE_TORRSERVER_MEMORY_LIMIT:-1g}
+    cpus: ${MEDIA_ENGINE_TORRSERVER_CPUS:-2.0}
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "2"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test "$$(wget -q -O - http://127.0.0.1:8090/echo)" = "MatriX.141"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   example:
     <<: *node-dev-service
@@ -57,3 +116,10 @@ services:
       timeout: 3s
       retries: 5
       start_period: 20s
+
+networks:
+  original-torrent-runtime:
+    internal: true
+
+volumes:
+  torrserver-state:

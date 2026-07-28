@@ -76,20 +76,17 @@ pnpm dev:compose
 
 Then open <http://127.0.0.1:5173>. The API runs on <http://127.0.0.1:3000>, and its Swagger page is at <http://127.0.0.1:3000/docs>.
 
-The separately licensed TorServer reference component is never started by that default command.
-To opt in, copy `.env.example` to `.env`, set
-`MEDIA_ENGINE_TORRSERVER_URL=http://torrserver:8090` together with a freshly generated
-`MEDIA_ENGINE_TORRENT_PLAYBACK_TOKEN` and
-`MEDIA_ENGINE_TORRENT_PLAYBACK_MEDIA_WORKER_URL=http://torrent-media-worker:8080`, and run:
+The separately licensed TorrServer runtime is never started by that default command. To start the
+pinned internal-only service explicitly, run:
 
 ```bash
-docker compose --profile torrent-playback up --build
+docker compose --profile torrent-runtime up
 ```
 
-The pinned TorServer and bounded media worker are reachable only over a private Compose network and
-have no host ports. Direct browser Range playback, seeking, cleanup, and bounded stream-copy remux
-for compatible tracks in MKV/MOV/TS are available; files that need codec transcoding remain an
-explicit conversion-required state.
+TorrServer has no host port. The current application layer can verify its exact version, add a
+server-resolved magnet or bounded `.torrent` payload, read exact file metadata, create an internal
+original-file target, and remove the entry. Browser sessions, public stream routes, and playback UI
+are not part of this checkpoint yet; no media worker, remuxer, transcoder, or HLS pipeline exists.
 
 ## A small but important warning
 

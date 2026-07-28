@@ -8,6 +8,10 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added a new private original-torrent runtime module and opt-in `torrent-runtime` Compose profile.
+  The pinned internal-only TorrServer service has no host port; its bounded adapter verifies the
+  exact runtime version and supports hash-bound magnet or resolved torrent-byte add, metadata/file
+  listing, exact internal file targets, and cleanup. It adds no public session or stream route.
 - Rebuilt the repository Nest API torrent-discovery bridge as an isolated, discovery-only module.
   `GET /media/torrents` now provides bounded DTO parsing, cancellation, typed HTTP errors, rate
   limiting, and OpenAPI documentation; `GET /providers/torrent` reports safe provider metadata.
