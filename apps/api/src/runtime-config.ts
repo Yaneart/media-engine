@@ -8,8 +8,6 @@ export const DEFAULT_CORS_ORIGINS = [
 ] as const;
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 export const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 60;
-export const DEFAULT_PLAYBACK_RATE_LIMIT_WINDOW_MS = 60_000;
-export const DEFAULT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS = 10;
 
 const MAX_RATE_LIMIT_WINDOW_MS = 60 * 60_000;
 const MAX_RATE_LIMIT_REQUESTS = 10_000;
@@ -21,8 +19,6 @@ export interface ApiRuntimeEnv extends NodeJS.ProcessEnv {
   CORS_ORIGINS?: string;
   MEDIA_ENGINE_RATE_LIMIT_WINDOW_MS?: string;
   MEDIA_ENGINE_RATE_LIMIT_MAX_REQUESTS?: string;
-  MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS?: string;
-  MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS?: string;
 }
 
 export interface ApiRuntimeConfig {
@@ -31,10 +27,6 @@ export interface ApiRuntimeConfig {
   port: number;
   corsOrigins: string[];
   rateLimit: {
-    windowMs: number;
-    maxRequests: number;
-  };
-  playbackRateLimit: {
     windowMs: number;
     maxRequests: number;
   };
@@ -70,26 +62,6 @@ export function readApiRuntimeConfig(
         min: 0,
         max: MAX_RATE_LIMIT_REQUESTS,
       }),
-    },
-    playbackRateLimit: {
-      windowMs: readIntegerEnv(
-        env.MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS,
-        {
-          name: 'MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS',
-          defaultValue: DEFAULT_PLAYBACK_RATE_LIMIT_WINDOW_MS,
-          min: 1_000,
-          max: MAX_RATE_LIMIT_WINDOW_MS,
-        },
-      ),
-      maxRequests: readIntegerEnv(
-        env.MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS,
-        {
-          name: 'MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS',
-          defaultValue: DEFAULT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS,
-          min: 1,
-          max: MAX_RATE_LIMIT_REQUESTS,
-        },
-      ),
     },
   };
 }

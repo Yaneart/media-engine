@@ -9,7 +9,7 @@ export function setupOpenApi(app: INestApplication): void {
   const config = new DocumentBuilder()
     .setTitle('Media Engine API')
     .setDescription(
-      'REST API for normalized media metadata, streaming availability, torrent discovery, and optional protected reference playback.',
+      'REST API for normalized media metadata and streaming availability.',
     )
     .setVersion(MEDIA_ENGINE_API_CONTRACT_VERSION)
     .addTag('health', 'Liveness and provider-aware readiness status.')
@@ -18,20 +18,6 @@ export function setupOpenApi(app: INestApplication): void {
       'Search and details endpoints for normalized media metadata.',
     )
     .addTag('providers', 'Configured provider capabilities by category.')
-    .addTag(
-      'reference torrent playback',
-      'Optional app-specific TorServer session lifecycle outside the public SDK.',
-    )
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'operator-configured opaque token',
-        description:
-          'Separate in-memory/operator secret for reference torrent playback routes.',
-      },
-      'torrent-playback-token',
-    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

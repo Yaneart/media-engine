@@ -9,7 +9,6 @@ import {
   groupAvailabilityOptions,
 } from "../utils/format";
 import type { AvailabilityOption, AvailabilityState } from "../state";
-import { HlsPlayer } from "./HlsPlayer";
 
 export function AvailabilitySummary({ state }: { state: AvailabilityState }) {
   const options = getAvailabilityOptions(state);
@@ -82,7 +81,7 @@ export function AvailabilitySummary({ state }: { state: AvailabilityState }) {
       {options.length === 0 ? (
         <div className="playback-empty-state">
           <strong>No online players found</strong>
-          <span>Try the torrent tab or select another title.</span>
+          <span>Select another title or provider combination.</span>
         </div>
       ) : null}
     </div>
@@ -235,7 +234,9 @@ function PlayerPreview({ option }: { option: AvailabilityOption }) {
     return (
       <div className="player-preview">
         <strong>{title}</strong>
-        <HlsPlayer title={`${title} player`} url={option.access.url} />
+        <a href={option.access.url} rel="noopener noreferrer" target="_blank">
+          Open HLS stream
+        </a>
       </div>
     );
   }

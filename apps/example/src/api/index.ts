@@ -3,7 +3,6 @@ import type {
   MediaEngineAvailabilityResponse,
   MediaEngineDetailsResponse,
   MediaEngineSearchResponse,
-  MediaEngineTorrentDiscoveryResponse,
 } from "@media-engine/sdk";
 
 const DEFAULT_API_URL = "http://127.0.0.1:3000";
@@ -18,11 +17,9 @@ export interface SearchFormQuery {
 export type SearchResponse = MediaEngineSearchResponse;
 export type DetailsResponse = MediaEngineDetailsResponse;
 export type AvailabilityResponse = MediaEngineAvailabilityResponse;
-export type TorrentResponse = MediaEngineTorrentDiscoveryResponse;
 export type SearchResult = SearchResponse["results"][number];
 export type MediaSummary = SearchResult["item"];
 export type MediaDetails = NonNullable<DetailsResponse["details"]>;
-export type TorrentCandidate = TorrentResponse["candidates"][number];
 export type AvailabilityMediaInput = Pick<
   MediaSummary,
   "type" | "title" | "originalTitle" | "year" | "ids"
@@ -31,7 +28,6 @@ export type AvailabilityMediaInput = Pick<
   episodeNumber?: number;
   absoluteEpisodeNumber?: number;
 };
-export type TorrentMediaInput = AvailabilityMediaInput;
 export type ExternalIds = NonNullable<MediaSummary["ids"]>;
 
 // EN: Shared SDK client used by the example app browser requests.
@@ -92,30 +88,6 @@ export function getMediaAvailability(
       episodeNumber: item.episodeNumber,
       absoluteEpisodeNumber: item.absoluteEpisodeNumber,
       language,
-    },
-    { signal },
-  );
-}
-
-// EN: Discover torrent handoff candidates only after an explicit user action.
-// RU: Ищет torrent handoff кандидаты только после явного действия пользователя.
-export function discoverMediaTorrents(
-  item: TorrentMediaInput,
-  signal?: AbortSignal,
-): Promise<TorrentResponse> {
-  const language = inferTitleLanguage(item.title);
-
-  return mediaEngineClient.discoverTorrents(
-    {
-      type: item.type,
-      title: item.originalTitle?.trim() || item.title,
-      year: item.year,
-      ids: item.ids,
-      seasonNumber: item.seasonNumber,
-      episodeNumber: item.episodeNumber,
-      absoluteEpisodeNumber: item.absoluteEpisodeNumber,
-      language,
-      limit: 50,
     },
     { signal },
   );

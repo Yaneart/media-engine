@@ -11,10 +11,6 @@ describe('API runtime config', () => {
         windowMs: 60_000,
         maxRequests: 60,
       },
-      playbackRateLimit: {
-        windowMs: 60_000,
-        maxRequests: 10,
-      },
     });
   });
 
@@ -28,8 +24,6 @@ describe('API runtime config', () => {
           'https://media.example,https://admin.example,https://media.example',
         MEDIA_ENGINE_RATE_LIMIT_WINDOW_MS: '30000',
         MEDIA_ENGINE_RATE_LIMIT_MAX_REQUESTS: '25',
-        MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS: '15000',
-        MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS: '4',
       }),
     ).toEqual({
       environment: 'production',
@@ -39,10 +33,6 @@ describe('API runtime config', () => {
       rateLimit: {
         windowMs: 30_000,
         maxRequests: 25,
-      },
-      playbackRateLimit: {
-        windowMs: 15_000,
-        maxRequests: 4,
       },
     });
   });
@@ -59,14 +49,6 @@ describe('API runtime config', () => {
     [{ CORS_ORIGINS: 'https://user@example.com' }, 'CORS_ORIGINS'],
     [{ MEDIA_ENGINE_RATE_LIMIT_WINDOW_MS: '999' }, 'WINDOW_MS'],
     [{ MEDIA_ENGINE_RATE_LIMIT_MAX_REQUESTS: '-1' }, 'MAX_REQUESTS'],
-    [
-      { MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_WINDOW_MS: '999' },
-      'PLAYBACK_RATE_LIMIT_WINDOW_MS',
-    ],
-    [
-      { MEDIA_ENGINE_TORRENT_PLAYBACK_RATE_LIMIT_MAX_REQUESTS: '0' },
-      'PLAYBACK_RATE_LIMIT_MAX_REQUESTS',
-    ],
   ] satisfies Array<[NodeJS.ProcessEnv, string]>)(
     'rejects invalid %j',
     (env, name) => {

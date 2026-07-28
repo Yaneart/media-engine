@@ -38,19 +38,13 @@ The SDK is a small typed HTTP client for the API. It works with browser or Node.
 
 ### `apps/api`
 
-The NestJS application wires providers into `MediaEngine` and exposes health, provider, search, details, availability, and torrent-discovery endpoints. It owns HTTP validation and OpenAPI documentation, but not merge logic or provider HTTP clients.
+The NestJS application wires metadata and streaming providers into `MediaEngine` and exposes health, provider, search, details, and availability endpoints. It owns HTTP validation and OpenAPI documentation, but not merge logic or provider HTTP clients.
 
-Torrent discovery is intentionally independent from streaming availability. Core can select torrent providers and return typed handoff candidates, but it never contains a BitTorrent client, player, proxy, storage, or transcoder. Those runtime responsibilities belong to consuming applications.
-
-An optional private reference-playback module lives inside `apps/api`. Its bounded client talks
-only to an operator-configured external TorServer process; no browser request controls that target.
-The API owns the fresh candidate catalog, session lifecycle, and a backpressured single-range
-gateway reached through an expiring high-entropy capability URL. TorServer remains a separately
-licensed process outside every public package, and playback remains outside the SDK.
+Torrent discovery is intentionally independent from streaming availability. Core can select torrent providers and return typed handoff candidates, but the repository API does not wire that operation in this clean-slate checkpoint. Core never contains a BitTorrent client, player, proxy, storage, or transcoder. Those runtime responsibilities belong to consuming applications.
 
 ### `apps/example`
 
-The React application demonstrates search, details, episode selection, player choice, torrent discovery, and the optional reference torrent player flow. It does not call upstream providers directly. Its Vite dev/preview server provides a narrow same-origin lifecycle BFF so the operator playback token remains server-side; native media receives only the expiring stream capability. Static production deployments must supply an equivalent authenticated backend boundary or keep this optional flow disabled.
+The React application demonstrates search, details, episode selection, and online player choice. It does not call upstream providers directly.
 
 ## Request flow
 
@@ -80,7 +74,7 @@ Optional enrichment never joins its provider results back into mandatory discove
 
 For the next 30 minutes, equivalent cache misses use the first healthy identity snapshot whose top candidate has a strong external ID to keep confirmed candidates and ordering stable even if a successful upstream response drifts. The snapshot is not refreshed inside that window. It ignores the public `limit`, keeps at most 20 candidates, never replaces a current candidate with conflicting strong IDs, and does not mark the response as cached. Retryably degraded partial searches can use the same recovery while retaining current provider failures; non-retryable degradation does not. A cold request without a prior confirmed snapshot remains dependent on the currently available identity sources, and a weak top candidate without a strong ID is never promoted into the snapshot.
 
-Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options. Torrent providers use another operation and return discovery metadata plus an opaque handoff instead of claiming immediate stream availability.
+Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options. Torrent providers use a package-level operation and return discovery metadata plus an opaque handoff instead of claiming immediate stream availability.
 
 ## Identity and merging
 
@@ -113,7 +107,6 @@ packages/core       framework-independent engine
 packages/providers  concrete provider adapters
 packages/sdk        typed HTTP client
 apps/api            NestJS API
-  reference-playback private, opt-in external-runtime integration
 apps/example        React example
 scripts             live quality and latency checks
 docs                current technical documentation

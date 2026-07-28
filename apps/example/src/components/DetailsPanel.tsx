@@ -1,4 +1,4 @@
-import type { AvailabilityMediaInput, MediaSummary, TorrentMediaInput } from "../api";
+import type { AvailabilityMediaInput, MediaSummary } from "../api";
 import {
   formatCount,
   formatMediaMeta,
@@ -7,25 +7,21 @@ import {
   formatStatus,
   getEpisodesCount,
 } from "../utils/format";
-import type { AvailabilityState, DetailsState, TorrentState } from "../state";
+import type { AvailabilityState, DetailsState } from "../state";
 import { DetailValue, MediaPoster, MetaList } from "./common";
 import { PlaybackPanel } from "./PlaybackPanel";
 
 export function DetailsPanel({
   availabilityState,
-  onDiscoverTorrents,
   onLoadAvailability,
   state,
-  torrentState,
 }: {
   availabilityState: AvailabilityState;
-  onDiscoverTorrents: (item: MediaSummary, torrentItem?: TorrentMediaInput) => Promise<void>;
   onLoadAvailability: (
     item: MediaSummary,
     availabilityItem?: AvailabilityMediaInput,
   ) => Promise<void>;
   state: DetailsState;
-  torrentState: TorrentState;
 }) {
   if (state.status === "idle") {
     return (
@@ -93,9 +89,7 @@ export function DetailsPanel({
           details={details}
           item={state.item}
           key={`${state.item.type}:${state.item.id}`}
-          onDiscoverTorrents={onDiscoverTorrents}
           onLoadAvailability={onLoadAvailability}
-          torrentState={torrentState}
         />
 
         <section className="detail-section">

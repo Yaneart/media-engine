@@ -200,10 +200,9 @@ Decision: all four adapters remain accepted and opt-in, while repository API def
 Bitsearch's documented 200-request daily anonymous quota is too small for implicit public fan-out;
 Magnetz exposed a 30-request header but also returned burst 429s without a complete published reset
 policy; JacRed still has a rare long tail. The sources are suitable when an application explicitly
-chooses its subset, caching, timeout, and request budget. `pnpm smoke:torrents` now provides a
-repeatable one-pass check; `-- --passes 2 --json` produces the fuller machine-readable checkpoint.
+chooses its subset, caching, timeout, and request budget. This checkpoint was captured before the
+repository app/runtime torrent cleanup and its root torrent smoke command has since been removed.
 
-After source discovery is stable, the repository reference applications may add an optional torrent
-runtime demonstration. A selected 2160p candidate can be progressively buffered and served to a
-browser, but codec/container compatibility may require remuxing or transcoding. That runtime stays
-outside the public core/providers/SDK packages.
+After source discovery is stable, repository applications may add an optional torrent runtime
+demonstration. Per the later ADR, that path must stream original bytes through an application-owned
+runtime and stay outside the public core/providers/SDK packages.

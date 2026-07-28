@@ -8,44 +8,19 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
-- Added bounded asynchronous torrent remux in the private media worker. Exact browser-compatible
-  H.264/AAC, VP8/VP9/AV1 with Opus/Vorbis, and Theora/Vorbis tracks can be stream-copied from
-  non-browser containers into MP4/WebM/OGG without video re-encoding; completed outputs use the
-  existing expiring Range capability and are removed on stop, expiry, failure, TTL, or worker
-  restart. Separate concurrency, time, per-output, total-storage-reservation, request, and cleanup
-  bounds keep FFmpeg and temporary media outside the API process and public packages.
-
-- Added a private container-native torrent media worker for repository Compose. The API sends only
-  server-owned hash/file ID and bounded file metadata over a no-host-port network; the worker
-  constructs the TorServer target and runs the existing bounded `ffprobe` contract in a separate
-  read-only image without repository mounts or application secrets. Independent request,
-  concurrency, CPU/RAM/PID, body, and response bounds preserve explicit failure and cleanup while
-  keeping FFmpeg out of the API process and every public package.
-- Added an opt-in bounded host `ffprobe` adapter for selected torrent files. It runs after
-  server-owned selection and before readiness with an absolute executable path, no shell or
-  inherited application secrets, HTTP(S)-only input, redirects disabled, fixed resource/output
-  bounds, cancellation, and a configurable timeout. Exact primary video/audio codec, pixel format,
-  dimensions, and container now drive direct/remux/transcode classification when enabled; failures
-  remain explicit and clean up the torrent resource. The native-host path remains an exclusive
-  fallback when the isolated worker URL is not configured.
-- Added the opt-in reference torrent player flow to the React example. A narrow same-origin Vite dev/preview BFF keeps the operator Bearer token server-side while the browser receives only session snapshots and the expiring stream capability; the UI supports bounded file selection, native direct playback, seek/buffering diagnostics, manual status refresh, explicit cleanup, and honest conversion-required states without adding remux/transcode or changing public package/SDK contracts.
-- Added the bounded reference torrent media gateway and advanced the REST/OpenAPI contract to 0.4.0. Ready sessions expose an expiring 256-bit capability URL for native browser GET/HEAD playback; the API derives TorServer targets only from server-owned state, validates one byte range and safe cache headers, rejects redirects and inconsistent 200/206/304/416 responses, streams with backpressure instead of buffering, cancels on disconnect, and enforces independent active-stream and idle limits.
-- Added an explicit `torrent-playback` Compose profile for the separately licensed official TorServer `MatriX.141.1` image, pinned by immutable multi-arch digest. Default Compose remains TorServer-free; the opt-in service has no host port, shares a dedicated network only with the API, uses read-only settings/rootfs and bounded ephemeral storage/logs/resources, and retains explicit external/local TorServer URL plus optional Basic-auth support.
-- Added the protected app-specific reference torrent playback HTTP contract: create/status/stop routes accept only server-catalogued provider/candidate IDs and optional offered file IDs, require a separate operator Bearer token, expose no global session list, and use a strict playback-only rate limit. Its public optional health probe is isolated from mandatory readiness. These routes intentionally remain outside the public SDK.
-- Added the private bounded torrent playback candidate catalog and session lifecycle in the Nest API. Successful torrent discovery records fresh server-owned candidate copies; session preparation accepts only provider/candidate IDs and optional offered file IDs, revalidates magnet identity and expiry, selects only unambiguous media, reports honest direct/remux/transcode/unknown states, and coalesces identical hashes with reference-counted cleanup.
-- Added the first private Nest API client slice for an external TorServer reference component: exact operator-owned configuration, bounded concurrency/time/response/file limits, strict health and torrent-status parsing, cancellation, redacted errors, metadata polling, cleanup calls, and server-controlled play-target construction. It is not connected to public routes yet; TorServer remains a separately licensed process outside public packages.
-- Added env-gated torrent-provider wiring to the repository Nest API and explicit torrent discovery/selection to the React example. API defaults remain empty; deployments can allowlist YTS, JacRed, Bitsearch, and Magnetz with separate generic/JacRed timeouts. The UI groups matching hashes without hiding source observations, supports season/episode and absolute-anime queries, and exposes copyable handoff data without running a torrent client.
 - Added an explicit opt-in `magnetzTorrentProvider()` for strict international movie, TV, and anime magnet meta-search through the documented no-auth API. It uses one bounded search request without detail fan-out, revalidates title/year/season/episode identity and magnet hashes, normalizes release and peer metadata, and spaces request starts after observed burst rate limits. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added an explicit opt-in `bitsearchTorrentProvider()` for broad international movie, TV, and anime magnet discovery through the documented no-key public API. It bounds the search contract, handles the small anonymous daily quota, revalidates exact title/year/type/season/episode identity, deduplicates strict info hashes, and normalizes release and peer metadata. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added an explicit opt-in `jacRedTorrentProvider()` for exact title/year Russian and multilingual movie, series-season, and anime magnet discovery. It pins the observed no-key public route behind configurable base/path options, strictly bounds nullable JSON, revalidates title/year/type/season identity, deduplicates validated info hashes, and normalizes release and peer metadata without guessing exact episodes. It remains outside API defaults pending the multi-source reliability checkpoint.
 - Added an explicit opt-in `ytsTorrentProvider()` with no-key exact IMDb or exact title/year movie lookup, strict bounded JSON parsing, hash-bound YTS torrent-file handoffs with magnet fallback, normalized quality/release metadata, and honest peer availability. It remains outside API defaults pending the multi-source reliability checkpoint.
-- Added a separate normalized torrent-discovery contract across core, REST API/OpenAPI, and SDK. It defines provider capabilities, typed candidates and handoff data, attribution, bounded orchestration, cancellation, caching, health telemetry, and partial failures without bundling a torrent source, client, player, proxy, storage, or transcoder.
+- Added a separate normalized torrent-discovery contract across core and SDK. It defines provider capabilities, typed candidates and handoff data, attribution, bounded orchestration, cancellation, caching, health telemetry, and partial failures without bundling a torrent source, client, player, proxy, storage, or transcoder.
 - Added an explicit opt-in `ddbbStreamingProvider()` with no-token Kinopoisk/IMDb lookup, diversity-first embed mapping, strict nullable response parsing, bounded live validation, and no unsupported exact-episode claim. It is exported from `@media-engine/providers` but remains outside API defaults pending reliability review.
 - Added an explicit opt-in `aniLibertyStreamingProvider()` with no-token exact title/year identity, bounded episode mapping, direct 480p/720p/1080p HLS options, normalized release block states, and no ambiguous season/episode guesses. It remains outside API defaults pending the source reliability checkpoint.
 
 ### Changed
 
-- The React example now presents online players and torrent playback as separate accessible tabs. Player counts and warnings are compact, torrent release selection and playback are primary actions, and magnet hashes, handoff URIs, source links, and selected-file paths remain available in collapsed technical details instead of crowding the viewing flow.
+- Removed the repository app/runtime torrent implementation from `apps/api`, `apps/example`,
+  Compose, `.env.example`, smoke scripts, OpenAPI, and app tests. Public package torrent discovery
+  contracts and provider implementations remain for a later minimal original-stream rebuild.
 
 - Added a repeatable combined torrent-source smoke gate and completed the YTS/JacRed/Bitsearch/Magnetz reliability and info-hash-overlap checkpoint. All four adapters remain explicit opt-ins, repository API defaults stay empty because anonymous quotas and timeout tails require application-owned budgets, and matching hashes from different providers retain separate peer/source observations instead of losing provenance through cross-provider collapse.
 - The repository API now enables the bounded DDBB and AniLiberty streaming providers by default after repeated reliability, missing-result, diversity, timeout, and direct-HLS checks. Direct package consumers still configure their own provider list.
@@ -74,25 +49,7 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Fixed
 
-- Reference torrent startup now survives unreachable IPv6 provider addresses by preferring IPv4
-  and safely falling back across all validated public addresses. Outbound request/socket failures are
-  settled once instead of escaping as unhandled process errors, so refreshing the example cannot
-  terminate the API during a transient network route failure.
-- TorServer preparation now retries one transient add/metadata failure and uses explicit 15-second
-  connection, 40-second request, 60-second metadata, and 120-second session-start defaults. Exact
-  YTS candidates use their hash-bound HTTPS `.torrent` handoff because live DHT-only magnets can
-  lack discoverable metadata; the returned hash is still revalidated before file selection.
-- Slow peer startup no longer makes an otherwise direct trusted YTS H.264 MP4 fail solely because
-  bounded media inspection timed out twice. This narrow catalog-owned fallback never applies to
-  MKV, HEVC/x265, unknown codecs, arbitrary URLs, or non-YTS candidates; those retain exact probe,
-  remux, or transcode requirements.
-- Reference torrent streaming now uses a separate bounded 30-second media-header budget instead of
-  the TorServer control connection timeout. It retries at most one transient transport
-  or 5xx failure before exposing response bytes, preserves Range and cancellation semantics across
-  attempts, returns 502 for exhausted upstream failures and 504 for header deadlines, and retains
-  explicit post-header body-idle failure diagnostics.
-- Reference torrent playback no longer classifies known H.265/HEVC/x265 or H.266/VVC files as browser-direct merely because they use an MP4 container. Codec metadata and bounded filename markers now conservatively require transcoding, preventing the example from attaching unsupported 10-bit HEVC files to native video. The expiring stream capability also opts out of the API-wide same-origin resource policy so a separately hosted browser frontend can load compatible direct media.
-- DDBB options beyond the bounded live-validation limit are now reported as `unknown` instead of inheriting an unverified `available` status. The example groups episodes, player families, translations, and qualities without collapsing distinct voiceovers, plays direct HLS options through a lazy browser runtime instead of opening manifests as downloads, and sends an origin-only referrer required by otherwise valid Alloha embeds.
+- DDBB options beyond the bounded live-validation limit are now reported as `unknown` instead of inheriting an unverified `available` status. The example groups episodes, player families, translations, and qualities without collapsing distinct voiceovers, exposes direct stream links, and sends an origin-only referrer required by otherwise valid Alloha embeds.
 - Cinemeta untyped IMDb details lookups no longer turn movie/series branch outages into cacheable successful null responses.
 - AniList HTTP-200 GraphQL rate-limit and server errors now remain retryable provider failures, while validation errors and malformed payloads receive non-retryable typed categories.
 - Streaming providers that resolve `null` now count as successful no-result responses, so a separate provider failure no longer causes a false all-failed error.

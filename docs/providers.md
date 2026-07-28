@@ -158,8 +158,8 @@ swarm, or stream media. Their API bases remain configurable where upstream domai
 drifted. The completed English/Russian checkpoint kept zero repository API defaults: Bitsearch's
 200-request anonymous daily quota is unsuitable for implicit fan-out, Magnetz has burst-sensitive
 limits without a complete published reset policy, and JacRed produced one recoverable 20-second
-timeout in 18 combined calls. Applications should opt into a deliberate subset and can run
-`pnpm smoke:torrents -- --passes 2 --json` for a fresh machine-readable checkpoint.
+timeout in 18 combined calls. Applications should opt into a deliberate subset and own their cache,
+timeout, and request budgets.
 
 ```ts
 const media = new MediaEngine({

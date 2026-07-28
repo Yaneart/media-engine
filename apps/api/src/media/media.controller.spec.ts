@@ -11,16 +11,12 @@ import {
   type ProviderInfo,
   type SearchResponse,
   type StreamingProviderInfo,
-  type TorrentDiscoveryResponse,
-  type TorrentProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
-import { TorrentCandidateCatalog } from '../reference-playback';
 import { MediaModule } from './media.module';
 
 describe('MediaController', () => {
   let app: INestApplication<App>;
-  let torrentCandidateCatalog: TorrentCandidateCatalog;
   let mediaEngine: jest.Mocked<
     Pick<
       MediaEngine,
@@ -29,8 +25,6 @@ describe('MediaController', () => {
       | 'getAvailability'
       | 'getProviders'
       | 'getStreamingProviders'
-      | 'discoverTorrents'
-      | 'getTorrentProviders'
     >
   >;
 
@@ -142,39 +136,6 @@ describe('MediaController', () => {
     },
   ];
 
-  const torrentResponse: TorrentDiscoveryResponse = {
-    query: {
-      type: 'series',
-      title: 'Dark',
-      imdb: 'tt5753856',
-      seasonNumber: 1,
-      episodeNumber: 2,
-      providers: ['torrent-catalog'],
-      language: 'en',
-      limit: 5,
-    },
-    candidates: [],
-    sourceProviders: [],
-    checkedAt: '2026-07-22T00:00:00.000Z',
-  };
-
-  const torrentProvidersResponse: TorrentProviderInfo[] = [
-    {
-      name: 'torrent-catalog',
-      version: '1.0.0',
-      kind: 'torrent',
-      capabilities: {
-        mediaTypes: ['movie', 'series'],
-        lookup: {
-          byTitle: true,
-          byExternalIds: ['imdb'],
-          byEpisode: true,
-        },
-        features: ['magnet', 'file_list', 'peer_stats'],
-      },
-    },
-  ];
-
   beforeEach(async () => {
     mediaEngine = {
       search: jest.fn().mockResolvedValue(searchResponse),
@@ -184,8 +145,6 @@ describe('MediaController', () => {
       getStreamingProviders: jest
         .fn()
         .mockReturnValue(streamingProvidersResponse),
-      discoverTorrents: jest.fn().mockResolvedValue(torrentResponse),
-      getTorrentProviders: jest.fn().mockReturnValue(torrentProvidersResponse),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -196,7 +155,6 @@ describe('MediaController', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
-    torrentCandidateCatalog = moduleFixture.get(TorrentCandidateCatalog);
     await app.init();
   });
 
@@ -519,113 +477,6 @@ describe('MediaController', () => {
       .expect(503);
   });
 
-  it('maps GET /media/torrents query parameters to MediaEngine.discoverTorrents', async () => {
-    await request(app.getHttpServer())
-      .get('/media/torrents')
-      .query({
-        title: ' Dark ',
-        type: 'series',
-        imdb: ' tt5753856 ',
-        seasonNumber: '1',
-        episodeNumber: '2',
-        providers: 'torrent-catalog,mirror',
-        language: 'en',
-        limit: '5',
-      })
-      .expect(200)
-      .expect(torrentResponse);
-
-    expect(mediaEngine.discoverTorrents).toHaveBeenCalledWith(
-      {
-        title: 'Dark',
-        type: 'series',
-        imdb: 'tt5753856',
-        seasonNumber: 1,
-        episodeNumber: 2,
-        providers: ['torrent-catalog', 'mirror'],
-        language: 'en',
-        limit: 5,
-      },
-      { signal: expect.any(AbortSignal) },
-    );
-  });
-
-  it('records only server-side copies of torrent candidates returned by discovery', async () => {
-    mediaEngine.discoverTorrents.mockResolvedValueOnce({
-      ...torrentResponse,
-      candidates: [
-        {
-          id: 'candidate-1',
-          provider: 'torrent-catalog',
-          title: 'Dark S01E02',
-          infoHash: 'a'.repeat(40),
-          handoff: {
-            kind: 'magnet',
-            uri: `magnet:?xt=urn:btih:${'a'.repeat(40)}`,
-          },
-          availability: 'available',
-        },
-      ],
-    });
-
-    await request(app.getHttpServer())
-      .get('/media/torrents')
-      .query({ type: 'series', title: 'Dark', seasonNumber: '1' })
-      .expect(200);
-
-    const catalogued = torrentCandidateCatalog.get(
-      'torrent-catalog',
-      'candidate-1',
-    );
-    expect(catalogued).toMatchObject({
-      candidate: {
-        provider: 'torrent-catalog',
-        id: 'candidate-1',
-        infoHash: 'a'.repeat(40),
-      },
-      query: torrentResponse.query,
-    });
-    expect(JSON.stringify(catalogued)).toContain('magnet:?');
-  });
-
-  it('returns 400 for invalid torrent query parameters before core execution', async () => {
-    await request(app.getHttpServer())
-      .get('/media/torrents')
-      .query({ type: 'movie', title: 'Dune', limit: 'many' })
-      .expect(400);
-
-    await request(app.getHttpServer())
-      .get('/media/torrents')
-      .query({ title: 'Dune' })
-      .expect(400);
-
-    expect(mediaEngine.discoverTorrents).not.toHaveBeenCalled();
-  });
-
-  it('maps torrent core query and provider failures to HTTP errors', async () => {
-    mediaEngine.discoverTorrents.mockRejectedValueOnce(
-      new MediaEngineError({
-        code: 'INVALID_QUERY',
-        message: 'Torrent discovery query must include title or external ids.',
-      }),
-    );
-    await request(app.getHttpServer())
-      .get('/media/torrents')
-      .query({ type: 'movie' })
-      .expect(400);
-
-    mediaEngine.discoverTorrents.mockRejectedValueOnce(
-      new MediaEngineError({
-        code: 'PROVIDER_ERROR',
-        message: 'All torrent providers failed.',
-      }),
-    );
-    await request(app.getHttpServer())
-      .get('/media/torrents')
-      .query({ type: 'movie', title: 'Dune' })
-      .expect(503);
-  });
-
   it('returns safe provider metadata from GET /providers', async () => {
     await request(app.getHttpServer())
       .get('/providers')
@@ -642,14 +493,5 @@ describe('MediaController', () => {
       .expect(streamingProvidersResponse);
 
     expect(mediaEngine.getStreamingProviders).toHaveBeenCalledWith();
-  });
-
-  it('returns safe torrent provider metadata from GET /providers/torrent', async () => {
-    await request(app.getHttpServer())
-      .get('/providers/torrent')
-      .expect(200)
-      .expect(torrentProvidersResponse);
-
-    expect(mediaEngine.getTorrentProviders).toHaveBeenCalledWith();
   });
 });

@@ -13,11 +13,10 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "pnpm test:unit && pnpm typecheck",
-    "test:unit": "node --test server/*.test.ts"
+    "test:unit": "node --test"
   },
   "dependencies": {
     "@media-engine/sdk": "workspace:*",
-    "hls.js": "^1.6.16",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

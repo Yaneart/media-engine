@@ -8,7 +8,6 @@ import {
   type MediaEngine,
   type ProviderInfo,
   type SearchResponse,
-  type TorrentDiscoveryResponse,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from './../src/media-engine';
 import { AppModule } from './../src/app.module';
@@ -24,10 +23,6 @@ const testRuntimeConfig: ApiRuntimeConfig = {
     windowMs: 60_000,
     maxRequests: 2,
   },
-  playbackRateLimit: {
-    windowMs: 60_000,
-    maxRequests: 2,
-  },
 };
 
 describe('Media Engine API (e2e)', () => {
@@ -35,12 +30,7 @@ describe('Media Engine API (e2e)', () => {
   let mediaEngine: jest.Mocked<
     Pick<
       MediaEngine,
-      | 'search'
-      | 'getDetails'
-      | 'discoverTorrents'
-      | 'getProviders'
-      | 'getTorrentProviders'
-      | 'getProviderHealth'
+      'search' | 'getDetails' | 'getProviders' | 'getProviderHealth'
     >
   >;
 
@@ -100,25 +90,11 @@ describe('Media Engine API (e2e)', () => {
     },
   ];
 
-  const torrentResponse: TorrentDiscoveryResponse = {
-    query: { type: 'movie', title: 'Dune' },
-    candidates: [],
-    sourceProviders: [],
-    checkedAt: '2026-07-22T00:00:00.000Z',
-    meta: {
-      providers: { requested: [], successful: [], failed: [] },
-      cached: false,
-      tookMs: 0,
-    },
-  };
-
   beforeEach(async () => {
     mediaEngine = {
       search: jest.fn().mockResolvedValue(searchResponse),
       getDetails: jest.fn().mockResolvedValue(detailsResponse),
-      discoverTorrents: jest.fn().mockResolvedValue(torrentResponse),
       getProviders: jest.fn().mockReturnValue(providersResponse),
-      getTorrentProviders: jest.fn().mockReturnValue([]),
       getProviderHealth: jest.fn().mockReturnValue([]),
     };
 
@@ -190,24 +166,6 @@ describe('Media Engine API (e2e)', () => {
     expect(mediaEngine.getProviders).toHaveBeenCalledWith();
   });
 
-  it('/media/torrents and /providers/torrent expose the contract without a runtime', async () => {
-    await request(app.getHttpServer())
-      .get('/media/torrents')
-      .query({ type: 'movie', title: 'Dune' })
-      .expect(200)
-      .expect(torrentResponse);
-    await request(app.getHttpServer())
-      .get('/providers/torrent')
-      .expect(200)
-      .expect([]);
-
-    expect(mediaEngine.discoverTorrents).toHaveBeenCalledWith(
-      { type: 'movie', title: 'Dune' },
-      { signal: expect.any(AbortSignal) },
-    );
-    expect(mediaEngine.getTorrentProviders).toHaveBeenCalledWith();
-  });
-
   it('adds security headers with separate API and Swagger CSP policies', async () => {
     const apiResponse = await request(app.getHttpServer())
       .get('/health/live')
@@ -250,35 +208,13 @@ describe('Media Engine API (e2e)', () => {
       .expect(200);
 
     const limited = await request(app.getHttpServer())
-      .get('/media/torrents?type=movie&title=Dune')
+      .get('/media/search?title=Tenet')
       .expect(429);
 
     expect(limited.headers['ratelimit-limit']).toBe('2');
     expect(limited.headers['ratelimit-remaining']).toBe('0');
     expect(limited.headers['retry-after']).toBeDefined();
     await request(app.getHttpServer()).get('/health/live').expect(200);
-  });
-
-  it('exposes disabled reference playback separately and rate limits its routes', async () => {
-    await request(app.getHttpServer())
-      .get(`/reference/torrent-playback/sessions/${'a'.repeat(43)}/stream`)
-      .expect(503);
-    await request(app.getHttpServer())
-      .get('/reference/torrent-playback/health')
-      .expect(200)
-      .expect({ status: 'disabled' });
-    await request(app.getHttpServer())
-      .post('/reference/torrent-playback/sessions')
-      .send({ provider: 'mock', candidateId: 'candidate' })
-      .expect(503);
-
-    const limited = await request(app.getHttpServer())
-      .get('/reference/torrent-playback/health')
-      .expect(429);
-    expect(limited.headers['ratelimit-limit']).toBe('2');
-    expect(limited.body).toMatchObject({
-      message: expect.stringContaining('torrent playback'),
-    });
   });
 
   it('/docs-json (GET)', async () => {
@@ -304,22 +240,8 @@ describe('Media Engine API (e2e)', () => {
     expect(body.paths).toHaveProperty('/media/search');
     expect(body.paths).toHaveProperty('/media/details');
     expect(body.paths).toHaveProperty('/media/availability');
-    expect(body.paths).toHaveProperty('/media/torrents');
     expect(body.paths).toHaveProperty('/providers');
     expect(body.paths).toHaveProperty('/providers/streaming');
-    expect(body.paths).toHaveProperty('/providers/torrent');
-    expect(body.paths).toHaveProperty('/reference/torrent-playback/health');
-    expect(body.paths).toHaveProperty('/reference/torrent-playback/sessions');
-    expect(body.paths).toHaveProperty(
-      '/reference/torrent-playback/sessions/{id}',
-    );
-    expect(body.paths).toHaveProperty(
-      '/reference/torrent-playback/sessions/{id}/stream',
-    );
-    const streamPath =
-      body.paths['/reference/torrent-playback/sessions/{id}/stream'];
-    expect(isRecord(streamPath) && isRecord(streamPath.get)).toBe(true);
-    expect(isRecord(streamPath) && isRecord(streamPath.head)).toBe(true);
 
     const detailsParameterNames = getOpenApiParameterNames(
       body.paths,

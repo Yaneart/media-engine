@@ -4,7 +4,6 @@ const RATE_LIMITED_PATHS = new Set([
   '/media/search',
   '/media/details',
   '/media/availability',
-  '/media/torrents',
 ]);
 const MAX_TRACKED_CLIENTS = 10_000;
 

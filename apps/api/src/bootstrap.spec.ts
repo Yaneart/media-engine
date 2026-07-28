@@ -26,16 +26,15 @@ describe('API application bootstrap', () => {
       port: 3000,
       corsOrigins: ['http://127.0.0.1:5173'],
       rateLimit: { windowMs: 60_000, maxRequests: 60 },
-      playbackRateLimit: { windowMs: 60_000, maxRequests: 10 },
     };
 
     configureApiApplication(app, config);
 
     expect(enableCors).toHaveBeenCalledWith({
       origin: config.corsOrigins,
-      methods: ['GET', 'HEAD', 'POST', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'HEAD', 'OPTIONS'],
     });
-    expect(use).toHaveBeenCalledTimes(3);
+    expect(use).toHaveBeenCalledTimes(2);
     expect(createDocument).toHaveBeenCalledWith(
       app,
       expect.objectContaining({

@@ -129,7 +129,7 @@ Torrent discovery is a separate provider category and operation. A `TorrentDisco
 
 Candidate order is deterministic: the engine preserves each provider's order while interleaving configured sources before applying the public limit. It deduplicates repeated `provider` plus `id` identities but does not collapse matching info hashes from different providers because their attribution, source URL, display title, and reported peer state may differ. The combined live checkpoint confirmed material peer-count differences for identical hashes, so consumers may group hashes for presentation but should preserve every source observation.
 
-The repository API still configures no torrent source by default after the combined source checkpoint. `discoverTorrents()` therefore returns a successful empty response until an application supplies a `TorrentProvider`. The repository Nest API can explicitly enable the exported YTS, JacRed, Bitsearch, and Magnetz adapters through `MEDIA_ENGINE_TORRENT_PROVIDERS`; strict startup validation preserves the configured order and rejects unknown, duplicate, or empty entries. Generic torrent and JacRed timeout budgets are configured separately because quotas and long tails remain deployment-owned decisions.
+The repository Nest API does not expose torrent discovery in the current clean-slate checkpoint. Package consumers can still configure the exported YTS, JacRed, Bitsearch, and Magnetz adapters directly through `MediaEngineOptions.torrentProviders`; repository app/runtime wiring will be rebuilt separately.
 
 ## Errors and partial failures
 
@@ -143,32 +143,14 @@ The example NestJS application exposes:
 GET /health
 GET /providers
 GET /providers/streaming
-GET /providers/torrent
 GET /media/search
 GET /media/details
 GET /media/availability
-GET /media/torrents
-GET /reference/torrent-playback/health
-POST /reference/torrent-playback/sessions
-GET /reference/torrent-playback/sessions/:id
-DELETE /reference/torrent-playback/sessions/:id
-GET|HEAD /reference/torrent-playback/sessions/:id/stream
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
 
 The media endpoints connect request/response disconnect events to the engine operation signal and remove their lifecycle listeners when the operation settles. An HTTP client that closes early therefore stops waiting immediately and cancels shared provider work only when no other identical request is still subscribed.
-
-The `/reference/torrent-playback/*` routes are an optional repository-application contract, not a
-core or SDK API. They remain disabled without paired operator-owned TorServer URL and playback
-token settings. Create/status/stop require the separate Bearer token, accept no magnet/hash/path,
-have their own strict rate limit, and never expose a global session list. The health route is a
-separate optional probe and does not affect normal readiness. A session snapshot contains an
-expiring high-entropy `streamUrl`; its unauthenticated GET/HEAD route is a short-lived browser-media
-capability with independent concurrency and idle limits, strict single-range validation,
-backpressure, and cancellation. It never accepts a caller-controlled TorServer target. The optional repository Compose
-profile is a deployment concern outside the public packages: default Compose does not start it,
-and the pinned TorServer container exposes no host port.
 
 `GET /health` includes process-local provider counters and circuit states. These diagnostics contain provider names, success/failure counts, timestamps, and recovery delay only; they do not expose credentials or provider internals.
 
@@ -184,4 +166,4 @@ const client = new MediaEngineClient({
 const response = await client.search({ title: "One Piece" });
 ```
 
-The SDK provides `search`, `getDetails`, `getAvailability`, `discoverTorrents`, provider-list methods for all three provider categories, and health methods. Requests accept an abort signal and extra headers.
+The SDK provides `search`, `getDetails`, `getAvailability`, `discoverTorrents`, provider-list methods, and health methods. Requests accept an abort signal and extra headers. `discoverTorrents` is retained for applications that expose a compatible torrent discovery endpoint; the repository Nest API does not publish that route in this checkpoint.

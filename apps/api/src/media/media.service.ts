@@ -16,12 +16,8 @@ import {
   type SearchResponse,
   type StreamQuery,
   type StreamingProviderInfo,
-  type TorrentDiscoveryQuery,
-  type TorrentDiscoveryResponse,
-  type TorrentProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
-import { TorrentCandidateCatalog } from '../reference-playback';
 
 // EN: Raw query shape received from HTTP before API-level normalization.
 // RU: Сырая форма query из HTTP до нормализации на уровне API.
@@ -40,13 +36,6 @@ export type MediaDetailsHttpQuery = Record<
 // EN: Raw streaming availability query shape received from HTTP before normalization.
 // RU: Сырая форма streaming availability query из HTTP до нормализации.
 export type MediaAvailabilityHttpQuery = Record<
-  string,
-  string | string[] | undefined
->;
-
-// EN: Raw torrent discovery query shape received from HTTP before normalization.
-// RU: Сырая форма torrent discovery query из HTTP до нормализации.
-export type TorrentDiscoveryHttpQuery = Record<
   string,
   string | string[] | undefined
 >;
@@ -71,7 +60,6 @@ export class MediaService {
   constructor(
     @Inject(MEDIA_ENGINE)
     private readonly mediaEngine: MediaEngine,
-    private readonly torrentCandidateCatalog: TorrentCandidateCatalog,
   ) {}
 
   // EN: Convert HTTP query parameters into a core SearchQuery and run search.
@@ -107,22 +95,6 @@ export class MediaService {
     );
   }
 
-  // EN: Convert HTTP query parameters into a torrent discovery query.
-  // RU: Преобразует HTTP query параметры в torrent discovery query.
-  async discoverTorrents(
-    query: TorrentDiscoveryHttpQuery,
-    options?: MediaEngineOperationOptions,
-  ): Promise<TorrentDiscoveryResponse> {
-    const response = await runEngineRequest(() =>
-      this.mediaEngine.discoverTorrents(
-        toTorrentDiscoveryQuery(query),
-        options,
-      ),
-    );
-    this.torrentCandidateCatalog.record(response);
-    return response;
-  }
-
   // EN: Return safe provider metadata from the configured core engine.
   // RU: Возвращает безопасные метаданные провайдеров из настроенного core engine.
   getProviders(): ProviderInfo[] {
@@ -133,12 +105,6 @@ export class MediaService {
   // RU: Возвращает безопасные метаданные streaming-провайдеров из настроенного core engine.
   getStreamingProviders(): StreamingProviderInfo[] {
     return this.mediaEngine.getStreamingProviders();
-  }
-
-  // EN: Return safe torrent provider metadata from the configured core engine.
-  // RU: Возвращает безопасные метаданные torrent-провайдеров из core engine.
-  getTorrentProviders(): TorrentProviderInfo[] {
-    return this.mediaEngine.getTorrentProviders();
   }
 }
 
@@ -292,21 +258,6 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
   }
 
   return streamQuery;
-}
-
-// EN: Build the public core torrent query from GET /media/torrents parameters.
-// RU: Собирает публичный core torrent query из параметров GET /media/torrents.
-export function toTorrentDiscoveryQuery(
-  query: TorrentDiscoveryHttpQuery,
-): TorrentDiscoveryQuery {
-  const torrentQuery: TorrentDiscoveryQuery = toStreamQuery(query);
-  const limit = readInteger(query.limit, 'limit');
-
-  if (limit !== undefined) {
-    torrentQuery.limit = limit;
-  }
-
-  return torrentQuery;
 }
 
 // EN: Read the first string query value and treat blanks as absent.
