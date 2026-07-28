@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-export const MEDIA_ENGINE_API_CONTRACT_VERSION = '0.4.0';
+export const MEDIA_ENGINE_API_CONTRACT_VERSION = '0.5.0';
 
 // EN: Register OpenAPI JSON and Swagger UI for the public REST API.
 // RU: Регистрирует OpenAPI JSON и Swagger UI для публичного REST API.
@@ -18,6 +18,10 @@ export function setupOpenApi(app: INestApplication): void {
       'Search and details endpoints for normalized media metadata.',
     )
     .addTag('providers', 'Configured provider capabilities by category.')
+    .addTag(
+      'torrent-discovery',
+      'Opt-in torrent candidate discovery without torrent runtime or playback.',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

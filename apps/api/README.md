@@ -31,9 +31,11 @@ GET /health/live
 GET /health/ready
 GET /providers
 GET /providers/streaming
+GET /providers/torrent
 GET /media/search
 GET /media/details
 GET /media/availability
+GET /media/torrents
 GET /docs
 GET /docs-json
 ```
@@ -45,6 +47,8 @@ All media endpoints canonicalize trimmed IDs and language before provider/cache 
 Media request disconnects are forwarded to core as an abort signal. If another identical HTTP request is still subscribed, its shared provider work continues; otherwise queued/running provider work is cancelled and the abandoned response is not cached.
 
 Local settings come from `.env`. The useful defaults are documented in the root `.env.example`, including the port and provider timeouts. Metadata, generic streaming, and FlixHQ keep independent timeout budgets. The default streaming set is KinoBD, FlixHQ, DDBB, and AniLiberty; none requires caller credentials.
+
+Torrent discovery is disabled by default. Set `MEDIA_ENGINE_TORRENT_PROVIDERS` to an explicit comma-separated subset of `yts-torrent`, `jacred-torrent`, `bitsearch-torrent`, and `magnetz-torrent`, and tune its bounded request budget with `MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS`. `GET /media/torrents` returns normalized candidates and opaque handoff data only; it does not join a swarm, select files, or stream media. `GET /providers/torrent` reports the configured discovery providers.
 
 `/health/live` only confirms that the API process can answer HTTP requests. `/health/ready` and the backward-compatible `/health` also inspect provider circuits and return `status: "degraded"` when at least one circuit is open or recovering. Degraded readiness remains HTTP 200 because the API can still return partial results.
 

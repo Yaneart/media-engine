@@ -129,7 +129,7 @@ Torrent discovery is a separate provider category and operation. A `TorrentDisco
 
 Candidate order is deterministic: the engine preserves each provider's order while interleaving configured sources before applying the public limit. It deduplicates repeated `provider` plus `id` identities but does not collapse matching info hashes from different providers because their attribution, source URL, display title, and reported peer state may differ. The combined live checkpoint confirmed material peer-count differences for identical hashes, so consumers may group hashes for presentation but should preserve every source observation.
 
-The repository Nest API does not expose torrent discovery in the current clean-slate checkpoint. Package consumers can still configure the exported YTS, JacRed, Bitsearch, and Magnetz adapters directly through `MediaEngineOptions.torrentProviders`; repository app/runtime wiring will be rebuilt separately.
+The repository Nest API exposes this package operation through an opt-in discovery-only bridge. Its default provider list remains empty; deployments explicitly select exported YTS, JacRed, Bitsearch, and Magnetz adapters. The bridge has no TorrServer, file-selection, session, stream-proxy, or playback responsibility.
 
 ## Errors and partial failures
 
@@ -143,9 +143,11 @@ The example NestJS application exposes:
 GET /health
 GET /providers
 GET /providers/streaming
+GET /providers/torrent
 GET /media/search
 GET /media/details
 GET /media/availability
+GET /media/torrents
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
@@ -166,4 +168,4 @@ const client = new MediaEngineClient({
 const response = await client.search({ title: "One Piece" });
 ```
 
-The SDK provides `search`, `getDetails`, `getAvailability`, `discoverTorrents`, provider-list methods, and health methods. Requests accept an abort signal and extra headers. `discoverTorrents` is retained for applications that expose a compatible torrent discovery endpoint; the repository Nest API does not publish that route in this checkpoint.
+The SDK provides `search`, `getDetails`, `getAvailability`, `discoverTorrents`, provider-list methods, and health methods. Requests accept an abort signal and extra headers. Its torrent methods target the repository API's discovery-only routes without implying a torrent runtime or browser playback.

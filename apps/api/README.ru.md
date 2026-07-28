@@ -31,9 +31,11 @@ GET /health/live
 GET /health/ready
 GET /providers
 GET /providers/streaming
+GET /providers/torrent
 GET /media/search
 GET /media/details
 GET /media/availability
+GET /media/torrents
 GET /docs
 GET /docs-json
 ```
@@ -45,6 +47,8 @@ GET /docs-json
 Отключение HTTP-запроса передается в core как abort signal. Если другой идентичный HTTP-запрос еще подписан на ту же работу, provider work продолжается; иначе queued/running provider work отменяется, а брошенный ответ не кешируется.
 
 Локальные настройки читаются из `.env`. Основные значения описаны в корневом `.env.example`, включая порт и тайм-ауты провайдеров. Metadata, generic streaming и FlixHQ используют независимые бюджеты времени. В default streaming-набор входят KinoBD, FlixHQ, DDBB и AniLiberty; ни один из них не требует credentials вызывающей стороны.
+
+Torrent discovery по умолчанию выключен. В `MEDIA_ENGINE_TORRENT_PROVIDERS` задается явное comma-separated подмножество `yts-torrent`, `jacred-torrent`, `bitsearch-torrent` и `magnetz-torrent`, а его ограниченный request budget настраивается через `MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS`. `GET /media/torrents` возвращает только нормализованные candidates и непрозрачный handoff: маршрут не подключается к swarm, не выбирает файлы и не стримит media. `GET /providers/torrent` сообщает настроенные discovery providers.
 
 `/health/live` проверяет только способность API-процесса отвечать HTTP. `/health/ready` и обратно совместимый `/health` также проверяют provider circuits и возвращают `status: "degraded"`, если хотя бы один circuit открыт или восстанавливается. Degraded readiness остается HTTP 200, потому что API все еще может отдавать частичные результаты.
 

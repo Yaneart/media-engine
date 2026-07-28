@@ -59,6 +59,23 @@ describe('createRateLimitMiddleware', () => {
     expect(next).toHaveBeenCalledTimes(3);
   });
 
+  it('includes torrent discovery in the shared expensive-media budget', () => {
+    const next = jest.fn();
+    const response = createResponse();
+    const middleware = createRateLimitMiddleware({
+      windowMs: 10_000,
+      maxRequests: 1,
+      now: () => 1_000,
+    });
+    const request = createRequest('GET', '/media/torrents');
+
+    middleware(request, response as unknown as Response, next);
+    middleware(request, response as unknown as Response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(response.status).toHaveBeenCalledWith(429);
+  });
+
   it('supports custom matchers, messages, and an unknown remote address fallback', () => {
     const next = jest.fn();
     const response = createResponse();
