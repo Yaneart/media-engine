@@ -46,6 +46,7 @@ export function mapDdbbPlayers(
 
   for (const player of players) {
     const mainUrl = normalizeProviderOutputUrl(player.iframeUrl);
+    const isAlloha = normalizeText(player.type) === "alloha";
     if (mainUrl && !seenUrls.has(mainUrl)) {
       seenUrls.add(mainUrl);
       primaryOptions.push(
@@ -58,6 +59,29 @@ export function mapDdbbPlayers(
           variant: "main",
         }),
       );
+    }
+
+    if (isAlloha) {
+      if (!mainUrl) {
+        const fallbackUrl = player.translations
+          .map((translation) => normalizeProviderOutputUrl(translation.iframeUrl))
+          .find((url): url is string => Boolean(url && !seenUrls.has(url)));
+
+        if (fallbackUrl) {
+          seenUrls.add(fallbackUrl);
+          primaryOptions.push(
+            createOption({
+              providerName,
+              player,
+              lookup,
+              sourceUrl,
+              accessUrl: fallbackUrl,
+              variant: "main-fallback",
+            }),
+          );
+        }
+      }
+      continue;
     }
 
     for (const [index, translation] of player.translations.entries()) {

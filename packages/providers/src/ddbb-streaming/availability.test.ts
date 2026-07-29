@@ -65,7 +65,6 @@ test("ddbbStreamingProvider returns independently validated diverse embeds", asy
     [
       ["Collaps", "available"],
       ["Turbo", "unknown"],
-      ["Alloha", "available"],
     ],
   );
   assert.deepEqual(result?.item?.ids, { kinopoisk: "258687", imdb: "tt0816692" });

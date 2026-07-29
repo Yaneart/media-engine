@@ -71,7 +71,7 @@ A streaming provider that resolves `null` is recorded as a successful no-result 
 
 The constructor also accepts streaming and torrent providers, a cache, global and per-provider timeouts, a custom merge strategy, and debug mode. Provider calls are bounded to two concurrent operations per provider by default, with a cancellable queue of 100; `providerConcurrency` can tune per-provider limits or disable the gate. Queue waiting remains inside the existing provider timeout. Core never imports concrete provider packages itself.
 
-Torrent discovery remains independent from streaming availability. A `TorrentProvider` returns normalized candidates with source attribution and an explicit `magnet`, `torrent_file`, or `external` handoff. Core does not open that handoff, download torrent metadata, join a swarm, select files, store media, proxy traffic, or transcode video. No concrete torrent provider is bundled in this contract-only block.
+Torrent discovery remains independent from streaming availability. A `TorrentProvider` returns normalized candidates with source attribution and an explicit `magnet`, `torrent_file`, or `external` handoff. Optional provider `catalog` metadata supports regional/international UI grouping, and a candidate may retain a concrete meta-indexer `catalogSource`; neither field guarantees a release audio language. Core does not open that handoff, download torrent metadata, join a swarm, select files, store media, proxy traffic, or transcode video. No concrete torrent provider is bundled in core.
 
 Exact types are available from the package exports. The short [public API guide](https://github.com/Yaneart/media-engine/blob/main/docs/public-api.md) explains the four main operations without repeating every field.
 

@@ -7,6 +7,7 @@ import { JACRED_INFO_HASH } from "./test-helpers.js";
 
 const release: JacRedTorrentRelease = {
   title: "Дюна / Dune (2021) WEB-DL H.265 2160p MKV HDR10+",
+  tracker: "rutracker",
   name: "Дюна",
   originalName: "Dune",
   year: 2021,
@@ -64,6 +65,10 @@ test("mapJacRedTorrentResponse creates deduplicated normalized magnet candidates
       uri: `magnet:?xt=urn:btih:${JACRED_INFO_HASH}&dn=${encodeURIComponent(release.title)}`,
     },
     availability: "available",
+    catalogSource: {
+      id: "rutracker",
+      displayName: "RuTracker",
+    },
     sourceUrl: "https://rutracker.org/forum/viewtopic.php?t=6124572",
   });
   assert.deepEqual(response?.sourceProviders, [
@@ -75,12 +80,13 @@ test("mapJacRedTorrentResponse associates season packs and preserves honest peer
   const response = mapJacRedTorrentResponse(
     "jacred-test",
     "https://api.jacred.test",
-    [{ ...release, seeders: 0 }],
+    [{ ...release, tracker: "custom_tracker", seeders: 0 }],
     { type: "series", title: "Dune", year: 2021, seasonNumber: 2 },
   );
 
   assert.deepEqual(response?.candidates[0]?.episode, { seasonNumber: 2 });
   assert.equal(response?.candidates[0]?.availability, "unseeded");
+  assert.deepEqual(response?.candidates[0]?.catalogSource, { id: "custom_tracker" });
   assert.equal(
     mapJacRedTorrentResponse("jacred-test", "https://api.jacred.test", [], response!.query),
     null,

@@ -21,6 +21,10 @@ export function bitsearchTorrentProvider(
     name: config.name,
     version: options.version,
     kind: "torrent",
+    catalog: {
+      displayName: "Bitsearch",
+      scope: "international",
+    },
     capabilities: createBitsearchTorrentCapabilities(),
     async discoverTorrents(query, context) {
       if (query.providers && !query.providers.includes(config.name)) return null;

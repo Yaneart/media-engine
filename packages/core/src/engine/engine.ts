@@ -156,6 +156,13 @@ export class MediaEngine {
       name: provider.name,
       version: provider.version,
       kind: provider.kind,
+      catalog: provider.catalog
+        ? {
+            displayName: provider.catalog.displayName,
+            scope: provider.catalog.scope,
+            ...(provider.catalog.locale ? { locale: provider.catalog.locale } : {}),
+          }
+        : undefined,
       capabilities: {
         mediaTypes: [...provider.capabilities.mediaTypes],
         lookup: {

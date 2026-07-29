@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent, SyntheticEvent } from "react";
 import {
   discoverTorrents,
+  getTorrentProviders,
   inferTitleLanguage,
   type MediaDetails,
   type TorrentCandidate,
   type TorrentDiscoveryResponse,
+  type TorrentProviderInfo,
 } from "../api";
 import {
   createOriginalTorrentSession,
@@ -23,7 +25,9 @@ import {
   buildTorrentDiscoveryQuery,
   formatBytes,
   formatTorrentCandidateMeta,
+  formatTorrentCandidateSource,
   formatTorrentPeers,
+  groupTorrentCandidates,
   mapNativeMediaFailure,
   type TorrentEpisodeSelection,
 } from "../torrent-player/model";
@@ -40,6 +44,7 @@ type PlayerPhase = "idle" | "waiting_first_piece" | "ready" | "playing" | "buffe
 export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
   const [enabled, setEnabled] = useState<boolean>();
   const [discovery, setDiscovery] = useState<DiscoveryState>({ status: "idle" });
+  const [torrentProviders, setTorrentProviders] = useState<TorrentProviderInfo[]>([]);
   const [selectedCandidateKey, setSelectedCandidateKey] = useState<string>();
   const [activeCandidate, setActiveCandidate] = useState<TorrentCandidate>();
   const [snapshot, setSnapshot] = useState<OriginalTorrentSessionSnapshot>();
@@ -59,6 +64,8 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
   const response =
     discovery.status === "success" || discovery.status === "empty" ? discovery.response : undefined;
   const candidates = response?.candidates ?? [];
+  const candidateGroups = groupTorrentCandidates(candidates, torrentProviders);
+  const providerInfoByName = new Map(torrentProviders.map((provider) => [provider.name, provider]));
   const selectedCandidate =
     candidates.find((candidate) => candidateKey(candidate) === selectedCandidateKey) ??
     candidates[0];
@@ -75,6 +82,10 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
           setControlError(readErrorMessage(error, "Could not read torrent player configuration."));
         }
       });
+
+    void getTorrentProviders(controller.signal)
+      .then((providers) => setTorrentProviders(providers))
+      .catch(() => undefined);
 
     const handlePageHide = () => {
       const sessionId = sessionIdRef.current;
@@ -362,24 +373,42 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
           ) : null}
           {discovery.status === "success" ? (
             <div className="torrent-release-list" aria-label="Torrent releases">
-              {candidates.map((candidate) => {
-                const key = candidateKey(candidate);
-                const selected = key === candidateKey(selectedCandidate!);
-                return (
-                  <button
-                    aria-pressed={selected}
-                    className="torrent-release"
-                    disabled={busy}
-                    key={key}
-                    onClick={() => void handleCandidateChange(candidate)}
-                    type="button"
-                  >
-                    <strong>{candidate.title}</strong>
-                    <span>{formatTorrentCandidateMeta(candidate)}</span>
-                    <span>{formatTorrentPeers(candidate)}</span>
-                  </button>
-                );
-              })}
+              {candidateGroups.map((group) => (
+                <section className="torrent-source-group" key={group.key}>
+                  <h3>{group.label}</h3>
+                  {group.providers.map((providerGroup) => (
+                    <div className="torrent-provider-group" key={providerGroup.provider}>
+                      <div className="torrent-provider-heading">
+                        <strong>{providerGroup.displayName}</strong>
+                        <span>
+                          {providerGroup.candidates.length}{" "}
+                          {providerGroup.candidates.length === 1 ? "release" : "releases"}
+                        </span>
+                      </div>
+                      <div className="torrent-provider-releases">
+                        {providerGroup.candidates.map((candidate) => {
+                          const key = candidateKey(candidate);
+                          const selected = key === candidateKey(selectedCandidate!);
+                          return (
+                            <button
+                              aria-pressed={selected}
+                              className="torrent-release"
+                              disabled={busy}
+                              key={key}
+                              onClick={() => void handleCandidateChange(candidate)}
+                              type="button"
+                            >
+                              <strong>{candidate.title}</strong>
+                              <span>{formatTorrentCandidateMeta(candidate)}</span>
+                              <span>{formatTorrentPeers(candidate)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              ))}
             </div>
           ) : null}
 
@@ -389,7 +418,11 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
                 <span>Selected release</span>
                 <strong>{selectedCandidate.title}</strong>
                 <small>
-                  {selectedCandidate.provider} · observation {selectedCandidate.id}
+                  {formatTorrentCandidateSource(
+                    selectedCandidate,
+                    providerInfoByName.get(selectedCandidate.provider),
+                  )}{" "}
+                  · observation {selectedCandidate.id}
                 </small>
               </div>
               <button

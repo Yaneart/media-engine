@@ -74,6 +74,13 @@ export interface TorrentPeerInfo {
   checkedAt?: string;
 }
 
+// Upstream catalog or tracker attribution retained by a torrent meta-indexer.
+// Атрибуция исходного каталога или трекера, сохранённая torrent meta-indexer.
+export interface TorrentCatalogSource {
+  id: string;
+  displayName?: string;
+}
+
 // Handoff kind understood by a consuming torrent runtime or browser.
 // Тип handoff, понятный torrent runtime потребителя или браузеру.
 export type TorrentHandoffKind = "magnet" | "torrent_file" | "external";
@@ -107,6 +114,7 @@ export interface TorrentCandidate {
   peers?: TorrentPeerInfo;
   handoff: TorrentHandoff;
   availability: TorrentAvailabilityStatus;
+  catalogSource?: TorrentCatalogSource;
   expiresAt?: string;
   sourceUrl?: string;
 }
@@ -147,12 +155,23 @@ export interface TorrentProviderCapabilities {
   features?: TorrentProviderFeature[];
 }
 
+// Stable provider presentation metadata for catalog grouping in clients.
+// Стабильные метаданные провайдера для группировки каталогов в клиентах.
+export type TorrentProviderCatalogScope = "regional" | "international";
+
+export interface TorrentProviderCatalog {
+  displayName: string;
+  scope: TorrentProviderCatalogScope;
+  locale?: string;
+}
+
 // Safe torrent provider metadata exposed by public APIs.
 // Безопасные метаданные torrent-провайдера для публичных API.
 export interface TorrentProviderInfo {
   name: string;
   version?: string;
   kind: "torrent";
+  catalog?: TorrentProviderCatalog;
   capabilities: TorrentProviderCapabilities;
 }
 
@@ -162,6 +181,7 @@ export interface TorrentProvider {
   name: string;
   version?: string;
   kind: "torrent";
+  catalog?: TorrentProviderCatalog;
   capabilities: TorrentProviderCapabilities;
 
   discoverTorrents(

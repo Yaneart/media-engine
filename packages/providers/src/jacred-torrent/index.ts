@@ -18,6 +18,11 @@ export function jacRedTorrentProvider(options: JacRedTorrentProviderOptions = {}
     name: config.name,
     version: options.version,
     kind: "torrent",
+    catalog: {
+      displayName: "JacRed",
+      scope: "regional",
+      locale: "ru",
+    },
     capabilities: createJacRedTorrentCapabilities(),
     async discoverTorrents(query, context) {
       if (query.providers && !query.providers.includes(config.name)) return null;

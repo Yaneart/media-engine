@@ -32,6 +32,7 @@ describe('Torrent discovery HTTP bridge', () => {
     {
       name: 'yts-torrent',
       kind: 'torrent',
+      catalog: { displayName: 'YTS', scope: 'international' },
       capabilities: {
         mediaTypes: ['movie'],
         lookup: {

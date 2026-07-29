@@ -740,10 +740,47 @@
 }
 
 .torrent-release-list {
-  display: grid;
+  display: flex;
   max-height: 360px;
-  gap: 8px;
+  flex-direction: column;
+  gap: 14px;
   overflow-y: auto;
+}
+
+.torrent-source-group,
+.torrent-provider-group,
+.torrent-provider-releases {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.torrent-source-group {
+  gap: 10px;
+}
+
+.torrent-source-group h3 {
+  margin: 0;
+  color: #1f3d52;
+  font-size: 0.92rem;
+}
+
+.torrent-provider-group,
+.torrent-provider-releases {
+  gap: 8px;
+}
+
+.torrent-provider-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.torrent-provider-heading span {
+  color: #5c6671;
+  font-size: 0.76rem;
 }
 
 .torrent-release {

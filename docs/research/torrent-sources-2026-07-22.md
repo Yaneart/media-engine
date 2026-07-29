@@ -164,6 +164,31 @@ JSON/Torznab contract suitable for this project, so direct HTML parsing is defer
 silently lowering the provider acceptance standard. Direct RuTracker discovery is excluded because
 it would reintroduce account/cookie handling.
 
+### Follow-up on a second Russian source — 2026-07-29
+
+A fresh integration check did not find another reliable zero-configuration Russian source that
+meets the existing no-key and published-contract boundary. The [TorAPI project](https://github.com/Lifailon/TorAPI)
+still documents a public no-auth deployment and adapters for RuTracker, Kinozal, RuTor, and
+NoNameClub, but the documented Vercel search endpoint returned HTTP 402 `Payment required` during
+the live check. Self-hosting remains technically possible, but it would add a scraper runtime and
+tracker-specific access conditions instead of another bounded public catalog API.
+
+Direct RuTor requests to its current public domains failed from the repository runtime, and no
+stable first-party JSON/Torznab contract was found. The
+[qBittorrent unofficial plugin list](https://github.com/qbittorrent/search-plugins/wiki/Unofficial-search-plugins)
+records a community RuTor scraper that usually works without login, but copying a community HTML
+scraper into this MIT provider package would create both reliability and licensing concerns. No
+independent public BitRu API was found either.
+
+The accepted implementation therefore does not add a provider that is already unavailable. A
+fresh exact JacRed query for The Super Mario Bros. Movie (2023) returned three results whose
+upstream `tracker` values included BitRu and Knaben. The JacRed adapter now retains that bounded
+tracker ID as candidate-level `catalogSource` and maps known source display names. This exposes
+real Russian-source diversity already reported by the [JacRed open API](https://jacred.su/) without
+pretending that BitRu was queried independently or that catalog locale guarantees a Russian audio
+track. A future second adapter still requires a live no-key contract, repeated reliability checks,
+and independent attribution before acceptance.
+
 ## Planned order
 
 1. YTS opt-in movie adapter.

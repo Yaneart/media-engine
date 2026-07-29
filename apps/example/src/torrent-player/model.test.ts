@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { MediaDetails, TorrentCandidate } from "../api";
+import type { MediaDetails, TorrentCandidate, TorrentProviderInfo } from "../api";
 import {
   buildTorrentDiscoveryQuery,
   formatBytes,
   formatTorrentCandidateMeta,
+  formatTorrentCandidateSource,
   formatTorrentPeers,
+  groupTorrentCandidates,
   mapNativeMediaFailure,
 } from "./model.ts";
 
@@ -57,6 +59,79 @@ test("release presentation preserves provider metadata and peer observations", (
   assert.equal(formatTorrentPeers(candidate), "12 seeders · 3 leechers");
   assert.equal(formatTorrentPeers({ ...candidate, peers: undefined }), "Peer availability unknown");
   assert.equal(formatBytes(0), "0 B");
+});
+
+test("torrent candidates group by provider catalog without inventing release language", () => {
+  const jacredCandidate = {
+    ...candidate,
+    id: "jacred-torrent:release",
+    provider: "jacred-torrent",
+    catalogSource: { id: "rutracker", displayName: "RuTracker" },
+  } satisfies TorrentCandidate;
+  const ytsCandidate = {
+    ...candidate,
+    id: "yts-torrent:release",
+    provider: "yts-torrent",
+  } satisfies TorrentCandidate;
+  const customCandidate = {
+    ...candidate,
+    id: "custom:release",
+    provider: "custom",
+  } satisfies TorrentCandidate;
+  const providers: TorrentProviderInfo[] = [
+    {
+      name: "jacred-torrent",
+      kind: "torrent",
+      catalog: { displayName: "JacRed", scope: "regional", locale: "ru" },
+      capabilities: {
+        mediaTypes: ["movie"],
+        lookup: { byTitle: true, byExternalIds: [], byEpisode: false },
+      },
+    },
+    {
+      name: "yts-torrent",
+      kind: "torrent",
+      catalog: { displayName: "YTS", scope: "international" },
+      capabilities: {
+        mediaTypes: ["movie"],
+        lookup: { byTitle: true, byExternalIds: [], byEpisode: false },
+      },
+    },
+  ];
+
+  assert.deepEqual(
+    groupTorrentCandidates([ytsCandidate, customCandidate, jacredCandidate], providers).map(
+      (group) => ({
+        key: group.key,
+        label: group.label,
+        providers: group.providers.map((provider) => [
+          provider.provider,
+          provider.displayName,
+          provider.candidates.map((entry) => entry.id),
+        ]),
+      }),
+    ),
+    [
+      {
+        key: "russian",
+        label: "Russian-language catalogs",
+        providers: [["jacred-torrent", "JacRed", ["jacred-torrent:release"]]],
+      },
+      {
+        key: "international",
+        label: "International catalogs",
+        providers: [["yts-torrent", "YTS", ["yts-torrent:release"]]],
+      },
+      {
+        key: "other",
+        label: "Other catalogs",
+        providers: [["custom", "custom", ["custom:release"]]],
+      },
+    ],
+  );
+  assert.equal(formatTorrentCandidateMeta(jacredCandidate).startsWith("RuTracker ·"), true);
+  assert.equal(formatTorrentCandidateSource(jacredCandidate, providers[0]), "JacRed · RuTracker");
+  assert.equal(jacredCandidate.release?.audioLanguages, undefined);
 });
 
 test("native decode rejection is distinct from known server stream failures", () => {

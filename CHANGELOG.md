@@ -8,6 +8,10 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added optional torrent provider catalog metadata with a stable display name, regional or
+  international scope, and optional locale, plus candidate-level upstream catalog attribution.
+  The example loads this safe metadata through the SDK and groups releases into Russian-language,
+  international, and fallback catalogs while preserving exact provider/candidate identity.
 - Added the example's original-torrent discovery and single-route browser player. Public candidate
   discovery uses the SDK; exact create/status/select/stop calls pass through a bounded same-origin
   BFF with a server-only bearer token. The UI preserves provider/release/file identity, offers every
@@ -45,6 +49,12 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- JacRed now retains its bounded upstream tracker identifier and maps known labels such as BitRu,
+  RuTracker, RuTor, Kinozal, NNM-Club, and Knaben instead of presenting every result only as a
+  generic JacRed observation. This attribution does not claim an actual release audio language.
+- DDBB now exposes one main Alloha option because translation switching is available inside that
+  player. It no longer creates a separate application option for every Alloha voiceover; when the
+  main iframe is absent, at most one safe translation URL is used as the player entry point.
 - The default `docker compose up -d` stack now starts the pinned, non-published TorrServer runtime
   together with the API and example; a separate Compose profile is no longer required. TorrServer
   retains a private API control network and receives a dedicated outbound network so public
@@ -84,7 +94,7 @@ This project follows semantic versioning after the first stable release. Before 
   capability-route-specific cross-origin media policy. This lets the separately served example
   `<video>` consume valid MP4 ranges without weakening security headers on other API routes. The
   example also removes the ambiguous hard-coded `1×` torrent-player badge.
-- DDBB options beyond the bounded live-validation limit are now reported as `unknown` instead of inheriting an unverified `available` status. The example groups episodes, player families, translations, and qualities without collapsing distinct voiceovers, exposes direct stream links, and sends an origin-only referrer required by otherwise valid Alloha embeds.
+- DDBB options beyond the bounded live-validation limit are now reported as `unknown` instead of inheriting an unverified `available` status. The example groups episodes, player families, translations, and qualities, exposes direct stream links, and sends an origin-only referrer required by otherwise valid Alloha embeds.
 - Cinemeta untyped IMDb details lookups no longer turn movie/series branch outages into cacheable successful null responses.
 - AniList HTTP-200 GraphQL rate-limit and server errors now remain retryable provider failures, while validation errors and malformed payloads receive non-retryable typed categories.
 - Streaming providers that resolve `null` now count as successful no-result responses, so a separate provider failure no longer causes a false all-failed error.

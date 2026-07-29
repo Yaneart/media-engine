@@ -56,7 +56,7 @@ Optional fields are omitted when an upstream source does not provide trustworthy
 
 ## Torrent discovery
 
-Torrent discovery is separate from both metadata and immediate stream availability. A `TorrentDiscoveryResponse` contains normalized `TorrentCandidate` values, provider execution metadata, and source attribution. A candidate may include release characteristics, peer counts, an episode range, advertised files, size, info hash, and expiration only when the source provides them reliably.
+Torrent discovery is separate from both metadata and immediate stream availability. A `TorrentDiscoveryResponse` contains normalized `TorrentCandidate` values, provider execution metadata, and source attribution. A candidate may include release characteristics, peer counts, an episode range, advertised files, size, info hash, expiration, and a concrete `catalogSource` from a meta-indexer only when the source provides them reliably. Torrent providers may separately expose optional catalog display/scope/locale metadata for client grouping. Catalog locale describes the source audience, not a guaranteed audio or subtitle language for each release.
 
 Every candidate has an explicit `TorrentHandoff` of kind `magnet`, `torrent_file`, or `external`. The handoff is opaque data for a consuming application. Media Engine core does not fetch torrent metadata, join a swarm, select files, store content, proxy media, or transcode video.
 

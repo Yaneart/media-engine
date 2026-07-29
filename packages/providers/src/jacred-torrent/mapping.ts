@@ -6,6 +6,16 @@ import type {
 } from "@media-engine/core";
 import type { JacRedTorrentRelease } from "./client.js";
 
+const TRACKER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  bitru: "BitRu",
+  kinozal: "Kinozal",
+  knaben: "Knaben",
+  nnmclub: "NNM-Club",
+  nonameclub: "NNM-Club",
+  rutor: "RuTor",
+  rutracker: "RuTracker",
+};
+
 export function mapJacRedTorrentResponse(
   provider: string,
   providerUrl: string,
@@ -61,7 +71,16 @@ function mapCandidate(
     },
     availability:
       release.seeders === undefined ? "unknown" : release.seeders > 0 ? "available" : "unseeded",
+    catalogSource: createCatalogSource(release.tracker),
     ...(release.sourceUrl ? { sourceUrl: release.sourceUrl } : {}),
+  };
+}
+
+function createCatalogSource(tracker: string) {
+  const displayName = TRACKER_DISPLAY_NAMES[tracker];
+  return {
+    id: tracker,
+    ...(displayName ? { displayName } : {}),
   };
 }
 

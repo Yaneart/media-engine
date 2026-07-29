@@ -4,6 +4,7 @@ import type {
   MediaEngineDetailsResponse,
   MediaEngineSearchResponse,
   MediaEngineTorrentDiscoveryResponse,
+  MediaEngineTorrentProviderInfo,
 } from "@media-engine/sdk";
 
 const DEFAULT_API_URL = "http://127.0.0.1:3000";
@@ -21,6 +22,7 @@ export type AvailabilityResponse = MediaEngineAvailabilityResponse;
 export type TorrentDiscoveryResponse = MediaEngineTorrentDiscoveryResponse;
 export type TorrentCandidate = TorrentDiscoveryResponse["candidates"][number];
 export type TorrentDiscoveryQuery = TorrentDiscoveryResponse["query"];
+export type TorrentProviderInfo = MediaEngineTorrentProviderInfo;
 export type SearchResult = SearchResponse["results"][number];
 export type MediaSummary = SearchResult["item"];
 export type MediaDetails = NonNullable<DetailsResponse["details"]>;
@@ -103,6 +105,11 @@ export function discoverTorrents(
   signal?: AbortSignal,
 ): Promise<TorrentDiscoveryResponse> {
   return mediaEngineClient.discoverTorrents(query, { signal });
+}
+
+// Load safe catalog metadata used to group torrent providers in the example UI.
+export function getTorrentProviders(signal?: AbortSignal): Promise<TorrentProviderInfo[]> {
+  return mediaEngineClient.getTorrentProviders({ signal });
 }
 
 // Keeps display metadata in the same language as the title entered or selected by the user.

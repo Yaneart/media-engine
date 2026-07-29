@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MediaEngineApiError, MediaEngineClient } from "./client.js";
-import type { MediaEngineFetch } from "./client.js";
+import type { MediaEngineFetch, MediaEngineTorrentProviderInfo } from "./client.js";
 
 // EN: Create a mock fetch that records the requested URL and returns one response.
 // RU: Создает mock fetch, который записывает requested URL и возвращает один response.
@@ -273,13 +273,25 @@ test("provider and health methods parse typed responses", async () => {
   assert.deepEqual(await streamingProvidersClient.getStreamingProviders(), []);
   assert.equal(streamingProvidersMock.calls[0]?.pathname, "/providers/streaming");
 
-  const torrentProvidersMock = createMockFetch(Response.json([]));
+  const torrentProviders: MediaEngineTorrentProviderInfo[] = [
+    {
+      name: "jacred-torrent",
+      kind: "torrent",
+      catalog: { displayName: "JacRed", scope: "regional", locale: "ru" },
+      capabilities: {
+        mediaTypes: ["movie", "series", "anime"],
+        lookup: { byTitle: true, byExternalIds: [], byEpisode: true },
+        features: ["magnet", "peer_stats", "release_metadata"],
+      },
+    },
+  ];
+  const torrentProvidersMock = createMockFetch(Response.json(torrentProviders));
   const torrentProvidersClient = new MediaEngineClient({
     baseUrl: "http://127.0.0.1:3000",
     fetch: torrentProvidersMock.fetch,
   });
 
-  assert.deepEqual(await torrentProvidersClient.getTorrentProviders(), []);
+  assert.deepEqual(await torrentProvidersClient.getTorrentProviders(), torrentProviders);
   assert.equal(torrentProvidersMock.calls[0]?.pathname, "/providers/torrent");
 
   const health = {

@@ -8,6 +8,7 @@ test("ytsTorrentProvider exposes no-key movie and IMDb capabilities", () => {
 
   assert.equal(provider.name, "yts-torrent");
   assert.equal(provider.kind, "torrent");
+  assert.deepEqual(provider.catalog, { displayName: "YTS", scope: "international" });
   assert.deepEqual(provider.capabilities, {
     mediaTypes: ["movie"],
     lookup: {

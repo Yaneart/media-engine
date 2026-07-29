@@ -7,6 +7,7 @@ import { JACRED_INFO_HASH } from "./test-helpers.js";
 
 const release: JacRedTorrentRelease = {
   title: "Во все тяжкие / Breaking Bad [S01-05] (2008-2013) BDRip",
+  tracker: "rutracker",
   name: "Во все тяжкие",
   originalName: "Breaking Bad",
   year: 2008,

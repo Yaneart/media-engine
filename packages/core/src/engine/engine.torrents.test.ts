@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { MemoryCache } from "../cache/index.js";
 import { ProviderError } from "../errors/index.js";
-import type { TorrentDiscoveryResponse } from "../torrent/index.js";
+import type { TorrentDiscoveryResponse, TorrentProvider } from "../torrent/index.js";
 import { MediaEngine } from "./engine.js";
 import { createTorrentProvider, createTorrentResponse, sleep } from "./test-helpers.js";
 
@@ -291,7 +291,17 @@ test("discoverTorrents enforces provider timeout and records isolated torrent he
 });
 
 test("torrent provider metadata is cloned and duplicate names are rejected", () => {
-  const provider = createTorrentProvider({ name: "catalog", version: "1.0.0", secret: "hidden" });
+  const provider = createTorrentProvider({
+    name: "catalog",
+    version: "1.0.0",
+    secret: "hidden",
+    catalog: {
+      displayName: "Catalog",
+      scope: "regional",
+      locale: "ru",
+      secret: "catalog-secret",
+    } as TorrentProvider["catalog"] & { secret: string },
+  });
   const engine = new MediaEngine({ torrentProviders: [provider] });
   const info = engine.getTorrentProviders();
 
@@ -300,12 +310,16 @@ test("torrent provider metadata is cloned and duplicate names are rejected", () 
       name: "catalog",
       version: "1.0.0",
       kind: "torrent",
+      catalog: { displayName: "Catalog", scope: "regional", locale: "ru" },
       capabilities: provider.capabilities,
     },
   ]);
   assert.equal("secret" in info[0]!, false);
+  assert.equal("secret" in info[0]!.catalog!, false);
   info[0]!.capabilities.mediaTypes.push("series");
+  info[0]!.catalog!.displayName = "Changed";
   assert.deepEqual(provider.capabilities.mediaTypes, ["movie", "series", "anime"]);
+  assert.equal(provider.catalog?.displayName, "Catalog");
 
   assert.throws(
     () =>

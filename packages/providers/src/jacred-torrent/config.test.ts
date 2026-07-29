@@ -8,6 +8,7 @@ test("jacRedTorrentProvider exposes no-key title, season, and magnet capabilitie
 
   assert.equal(provider.name, "jacred-torrent");
   assert.equal(provider.kind, "torrent");
+  assert.deepEqual(provider.catalog, { displayName: "JacRed", scope: "regional", locale: "ru" });
   assert.deepEqual(provider.capabilities, {
     mediaTypes: ["movie", "series", "anime"],
     lookup: {

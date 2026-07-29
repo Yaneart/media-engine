@@ -11,6 +11,7 @@ test("parseJacRedTorrentResponse accepts bounded nullable release metadata", () 
   assert.deepEqual(releases, [
     {
       title: "Дюна / Dune: Part One (2021) UHD BDRip-HEVC 2160p MKV | HDR10 | Дубляж",
+      tracker: "rutracker",
       name: "Дюна",
       originalName: "Dune: Part One",
       year: 2021,
@@ -63,6 +64,10 @@ test("parseJacRedTorrentResponse rejects route/schema drift and unsafe handoffs"
     {
       ...createJacRedTorrentPayload(),
       results: [{ ...createJacRedTorrentPayload().results[0], created_at: "yesterday" }],
+    },
+    {
+      ...createJacRedTorrentPayload(),
+      results: [{ ...createJacRedTorrentPayload().results[0], tracker: "tracker.example" }],
     },
     {
       ...createJacRedTorrentPayload(),

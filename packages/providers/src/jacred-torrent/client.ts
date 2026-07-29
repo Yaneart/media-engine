@@ -12,6 +12,7 @@ const MAX_MAGNET_LENGTH = 16_384;
 
 export interface JacRedTorrentRelease {
   title: string;
+  tracker: string;
   name: string;
   originalName?: string;
   year: number;
@@ -148,6 +149,7 @@ function parseRelease(value: unknown): JacRedTorrentRelease | undefined | false 
     !id ||
     !title ||
     !tracker ||
+    !/^[a-z\d][a-z\d_-]{0,99}$/iu.test(tracker) ||
     !name ||
     originalName === false ||
     year === undefined ||
@@ -176,6 +178,7 @@ function parseRelease(value: unknown): JacRedTorrentRelease | undefined | false 
 
   return {
     title,
+    tracker: tracker.toLowerCase(),
     name,
     ...(originalName ? { originalName } : {}),
     year,

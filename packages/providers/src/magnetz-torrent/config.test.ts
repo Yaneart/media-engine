@@ -12,6 +12,7 @@ test("magnetzTorrentProvider exposes no-key title, episode, and magnet capabilit
 
   assert.equal(provider.name, "magnetz-torrent");
   assert.equal(provider.kind, "torrent");
+  assert.deepEqual(provider.catalog, { displayName: "Magnetz", scope: "international" });
   assert.deepEqual(provider.capabilities, {
     mediaTypes: ["movie", "series", "anime"],
     lookup: {

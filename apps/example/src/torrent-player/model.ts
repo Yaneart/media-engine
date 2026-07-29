@@ -1,4 +1,9 @@
-import type { MediaDetails, TorrentCandidate, TorrentDiscoveryQuery } from "../api";
+import type {
+  MediaDetails,
+  TorrentCandidate,
+  TorrentDiscoveryQuery,
+  TorrentProviderInfo,
+} from "../api";
 import type {
   OriginalTorrentFailure,
   OriginalTorrentSessionSnapshot,
@@ -8,6 +13,20 @@ export interface TorrentEpisodeSelection {
   seasonNumber?: number;
   episodeNumber?: number;
   absoluteEpisodeNumber?: number;
+}
+
+export type TorrentSourceGroupKey = "russian" | "international" | "other";
+
+export interface TorrentProviderCandidateGroup {
+  provider: string;
+  displayName: string;
+  candidates: TorrentCandidate[];
+}
+
+export interface TorrentSourceGroup {
+  key: TorrentSourceGroupKey;
+  label: string;
+  providers: TorrentProviderCandidateGroup[];
 }
 
 export function buildTorrentDiscoveryQuery(
@@ -28,7 +47,7 @@ export function buildTorrentDiscoveryQuery(
 
 export function formatTorrentCandidateMeta(candidate: TorrentCandidate): string {
   return [
-    candidate.provider,
+    candidate.catalogSource?.displayName ?? candidate.catalogSource?.id ?? candidate.provider,
     candidate.release?.resolution,
     candidate.release?.source,
     candidate.release?.videoCodec,
@@ -37,6 +56,72 @@ export function formatTorrentCandidateMeta(candidate: TorrentCandidate): string 
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+export function formatTorrentCandidateSource(
+  candidate: TorrentCandidate,
+  providerInfo?: TorrentProviderInfo,
+): string {
+  const providerName = providerInfo?.catalog?.displayName ?? candidate.provider;
+  const catalogSource = candidate.catalogSource?.displayName ?? candidate.catalogSource?.id;
+  return catalogSource ? `${providerName} · ${catalogSource}` : providerName;
+}
+
+export function groupTorrentCandidates(
+  candidates: TorrentCandidate[],
+  providerInfos: TorrentProviderInfo[],
+): TorrentSourceGroup[] {
+  const providerInfoByName = new Map(providerInfos.map((provider) => [provider.name, provider]));
+  const groups = new Map<TorrentSourceGroupKey, TorrentSourceGroup>();
+  const providerGroups = new Map<string, TorrentProviderCandidateGroup>();
+
+  for (const candidate of candidates) {
+    const providerInfo = providerInfoByName.get(candidate.provider);
+    const groupKey = resolveSourceGroupKey(providerInfo);
+    let group = groups.get(groupKey);
+
+    if (!group) {
+      group = { key: groupKey, label: SOURCE_GROUP_LABELS[groupKey], providers: [] };
+      groups.set(groupKey, group);
+    }
+
+    const providerKey = `${groupKey}\u0000${candidate.provider}`;
+    let providerGroup = providerGroups.get(providerKey);
+
+    if (!providerGroup) {
+      providerGroup = {
+        provider: candidate.provider,
+        displayName: providerInfo?.catalog?.displayName ?? candidate.provider,
+        candidates: [],
+      };
+      providerGroups.set(providerKey, providerGroup);
+      group.providers.push(providerGroup);
+    }
+
+    providerGroup.candidates.push(candidate);
+  }
+
+  return (["russian", "international", "other"] as const).flatMap((key) => {
+    const group = groups.get(key);
+    return group ? [group] : [];
+  });
+}
+
+const SOURCE_GROUP_LABELS: Record<TorrentSourceGroupKey, string> = {
+  russian: "Russian-language catalogs",
+  international: "International catalogs",
+  other: "Other catalogs",
+};
+
+function resolveSourceGroupKey(provider: TorrentProviderInfo | undefined): TorrentSourceGroupKey {
+  if (provider?.catalog?.scope === "international") return "international";
+  if (
+    provider?.catalog?.scope === "regional" &&
+    provider.catalog.locale?.toLowerCase().split("-")[0] === "ru"
+  ) {
+    return "russian";
+  }
+  return "other";
 }
 
 export function formatTorrentPeers(candidate: TorrentCandidate): string {

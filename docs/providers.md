@@ -88,8 +88,9 @@ KinoBD streaming shares one fixed wall deadline and a default 24-attempt child-r
 DDBB streaming is enabled in repository API defaults after the repeated reliability/diversity
 checkpoint. It uses only caller-supplied normalized Kinopoisk/IMDb IDs and makes one generic lookup;
 exact episode queries do not select it. The adapter strictly parses nullable player responses,
-preserves one main option per player before unique translation URLs, and bounds response bytes,
-output count, validation count/concurrency/body bytes, and validation time. It removes only
+preserves one main option per player before unique translation URLs, collapses Alloha to its one
+main entry because that player switches voiceovers internally, and bounds response bytes, output
+count, validation count/concurrency/body bytes, and validation time. It removes only
 confirmed unavailable options and keeps transient checks as `unknown`. The upstream still has no
 published first-party usage or rate-limit contract; direct package consumers can omit it from their
 configured provider list.
@@ -125,7 +126,10 @@ title, year, category, and season before mapping candidates. Exact ordinary/abso
 queries are deliberately skipped because the public endpoint exposes a season filter but no stable
 episode field. Unique validated 40-character info hashes become canonical magnet handoffs; source
 URLs, release quality/source/codec/HDR, byte size, dates, and reported seed/peer counts are bounded
-and normalized. The live first-party frontend route is currently `/api/search`, while the public
+and normalized. The upstream tracker ID is retained as `catalogSource`, with stable display labels
+for known sources such as BitRu, RuTracker, RuTor, Kinozal, NNM-Club, and Knaben. This records
+catalog provenance without claiming the actual release audio language. The live first-party
+frontend route is currently `/api/search`, while the public
 site/OpenAPI still advertises a non-working `/api/v1/search`, so both `baseUrl` and `searchPath` are
 configurable and route/schema drift is surfaced as a provider failure.
 

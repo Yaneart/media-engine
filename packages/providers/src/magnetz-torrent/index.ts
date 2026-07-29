@@ -21,6 +21,10 @@ export function magnetzTorrentProvider(
     name: config.name,
     version: options.version,
     kind: "torrent",
+    catalog: {
+      displayName: "Magnetz",
+      scope: "international",
+    },
     capabilities: createMagnetzTorrentCapabilities(),
     async discoverTorrents(query, context) {
       if (query.providers && !query.providers.includes(config.name)) return null;

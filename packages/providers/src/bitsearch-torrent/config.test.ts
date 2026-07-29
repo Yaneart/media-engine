@@ -11,6 +11,7 @@ test("bitsearchTorrentProvider exposes no-key title, episode, and magnet capabil
 
   assert.equal(provider.name, "bitsearch-torrent");
   assert.equal(provider.kind, "torrent");
+  assert.deepEqual(provider.catalog, { displayName: "Bitsearch", scope: "international" });
   assert.deepEqual(provider.capabilities, {
     mediaTypes: ["movie", "series", "anime"],
     lookup: {

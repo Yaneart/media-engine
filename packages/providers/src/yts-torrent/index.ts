@@ -17,6 +17,10 @@ export function ytsTorrentProvider(options: YtsTorrentProviderOptions = {}): Tor
     name: config.name,
     version: options.version,
     kind: "torrent",
+    catalog: {
+      displayName: "YTS",
+      scope: "international",
+    },
     capabilities: createYtsTorrentCapabilities(),
     async discoverTorrents(query, context) {
       if (query.providers && !query.providers.includes(config.name)) return null;
