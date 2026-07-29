@@ -13,6 +13,11 @@ import {
   type OriginalTorrentSessionConfig,
 } from './session.config';
 import { OriginalTorrentSessionController } from './session.controller';
+import {
+  ORIGINAL_TORRENT_SESSION_AUTH_CONFIG,
+  OriginalTorrentSessionTokenGuard,
+  readOriginalTorrentSessionAuthConfig,
+} from './session-auth';
 import { OriginalTorrentSessionService } from './session.service';
 import type { OriginalTorrentSourceResolver } from './session.types';
 import { ServerTorrentSourceResolver } from './torrent-source-resolver';
@@ -28,6 +33,11 @@ export const ORIGINAL_TORRENT_SOURCE_RESOLVER = Symbol(
   imports: [MediaEngineModule, OriginalTorrentRuntimeModule],
   controllers: [OriginalTorrentSessionController],
   providers: [
+    {
+      provide: ORIGINAL_TORRENT_SESSION_AUTH_CONFIG,
+      useFactory: readOriginalTorrentSessionAuthConfig,
+    },
+    OriginalTorrentSessionTokenGuard,
     {
       provide: ORIGINAL_TORRENT_SESSION_CONFIG,
       inject: [ORIGINAL_TORRENT_RUNTIME_CONFIG],

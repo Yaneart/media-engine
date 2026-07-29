@@ -25,10 +25,11 @@ The `0.1.x` releases established and hardened the first public baseline:
    handoff data without bundling a frontend player, video proxy, BitTorrent client, storage, or
    transcoder.
 3. Continue rebuilding repository torrent playback from the accepted ADR in small verified blocks.
-   The opt-in discovery bridge, minimal internal TorrServer adapter, server-owned session/file
-   selection lifecycle, and protected original HTTP/Range gateway are complete; next comes the
-   example's native browser video element. Do not reintroduce media probing, remux, transcode, HLS,
-   FFmpeg, worker processes, external-player fallback, or broad runtime profiles.
+   The opt-in discovery bridge, minimal internal TorrServer adapter, authenticated server-owned
+   session/file selection lifecycle, protected original HTTP/Range gateway, and example's native
+   browser player are complete. Next comes bounded concurrency, restart recovery, ownership
+   hardening, and observability. Do not reintroduce media probing, remux, transcode, HLS, FFmpeg,
+   worker processes, external-player fallback, or broad runtime profiles.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

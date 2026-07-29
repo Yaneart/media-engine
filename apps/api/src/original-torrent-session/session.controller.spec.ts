@@ -7,9 +7,14 @@ import {
   OriginalTorrentSessionNotFoundError,
 } from './session.errors';
 import { OriginalTorrentSessionController } from './session.controller';
+import {
+  ORIGINAL_TORRENT_SESSION_AUTH_CONFIG,
+  OriginalTorrentSessionTokenGuard,
+} from './session-auth';
 import { OriginalTorrentSessionService } from './session.service';
 
 const SESSION_ID = 'A'.repeat(32);
+const TOKEN = 'test-original-torrent-token-123456';
 const snapshot = {
   id: SESSION_ID,
   state: 'adding' as const,
@@ -44,6 +49,11 @@ describe('original torrent session HTTP lifecycle', () => {
       controllers: [OriginalTorrentSessionController],
       providers: [
         { provide: OriginalTorrentSessionService, useValue: sessions },
+        {
+          provide: ORIGINAL_TORRENT_SESSION_AUTH_CONFIG,
+          useValue: { token: TOKEN },
+        },
+        OriginalTorrentSessionTokenGuard,
       ],
     }).compile();
     app = module.createNestApplication();
@@ -55,6 +65,7 @@ describe('original torrent session HTTP lifecycle', () => {
   it('creates from a media query and opaque observation only', async () => {
     await request(app.getHttpServer())
       .post('/media/torrent-sessions')
+      .set('Authorization', `Bearer ${TOKEN}`)
       .send({
         query: { type: 'movie', title: ' Example ', year: 2026 },
         observation: { provider: ' provider-a ', id: ' provider-a:opaque ' },
@@ -71,6 +82,7 @@ describe('original torrent session HTTP lifecycle', () => {
   it('rejects browser-controlled torrent source and target fields', async () => {
     await request(app.getHttpServer())
       .post('/media/torrent-sessions')
+      .set('Authorization', `Bearer ${TOKEN}`)
       .send({
         query: { type: 'movie' },
         observation: { provider: 'provider-a', id: 'provider-a:opaque' },
@@ -79,6 +91,7 @@ describe('original torrent session HTTP lifecycle', () => {
       .expect(400);
     await request(app.getHttpServer())
       .post(`/media/torrent-sessions/${SESSION_ID}/selection`)
+      .set('Authorization', `Bearer ${TOKEN}`)
       .send({ fileId: 7, path: '../../internal', playUrl: 'http://torrserver' })
       .expect(400);
     expect(sessions.create).not.toHaveBeenCalled();
@@ -88,10 +101,12 @@ describe('original torrent session HTTP lifecycle', () => {
   it('reads, selects, and stops through exact bounded routes', async () => {
     await request(app.getHttpServer())
       .get(`/media/torrent-sessions/${SESSION_ID}`)
+      .set('Authorization', `Bearer ${TOKEN}`)
       .expect(200)
       .expect(snapshot);
     await request(app.getHttpServer())
       .post(`/media/torrent-sessions/${SESSION_ID}/selection`)
+      .set('Authorization', `Bearer ${TOKEN}`)
       .send({ fileId: 7 })
       .expect(200)
       .expect((response) => {
@@ -99,6 +114,7 @@ describe('original torrent session HTTP lifecycle', () => {
       });
     await request(app.getHttpServer())
       .delete(`/media/torrent-sessions/${SESSION_ID}`)
+      .set('Authorization', `Bearer ${TOKEN}`)
       .expect(204)
       .expect('');
 
@@ -110,6 +126,7 @@ describe('original torrent session HTTP lifecycle', () => {
   it('maps invalid IDs, missing sessions, and state conflicts', async () => {
     await request(app.getHttpServer())
       .get('/media/torrent-sessions/not-valid')
+      .set('Authorization', `Bearer ${TOKEN}`)
       .expect(400);
 
     sessions.get.mockRejectedValueOnce(
@@ -117,6 +134,7 @@ describe('original torrent session HTTP lifecycle', () => {
     );
     await request(app.getHttpServer())
       .get(`/media/torrent-sessions/${SESSION_ID}`)
+      .set('Authorization', `Bearer ${TOKEN}`)
       .expect(404);
 
     sessions.selectFile.mockRejectedValueOnce(
@@ -127,6 +145,7 @@ describe('original torrent session HTTP lifecycle', () => {
     );
     await request(app.getHttpServer())
       .post(`/media/torrent-sessions/${SESSION_ID}/selection`)
+      .set('Authorization', `Bearer ${TOKEN}`)
       .send({ fileId: 8 })
       .expect(409)
       .expect({
@@ -135,5 +154,18 @@ describe('original torrent session HTTP lifecycle', () => {
         message: 'The file was not offered.',
         error: 'Conflict',
       });
+  });
+
+  it('rejects direct browser requests without the server token', async () => {
+    await request(app.getHttpServer())
+      .post('/media/torrent-sessions')
+      .send({
+        query: { type: 'movie', title: 'Example' },
+        observation: { provider: 'provider-a', id: 'provider-a:opaque' },
+      })
+      .expect('WWW-Authenticate', 'Bearer')
+      .expect(401);
+
+    expect(sessions.create).not.toHaveBeenCalled();
   });
 });

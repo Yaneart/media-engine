@@ -38,13 +38,11 @@ The SDK is a small typed HTTP client for the API. It works with browser or Node.
 
 ### `apps/api`
 
-The NestJS application wires metadata and streaming providers into `MediaEngine` and exposes health, provider, search, details, and availability endpoints. It owns HTTP validation and OpenAPI documentation, but not merge logic or provider HTTP clients.
-
-Torrent discovery is intentionally independent from streaming availability. Core can select torrent providers and return typed handoff candidates, but the repository API does not wire that operation in this clean-slate checkpoint. Core never contains a BitTorrent client, player, proxy, storage, or transcoder. Those runtime responsibilities belong to consuming applications.
+The NestJS application wires metadata, streaming, and opt-in torrent-discovery providers into `MediaEngine` and exposes health, provider, search, details, availability, and torrent discovery endpoints. It owns HTTP validation and OpenAPI documentation, but not merge logic or provider HTTP clients. Its app-specific original-torrent modules own the private TorrServer adapter, authenticated sessions, and protected original-file gateway without extending public package contracts.
 
 ### `apps/example`
 
-The React application demonstrates search, details, episode selection, and online player choice. It does not call upstream providers directly.
+The React application demonstrates search, details, episode selection, online player choice, torrent release discovery, extension-independent file selection, and one native original-file video. Public discovery uses the SDK; protected session lifecycle calls use a same-origin server-side BFF so its bearer token never enters the browser bundle. It does not call upstream providers or TorrServer directly.
 
 ## Request flow
 
@@ -87,7 +85,9 @@ maps each ready selection to an expiring high-entropy capability and proxies onl
 through strict `GET`/`HEAD` single-range semantics. It preserves backpressure and cancellation,
 bounds cold headers and body inactivity, and invalidates the capability with its session. None of
 this extends the public core/providers/SDK contracts or introduces probing, remuxing, transcoding,
-or HLS.
+or HLS. The example maps this boundary to one native `<video>`, keeps metadata acquisition distinct
+from first-piece buffering, and treats native decode/source rejection as
+`client_format_unsupported` when the server session remains healthy.
 
 ## Identity and merging
 

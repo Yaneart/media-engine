@@ -9,10 +9,12 @@ import {
   NotFoundException,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -26,6 +28,7 @@ import {
   OriginalTorrentSessionInputError,
   OriginalTorrentSessionNotFoundError,
 } from './session.errors';
+import { OriginalTorrentSessionTokenGuard } from './session-auth';
 import {
   parseCreateOriginalTorrentSessionBody,
   parseOriginalTorrentFileSelectionBody,
@@ -34,6 +37,8 @@ import {
 import { OriginalTorrentSessionService } from './session.service';
 
 @ApiTags('original-torrent-sessions')
+@ApiBearerAuth('originalTorrentSession')
+@UseGuards(OriginalTorrentSessionTokenGuard)
 @Controller('media/torrent-sessions')
 export class OriginalTorrentSessionController {
   constructor(private readonly sessions: OriginalTorrentSessionService) {}

@@ -76,8 +76,9 @@ pnpm dev:compose
 
 После запуска откройте <http://127.0.0.1:5173>. API будет доступен на <http://127.0.0.1:3000>, а Swagger — на <http://127.0.0.1:3000/docs>.
 
-Отдельно лицензируемый TorrServer runtime этой обычной командой не запускается. Для явного запуска
-закреплённого internal-only сервиса выполните:
+Отдельно лицензируемый TorrServer runtime этой обычной командой не запускается. Задайте в `.env`
+случайный `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` длиной от 32 символов, затем явно запустите
+закреплённый internal-only сервис:
 
 ```bash
 docker compose --profile torrent-runtime up
@@ -89,8 +90,10 @@ non-padding файлы без фильтрации расширений, про�
 при stop, expiry или shutdown API. API не принимает raw magnet, hash, upstream URL, path или
 TorrServer target. Готовая session раскрывает только high-entropy application capability. Её
 защищённый `GET`/`HEAD` route стримит точный выбранный original file со строгим single-range,
-backpressure, cancellation и ограниченными cold-start timeout, не раскрывая TorrServer. Browser
-player остаётся следующим checkpoint; media worker, remux, transcode и HLS отсутствуют.
+backpressure, cancellation и ограниченными cold-start timeout, не раскрывая TorrServer. Example
+использует server-authenticated same-origin BFF для lifecycle calls и один нативный `<video>` для
+original capability. Он различает metadata wait и first-piece buffering, а отказ браузера сообщает
+как `client_format_unsupported`. Media worker, probe, remux, transcode и HLS отсутствуют.
 
 ## Небольшое, но важное предупреждение
 

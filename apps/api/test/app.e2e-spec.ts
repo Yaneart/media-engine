@@ -13,6 +13,7 @@ import {
 import { MEDIA_ENGINE } from './../src/media-engine';
 import { TORRSERVER_ADAPTER } from './../src/original-torrent-runtime';
 import { OriginalTorrentSessionService } from './../src/original-torrent-session/session.service';
+import { ORIGINAL_TORRENT_SESSION_AUTH_CONFIG } from './../src/original-torrent-session/session-auth';
 import { OriginalTorrentStreamGateway } from './../src/original-torrent-stream/stream-gateway';
 import { AppModule } from './../src/app.module';
 import { configureApiApplication } from './../src/bootstrap';
@@ -28,6 +29,7 @@ const testRuntimeConfig: ApiRuntimeConfig = {
     maxRequests: 2,
   },
 };
+const ORIGINAL_TORRENT_TOKEN = 'test-original-torrent-token-123456';
 
 describe('Media Engine API (e2e)', () => {
   let app: INestApplication<App>;
@@ -190,6 +192,8 @@ describe('Media Engine API (e2e)', () => {
       .useValue(mediaEngine)
       .overrideProvider(TORRSERVER_ADAPTER)
       .useValue(torrentRuntime)
+      .overrideProvider(ORIGINAL_TORRENT_SESSION_AUTH_CONFIG)
+      .useValue({ token: ORIGINAL_TORRENT_TOKEN })
       .overrideProvider(OriginalTorrentStreamGateway)
       .useFactory({
         factory: (sessions: OriginalTorrentSessionService) =>
@@ -302,6 +306,7 @@ describe('Media Engine API (e2e)', () => {
 
     const created = await request(app.getHttpServer())
       .post('/media/torrent-sessions')
+      .set('Authorization', `Bearer ${ORIGINAL_TORRENT_TOKEN}`)
       .send({
         query: { type: 'movie', title: 'Dune', year: 2021 },
         observation: { provider: 'yts-torrent', id: 'yts-torrent:opaque' },
@@ -313,6 +318,7 @@ describe('Media Engine API (e2e)', () => {
     await new Promise((resolve) => setImmediate(resolve));
     const ready = await request(app.getHttpServer())
       .get(`/media/torrent-sessions/${String(sessionId)}`)
+      .set('Authorization', `Bearer ${ORIGINAL_TORRENT_TOKEN}`)
       .expect(200);
     expect(ready.body).toMatchObject({
       state: 'ready',
@@ -343,6 +349,7 @@ describe('Media Engine API (e2e)', () => {
 
     await request(app.getHttpServer())
       .delete(`/media/torrent-sessions/${String(sessionId)}`)
+      .set('Authorization', `Bearer ${ORIGINAL_TORRENT_TOKEN}`)
       .expect(204);
     await request(app.getHttpServer()).get(streamUrl).expect(410);
     expect(mediaEngine.discoverTorrents).toHaveBeenCalledWith(
@@ -426,7 +433,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.7.0',
+      version: '0.8.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/health/live');

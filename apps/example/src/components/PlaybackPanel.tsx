@@ -1,7 +1,9 @@
+import { useState } from "react";
 import type { AvailabilityMediaInput, MediaDetails, MediaSummary } from "../api";
 import type { AvailabilityState } from "../state";
 import { AvailabilitySummary } from "./AvailabilitySummary";
 import { EpisodeAvailabilityControls } from "./EpisodeAvailabilityControls";
+import { TorrentPlaybackPanel } from "./TorrentPlaybackPanel";
 
 export function PlaybackPanel({
   availabilityState,
@@ -17,6 +19,7 @@ export function PlaybackPanel({
     availabilityItem?: AvailabilityMediaInput,
   ) => Promise<void>;
 }) {
+  const [mode, setMode] = useState<"online" | "torrent">("online");
   const onlineCount =
     availabilityState.status === "success" || availabilityState.status === "empty"
       ? availabilityState.response.options.length
@@ -27,25 +30,56 @@ export function PlaybackPanel({
       <div className="playback-panel__heading">
         <div>
           <span className="section-kicker">Playback</span>
-          <strong id="playback-heading">Online players</strong>
+          <strong id="playback-heading">Playback sources</strong>
         </div>
-        <PlaybackCount count={onlineCount} loading={availabilityState.status === "loading"} />
+        <span className="muted">Online or original bytes</span>
+      </div>
+
+      <div className="playback-tabs" role="tablist" aria-label="Playback source">
+        <button
+          aria-selected={mode === "online"}
+          className="playback-tab"
+          onClick={() => setMode("online")}
+          role="tab"
+          type="button"
+        >
+          Online players
+          <PlaybackCount count={onlineCount} loading={availabilityState.status === "loading"} />
+        </button>
+        <button
+          aria-selected={mode === "torrent"}
+          className="playback-tab"
+          onClick={() => setMode("torrent")}
+          role="tab"
+          type="button"
+        >
+          Torrent player
+          <span className="playback-tab__count" aria-hidden="true">
+            1×
+          </span>
+        </button>
       </div>
 
       <div className="playback-panel__body">
-        <div className="playback-mode__intro">
-          <strong>Choose a provider</strong>
-          <span>Select a voiceover and available quality.</span>
-        </div>
-        {details.type === "series" ? (
-          <EpisodeAvailabilityControls
-            details={details}
-            item={item}
-            loading={availabilityState.status === "loading"}
-            onLoadAvailability={onLoadAvailability}
-          />
-        ) : null}
-        <AvailabilitySummary state={availabilityState} />
+        {mode === "online" ? (
+          <>
+            <div className="playback-mode__intro">
+              <strong>Choose a provider</strong>
+              <span>Select a voiceover and available quality.</span>
+            </div>
+            {details.type === "series" ? (
+              <EpisodeAvailabilityControls
+                details={details}
+                item={item}
+                loading={availabilityState.status === "loading"}
+                onLoadAvailability={onLoadAvailability}
+              />
+            ) : null}
+            <AvailabilitySummary state={availabilityState} />
+          </>
+        ) : (
+          <TorrentPlaybackPanel details={details} />
+        )}
       </div>
     </section>
   );

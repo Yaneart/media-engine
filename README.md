@@ -76,8 +76,9 @@ pnpm dev:compose
 
 Then open <http://127.0.0.1:5173>. The API runs on <http://127.0.0.1:3000>, and its Swagger page is at <http://127.0.0.1:3000/docs>.
 
-The separately licensed TorrServer runtime is never started by that default command. To start the
-pinned internal-only service explicitly, run:
+The separately licensed TorrServer runtime is never started by that default command. Set one random
+32+ character `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` in `.env`, then start the pinned internal-only
+service explicitly:
 
 ```bash
 docker compose --profile torrent-runtime up
@@ -89,8 +90,10 @@ without extension filtering, validate a selected numeric file ID, and clean up o
 API shutdown. The API never accepts a raw magnet, hash, upstream URL, path, or TorrServer target.
 A ready session exposes only a high-entropy application capability. Its protected `GET`/`HEAD`
 route streams the exact selected original file with strict single-range handling, backpressure,
-cancellation, and bounded cold-start timeouts while keeping TorrServer private. The browser player
-is a later checkpoint; no media worker, remuxer, transcoder, or HLS pipeline exists.
+cancellation, and bounded cold-start timeouts while keeping TorrServer private. The example uses a
+server-authenticated same-origin BFF for lifecycle calls and one native `<video>` for that original
+capability. It distinguishes metadata wait from first-piece buffering and reports browser rejection
+as `client_format_unsupported`. No media worker, probe, remuxer, transcoder, or HLS pipeline exists.
 
 ## A small but important warning
 

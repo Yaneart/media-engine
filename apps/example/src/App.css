@@ -498,11 +498,6 @@
   color: #25603f !important;
 }
 
-.playback-status--conversion_required {
-  background: #fff4d8;
-  color: #775b17 !important;
-}
-
 .playback-status--failed,
 .playback-status--stopped {
   background: #f7e8e8;
@@ -726,6 +721,183 @@
   border-color: #2f6f73;
 }
 
+.torrent-player,
+.torrent-discovery-form,
+.torrent-session-status,
+.torrent-file-list,
+.original-video-player {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.torrent-discovery-form {
+  padding: 12px;
+  border: 1px solid #dfe7e8;
+  border-radius: 8px;
+  background: #f8fbfb;
+}
+
+.torrent-release-list {
+  display: grid;
+  max-height: 360px;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.torrent-release {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18202a;
+  cursor: pointer;
+  text-align: left;
+}
+
+.torrent-release:hover,
+.torrent-release:focus-visible,
+.torrent-release[aria-pressed="true"] {
+  border-color: #2f6f73;
+  outline: none;
+}
+
+.torrent-release[aria-pressed="true"] {
+  background: #edf6f6;
+  box-shadow: inset 3px 0 #2f6f73;
+}
+
+.torrent-release span,
+.torrent-release small,
+.torrent-selection-summary span,
+.torrent-selection-summary small,
+.torrent-session-status span,
+.torrent-session-status small,
+.original-video-player__heading span,
+.original-video-player__heading small {
+  overflow-wrap: anywhere;
+  color: #5c6671;
+  font-size: 0.78rem;
+}
+
+.torrent-selection-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #cfdfe0;
+  border-radius: 8px;
+  background: #f8fbfb;
+}
+
+.torrent-selection-summary > div,
+.original-video-player__heading > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.torrent-session-status {
+  padding: 12px;
+  border-left: 3px solid #2f6f73;
+  background: #f5fafa;
+}
+
+.torrent-file-list {
+  padding: 12px;
+  border: 1px solid #dfe7e8;
+  border-radius: 8px;
+}
+
+.torrent-file-list > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.torrent-file-list button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f3d52;
+  cursor: pointer;
+  text-align: left;
+}
+
+.torrent-file-list button:hover,
+.torrent-file-list button:focus-visible {
+  border-color: #2f6f73;
+}
+
+.torrent-file-list button strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.original-video-player {
+  padding: 12px;
+  border: 1px solid #cfdfe0;
+  border-radius: 8px;
+  background: #f8fbfb;
+}
+
+.original-video-player__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.original-video-player video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #263541;
+  border-radius: 8px;
+  background: #10171d;
+}
+
+.original-video-player__phase {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fff4d8;
+  color: #775b17 !important;
+  font-weight: 700;
+}
+
+.original-video-player__phase--ready,
+.original-video-player__phase--playing {
+  background: #e5f4ec;
+  color: #25603f !important;
+}
+
+.playback-status--waiting_metadata,
+.playback-status--adding,
+.playback-status--selection_required {
+  background: #fff4d8;
+  color: #775b17 !important;
+}
+
+.playback-status--failed,
+.playback-status--stopped,
+.playback-status--expired {
+  background: #f7e8e8;
+  color: #8a3333 !important;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px;
@@ -738,7 +910,8 @@
   .search-form,
   .workspace,
   .result-card,
-  .details-grid {
+  .details-grid,
+  .torrent-selection-summary {
     grid-template-columns: 1fr;
   }
 

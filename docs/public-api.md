@@ -139,6 +139,11 @@ contains an expiring high-entropy application `streamUrl`, not an internal targe
 on that URL serve only the selected original file with one strict closed, open, or suffix byte
 range. Stop, expiry, upstream failure, and API restart invalidate the capability.
 
+The four session lifecycle routes require a bearer token configured through
+`MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN`; they are intended for server-to-server use. The example's
+same-origin BFF adds that token and returns only lifecycle JSON. Browser media requests use the
+separate high-entropy capability URL and never receive the bearer token.
+
 ## Errors and partial failures
 
 Invalid queries throw `MediaEngineError`. Provider failures are normalized and include a stable code plus retryability. If at least one selected provider succeeds, the engine normally returns a partial response and records other failures in `meta.providers.failed`. If every selected provider fails, the operation throws.

@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-export const MEDIA_ENGINE_API_CONTRACT_VERSION = '0.7.0';
+export const MEDIA_ENGINE_API_CONTRACT_VERSION = '0.8.0';
 
 // EN: Register OpenAPI JSON and Swagger UI for the public REST API.
 // RU: Регистрирует OpenAPI JSON и Swagger UI для публичного REST API.
@@ -12,6 +12,16 @@ export function setupOpenApi(app: INestApplication): void {
       'REST API for normalized media metadata and streaming availability.',
     )
     .setVersion(MEDIA_ENGINE_API_CONTRACT_VERSION)
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'Opaque server token',
+        description:
+          'Server-to-server authentication for original torrent session lifecycle routes.',
+      },
+      'originalTorrentSession',
+    )
     .addTag('health', 'Liveness and provider-aware readiness status.')
     .addTag(
       'media',

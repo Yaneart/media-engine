@@ -3,6 +3,7 @@ import type {
   MediaEngineAvailabilityResponse,
   MediaEngineDetailsResponse,
   MediaEngineSearchResponse,
+  MediaEngineTorrentDiscoveryResponse,
 } from "@media-engine/sdk";
 
 const DEFAULT_API_URL = "http://127.0.0.1:3000";
@@ -17,6 +18,9 @@ export interface SearchFormQuery {
 export type SearchResponse = MediaEngineSearchResponse;
 export type DetailsResponse = MediaEngineDetailsResponse;
 export type AvailabilityResponse = MediaEngineAvailabilityResponse;
+export type TorrentDiscoveryResponse = MediaEngineTorrentDiscoveryResponse;
+export type TorrentCandidate = TorrentDiscoveryResponse["candidates"][number];
+export type TorrentDiscoveryQuery = TorrentDiscoveryResponse["query"];
 export type SearchResult = SearchResponse["results"][number];
 export type MediaSummary = SearchResult["item"];
 export type MediaDetails = NonNullable<DetailsResponse["details"]>;
@@ -93,6 +97,14 @@ export function getMediaAvailability(
   );
 }
 
+// Discover release observations through the public SDK. Session creation still goes through the BFF.
+export function discoverTorrents(
+  query: TorrentDiscoveryQuery,
+  signal?: AbortSignal,
+): Promise<TorrentDiscoveryResponse> {
+  return mediaEngineClient.discoverTorrents(query, { signal });
+}
+
 // Keeps display metadata in the same language as the title entered or selected by the user.
 export function inferTitleLanguage(title: string): "ru" | "ja" | "en" {
   if (/[а-яё]/iu.test(title)) return "ru";
@@ -101,7 +113,7 @@ export function inferTitleLanguage(title: string): "ru" | "ja" | "en" {
 }
 
 export function getApiBaseUrl(): string {
-  const configuredUrl = import.meta.env.VITE_MEDIA_ENGINE_API_URL;
+  const configuredUrl = import.meta.env?.VITE_MEDIA_ENGINE_API_URL;
 
   return configuredUrl?.trim() || DEFAULT_API_URL;
 }

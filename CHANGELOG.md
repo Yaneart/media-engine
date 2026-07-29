@@ -8,6 +8,13 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added the example's original-torrent discovery and single-route browser player. Public candidate
+  discovery uses the SDK; exact create/status/select/stop calls pass through a bounded same-origin
+  BFF with a server-only bearer token. The UI preserves provider/release/file identity, offers every
+  server-reported regular file without extension filtering, separates metadata wait from first-piece
+  buffering, maps healthy native decode rejection to `client_format_unsupported`, and cleans up on
+  Stop, release switch, component removal, and page close. Playback remains one native `<video>`
+  over original bytes with no probing, remux, transcode, HLS, or fallback.
 - Added a protected original-file `GET`/`HEAD` gateway backed by expiring high-entropy session
   capabilities. It implements strict closed/open/suffix byte ranges, exact `200`/`206`/`416`
   metadata validation, safe header allowlists, backpressure, disconnect propagation, bounded cold
