@@ -54,9 +54,6 @@ export function PlaybackPanel({
           type="button"
         >
           Torrent player
-          <span className="playback-tab__count" aria-hidden="true">
-            1×
-          </span>
         </button>
       </div>
 

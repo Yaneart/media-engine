@@ -76,15 +76,16 @@ pnpm dev:compose
 
 После запуска откройте <http://127.0.0.1:5173>. API будет доступен на <http://127.0.0.1:3000>, а Swagger — на <http://127.0.0.1:3000/docs>.
 
-Отдельно лицензируемый TorrServer runtime этой обычной командой не запускается. Задайте в `.env`
-случайный `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` длиной от 32 символов, затем явно запустите
-закреплённый internal-only сервис:
+В default Compose stack входит отдельно лицензируемый, закреплённый и не публикуемый TorrServer runtime.
+Задайте в `.env` случайный `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` длиной от 32 символов, затем
+запустите весь stack:
 
 ```bash
-docker compose --profile torrent-runtime up
+docker compose up -d
 ```
 
-TorrServer не публикует host port. Application layer теперь создаёт expiring server-owned sessions
+TorrServer не публикует host port. Он использует private API network и отдельную outbound network для
+trackers, DHT и peers. Application layer создаёт expiring server-owned sessions
 из точного discovery observation, объединяет sessions с одинаковым info hash, показывает все
 non-padding файлы без фильтрации расширений, проверяет выбранный numeric file ID и очищает runtime
 при stop, expiry или shutdown API. API не принимает raw magnet, hash, upstream URL, path или

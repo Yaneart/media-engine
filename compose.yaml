@@ -54,10 +54,8 @@ services:
       retries: 5
       start_period: 20s
 
-  # GPL-3.0 runtime is opt-in, internal-only, and pinned to the audited source revision.
+  # GPL-3.0 runtime is pinned, has a private API path, and uses a dedicated peer-egress network.
   torrserver:
-    profiles:
-      - torrent-runtime
     image: ghcr.io/yourok/torrserver:MatriX.141.1@sha256:e44f08ec579615a783c3ab45e00595f50e9e5f94810dc06910c201edecd6205b
     environment:
       TS_PORT: 8090
@@ -70,7 +68,9 @@ services:
     expose:
       - "8090"
     networks:
-      - original-torrent-runtime
+      original-torrent-runtime: {}
+      torrent-egress:
+        gw_priority: 1
     read_only: true
     tmpfs:
       - /opt/ts/torrents:rw,nosuid,nodev,noexec,size=33554432
@@ -127,6 +127,7 @@ services:
 networks:
   original-torrent-runtime:
     internal: true
+  torrent-egress: {}
 
 volumes:
   torrserver-state:

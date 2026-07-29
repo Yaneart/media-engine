@@ -56,13 +56,13 @@ Local settings come from `.env`. The useful defaults are documented in the root 
 
 Torrent discovery is disabled by default. Set `MEDIA_ENGINE_TORRENT_PROVIDERS` to an explicit comma-separated subset of `yts-torrent`, `jacred-torrent`, `bitsearch-torrent`, and `magnetz-torrent`, and tune its bounded request budget with `MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS`. `GET /media/torrents` returns normalized candidates and opaque handoff data only; it does not join a swarm, select files, or stream media. `GET /providers/torrent` reports the configured discovery providers.
 
-The app-specific original-file runtime is separate from discovery. `docker compose --profile torrent-runtime up` starts release `MatriX.141.1` by pinned digest on an internal network with no host port. The internal adapter requires its exact `/echo` wire-version `MatriX.141`, accepts only hash-bound magnets or already-resolved bounded `.torrent` bytes, and implements health, add, metadata, exact-file target, and drop operations.
+The app-specific original-file runtime is separate from discovery. `docker compose up -d` starts release `MatriX.141.1` by pinned digest with no host port, together with the API and example. TorrServer shares a private control network with the API and has a dedicated outbound network for trackers, DHT, and peers. The internal adapter requires its exact `/echo` wire-version `MatriX.141`, accepts only hash-bound magnets or already-resolved bounded `.torrent` bytes, and implements health, add, metadata, exact-file target, and drop operations.
 
 The session routes accept a bounded media query plus only an exact `provider`/opaque candidate `id`. The API resolves that observation again, downloads a provider-owned `.torrent` with a strict size/time/redirect policy when needed, and never accepts browser-controlled magnets, hashes, upstream URLs, paths, or TorrServer targets. Session states are `adding`, `waiting_metadata`, `selection_required`, `ready`, `failed`, `stopped`, and `expired`. Every non-padding regular file is offered regardless of extension; ambiguous torrents require one offered numeric file ID. Sessions sharing a hash share TorrServer preparation and the final stop/expiry/shutdown releases the entry.
 
 All create/status/select/stop session routes require `Authorization: Bearer <MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN>`. The example browser never receives this token: its same-origin server-side BFF authenticates lifecycle calls. The high-entropy stream capability remains the only credential used for `GET`/`HEAD` media bytes.
 
-A `ready` snapshot contains an expiring high-entropy `streamUrl`, never an upstream target. Its `GET`/`HEAD` route serves the exact selected original bytes, accepts one closed/open/suffix Range, returns strict `200`/`206`/`416` metadata, forwards only safe validators, and streams with backpressure. Client disconnects, session stop/expiry, header deadlines, and body inactivity abort upstream work. A healthy original stream still does not promise browser codec support.
+A `ready` snapshot contains an expiring high-entropy `streamUrl`, never an upstream target. Its `GET`/`HEAD` route serves the exact selected original bytes, accepts one closed/open/suffix Range, returns strict `200`/`206`/`416` metadata, forwards only safe validators, and streams with backpressure. The capability route explicitly permits cross-origin media embedding so the separately served example frontend can use it; script access remains governed by the configured CORS allowlist. Client disconnects, session stop/expiry, header deadlines, and body inactivity abort upstream work. A healthy original stream still does not promise browser codec support.
 
 Session lifetime, terminal-record retention, cleanup cadence, and torrent-file request timeout are bounded by `MEDIA_ENGINE_TORRENT_SESSION_TTL_MS`, `MEDIA_ENGINE_TORRENT_SESSION_TERMINAL_RETENTION_MS`, `MEDIA_ENGINE_TORRENT_SESSION_CLEANUP_INTERVAL_MS`, and `MEDIA_ENGINE_TORRENT_SOURCE_REQUEST_TIMEOUT_MS`.
 
@@ -80,8 +80,8 @@ Development Compose currently publishes API and example ports on all interfaces,
 pnpm --filter @media-engine/api typecheck
 pnpm --filter @media-engine/api test
 pnpm --filter @media-engine/api test:e2e
-# With the torrent-runtime profile running and the API already built:
-docker compose --profile torrent-runtime exec -T api node scripts/original-torrent-range-smoke.mjs
+# With the Compose stack running and the API already built:
+docker compose exec -T api node scripts/original-torrent-range-smoke.mjs
 ```
 
 Provider code lives in `@media-engine/providers`; merging lives in `@media-engine/core`. This app only connects them to HTTP and keeps secrets out of responses.

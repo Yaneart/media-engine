@@ -74,9 +74,10 @@ For the next 30 minutes, equivalent cache misses use the first healthy identity 
 
 Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options. Torrent providers use a package-level operation and return discovery metadata plus an opaque handoff instead of claiming immediate stream availability.
 
-The repository API also has an app-specific original-torrent runtime boundary. Its opt-in Compose
-service pins TorrServer release `MatriX.141.1` on an internal-only network and verifies its exact
-`MatriX.141` `/echo` wire-version. A private adapter accepts only server-resolved, hash-bound magnets
+The repository API also has an app-specific original-torrent runtime boundary. Its default Compose
+service pins TorrServer release `MatriX.141.1`, keeps the API control path on an internal network,
+adds dedicated peer egress without publishing a host port, and verifies the exact `MatriX.141`
+`/echo` wire-version. A private adapter accepts only server-resolved, hash-bound magnets
 or bounded torrent bytes, lists exact file IDs, forms internal original-file targets, and drops
 application entries. A process-local session layer resolves an exact provider observation again,
 coalesces shared hashes, offers every non-padding file without extension filtering, validates only

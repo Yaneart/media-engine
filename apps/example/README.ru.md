@@ -12,7 +12,7 @@
 pnpm install
 # Сначала задайте в .env случайный server token длиной от 32 символов:
 # MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN=...
-docker compose --profile torrent-runtime up
+docker compose up -d
 ```
 
 Откройте <http://127.0.0.1:5173>.

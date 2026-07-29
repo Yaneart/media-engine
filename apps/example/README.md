@@ -12,7 +12,7 @@ From the repository root:
 pnpm install
 # Set one random 32+ character server token in .env first:
 # MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN=...
-docker compose --profile torrent-runtime up
+docker compose up -d
 ```
 
 Open <http://127.0.0.1:5173>.

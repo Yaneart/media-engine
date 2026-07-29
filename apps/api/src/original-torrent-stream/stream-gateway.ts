@@ -387,6 +387,7 @@ function writeResponseHeaders(
   response.setHeader('Content-Length', String(headers.contentLength));
   response.setHeader('Content-Type', headers.contentType);
   response.setHeader('Cache-Control', 'private, no-store');
+  response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   if (headers.contentRange !== undefined) {
     response.setHeader('Content-Range', headers.contentRange);
   }
@@ -402,6 +403,7 @@ function writeUnsatisfiable(response: Response, fileLength: number): void {
   response.setHeader('Content-Range', `bytes */${fileLength}`);
   response.setHeader('Content-Length', '0');
   response.setHeader('Cache-Control', 'private, no-store');
+  response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   response.end();
 }
 

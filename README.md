@@ -76,15 +76,16 @@ pnpm dev:compose
 
 Then open <http://127.0.0.1:5173>. The API runs on <http://127.0.0.1:3000>, and its Swagger page is at <http://127.0.0.1:3000/docs>.
 
-The separately licensed TorrServer runtime is never started by that default command. Set one random
-32+ character `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` in `.env`, then start the pinned internal-only
-service explicitly:
+The default Compose stack includes a separately licensed, pinned, non-published TorrServer runtime.
+Set one random 32+ character `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` in `.env`, then start the complete
+stack:
 
 ```bash
-docker compose --profile torrent-runtime up
+docker compose up -d
 ```
 
-TorrServer has no host port. The application can now create expiring server-owned sessions from an
+TorrServer has no host port. It uses a private API network plus a dedicated outbound network for
+trackers, DHT, and peers. The application can create expiring server-owned sessions from an
 exact discovery observation, coalesce sessions that share an info hash, list every non-padding file
 without extension filtering, validate a selected numeric file ID, and clean up on stop, expiry, or
 API shutdown. The API never accepts a raw magnet, hash, upstream URL, path, or TorrServer target.

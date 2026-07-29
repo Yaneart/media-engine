@@ -34,6 +34,9 @@ describe('protected original torrent stream gateway', () => {
     expect(response.header('accept-ranges')).toBe('bytes');
     expect(response.header('content-length')).toBe('10');
     expect(response.header('content-type')).toBe('video/mp4');
+    expect(response.header('cross-origin-resource-policy')).toBe(
+      'cross-origin',
+    );
     expect(response.header('etag')).toBe('"safe-etag"');
     expect(response.header('last-modified')).toBe(
       'Wed, 21 Oct 2015 07:28:00 GMT',
@@ -77,6 +80,9 @@ describe('protected original torrent stream gateway', () => {
     expect(response.statusCode).toBe(206);
     expect(response.body).toHaveLength(10);
     expect(response.header('content-range')).toBe('bytes 90-99/100');
+    expect(response.header('cross-origin-resource-policy')).toBe(
+      'cross-origin',
+    );
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({
       headers: expect.objectContaining({ range: 'bytes=90-99' }),
     });
@@ -126,6 +132,9 @@ describe('protected original torrent stream gateway', () => {
     );
     expect(unsatisfiable.statusCode).toBe(416);
     expect(unsatisfiable.header('content-range')).toBe('bytes */100');
+    expect(unsatisfiable.header('cross-origin-resource-policy')).toBe(
+      'cross-origin',
+    );
     expect(fetch).not.toHaveBeenCalled();
 
     await expect(

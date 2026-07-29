@@ -25,8 +25,8 @@ This project follows semantic versioning after the first stable release. Before 
   observations, coalesce shared info hashes, offer all non-padding files without extension
   filtering, validate server-offered numeric file IDs, and clean up on stop, expiry, cancellation,
   or API shutdown. Ready sessions expose only the protected application stream capability.
-- Added a new private original-torrent runtime module and opt-in `torrent-runtime` Compose profile.
-  The pinned internal-only TorrServer service has no host port; its bounded adapter verifies the
+- Added a new private original-torrent runtime module and a default Compose TorrServer service.
+  The pinned non-published service has no host port; its bounded adapter verifies the
   exact runtime version and supports hash-bound magnet or resolved torrent-byte add, metadata/file
   listing, exact internal file targets, and cleanup. The adapter itself remains private; the
   application-owned gateway is the only byte-stream route.
@@ -45,6 +45,10 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- The default `docker compose up -d` stack now starts the pinned, non-published TorrServer runtime
+  together with the API and example; a separate Compose profile is no longer required. TorrServer
+  retains a private API control network and receives a dedicated outbound network so public
+  trackers, DHT, and peers remain reachable.
 - Removed the repository app/runtime torrent implementation from `apps/api`, `apps/example`,
   Compose, `.env.example`, smoke scripts, OpenAPI, and app tests. Public package torrent discovery
   contracts and provider implementations remain for a later minimal original-stream rebuild.
@@ -76,6 +80,10 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Fixed
 
+- Protected original-file responses now override the API-wide same-origin resource policy with a
+  capability-route-specific cross-origin media policy. This lets the separately served example
+  `<video>` consume valid MP4 ranges without weakening security headers on other API routes. The
+  example also removes the ambiguous hard-coded `1×` torrent-player badge.
 - DDBB options beyond the bounded live-validation limit are now reported as `unknown` instead of inheriting an unverified `available` status. The example groups episodes, player families, translations, and qualities without collapsing distinct voiceovers, exposes direct stream links, and sends an origin-only referrer required by otherwise valid Alloha embeds.
 - Cinemeta untyped IMDb details lookups no longer turn movie/series branch outages into cacheable successful null responses.
 - AniList HTTP-200 GraphQL rate-limit and server errors now remain retryable provider failures, while validation errors and malformed payloads receive non-retryable typed categories.
