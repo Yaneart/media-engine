@@ -49,6 +49,9 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- Increased the bounded default original-torrent session lifetime from 30 minutes to six hours so
+  full-length movies do not expire during ordinary browser playback. Explicit Stop, release switch,
+  page close, expiry, and API shutdown retain the existing cleanup behavior.
 - JacRed now retains its bounded upstream tracker identifier and maps known labels such as BitRu,
   RuTracker, RuTor, Kinozal, NNM-Club, and Knaben instead of presenting every result only as a
   generic JacRed observation. This attribution does not claim an actual release audio language.
