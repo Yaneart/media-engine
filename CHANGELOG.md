@@ -8,10 +8,14 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added app-specific original-torrent session routes that resolve only exact server-known provider
+  observations, coalesce shared info hashes, offer all non-padding files without extension
+  filtering, validate server-offered numeric file IDs, and clean up on stop, expiry, cancellation,
+  or API shutdown. Sessions expose lifecycle metadata but no public byte-stream capability yet.
 - Added a new private original-torrent runtime module and opt-in `torrent-runtime` Compose profile.
   The pinned internal-only TorrServer service has no host port; its bounded adapter verifies the
   exact runtime version and supports hash-bound magnet or resolved torrent-byte add, metadata/file
-  listing, exact internal file targets, and cleanup. It adds no public session or stream route.
+  listing, exact internal file targets, and cleanup. It adds no public byte-stream route.
 - Rebuilt the repository Nest API torrent-discovery bridge as an isolated, discovery-only module.
   `GET /media/torrents` now provides bounded DTO parsing, cancellation, typed HTTP errors, rate
   limiting, and OpenAPI documentation; `GET /providers/torrent` reports safe provider metadata.

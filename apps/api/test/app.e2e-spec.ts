@@ -11,6 +11,7 @@ import {
   type TorrentDiscoveryResponse,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from './../src/media-engine';
+import { TORRSERVER_ADAPTER } from './../src/original-torrent-runtime';
 import { AppModule } from './../src/app.module';
 import { configureApiApplication } from './../src/bootstrap';
 import type { ApiRuntimeConfig } from './../src/runtime-config';
@@ -39,6 +40,13 @@ describe('Media Engine API (e2e)', () => {
       | 'getProviderHealth'
     >
   >;
+  let torrentRuntime: {
+    health: jest.Mock;
+    add: jest.Mock;
+    waitForMetadata: jest.Mock;
+    resolveFileTarget: jest.Mock;
+    drop: jest.Mock;
+  };
 
   const searchResponse: SearchResponse = {
     query: {
@@ -117,12 +125,41 @@ describe('Media Engine API (e2e)', () => {
       getTorrentProviders: jest.fn().mockReturnValue([]),
       getProviderHealth: jest.fn().mockReturnValue([]),
     };
+    torrentRuntime = {
+      health: jest.fn().mockResolvedValue({
+        version: 'MatriX.141',
+        compatible: true,
+      }),
+      add: jest.fn().mockResolvedValue({
+        hash: '0123456789abcdef0123456789abcdef01234567',
+        state: 2,
+        stateLabel: 'torrent working',
+        loadedSize: 0,
+        torrentSize: 100,
+        files: [{ id: 1, path: 'original.unusual', length: 100 }],
+      }),
+      waitForMetadata: jest.fn(),
+      resolveFileTarget: jest.fn().mockResolvedValue({
+        url: new URL(
+          'http://torrserver:8090/play/0123456789abcdef0123456789abcdef01234567/1',
+        ),
+        hash: '0123456789abcdef0123456789abcdef01234567',
+        fileId: 1,
+        path: 'original.unusual',
+        length: 100,
+        headerTimeoutMs: 45_000,
+        inactivityTimeoutMs: 30_000,
+      }),
+      drop: jest.fn().mockResolvedValue(undefined),
+    };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(MEDIA_ENGINE)
       .useValue(mediaEngine)
+      .overrideProvider(TORRSERVER_ADAPTER)
+      .useValue(torrentRuntime)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -186,7 +223,7 @@ describe('Media Engine API (e2e)', () => {
     expect(mediaEngine.getProviders).toHaveBeenCalledWith();
   });
 
-  it('exposes opt-in torrent discovery without a playback runtime', async () => {
+  it('exposes opt-in torrent discovery separately from runtime sessions', async () => {
     await request(app.getHttpServer())
       .get('/media/torrents')
       .query({ type: 'movie', title: 'Dune' })
@@ -202,6 +239,65 @@ describe('Media Engine API (e2e)', () => {
       { signal: expect.any(AbortSignal) },
     );
     expect(mediaEngine.getTorrentProviders).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates, reads, and stops a server-resolved original torrent session', async () => {
+    const sessionDiscovery: TorrentDiscoveryResponse = {
+      query: { type: 'movie', title: 'Dune', year: 2021 },
+      candidates: [
+        {
+          id: 'yts-torrent:opaque',
+          provider: 'yts-torrent',
+          title: 'Dune unusual release',
+          infoHash: '0123456789abcdef0123456789abcdef01234567',
+          handoff: {
+            kind: 'magnet',
+            uri: 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567',
+          },
+          availability: 'available',
+        },
+      ],
+      sourceProviders: [],
+      checkedAt: '2026-07-29T00:00:00.000Z',
+    };
+    mediaEngine.discoverTorrents.mockResolvedValueOnce(sessionDiscovery);
+
+    const created = await request(app.getHttpServer())
+      .post('/media/torrent-sessions')
+      .send({
+        query: { type: 'movie', title: 'Dune', year: 2021 },
+        observation: { provider: 'yts-torrent', id: 'yts-torrent:opaque' },
+      })
+      .expect(202);
+    const sessionId: unknown = created.body.id;
+    expect(sessionId).toEqual(expect.stringMatching(/^[A-Za-z0-9_-]{32}$/u));
+
+    await new Promise((resolve) => setImmediate(resolve));
+    const ready = await request(app.getHttpServer())
+      .get(`/media/torrent-sessions/${String(sessionId)}`)
+      .expect(200);
+    expect(ready.body).toMatchObject({
+      state: 'ready',
+      selectedFile: { id: 1, path: 'original.unusual', length: 100 },
+    });
+    expect(JSON.stringify(ready.body)).not.toContain('torrserver');
+
+    await request(app.getHttpServer())
+      .delete(`/media/torrent-sessions/${String(sessionId)}`)
+      .expect(204);
+    expect(mediaEngine.discoverTorrents).toHaveBeenCalledWith(
+      {
+        type: 'movie',
+        title: 'Dune',
+        year: 2021,
+        providers: ['yts-torrent'],
+        limit: 100,
+      },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(torrentRuntime.drop).toHaveBeenCalledWith(
+      '0123456789abcdef0123456789abcdef01234567',
+    );
   });
 
   it('adds security headers with separate API and Swagger CSP policies', async () => {
@@ -270,7 +366,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.5.0',
+      version: '0.6.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/health/live');
@@ -279,6 +375,9 @@ describe('Media Engine API (e2e)', () => {
     expect(body.paths).toHaveProperty('/media/details');
     expect(body.paths).toHaveProperty('/media/availability');
     expect(body.paths).toHaveProperty('/media/torrents');
+    expect(body.paths).toHaveProperty('/media/torrent-sessions');
+    expect(body.paths).toHaveProperty('/media/torrent-sessions/{id}');
+    expect(body.paths).toHaveProperty('/media/torrent-sessions/{id}/selection');
     expect(body.paths).toHaveProperty('/providers');
     expect(body.paths).toHaveProperty('/providers/streaming');
     expect(body.paths).toHaveProperty('/providers/torrent');

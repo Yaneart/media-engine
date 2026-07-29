@@ -32,7 +32,7 @@ describe('API application bootstrap', () => {
 
     expect(enableCors).toHaveBeenCalledWith({
       origin: config.corsOrigins,
-      methods: ['GET', 'HEAD', 'OPTIONS'],
+      methods: ['GET', 'HEAD', 'POST', 'DELETE', 'OPTIONS'],
     });
     expect(use).toHaveBeenCalledTimes(2);
     expect(createDocument).toHaveBeenCalledWith(
@@ -40,7 +40,7 @@ describe('API application bootstrap', () => {
       expect.objectContaining({
         info: expect.objectContaining({
           title: 'Media Engine API',
-          version: '0.5.0',
+          version: '0.6.0',
         }),
       }),
     );

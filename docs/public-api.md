@@ -129,9 +129,13 @@ Torrent discovery is a separate provider category and operation. A `TorrentDisco
 
 Candidate order is deterministic: the engine preserves each provider's order while interleaving configured sources before applying the public limit. It deduplicates repeated `provider` plus `id` identities but does not collapse matching info hashes from different providers because their attribution, source URL, display title, and reported peer state may differ. The combined live checkpoint confirmed material peer-count differences for identical hashes, so consumers may group hashes for presentation but should preserve every source observation.
 
-The repository Nest API exposes this package operation through an opt-in discovery-only bridge. Its default provider list remains empty; deployments explicitly select exported YTS, JacRed, Bitsearch, and Magnetz adapters. The bridge has no TorrServer, file-selection, session, stream-proxy, or playback responsibility.
+The repository Nest API exposes this package operation through an opt-in discovery-only bridge. Its default provider list remains empty; deployments explicitly select exported YTS, JacRed, Bitsearch, and Magnetz adapters. The discovery bridge itself has no TorrServer, file-selection, stream-proxy, or playback responsibility.
 
-The repository additionally contains a private app-specific TorrServer adapter for the staged original-file playback implementation. It is not an SDK or REST API surface. The adapter accepts only server-resolved source bytes or hash-bound magnets and currently exposes internal health/version, add, metadata, exact-file target, and drop operations. Public sessions and byte streaming are later implementation blocks.
+The repository additionally contains app-specific session routes under `/media/torrent-sessions`.
+Creation accepts a bounded discovery query and exact provider/opaque candidate identity, never raw
+source or target data. Status, numeric file selection, and stop remain repository API operations;
+they are intentionally not added to the public core/providers/SDK packages. A `ready` snapshot has
+validated an internal original-file target but exposes no stream capability yet.
 
 ## Errors and partial failures
 
@@ -150,6 +154,10 @@ GET /media/search
 GET /media/details
 GET /media/availability
 GET /media/torrents
+POST /media/torrent-sessions
+GET /media/torrent-sessions/:id
+POST /media/torrent-sessions/:id/selection
+DELETE /media/torrent-sessions/:id
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.

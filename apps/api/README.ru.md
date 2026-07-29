@@ -36,6 +36,10 @@ GET /media/search
 GET /media/details
 GET /media/availability
 GET /media/torrents
+POST /media/torrent-sessions
+GET /media/torrent-sessions/:id
+POST /media/torrent-sessions/:id/selection
+DELETE /media/torrent-sessions/:id
 GET /docs
 GET /docs-json
 ```
@@ -50,7 +54,11 @@ GET /docs-json
 
 Torrent discovery по умолчанию выключен. В `MEDIA_ENGINE_TORRENT_PROVIDERS` задается явное comma-separated подмножество `yts-torrent`, `jacred-torrent`, `bitsearch-torrent` и `magnetz-torrent`, а его ограниченный request budget настраивается через `MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS`. `GET /media/torrents` возвращает только нормализованные candidates и непрозрачный handoff: маршрут не подключается к swarm, не выбирает файлы и не стримит media. `GET /providers/torrent` сообщает настроенные discovery providers.
 
-App-specific original-file runtime отделён от discovery. `docker compose --profile torrent-runtime up` запускает release `MatriX.141.1` по закреплённому digest во внутренней сети без host port. Internal adapter требует его точную `/echo` wire-version `MatriX.141`, принимает только hash-bound magnets или уже разрешённые ограниченные `.torrent` bytes и реализует health, add, metadata, exact-file target и drop. В этом checkpoint у него нет публичного controller.
+App-specific original-file runtime отделён от discovery. `docker compose --profile torrent-runtime up` запускает release `MatriX.141.1` по закреплённому digest во внутренней сети без host port. Internal adapter требует его точную `/echo` wire-version `MatriX.141`, принимает только hash-bound magnets или уже разрешённые ограниченные `.torrent` bytes и реализует health, add, metadata, exact-file target и drop.
+
+Session routes принимают ограниченную media query и только точные `provider`/opaque candidate `id`. API повторно разрешает observation, при необходимости загружает provider-owned `.torrent` с жёсткими size/time/redirect ограничениями и не принимает browser-controlled magnet, hash, upstream URL, path или TorrServer target. Session states: `adding`, `waiting_metadata`, `selection_required`, `ready`, `failed`, `stopped`, `expired`. Все обычные non-padding файлы предлагаются независимо от расширения; неоднозначный torrent требует один предложенный numeric file ID. Sessions с одинаковым hash совместно используют подготовку TorrServer, а последний stop/expiry/shutdown освобождает запись. В состоянии `ready` пока нет публичного stream URL и нет обещания поддержки codec браузером.
+
+Session lifetime, retention terminal-записей, cleanup cadence и timeout загрузки torrent-file ограничены настройками `MEDIA_ENGINE_TORRENT_SESSION_TTL_MS`, `MEDIA_ENGINE_TORRENT_SESSION_TERMINAL_RETENTION_MS`, `MEDIA_ENGINE_TORRENT_SESSION_CLEANUP_INTERVAL_MS` и `MEDIA_ENGINE_TORRENT_SOURCE_REQUEST_TIMEOUT_MS`.
 
 `/health/live` проверяет только способность API-процесса отвечать HTTP. `/health/ready` и обратно совместимый `/health` также проверяют provider circuits и возвращают `status: "degraded"`, если хотя бы один circuit открыт или восстанавливается. Degraded readiness остается HTTP 200, потому что API все еще может отдавать частичные результаты.
 

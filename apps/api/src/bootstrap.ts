@@ -12,7 +12,7 @@ export function configureApiApplication(
 ): void {
   app.enableCors({
     origin: config.corsOrigins,
-    methods: ['GET', 'HEAD', 'OPTIONS'],
+    methods: ['GET', 'HEAD', 'POST', 'DELETE', 'OPTIONS'],
   });
   app.use(
     createSecurityHeadersMiddleware({

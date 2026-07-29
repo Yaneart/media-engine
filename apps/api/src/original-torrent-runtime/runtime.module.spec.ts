@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import {
+  ORIGINAL_TORRENT_RUNTIME_CONFIG,
   OriginalTorrentRuntimeModule,
   TORRSERVER_ADAPTER,
 } from './runtime.module';
@@ -21,6 +22,7 @@ describe('OriginalTorrentRuntimeModule', () => {
     }).compile();
 
     expect(module.get(TORRSERVER_ADAPTER)).toBeUndefined();
+    expect(module.get(ORIGINAL_TORRENT_RUNTIME_CONFIG)).toBeUndefined();
   });
 
   it('provides the private adapter when the runtime is configured', async () => {
@@ -31,6 +33,10 @@ describe('OriginalTorrentRuntimeModule', () => {
     }).compile();
 
     expect(module.get(TORRSERVER_ADAPTER)).toBeInstanceOf(TorrServerAdapter);
+    expect(module.get(ORIGINAL_TORRENT_RUNTIME_CONFIG)).toMatchObject({
+      expectedVersion: 'MatriX.141',
+      maxTorrentBytes: 4 * 1024 * 1024,
+    });
   });
 });
 

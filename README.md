@@ -83,10 +83,12 @@ pinned internal-only service explicitly, run:
 docker compose --profile torrent-runtime up
 ```
 
-TorrServer has no host port. The current application layer can verify its exact version, add a
-server-resolved magnet or bounded `.torrent` payload, read exact file metadata, create an internal
-original-file target, and remove the entry. Browser sessions, public stream routes, and playback UI
-are not part of this checkpoint yet; no media worker, remuxer, transcoder, or HLS pipeline exists.
+TorrServer has no host port. The application can now create expiring server-owned sessions from an
+exact discovery observation, coalesce sessions that share an info hash, list every non-padding file
+without extension filtering, validate a selected numeric file ID, and clean up on stop, expiry, or
+API shutdown. The API never accepts a raw magnet, hash, upstream URL, path, or TorrServer target.
+The protected byte-stream route and browser player are later checkpoints; no media worker,
+remuxer, transcoder, or HLS pipeline exists.
 
 ## A small but important warning
 

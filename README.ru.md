@@ -83,10 +83,12 @@ pnpm dev:compose
 docker compose --profile torrent-runtime up
 ```
 
-TorrServer не публикует host port. Текущий application layer умеет проверить точную версию, добавить
-server-resolved magnet или ограниченный `.torrent` payload, прочитать точные file metadata, создать
-внутренний original-file target и удалить запись. Browser sessions, публичный stream route и
-playback UI в этот checkpoint пока не входят; media worker, remux, transcode и HLS отсутствуют.
+TorrServer не публикует host port. Application layer теперь создаёт expiring server-owned sessions
+из точного discovery observation, объединяет sessions с одинаковым info hash, показывает все
+non-padding файлы без фильтрации расширений, проверяет выбранный numeric file ID и очищает runtime
+при stop, expiry или shutdown API. API не принимает raw magnet, hash, upstream URL, path или
+TorrServer target. Защищённый byte-stream route и browser player относятся к следующим
+checkpoint; media worker, remux, transcode и HLS отсутствуют.
 
 ## Небольшое, но важное предупреждение
 

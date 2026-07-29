@@ -9,6 +9,7 @@ export {
   type OriginalTorrentRuntimeErrorCode,
 } from './runtime.errors';
 export {
+  ORIGINAL_TORRENT_RUNTIME_CONFIG,
   OriginalTorrentRuntimeModule,
   TORRSERVER_ADAPTER,
 } from './runtime.module';

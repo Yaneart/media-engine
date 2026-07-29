@@ -78,9 +78,12 @@ Availability is separate from metadata. Streaming providers receive a normalized
 
 The repository API also has an app-specific original-torrent runtime boundary. Its opt-in Compose
 service pins TorrServer release `MatriX.141.1` on an internal-only network and verifies its exact
-`MatriX.141` `/echo` wire-version. A private adapter accepts only server-resolved, hash-bound magnets or bounded torrent bytes,
-lists exact file IDs, forms internal original-file targets, and drops application entries. It does
-not extend public package contracts or expose a session/stream HTTP route at this checkpoint.
+`MatriX.141` `/echo` wire-version. A private adapter accepts only server-resolved, hash-bound magnets
+or bounded torrent bytes, lists exact file IDs, forms internal original-file targets, and drops
+application entries. A process-local session layer resolves an exact provider observation again,
+coalesces shared hashes, offers every non-padding file without extension filtering, validates only
+server-offered numeric IDs, and owns stop/expiry/shutdown cleanup. It does not extend public package
+contracts or expose a byte-stream HTTP route at this checkpoint.
 
 ## Identity and merging
 
