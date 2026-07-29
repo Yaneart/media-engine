@@ -87,8 +87,10 @@ TorrServer has no host port. The application can now create expiring server-owne
 exact discovery observation, coalesce sessions that share an info hash, list every non-padding file
 without extension filtering, validate a selected numeric file ID, and clean up on stop, expiry, or
 API shutdown. The API never accepts a raw magnet, hash, upstream URL, path, or TorrServer target.
-The protected byte-stream route and browser player are later checkpoints; no media worker,
-remuxer, transcoder, or HLS pipeline exists.
+A ready session exposes only a high-entropy application capability. Its protected `GET`/`HEAD`
+route streams the exact selected original file with strict single-range handling, backpressure,
+cancellation, and bounded cold-start timeouts while keeping TorrServer private. The browser player
+is a later checkpoint; no media worker, remuxer, transcoder, or HLS pipeline exists.
 
 ## A small but important warning
 

@@ -87,8 +87,10 @@ TorrServer не публикует host port. Application layer теперь с�
 из точного discovery observation, объединяет sessions с одинаковым info hash, показывает все
 non-padding файлы без фильтрации расширений, проверяет выбранный numeric file ID и очищает runtime
 при stop, expiry или shutdown API. API не принимает raw magnet, hash, upstream URL, path или
-TorrServer target. Защищённый byte-stream route и browser player относятся к следующим
-checkpoint; media worker, remux, transcode и HLS отсутствуют.
+TorrServer target. Готовая session раскрывает только high-entropy application capability. Её
+защищённый `GET`/`HEAD` route стримит точный выбранный original file со строгим single-range,
+backpressure, cancellation и ограниченными cold-start timeout, не раскрывая TorrServer. Browser
+player остаётся следующим checkpoint; media worker, remux, transcode и HLS отсутствуют.
 
 ## Небольшое, но важное предупреждение
 

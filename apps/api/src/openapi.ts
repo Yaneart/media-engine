@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-export const MEDIA_ENGINE_API_CONTRACT_VERSION = '0.6.0';
+export const MEDIA_ENGINE_API_CONTRACT_VERSION = '0.7.0';
 
 // EN: Register OpenAPI JSON and Swagger UI for the public REST API.
 // RU: Регистрирует OpenAPI JSON и Swagger UI для публичного REST API.
@@ -24,7 +24,11 @@ export function setupOpenApi(app: INestApplication): void {
     )
     .addTag(
       'original-torrent-sessions',
-      'App-specific server-owned torrent lifecycle and file selection. No byte-stream route is exposed yet.',
+      'App-specific server-owned torrent lifecycle and file selection.',
+    )
+    .addTag(
+      'original-torrent-streams',
+      'Protected original-file GET/HEAD streaming with validated single-range semantics.',
     )
     .build();
 

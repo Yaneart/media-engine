@@ -134,8 +134,10 @@ The repository Nest API exposes this package operation through an opt-in discove
 The repository additionally contains app-specific session routes under `/media/torrent-sessions`.
 Creation accepts a bounded discovery query and exact provider/opaque candidate identity, never raw
 source or target data. Status, numeric file selection, and stop remain repository API operations;
-they are intentionally not added to the public core/providers/SDK packages. A `ready` snapshot has
-validated an internal original-file target but exposes no stream capability yet.
+they are intentionally not added to the public core/providers/SDK packages. A `ready` snapshot
+contains an expiring high-entropy application `streamUrl`, not an internal target. `GET` and `HEAD`
+on that URL serve only the selected original file with one strict closed, open, or suffix byte
+range. Stop, expiry, upstream failure, and API restart invalidate the capability.
 
 ## Errors and partial failures
 
@@ -158,6 +160,8 @@ POST /media/torrent-sessions
 GET /media/torrent-sessions/:id
 POST /media/torrent-sessions/:id/selection
 DELETE /media/torrent-sessions/:id
+GET /media/torrent-streams/:capability
+HEAD /media/torrent-streams/:capability
 ```
 
 Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.

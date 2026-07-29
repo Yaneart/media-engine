@@ -82,8 +82,12 @@ service pins TorrServer release `MatriX.141.1` on an internal-only network and v
 or bounded torrent bytes, lists exact file IDs, forms internal original-file targets, and drops
 application entries. A process-local session layer resolves an exact provider observation again,
 coalesces shared hashes, offers every non-padding file without extension filtering, validates only
-server-offered numeric IDs, and owns stop/expiry/shutdown cleanup. It does not extend public package
-contracts or expose a byte-stream HTTP route at this checkpoint.
+server-offered numeric IDs, and owns stop/expiry/shutdown cleanup. A separate application gateway
+maps each ready selection to an expiring high-entropy capability and proxies only that exact target
+through strict `GET`/`HEAD` single-range semantics. It preserves backpressure and cancellation,
+bounds cold headers and body inactivity, and invalidates the capability with its session. None of
+this extends the public core/providers/SDK contracts or introduces probing, remuxing, transcoding,
+or HLS.
 
 ## Identity and merging
 

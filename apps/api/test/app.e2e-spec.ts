@@ -12,6 +12,8 @@ import {
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from './../src/media-engine';
 import { TORRSERVER_ADAPTER } from './../src/original-torrent-runtime';
+import { OriginalTorrentSessionService } from './../src/original-torrent-session/session.service';
+import { OriginalTorrentStreamGateway } from './../src/original-torrent-stream/stream-gateway';
 import { AppModule } from './../src/app.module';
 import { configureApiApplication } from './../src/bootstrap';
 import type { ApiRuntimeConfig } from './../src/runtime-config';
@@ -47,6 +49,7 @@ describe('Media Engine API (e2e)', () => {
     resolveFileTarget: jest.Mock;
     drop: jest.Mock;
   };
+  let torrentStreamFetch: jest.Mock;
 
   const searchResponse: SearchResponse = {
     query: {
@@ -152,6 +155,33 @@ describe('Media Engine API (e2e)', () => {
       }),
       drop: jest.fn().mockResolvedValue(undefined),
     };
+    torrentStreamFetch = jest.fn(
+      (_input: string | URL | Request, init?: RequestInit) => {
+        const range = new Headers(init?.headers).get('range');
+        const isHead = init?.method === 'HEAD';
+
+        if (range === 'bytes=10-19') {
+          return new Response(isHead ? null : new Uint8Array(10), {
+            status: 206,
+            headers: {
+              'accept-ranges': 'bytes',
+              'content-length': '10',
+              'content-range': 'bytes 10-19/100',
+              'content-type': 'video/mp4',
+            },
+          });
+        }
+
+        return new Response(isHead ? null : new Uint8Array(100), {
+          status: 200,
+          headers: {
+            'accept-ranges': 'bytes',
+            'content-length': '100',
+            'content-type': 'video/mp4',
+          },
+        });
+      },
+    );
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -160,6 +190,14 @@ describe('Media Engine API (e2e)', () => {
       .useValue(mediaEngine)
       .overrideProvider(TORRSERVER_ADAPTER)
       .useValue(torrentRuntime)
+      .overrideProvider(OriginalTorrentStreamGateway)
+      .useFactory({
+        factory: (sessions: OriginalTorrentSessionService) =>
+          new OriginalTorrentStreamGateway(sessions, {
+            fetch: torrentStreamFetch,
+          }),
+        inject: [OriginalTorrentSessionService],
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -279,12 +317,34 @@ describe('Media Engine API (e2e)', () => {
     expect(ready.body).toMatchObject({
       state: 'ready',
       selectedFile: { id: 1, path: 'original.unusual', length: 100 },
+      streamUrl: expect.stringMatching(
+        /^\/media\/torrent-streams\/[A-Za-z0-9_-]{43}$/u,
+      ),
     });
     expect(JSON.stringify(ready.body)).not.toContain('torrserver');
+    const streamUrl: unknown = ready.body.streamUrl;
+
+    if (typeof streamUrl !== 'string') {
+      throw new Error('Expected the ready session to expose a stream URL.');
+    }
+
+    await request(app.getHttpServer())
+      .get(streamUrl)
+      .set('Range', 'bytes=10-19')
+      .expect('Accept-Ranges', 'bytes')
+      .expect('Content-Range', 'bytes 10-19/100')
+      .expect('Content-Length', '10')
+      .expect(206);
+    await request(app.getHttpServer())
+      .head(streamUrl)
+      .expect('Content-Type', 'video/mp4')
+      .expect('Content-Length', '100')
+      .expect(200);
 
     await request(app.getHttpServer())
       .delete(`/media/torrent-sessions/${String(sessionId)}`)
       .expect(204);
+    await request(app.getHttpServer()).get(streamUrl).expect(410);
     expect(mediaEngine.discoverTorrents).toHaveBeenCalledWith(
       {
         type: 'movie',
@@ -366,7 +426,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.6.0',
+      version: '0.7.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/health/live');
@@ -378,6 +438,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.paths).toHaveProperty('/media/torrent-sessions');
     expect(body.paths).toHaveProperty('/media/torrent-sessions/{id}');
     expect(body.paths).toHaveProperty('/media/torrent-sessions/{id}/selection');
+    expect(body.paths).toHaveProperty('/media/torrent-streams/{capability}');
     expect(body.paths).toHaveProperty('/providers');
     expect(body.paths).toHaveProperty('/providers/streaming');
     expect(body.paths).toHaveProperty('/providers/torrent');

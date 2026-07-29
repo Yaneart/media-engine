@@ -40,6 +40,8 @@ POST /media/torrent-sessions
 GET /media/torrent-sessions/:id
 POST /media/torrent-sessions/:id/selection
 DELETE /media/torrent-sessions/:id
+GET /media/torrent-streams/:capability
+HEAD /media/torrent-streams/:capability
 GET /docs
 GET /docs-json
 ```
@@ -56,7 +58,9 @@ Torrent discovery по умолчанию выключен. В `MEDIA_ENGINE_TOR
 
 App-specific original-file runtime отделён от discovery. `docker compose --profile torrent-runtime up` запускает release `MatriX.141.1` по закреплённому digest во внутренней сети без host port. Internal adapter требует его точную `/echo` wire-version `MatriX.141`, принимает только hash-bound magnets или уже разрешённые ограниченные `.torrent` bytes и реализует health, add, metadata, exact-file target и drop.
 
-Session routes принимают ограниченную media query и только точные `provider`/opaque candidate `id`. API повторно разрешает observation, при необходимости загружает provider-owned `.torrent` с жёсткими size/time/redirect ограничениями и не принимает browser-controlled magnet, hash, upstream URL, path или TorrServer target. Session states: `adding`, `waiting_metadata`, `selection_required`, `ready`, `failed`, `stopped`, `expired`. Все обычные non-padding файлы предлагаются независимо от расширения; неоднозначный torrent требует один предложенный numeric file ID. Sessions с одинаковым hash совместно используют подготовку TorrServer, а последний stop/expiry/shutdown освобождает запись. В состоянии `ready` пока нет публичного stream URL и нет обещания поддержки codec браузером.
+Session routes принимают ограниченную media query и только точные `provider`/opaque candidate `id`. API повторно разрешает observation, при необходимости загружает provider-owned `.torrent` с жёсткими size/time/redirect ограничениями и не принимает browser-controlled magnet, hash, upstream URL, path или TorrServer target. Session states: `adding`, `waiting_metadata`, `selection_required`, `ready`, `failed`, `stopped`, `expired`. Все обычные non-padding файлы предлагаются независимо от расширения; неоднозначный torrent требует один предложенный numeric file ID. Sessions с одинаковым hash совместно используют подготовку TorrServer, а последний stop/expiry/shutdown освобождает запись.
+
+Snapshot в состоянии `ready` содержит expiring high-entropy `streamUrl`, но не upstream target. Его `GET`/`HEAD` route отдаёт точные выбранные original bytes, принимает один closed/open/suffix Range, возвращает строгие `200`/`206`/`416` metadata, пропускает только безопасные validators и стримит с backpressure. Отключение клиента, stop/expiry session, header deadline и inactivity body отменяют upstream work. Исправный original stream всё ещё не обещает поддержку codec браузером.
 
 Session lifetime, retention terminal-записей, cleanup cadence и timeout загрузки torrent-file ограничены настройками `MEDIA_ENGINE_TORRENT_SESSION_TTL_MS`, `MEDIA_ENGINE_TORRENT_SESSION_TERMINAL_RETENTION_MS`, `MEDIA_ENGINE_TORRENT_SESSION_CLEANUP_INTERVAL_MS` и `MEDIA_ENGINE_TORRENT_SOURCE_REQUEST_TIMEOUT_MS`.
 
@@ -74,6 +78,8 @@ Development Compose по умолчанию публикует API и example po
 pnpm --filter @media-engine/api typecheck
 pnpm --filter @media-engine/api test
 pnpm --filter @media-engine/api test:e2e
+# При запущенном torrent-runtime profile и уже собранном API:
+docker compose --profile torrent-runtime exec -T api node scripts/original-torrent-range-smoke.mjs
 ```
 
 Provider-код находится в `@media-engine/providers`, merging - в `@media-engine/core`. Это приложение только подключает их к HTTP и не раскрывает secrets в ответах.

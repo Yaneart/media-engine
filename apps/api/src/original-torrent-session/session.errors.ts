@@ -45,6 +45,22 @@ export class TorrentSourceResolutionError extends Error {
   }
 }
 
+export class OriginalTorrentStreamCapabilityError extends Error {
+  override readonly name = 'OriginalTorrentStreamCapabilityError';
+
+  constructor(
+    readonly code:
+      | 'torrent_pieces_unavailable'
+      | 'torrent_stream_failed'
+      | 'session_stopped'
+      | 'session_expired',
+    message: string,
+    readonly transient: boolean,
+  ) {
+    super(message);
+  }
+}
+
 export function mapSessionFailure(
   error: unknown,
 ): OriginalTorrentSessionFailure {

@@ -25,6 +25,7 @@ export type OriginalTorrentSessionErrorCode =
   | 'torrent_pieces_unavailable'
   | 'torrent_file_not_found'
   | 'torrent_file_selection_required'
+  | 'torrent_stream_failed'
   | 'session_stopped'
   | 'session_expired';
 
@@ -57,6 +58,7 @@ export interface OriginalTorrentSessionSnapshot {
   title?: string;
   files?: OriginalTorrentSessionFile[];
   selectedFile?: OriginalTorrentSessionFile;
+  streamUrl?: string;
   error?: OriginalTorrentSessionFailure;
   createdAt: string;
   updatedAt: string;
@@ -111,6 +113,7 @@ export interface OriginalTorrentSessionRecord {
   resourceReleased: boolean;
   selectionFileId?: number;
   selectionInProgress?: Promise<OriginalTorrentSessionSnapshot>;
+  streamCapability?: string;
 }
 
 export interface SharedTorrentResource {
@@ -122,4 +125,11 @@ export interface SharedTorrentResource {
   added: boolean;
   preparation: Promise<OriginalTorrentStatus>;
   closing?: Promise<void>;
+}
+
+export interface OriginalTorrentStreamAccess {
+  sessionId: string;
+  target: OriginalTorrentFileTarget;
+  expiresAtMs: number;
+  signal: AbortSignal;
 }

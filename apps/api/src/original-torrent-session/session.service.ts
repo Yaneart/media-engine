@@ -6,6 +6,7 @@ import {
   mapSessionFailure,
   OriginalTorrentSessionConflictError,
   OriginalTorrentSessionNotFoundError,
+  OriginalTorrentStreamCapabilityError,
 } from './session.errors';
 import type {
   CreateOriginalTorrentSessionInput,
@@ -14,12 +15,14 @@ import type {
   OriginalTorrentSessionRecord,
   OriginalTorrentSessionSnapshot,
   OriginalTorrentSourceResolver,
+  OriginalTorrentStreamAccess,
   SharedTorrentResource,
 } from './session.types';
 
 interface OriginalTorrentSessionServiceDependencies {
   now?: () => number;
   createId?: () => string;
+  createCapability?: () => string;
   setInterval?: typeof globalThis.setInterval;
   clearInterval?: typeof globalThis.clearInterval;
 }
@@ -27,8 +30,17 @@ interface OriginalTorrentSessionServiceDependencies {
 export class OriginalTorrentSessionService implements OnApplicationShutdown {
   private readonly sessions = new Map<string, OriginalTorrentSessionRecord>();
   private readonly resources = new Map<string, SharedTorrentResource>();
+  private readonly capabilities = new Map<string, string>();
+  private readonly retiredCapabilities = new Map<
+    string,
+    {
+      error: OriginalTorrentSessionFailure;
+      removeAtMs: number;
+    }
+  >();
   private readonly now: () => number;
   private readonly createId: () => string;
+  private readonly createCapability: () => string;
   private readonly clearInterval: typeof globalThis.clearInterval;
   private readonly cleanupTimer: ReturnType<typeof globalThis.setInterval>;
   private shuttingDown = false;
@@ -42,6 +54,8 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
   ) {
     this.now = dependencies.now ?? Date.now;
     this.createId = dependencies.createId ?? createRandomSessionId;
+    this.createCapability =
+      dependencies.createCapability ?? createRandomStreamCapability;
     this.clearInterval = dependencies.clearInterval ?? globalThis.clearInterval;
     const setIntervalFunction =
       dependencies.setInterval ?? globalThis.setInterval;
@@ -121,6 +135,67 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
     return record.selectionInProgress;
   }
 
+  async resolveStreamCapability(
+    capability: string,
+  ): Promise<OriginalTorrentStreamAccess> {
+    const sessionId = this.capabilities.get(capability);
+    if (sessionId === undefined) {
+      const retired = this.retiredCapabilities.get(capability);
+      if (retired !== undefined) {
+        throw new OriginalTorrentStreamCapabilityError(
+          mapCapabilityErrorCode(retired.error.code),
+          retired.error.message,
+          retired.error.transient,
+        );
+      }
+      throw new OriginalTorrentStreamCapabilityError(
+        'session_expired',
+        'The original torrent stream capability is invalid or expired.',
+        false,
+      );
+    }
+    const record = this.sessions.get(sessionId);
+    if (record === undefined) {
+      this.capabilities.delete(capability);
+      throw new OriginalTorrentStreamCapabilityError(
+        'session_expired',
+        'The original torrent stream capability is invalid or expired.',
+        false,
+      );
+    }
+    await this.expireIfDue(record);
+    if (
+      record.state !== 'ready' ||
+      record.target === undefined ||
+      record.streamCapability !== capability
+    ) {
+      throw new OriginalTorrentStreamCapabilityError(
+        record.state === 'stopped' ? 'session_stopped' : 'session_expired',
+        'The original torrent stream capability is no longer active.',
+        false,
+      );
+    }
+    return {
+      sessionId: record.id,
+      target: { ...record.target, url: new URL(record.target.url) },
+      expiresAtMs: record.expiresAtMs,
+      signal: record.controller.signal,
+    };
+  }
+
+  async failStreamCapability(
+    capability: string,
+    failure: OriginalTorrentSessionFailure,
+  ): Promise<void> {
+    const sessionId = this.capabilities.get(capability);
+    if (sessionId === undefined) return;
+    const record = this.sessions.get(sessionId);
+    if (record === undefined || record.state !== 'ready') return;
+    this.fail(record, failure);
+    record.controller.abort(new Error('Original torrent stream failed.'));
+    await this.releaseSessionResource(record);
+  }
+
   async stop(id: string): Promise<OriginalTorrentSessionSnapshot> {
     const record = this.requireSession(id);
     if (!isTerminal(record.state)) {
@@ -180,6 +255,11 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
         record.resourceReleased
       ) {
         this.sessions.delete(record.id);
+      }
+    }
+    for (const [capability, retired] of this.retiredCapabilities) {
+      if (now >= retired.removeAtMs) {
+        this.retiredCapabilities.delete(capability);
       }
     }
     await Promise.all(releases);
@@ -287,6 +367,7 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
       }
       record.selectedFile = file;
       record.target = target;
+      this.issueStreamCapability(record);
       this.transition(record, 'ready');
       return snapshot(record);
     } catch (error) {
@@ -433,6 +514,7 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
     record.state = state;
     record.error = error;
     record.target = undefined;
+    this.retireStreamCapability(record, error);
     record.terminalAtMs = this.now();
     this.touch(record);
   }
@@ -463,10 +545,49 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
     }
     throw new Error('Could not allocate a unique bounded torrent session ID.');
   }
+
+  private issueStreamCapability(record: OriginalTorrentSessionRecord): void {
+    this.retireStreamCapability(record, {
+      code: 'session_expired',
+      message: 'The previous stream capability expired.',
+      transient: false,
+    });
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const capability = this.createCapability();
+      if (
+        /^[A-Za-z0-9_-]{43}$/u.test(capability) &&
+        !this.capabilities.has(capability) &&
+        !this.retiredCapabilities.has(capability)
+      ) {
+        record.streamCapability = capability;
+        this.capabilities.set(capability, record.id);
+        return;
+      }
+    }
+    throw new Error('Could not allocate a unique torrent stream capability.');
+  }
+
+  private retireStreamCapability(
+    record: OriginalTorrentSessionRecord,
+    error: OriginalTorrentSessionFailure,
+  ): void {
+    const capability = record.streamCapability;
+    if (capability === undefined) return;
+    this.capabilities.delete(capability);
+    this.retiredCapabilities.set(capability, {
+      error,
+      removeAtMs: this.now() + this.config.terminalRetentionMs,
+    });
+    record.streamCapability = undefined;
+  }
 }
 
 function createRandomSessionId(): string {
   return randomBytes(24).toString('base64url');
+}
+
+function createRandomStreamCapability(): string {
+  return randomBytes(32).toString('base64url');
 }
 
 function isTerminal(state: OriginalTorrentSessionRecord['state']): boolean {
@@ -508,11 +629,34 @@ function snapshot(
     ...(record.selectedFile === undefined
       ? {}
       : { selectedFile: { ...record.selectedFile } }),
+    ...(record.streamCapability === undefined
+      ? {}
+      : {
+          streamUrl: `/media/torrent-streams/${record.streamCapability}`,
+        }),
     ...(record.error === undefined ? {} : { error: { ...record.error } }),
     createdAt: new Date(record.createdAtMs).toISOString(),
     updatedAt: new Date(record.updatedAtMs).toISOString(),
     expiresAt: new Date(record.expiresAtMs).toISOString(),
   };
+}
+
+function mapCapabilityErrorCode(
+  code: OriginalTorrentSessionFailure['code'],
+):
+  | 'torrent_pieces_unavailable'
+  | 'torrent_stream_failed'
+  | 'session_stopped'
+  | 'session_expired' {
+  if (
+    code === 'torrent_pieces_unavailable' ||
+    code === 'torrent_stream_failed' ||
+    code === 'session_stopped' ||
+    code === 'session_expired'
+  ) {
+    return code;
+  }
+  return 'torrent_stream_failed';
 }
 
 function raceWithSignal<T>(

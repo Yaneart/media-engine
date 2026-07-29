@@ -52,12 +52,32 @@ describe('original torrent session lifecycle', () => {
       { id: 2, path: 'movie/content.unknown-container', length: 1_000 },
     ]);
     expect(ready.selectedFile).toEqual(ready.files![0]);
+    expect(ready.streamUrl).toMatch(
+      /^\/media\/torrent-streams\/[A-Za-z0-9_-]{43}$/u,
+    );
     expect(JSON.stringify(ready)).not.toContain('torrserver');
     expect(adapter.resolveFileTarget).toHaveBeenCalledWith(HASH, 2, {
       signal: expect.any(AbortSignal),
     });
 
-    await service.stop(created.id);
+    const capability = ready.streamUrl!.split('/').at(-1)!;
+    await expect(
+      service.resolveStreamCapability(capability),
+    ).resolves.toMatchObject({
+      sessionId: created.id,
+      target: {
+        hash: HASH,
+        fileId: 2,
+        path: 'movie/content.unknown-container',
+      },
+    });
+    const stopped = await service.stop(created.id);
+    expect(stopped.streamUrl).toBeUndefined();
+    await expect(
+      service.resolveStreamCapability(capability),
+    ).rejects.toMatchObject({
+      code: 'session_stopped',
+    });
     expect(adapter.drop).toHaveBeenCalledWith(HASH);
   });
 
@@ -205,7 +225,8 @@ describe('original torrent session lifecycle', () => {
       terminalRetentionMs: 500,
     });
     const created = service.create(input);
-    await waitForState(service, created.id, 'ready');
+    const ready = await waitForState(service, created.id, 'ready');
+    const capability = ready.streamUrl!.split('/').at(-1)!;
 
     now += 1_000;
     await service.sweepExpiredSessions();
@@ -214,6 +235,11 @@ describe('original torrent session lifecycle', () => {
       error: { code: 'session_expired' },
     });
     expect(adapter.drop).toHaveBeenCalledWith(HASH);
+    await expect(
+      service.resolveStreamCapability(capability),
+    ).rejects.toMatchObject({
+      code: 'session_expired',
+    });
 
     now += 500;
     await service.sweepExpiredSessions();
@@ -252,6 +278,33 @@ describe('original torrent session lifecycle', () => {
       transient: true,
     });
     expect(resolver.resolve).not.toHaveBeenCalled();
+  });
+
+  it('invalidates the capability and releases TorrServer after a stream failure', async () => {
+    const adapter = createAdapter();
+    const service = createService(adapter);
+    const created = service.create(input);
+    const ready = await waitForState(service, created.id, 'ready');
+    const capability = ready.streamUrl!.split('/').at(-1)!;
+
+    await service.failStreamCapability(capability, {
+      code: 'torrent_pieces_unavailable',
+      message: 'Pieces stalled.',
+      transient: true,
+    });
+
+    const failed = await service.get(created.id);
+    expect(failed).toMatchObject({
+      state: 'failed',
+      error: { code: 'torrent_pieces_unavailable' },
+    });
+    expect(failed).not.toHaveProperty('streamUrl');
+    await expect(
+      service.resolveStreamCapability(capability),
+    ).rejects.toMatchObject({
+      code: 'torrent_pieces_unavailable',
+    });
+    expect(adapter.drop).toHaveBeenCalledWith(HASH);
   });
 
   it('shutdown stops sessions and releases different owned torrents', async () => {
@@ -296,6 +349,7 @@ describe('original torrent session lifecycle', () => {
     serviceConfig = config,
   ): OriginalTorrentSessionService {
     let id = 0;
+    let capability = 0;
     const service = new OriginalTorrentSessionService(
       adapter,
       resolver,
@@ -303,6 +357,7 @@ describe('original torrent session lifecycle', () => {
       {
         now,
         createId: () => String(++id).padStart(32, 'A'),
+        createCapability: () => String(++capability).padStart(43, 'C'),
       },
     );
     services.push(service);

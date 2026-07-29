@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HealthModule } from './health/health.module';
 import { MediaModule } from './media';
 import { OriginalTorrentSessionModule } from './original-torrent-session';
+import { OriginalTorrentStreamModule } from './original-torrent-stream';
 import { TorrentDiscoveryModule } from './torrent-discovery';
 
 @Module({
@@ -10,6 +11,7 @@ import { TorrentDiscoveryModule } from './torrent-discovery';
     MediaModule,
     TorrentDiscoveryModule,
     OriginalTorrentSessionModule,
+    OriginalTorrentStreamModule,
   ],
 })
 export class AppModule {}
