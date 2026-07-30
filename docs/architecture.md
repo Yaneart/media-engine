@@ -95,6 +95,12 @@ or HLS. The example maps this boundary to one native `<video>`, keeps metadata a
 from first-piece buffering, and treats native decode/source rejection as
 `client_format_unsupported` when the server session remains healthy.
 
+A shared original-torrent observability boundary emits allowlisted JSON events from the adapter,
+session lifecycle, and byte gateway. It records bounded timings, Range offsets, outcomes, active
+counts, references, ownership class, and cleanup without recording identifiers, torrent inputs,
+internal targets, credentials, or free-form errors. Observability failures cannot fail control or
+streaming work.
+
 ## Identity and merging
 
 Strong external IDs such as IMDb, Kinopoisk, Shikimori, MyAnimeList, and AniList are preferred when grouping results. Exact title, year, and compatible media type provide a secondary match.

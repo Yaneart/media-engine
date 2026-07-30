@@ -2,6 +2,7 @@ import { Readable, Transform, type TransformCallback } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import type { Request, Response } from 'express';
+import type { OriginalTorrentStreamTelemetryEvent } from '../original-torrent-observability';
 import { OriginalTorrentSessionService } from '../original-torrent-session/session.service';
 import type {
   OriginalTorrentSessionFailure,
@@ -31,6 +32,8 @@ interface OriginalTorrentStreamGatewayDependencies {
   maxHeaderRetries?: number;
   retryDelayMs?: number;
   maxConcurrentStreams?: number;
+  now?: () => number;
+  report?: (event: OriginalTorrentStreamTelemetryEvent) => void;
 }
 
 interface UpstreamResult {
@@ -51,6 +54,10 @@ export class OriginalTorrentStreamGateway {
   private readonly maxHeaderRetries: number;
   private readonly retryDelayMs: number;
   private readonly maxConcurrentStreams: number;
+  private readonly now: () => number;
+  private readonly report?: (
+    event: OriginalTorrentStreamTelemetryEvent,
+  ) => void;
   private activeStreams = 0;
 
   constructor(
@@ -62,6 +69,8 @@ export class OriginalTorrentStreamGateway {
     this.maxHeaderRetries = dependencies.maxHeaderRetries ?? 1;
     this.retryDelayMs = dependencies.retryDelayMs ?? 100;
     this.maxConcurrentStreams = dependencies.maxConcurrentStreams ?? 8;
+    this.now = dependencies.now ?? Date.now;
+    this.report = dependencies.report;
     if (
       !Number.isSafeInteger(this.maxHeaderRetries) ||
       this.maxHeaderRetries < 0 ||
@@ -112,7 +121,29 @@ export class OriginalTorrentStreamGateway {
       return;
     }
 
-    const releaseStream = this.acquireStream();
+    const rangeTelemetry = telemetryRange(range);
+    const startedAt = this.now();
+    let releaseStream: () => void;
+    try {
+      releaseStream = this.acquireStream();
+    } catch (error) {
+      this.emit({
+        event: 'finished',
+        outcome: 'failure',
+        method,
+        ...rangeTelemetry,
+        durationMs: elapsed(this.now(), startedAt),
+        activeStreams: this.activeStreams,
+        code: 'torrent_stream_capacity_exceeded',
+      });
+      throw error;
+    }
+    this.emit({
+      event: 'started',
+      method,
+      ...rangeTelemetry,
+      activeStreams: this.activeStreams,
+    });
 
     const downstream = new AbortController();
     let downstreamDisconnected = false;
@@ -137,7 +168,11 @@ export class OriginalTorrentStreamGateway {
     if (access.signal.aborted) onLifecycleEnd();
 
     let upstream: UpstreamResult | undefined;
+    let outcome: 'success' | 'failure' | 'cancelled' = 'success';
+    let failureCode: OriginalTorrentSessionFailure['code'] | undefined;
+    let upstreamWaitMs: number | undefined;
     try {
+      const upstreamStartedAt = this.now();
       upstream = await this.openWithRetry(
         access,
         method,
@@ -145,6 +180,15 @@ export class OriginalTorrentStreamGateway {
         ifRange,
         downstream.signal,
       );
+      upstreamWaitMs = elapsed(this.now(), upstreamStartedAt);
+      this.emit({
+        event: 'upstream_headers',
+        outcome: 'success',
+        method,
+        ...rangeTelemetry,
+        upstreamWaitMs,
+        activeStreams: this.activeStreams,
+      });
       const headers = validateUpstreamResponse(
         upstream.response,
         access,
@@ -179,6 +223,17 @@ export class OriginalTorrentStreamGateway {
           upstreamBodyFailure = true;
           upstream?.controller.abort(new OriginalTorrentInactivityError());
         },
+        () => {
+          this.emit({
+            event: 'first_byte',
+            outcome: 'success',
+            method,
+            ...rangeTelemetry,
+            durationMs: elapsed(this.now(), startedAt),
+            ...(upstreamWaitMs === undefined ? {} : { upstreamWaitMs }),
+            activeStreams: this.activeStreams,
+          });
+        },
       );
       const source = Readable.fromWeb(
         upstream.response.body as unknown as NodeReadableStream<Uint8Array>,
@@ -189,8 +244,14 @@ export class OriginalTorrentStreamGateway {
       try {
         await pipeline(source, guard, response);
       } catch (error) {
-        if (lifecycleEnded) return;
-        if (downstreamDisconnected && !upstreamBodyFailure) return;
+        if (lifecycleEnded) {
+          outcome = 'cancelled';
+          return;
+        }
+        if (downstreamDisconnected && !upstreamBodyFailure) {
+          outcome = 'cancelled';
+          return;
+        }
         const failure: OriginalTorrentSessionFailure = {
           code: 'torrent_pieces_unavailable',
           message:
@@ -199,14 +260,21 @@ export class OriginalTorrentStreamGateway {
               : 'The selected torrent stopped delivering original file bytes.',
           transient: true,
         };
+        outcome = 'failure';
+        failureCode = failure.code;
         await this.sessions.failStreamCapability(capability, failure);
         response.destroy(
           error instanceof Error ? error : new Error(failure.message),
         );
       }
     } catch (error) {
-      if (lifecycleEnded) return;
+      if (lifecycleEnded) {
+        outcome = 'cancelled';
+        return;
+      }
       if (error instanceof OriginalTorrentUpstreamStreamError) {
+        outcome = 'failure';
+        failureCode = error.failure.code;
         await upstream?.response.body?.cancel().catch(() => undefined);
         await this.sessions.failStreamCapability(capability, error.failure);
         throw error;
@@ -215,11 +283,24 @@ export class OriginalTorrentStreamGateway {
         downstreamDisconnected ||
         error instanceof OriginalTorrentClientDisconnectedError
       ) {
+        outcome = 'cancelled';
         return;
       }
+      outcome = 'failure';
+      failureCode = 'torrent_stream_failed';
       throw error;
     } finally {
       releaseStream();
+      this.emit({
+        event: 'finished',
+        outcome,
+        method,
+        ...rangeTelemetry,
+        durationMs: elapsed(this.now(), startedAt),
+        ...(upstreamWaitMs === undefined ? {} : { upstreamWaitMs }),
+        activeStreams: this.activeStreams,
+        ...(failureCode === undefined ? {} : { code: failureCode }),
+      });
       upstream?.unlink();
       request.removeListener('aborted', disconnect);
       response.removeListener('close', disconnect);
@@ -238,6 +319,14 @@ export class OriginalTorrentStreamGateway {
       released = true;
       this.activeStreams -= 1;
     };
+  }
+
+  private emit(event: OriginalTorrentStreamTelemetryEvent): void {
+    try {
+      this.report?.(event);
+    } catch {
+      // Telemetry must never change stream behavior.
+    }
   }
 
   private async openWithRetry(
@@ -506,12 +595,14 @@ function unavailableUpstream(
 class InactivityGuard extends Transform {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private receivedBytes = 0;
+  private firstByteReported = false;
 
   constructor(
     private readonly timeoutMs: number,
     private readonly expectedBytes: number,
     private readonly isDownstreamBackpressured: () => boolean,
     private readonly onTimeout: () => void,
+    private readonly onFirstByte: () => void,
   ) {
     super();
     this.resetTimer();
@@ -524,6 +615,10 @@ class InactivityGuard extends Transform {
     _encoding: BufferEncoding,
     callback: TransformCallback,
   ): void {
+    if (!this.firstByteReported && chunk.byteLength > 0) {
+      this.firstByteReported = true;
+      this.onFirstByte();
+    }
     this.receivedBytes += chunk.byteLength;
     if (this.receivedBytes >= this.expectedBytes) {
       this.clearTimer();
@@ -559,6 +654,21 @@ class InactivityGuard extends Transform {
     if (this.timer !== undefined) clearTimeout(this.timer);
     this.timer = undefined;
   }
+}
+
+function telemetryRange(
+  range: Exclude<OriginalTorrentByteRange, { kind: 'unsatisfiable' }>,
+): Pick<
+  OriginalTorrentStreamTelemetryEvent,
+  'range' | 'rangeStart' | 'rangeEnd'
+> {
+  return range.kind === 'full'
+    ? { range: 'full' }
+    : { range: 'partial', rangeStart: range.start, rangeEnd: range.end };
+}
+
+function elapsed(now: number, startedAt: number): number {
+  return Math.max(0, now - startedAt);
 }
 
 function abortableDelay(

@@ -422,22 +422,40 @@ export class TorrServerAdapter {
     operation: TorrServerAdapterEvent['operation'],
     task: () => Promise<T>,
   ): Promise<T> {
+    const startedAt = Date.now();
     try {
       const value = await task();
-      this.report?.({ operation, outcome: 'success' });
+      this.emit({
+        operation,
+        outcome: 'success',
+        durationMs: elapsed(Date.now(), startedAt),
+      });
       return value;
     } catch (error) {
       if (isOriginalTorrentRuntimeError(error)) {
-        this.report?.({
+        this.emit({
           operation,
           outcome: 'failure',
           code: error.code,
           transient: error.transient,
+          durationMs: elapsed(Date.now(), startedAt),
         });
       }
       throw error;
     }
   }
+
+  private emit(event: TorrServerAdapterEvent): void {
+    try {
+      this.report?.(event);
+    } catch {
+      // Telemetry must never change TorrServer control behavior.
+    }
+  }
+}
+
+function elapsed(now: number, startedAt: number): number {
+  return Math.max(0, now - startedAt);
 }
 
 async function readText(response: Response): Promise<string> {

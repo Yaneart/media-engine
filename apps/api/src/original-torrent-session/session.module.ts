@@ -1,5 +1,9 @@
 import { Module } from '@nestjs/common';
 import type { MediaEngine } from '@media-engine/core';
+import {
+  OriginalTorrentObservability,
+  OriginalTorrentObservabilityModule,
+} from '../original-torrent-observability';
 import { MEDIA_ENGINE, MediaEngineModule } from '../media-engine';
 import {
   ORIGINAL_TORRENT_RUNTIME_CONFIG,
@@ -30,7 +34,11 @@ export const ORIGINAL_TORRENT_SOURCE_RESOLVER = Symbol(
 );
 
 @Module({
-  imports: [MediaEngineModule, OriginalTorrentRuntimeModule],
+  imports: [
+    MediaEngineModule,
+    OriginalTorrentRuntimeModule,
+    OriginalTorrentObservabilityModule,
+  ],
   controllers: [OriginalTorrentSessionController],
   providers: [
     {
@@ -63,13 +71,17 @@ export const ORIGINAL_TORRENT_SOURCE_RESOLVER = Symbol(
         TORRSERVER_ADAPTER,
         ORIGINAL_TORRENT_SOURCE_RESOLVER,
         ORIGINAL_TORRENT_SESSION_CONFIG,
+        OriginalTorrentObservability,
       ],
       useFactory: (
         adapter: TorrServerAdapter | undefined,
         resolver: OriginalTorrentSourceResolver,
         config: OriginalTorrentSessionConfig,
+        observability: OriginalTorrentObservability,
       ): OriginalTorrentSessionService =>
-        new OriginalTorrentSessionService(adapter, resolver, config),
+        new OriginalTorrentSessionService(adapter, resolver, config, {
+          report: (event) => observability.session(event),
+        }),
     },
   ],
   exports: [OriginalTorrentSessionService, ORIGINAL_TORRENT_SESSION_CONFIG],

@@ -103,6 +103,10 @@ budget, который не затрагивает status, selection и Stop. Ex
 использует server-authenticated same-origin BFF для lifecycle calls и один нативный `<video>` для
 original capability. Он различает metadata wait и first-piece buffering, а отказ браузера сообщает
 как `client_format_unsupported`. Media worker, probe, remux, transcode и HLS отсутствуют.
+Структурированные server logs содержат только ограниченные operational fields: latency metadata и
+upstream wait, first-byte timing, Range offsets, cancellation/outcome, active counts, shared
+references и cleanup. В них не попадают capabilities, hashes, magnets, torrent bytes, имена файлов,
+internal URLs, credentials или исходные тексты ошибок.
 
 ## Небольшое, но важное предупреждение
 

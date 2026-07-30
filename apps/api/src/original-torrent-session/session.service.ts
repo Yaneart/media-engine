@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
+import type { OriginalTorrentSessionTelemetryEvent } from '../original-torrent-observability';
 import { isOriginalTorrentRuntimeError } from '../original-torrent-runtime';
 import { selectRegularTorrentFiles } from './file-selection';
 import type { OriginalTorrentSessionConfig } from './session.config';
@@ -27,6 +28,7 @@ interface OriginalTorrentSessionServiceDependencies {
   createCapability?: () => string;
   setInterval?: typeof globalThis.setInterval;
   clearInterval?: typeof globalThis.clearInterval;
+  report?: (event: OriginalTorrentSessionTelemetryEvent) => void;
 }
 
 export class OriginalTorrentSessionService
@@ -46,9 +48,14 @@ export class OriginalTorrentSessionService
   private readonly createId: () => string;
   private readonly createCapability: () => string;
   private readonly clearInterval: typeof globalThis.clearInterval;
+  private readonly report?: (
+    event: OriginalTorrentSessionTelemetryEvent,
+  ) => void;
   private readonly cleanupTimer: ReturnType<typeof globalThis.setInterval>;
   private shuttingDown = false;
   private activeCreations = 0;
+  private activeSessionCount = 0;
+  private resourceReferenceCount = 0;
   private sweepInProgress?: Promise<void>;
   private recoveryInProgress?: Promise<void>;
   private recovered = false;
@@ -64,6 +71,7 @@ export class OriginalTorrentSessionService
     this.createCapability =
       dependencies.createCapability ?? createRandomStreamCapability;
     this.clearInterval = dependencies.clearInterval ?? globalThis.clearInterval;
+    this.report = dependencies.report;
     const setIntervalFunction =
       dependencies.setInterval ?? globalThis.setInterval;
     this.cleanupTimer = setIntervalFunction(() => {
@@ -113,6 +121,8 @@ export class OriginalTorrentSessionService
         resourceReleased: true,
       };
       this.sessions.set(record.id, record);
+      this.activeSessionCount += 1;
+      this.emit({ event: 'session_created', state: record.state });
       void this.runCreation(record, input).finally(() => {
         this.activeCreations -= 1;
       });
@@ -455,6 +465,12 @@ export class OriginalTorrentSessionService
       }
       if (existing !== undefined) {
         existing.references.add(sessionId);
+        this.resourceReferenceCount += 1;
+        this.emit({
+          event: 'resource_reference',
+          outcome: 'success',
+          ownership: existing.lease?.ownership,
+        });
         return existing;
       }
 
@@ -469,6 +485,8 @@ export class OriginalTorrentSessionService
       };
       resource.preparation = this.prepareResource(resource);
       this.resources.set(resource.hash, resource);
+      this.resourceReferenceCount += 1;
+      this.emit({ event: 'resource_reference', outcome: 'success' });
       return resource;
     }
   }
@@ -479,6 +497,7 @@ export class OriginalTorrentSessionService
     Awaited<ReturnType<OriginalTorrentRuntimeAdapter['waitForMetadata']>>
   > {
     const adapter = this.adapter!;
+    const startedAt = this.now();
     try {
       await adapter.health({ signal: resource.controller.signal });
       const added = await adapter.add(resource.source, {
@@ -495,9 +514,21 @@ export class OriginalTorrentSessionService
               signal: resource.controller.signal,
             });
       resource.phase = 'ready';
+      this.emit({
+        event: 'metadata_ready',
+        outcome: 'success',
+        ownership: resource.lease.ownership,
+        durationMs: elapsed(this.now(), startedAt),
+        files: status.files.length,
+      });
       return status;
     } catch (error) {
       resource.phase = 'failed';
+      this.emit({
+        event: 'metadata_ready',
+        outcome: resource.controller.signal.aborted ? 'cancelled' : 'failure',
+        durationMs: elapsed(this.now(), startedAt),
+      });
       throw error;
     }
   }
@@ -518,7 +549,9 @@ export class OriginalTorrentSessionService
     record.resourceReleased = true;
     const resource = record.resource;
     if (resource === undefined) return;
-    resource.references.delete(record.id);
+    if (resource.references.delete(record.id)) {
+      this.resourceReferenceCount -= 1;
+    }
     if (resource.references.size === 0) {
       await this.closeResource(resource);
     }
@@ -531,6 +564,7 @@ export class OriginalTorrentSessionService
       new Error('No original torrent sessions remain.'),
     );
     resource.closing = (async () => {
+      let outcome: 'success' | 'failure' = 'success';
       try {
         await resource.preparation;
       } catch {
@@ -540,10 +574,18 @@ export class OriginalTorrentSessionService
         if (resource.lease !== undefined && this.adapter !== undefined) {
           await this.adapter.release(resource.lease);
         }
+      } catch (error) {
+        outcome = 'failure';
+        throw error;
       } finally {
         if (this.resources.get(resource.hash) === resource) {
           this.resources.delete(resource.hash);
         }
+        this.emit({
+          event: 'cleanup',
+          outcome,
+          ownership: resource.lease?.ownership,
+        });
       }
     })();
     return resource.closing;
@@ -586,7 +628,14 @@ export class OriginalTorrentSessionService
     record.target = undefined;
     this.retireStreamCapability(record, error);
     record.terminalAtMs = this.now();
+    this.activeSessionCount -= 1;
     this.touch(record);
+    this.emit({
+      event: 'session_state',
+      state,
+      outcome: state === 'failed' ? 'failure' : 'cancelled',
+      code: error.code,
+    });
   }
 
   private transition(
@@ -596,6 +645,7 @@ export class OriginalTorrentSessionService
     record.state = state;
     record.error = undefined;
     this.touch(record);
+    this.emit({ event: 'session_state', state, outcome: 'success' });
   }
 
   private touch(record: OriginalTorrentSessionRecord): void {
@@ -658,20 +708,58 @@ export class OriginalTorrentSessionService
     if (this.recoveryInProgress !== undefined) {
       return this.recoveryInProgress;
     }
+    const startedAt = this.now();
     this.recoveryInProgress = this.adapter
       .recoverOwned()
       .then(() => {
         this.recovered = true;
+        this.emit({
+          event: 'recovery',
+          outcome: 'success',
+          durationMs: elapsed(this.now(), startedAt),
+        });
+      })
+      .catch((error: unknown) => {
+        this.emit({
+          event: 'recovery',
+          outcome: 'failure',
+          durationMs: elapsed(this.now(), startedAt),
+        });
+        throw error;
       })
       .finally(() => {
         this.recoveryInProgress = undefined;
       });
     return this.recoveryInProgress;
   }
+
+  private emit(
+    event: Omit<
+      OriginalTorrentSessionTelemetryEvent,
+      'activeSessions' | 'activeCreations' | 'resources' | 'references'
+    >,
+  ): void {
+    if (this.report === undefined) return;
+    try {
+      this.report({
+        ...event,
+        activeSessions: this.activeSessionCount,
+        activeCreations: this.activeCreations,
+        resources: this.resources.size,
+        references: this.resourceReferenceCount,
+      });
+    } catch {
+      // Telemetry must never change torrent lifecycle behavior.
+    }
+  }
 }
 
 function createRandomSessionId(): string {
   return randomBytes(24).toString('base64url');
+}
+
+function elapsed(now: number, startedAt: number): number {
+  return Math.max(0, now - startedAt);
 }
 
 function createRandomStreamCapability(): string {

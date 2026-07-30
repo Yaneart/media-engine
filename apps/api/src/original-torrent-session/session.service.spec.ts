@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method -- Jest mock methods are inspected, not detached and invoked. */
 import { OriginalTorrentRuntimeError } from '../original-torrent-runtime';
+import type { OriginalTorrentSessionTelemetryEvent } from '../original-torrent-observability';
 import type { OriginalTorrentSessionConfig } from './session.config';
 import {
   OriginalTorrentSessionConflictError,
@@ -427,6 +428,147 @@ describe('original torrent session lifecycle', () => {
     });
   });
 
+  it.each([
+    'recovery',
+    'health',
+    'add',
+    'metadata',
+    'validate',
+    'target',
+  ] as const)(
+    'maps a TorrServer outage during %s and releases any acquired lease',
+    async (phase) => {
+      const adapter = createAdapter(phase === 'metadata' ? [] : undefined);
+      const outage = new OriginalTorrentRuntimeError(
+        'unavailable',
+        `TorrServer ${phase} outage.`,
+        true,
+      );
+      if (phase === 'recovery') adapter.recoverOwned.mockRejectedValue(outage);
+      if (phase === 'health') adapter.health.mockRejectedValue(outage);
+      if (phase === 'add') adapter.add.mockRejectedValue(outage);
+      if (phase === 'metadata') {
+        adapter.waitForMetadata.mockRejectedValue(outage);
+      }
+      if (phase === 'validate') adapter.validateLease.mockRejectedValue(outage);
+      if (phase === 'target') {
+        adapter.resolveFileTarget.mockRejectedValue(outage);
+      }
+      const service = createService(adapter);
+      const created = service.create(input);
+      const failed = await waitForState(service, created.id, 'failed');
+
+      expect(failed.error).toMatchObject({
+        code: 'torrent_pieces_unavailable',
+        transient: true,
+      });
+      const acquired = ['metadata', 'validate', 'target'].includes(phase);
+      if (acquired) {
+        await waitUntil(() => adapter.release.mock.calls.length === 1);
+      } else {
+        expect(adapter.release).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it('reports metadata latency, active references, terminal state, and cleanup without identifiers', async () => {
+    const events: OriginalTorrentSessionTelemetryEvent[] = [];
+    let now = 100;
+    const adapter = createAdapter();
+    const service = createService(
+      adapter,
+      undefined,
+      () => (now += 10),
+      config,
+      (event) => events.push(event),
+    );
+    const created = service.create(input);
+    const ready = await waitForState(service, created.id, 'ready');
+    await service.stop(created.id);
+
+    expect(ready.state).toBe('ready');
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: 'metadata_ready',
+          outcome: 'success',
+          ownership: 'application',
+          durationMs: expect.any(Number),
+          files: 1,
+          resources: 1,
+          references: 1,
+        }),
+        expect.objectContaining({
+          event: 'session_state',
+          state: 'stopped',
+          outcome: 'cancelled',
+          activeSessions: 0,
+        }),
+        expect.objectContaining({
+          event: 'cleanup',
+          outcome: 'success',
+          resources: 0,
+          references: 0,
+        }),
+      ]),
+    );
+    const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain(created.id);
+    expect(serialized).not.toContain(HASH);
+    expect(serialized).not.toContain('Example release');
+    expect(serialized).not.toContain('magnet:');
+  });
+
+  it('soaks repeated shared sessions without retained records, references, or torrents', async () => {
+    const events: OriginalTorrentSessionTelemetryEvent[] = [];
+    let now = Date.parse('2026-07-30T00:00:00.000Z');
+    const adapter = createAdapter();
+    const service = createService(
+      adapter,
+      undefined,
+      () => now,
+      { ...config, terminalRetentionMs: 1 },
+      (event) => events.push(event),
+    );
+
+    for (let cycle = 0; cycle < 16; cycle += 1) {
+      const created = Array.from({ length: 4 }, (_, index) =>
+        service.create({
+          ...input,
+          observation: {
+            provider: 'provider-a',
+            id: `cycle-${cycle}-session-${index}`,
+          },
+        }),
+      );
+      await Promise.all(
+        created.map((record) => waitForState(service, record.id, 'ready')),
+      );
+      await Promise.all(created.map((record) => service.stop(record.id)));
+      now += 2;
+      await service.sweepExpiredSessions();
+      await Promise.all(
+        created.map((record) =>
+          expect(service.get(record.id)).rejects.toBeInstanceOf(
+            OriginalTorrentSessionNotFoundError,
+          ),
+        ),
+      );
+    }
+
+    expect(adapter.add).toHaveBeenCalledTimes(16);
+    expect(adapter.release).toHaveBeenCalledTimes(16);
+    expect(events.filter((event) => event.event === 'cleanup')).toHaveLength(
+      16,
+    );
+    expect(events.at(-1)).toMatchObject({
+      resources: 0,
+      references: 0,
+      activeSessions: 0,
+      activeCreations: 0,
+    });
+  });
+
   it('shutdown stops sessions and releases different owned torrents', async () => {
     const adapter = createAdapter();
     const resolver = createResolver((call) =>
@@ -471,6 +613,7 @@ describe('original torrent session lifecycle', () => {
     resolver: OriginalTorrentSourceResolver = createResolver(),
     now?: () => number,
     serviceConfig = config,
+    report?: (event: OriginalTorrentSessionTelemetryEvent) => void,
   ): OriginalTorrentSessionService {
     let id = 0;
     let capability = 0;
@@ -482,6 +625,7 @@ describe('original torrent session lifecycle', () => {
         now,
         createId: () => String(++id).padStart(32, 'A'),
         createCapability: () => String(++capability).padStart(43, 'C'),
+        report,
       },
     );
     services.push(service);

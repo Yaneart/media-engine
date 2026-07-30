@@ -3,6 +3,7 @@ import { Writable, type WritableOptions } from 'node:stream';
 import type { Request, Response as ExpressResponse } from 'express';
 import type { OriginalTorrentSessionService } from '../original-torrent-session/session.service';
 import type { OriginalTorrentStreamAccess } from '../original-torrent-session/session.types';
+import type { OriginalTorrentStreamTelemetryEvent } from '../original-torrent-observability';
 import { OriginalTorrentStreamCapacityError } from './stream.errors';
 import { OriginalTorrentStreamGateway } from './stream-gateway';
 import { OriginalTorrentRangeInputError } from './stream-range';
@@ -87,6 +88,65 @@ describe('protected original torrent stream gateway', () => {
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({
       headers: expect.objectContaining({ range: 'bytes=90-99' }),
     });
+  });
+
+  it('reports redacted Range, upstream wait, first-byte, and active-stream telemetry', async () => {
+    const events: OriginalTorrentStreamTelemetryEvent[] = [];
+    const sessions = createSessions(access(100));
+    let now = 0;
+    const gateway = new OriginalTorrentStreamGateway(sessions.service, {
+      fetch: jest.fn().mockResolvedValue(
+        new Response(new Uint8Array(10), {
+          status: 206,
+          headers: {
+            'content-length': '10',
+            'content-range': 'bytes 10-19/100',
+          },
+        }),
+      ),
+      now: () => (now += 5),
+      report: (event) => events.push(event),
+    });
+
+    await gateway.handle(
+      request({ range: 'bytes=10-19' }),
+      new FakeResponse().asExpress(),
+      CAPABILITY,
+      'GET',
+    );
+
+    expect(events.map((event) => event.event)).toEqual([
+      'started',
+      'upstream_headers',
+      'first_byte',
+      'finished',
+    ]);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: 'upstream_headers',
+          range: 'partial',
+          rangeStart: 10,
+          rangeEnd: 19,
+          upstreamWaitMs: 5,
+          activeStreams: 1,
+        }),
+        expect.objectContaining({
+          event: 'first_byte',
+          durationMs: expect.any(Number),
+          activeStreams: 1,
+        }),
+        expect.objectContaining({
+          event: 'finished',
+          outcome: 'success',
+          activeStreams: 0,
+        }),
+      ]),
+    );
+    const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain(CAPABILITY);
+    expect(serialized).not.toContain(HASH);
+    expect(serialized).not.toContain('torrserver');
   });
 
   it('supports HEAD and forwards a bounded If-Range validator', async () => {
@@ -292,6 +352,7 @@ describe('protected original torrent stream gateway', () => {
 
   it('aborts an upstream header request on downstream disconnect without failing the session', async () => {
     const sessions = createSessions(access(10));
+    const events: OriginalTorrentStreamTelemetryEvent[] = [];
     const fetch = jest.fn((_url, init?: RequestInit) => {
       return new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener(
@@ -303,6 +364,7 @@ describe('protected original torrent stream gateway', () => {
     });
     const gateway = new OriginalTorrentStreamGateway(sessions.service, {
       fetch,
+      report: (event) => events.push(event),
     });
     const response = new FakeResponse();
     const pending = gateway.handle(
@@ -316,6 +378,11 @@ describe('protected original torrent stream gateway', () => {
     await pending;
 
     expect(sessions.sessions.failStreamCapability).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({
+      event: 'finished',
+      outcome: 'cancelled',
+      activeStreams: 0,
+    });
   });
 
   it('aborts an active body immediately when the owning session stops', async () => {

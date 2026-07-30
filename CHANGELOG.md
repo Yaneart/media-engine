@@ -8,6 +8,11 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added structured, redacted original-torrent runtime/session/stream observability for operation and
+  metadata latency, upstream header wait, first body byte, exact Range position, cancellation,
+  active sessions/streams, shared references, and cleanup. Deterministic outage coverage now spans
+  recovery, health, add, metadata, lease validation, target resolution, cold headers, and stalled
+  bodies; a repeated shared-session soak verifies complete record, reference, and torrent cleanup.
 - Added deterministic TorrServer ownership and restart recovery for original-file sessions. Each
   deployment marks only entries it creates, borrows pre-existing entries without deleting them,
   removes its stale owned entries at startup, and validates a timestamped ownership lease before

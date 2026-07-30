@@ -101,6 +101,10 @@ requests, leaving status, selection, and Stop available. The example uses a
 server-authenticated same-origin BFF for lifecycle calls and one native `<video>` for that original
 capability. It distinguishes metadata wait from first-piece buffering and reports browser rejection
 as `client_format_unsupported`. No media worker, probe, remuxer, transcoder, or HLS pipeline exists.
+Structured server logs expose only bounded operational fields: metadata and upstream wait latency,
+first-byte timing, Range offsets, cancellation/outcome, active counts, shared references, and
+cleanup. They never include capabilities, hashes, magnets, torrent bytes, file names, internal URLs,
+credentials, or raw error messages.
 
 ## A small but important warning
 

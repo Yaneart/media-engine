@@ -4,6 +4,11 @@ Media Engine separates deterministic repository checks from best-effort third-pa
 checks. A provider outage must not make pull requests flaky, and a real contract regression must
 not be hidden as an ordinary upstream warning.
 
+Original-torrent deterministic tests additionally inject TorrServer outages across recovery,
+control, metadata, selection, and stream phases, verify telemetry redaction, and repeatedly cycle
+shared sessions to prove terminal records, references, and runtime entries are cleaned up. These
+tests use local fakes and do not depend on public swarms.
+
 ## Deterministic CI
 
 Every push and pull request installs the frozen pnpm lockfile and runs the complete

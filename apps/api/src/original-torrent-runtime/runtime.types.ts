@@ -74,4 +74,5 @@ export interface TorrServerAdapterEvent {
   outcome: 'success' | 'failure';
   code?: string;
   transient?: boolean;
+  durationMs: number;
 }

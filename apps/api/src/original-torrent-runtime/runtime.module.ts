@@ -1,5 +1,9 @@
 import { Module } from '@nestjs/common';
 import {
+  OriginalTorrentObservability,
+  OriginalTorrentObservabilityModule,
+} from '../original-torrent-observability';
+import {
   readOriginalTorrentRuntimeConfig,
   type OriginalTorrentRuntimeConfig,
 } from './runtime.config';
@@ -11,6 +15,7 @@ export const ORIGINAL_TORRENT_RUNTIME_CONFIG = Symbol(
 );
 
 @Module({
+  imports: [OriginalTorrentObservabilityModule],
   providers: [
     {
       provide: ORIGINAL_TORRENT_RUNTIME_CONFIG,
@@ -18,11 +23,16 @@ export const ORIGINAL_TORRENT_RUNTIME_CONFIG = Symbol(
     },
     {
       provide: TORRSERVER_ADAPTER,
-      inject: [ORIGINAL_TORRENT_RUNTIME_CONFIG],
+      inject: [ORIGINAL_TORRENT_RUNTIME_CONFIG, OriginalTorrentObservability],
       useFactory: (
         config: OriginalTorrentRuntimeConfig | undefined,
+        observability: OriginalTorrentObservability,
       ): TorrServerAdapter | undefined =>
-        config === undefined ? undefined : new TorrServerAdapter(config),
+        config === undefined
+          ? undefined
+          : new TorrServerAdapter(config, {
+              report: (event) => observability.runtime(event),
+            }),
     },
   ],
   exports: [ORIGINAL_TORRENT_RUNTIME_CONFIG, TORRSERVER_ADAPTER],

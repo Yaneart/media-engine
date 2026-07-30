@@ -582,17 +582,39 @@ describe('TorrServerAdapter fake-server contract', () => {
     ).rejects.toBeInstanceOf(OriginalTorrentRuntimeError);
 
     expect(events).toEqual([
-      { operation: 'health', outcome: 'success' },
-      {
+      expect.objectContaining({
+        operation: 'health',
+        outcome: 'success',
+        durationMs: expect.any(Number),
+      }),
+      expect.objectContaining({
         operation: 'add',
         outcome: 'failure',
         code: 'source_invalid',
         transient: false,
-      },
+        durationMs: expect.any(Number),
+      }),
     ]);
     expect(JSON.stringify(events)).not.toContain(HASH);
     expect(JSON.stringify(events)).not.toContain('Secret');
     expect(JSON.stringify(events)).not.toContain(baseUrl);
+  });
+
+  it('keeps control behavior independent from telemetry failures', async () => {
+    const adapter = createAdapter(
+      baseUrl,
+      {},
+      {
+        report: () => {
+          throw new Error('telemetry sink failed');
+        },
+      },
+    );
+
+    await expect(adapter.health()).resolves.toEqual({
+      version: 'MatriX.141',
+      compatible: true,
+    });
   });
 
   it('bounds concurrent work and rejects excess queue entries', async () => {

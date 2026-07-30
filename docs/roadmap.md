@@ -28,8 +28,9 @@ The `0.1.x` releases established and hardened the first public baseline:
    The opt-in discovery bridge, minimal internal TorrServer adapter, authenticated server-owned
    session/file selection lifecycle, protected original HTTP/Range gateway, and example's native
    browser player are complete. Bounded creation/stream concurrency and a create-only per-client
-   budget, deterministic ownership, startup recovery, and runtime-restart detection are complete;
-   observability and outage/soak validation remain next. Do not reintroduce media probing, remux,
+   budget, deterministic ownership, startup recovery, runtime-restart detection, redacted
+   observability, phase-by-phase outage coverage, and cleanup soak validation are complete. Final
+   deterministic and cross-browser acceptance remains next. Do not reintroduce media probing, remux,
    transcode, HLS, FFmpeg, worker processes, external-player fallback, or broad runtime profiles.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
