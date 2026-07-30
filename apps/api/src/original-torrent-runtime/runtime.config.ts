@@ -6,11 +6,13 @@ const DEFAULT_METADATA_POLL_INTERVAL_MS = 250;
 const DEFAULT_COLD_STREAM_HEADER_TIMEOUT_MS = 45_000;
 const DEFAULT_COLD_STREAM_INACTIVITY_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_TORRENT_BYTES = 4 * 1024 * 1024;
+const DEFAULT_OWNER_ID = 'media-engine-default';
 
 const MAX_TIMEOUT_MS = 5 * 60_000;
 const MAX_TORRENT_BYTES = 16 * 1024 * 1024;
 const MAX_BASE_URL_LENGTH = 2_048;
 const MAX_VERSION_LENGTH = 128;
+const OWNER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/u;
 
 export interface OriginalTorrentRuntimeEnv extends NodeJS.ProcessEnv {
   MEDIA_ENGINE_TORRSERVER_URL?: string;
@@ -22,11 +24,13 @@ export interface OriginalTorrentRuntimeEnv extends NodeJS.ProcessEnv {
   MEDIA_ENGINE_TORRSERVER_COLD_STREAM_HEADER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_TORRSERVER_COLD_STREAM_INACTIVITY_TIMEOUT_MS?: string;
   MEDIA_ENGINE_TORRSERVER_MAX_TORRENT_BYTES?: string;
+  MEDIA_ENGINE_TORRSERVER_OWNER_ID?: string;
 }
 
 export interface OriginalTorrentRuntimeConfig {
   baseUrl: URL;
   expectedVersion: string;
+  ownerId: string;
   controlConnectTimeoutMs: number;
   controlRequestTimeoutMs: number;
   metadataTimeoutMs: number;
@@ -102,6 +106,7 @@ export function readOriginalTorrentRuntimeConfig(
     expectedVersion: readExpectedVersion(
       env.MEDIA_ENGINE_TORRSERVER_EXPECTED_VERSION,
     ),
+    ownerId: readOwnerId(env.MEDIA_ENGINE_TORRSERVER_OWNER_ID),
     controlConnectTimeoutMs: connectTimeoutMs,
     controlRequestTimeoutMs: requestTimeoutMs,
     metadataTimeoutMs,
@@ -136,6 +141,16 @@ export function readOriginalTorrentRuntimeConfig(
     maxControlRetries: 1,
     retryDelayMs: 100,
   };
+}
+
+function readOwnerId(value: string | undefined): string {
+  const ownerId = readOptional(value) ?? DEFAULT_OWNER_ID;
+  if (!OWNER_ID_PATTERN.test(ownerId)) {
+    throw new Error(
+      'MEDIA_ENGINE_TORRSERVER_OWNER_ID must contain 8-64 URL-safe characters and start with a letter or digit.',
+    );
+  }
+  return ownerId;
 }
 
 function readBaseUrl(value: string): URL {

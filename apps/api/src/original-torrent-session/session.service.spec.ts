@@ -81,7 +81,9 @@ describe('original torrent session lifecycle', () => {
     ).rejects.toMatchObject({
       code: 'session_stopped',
     });
-    expect(adapter.drop).toHaveBeenCalledWith(HASH);
+    expect(adapter.release).toHaveBeenCalledWith(
+      expect.objectContaining({ hash: HASH, ownership: 'application' }),
+    );
   });
 
   it('requires a server-offered numeric ID for ambiguous files', async () => {
@@ -124,16 +126,18 @@ describe('original torrent session lifecycle', () => {
 
     await waitUntil(() => adapter.add.mock.calls.length === 1);
     expect(adapter.health).toHaveBeenCalledTimes(1);
-    add.resolve(status([{ id: 1, path: 'original.bin', length: 100 }]));
+    add.resolve(acquiredStatus([{ id: 1, path: 'original.bin', length: 100 }]));
     await waitForState(service, first.id, 'ready');
     await waitForState(service, second.id, 'ready');
     expect(adapter.add).toHaveBeenCalledTimes(1);
 
     await service.stop(first.id);
-    expect(adapter.drop).not.toHaveBeenCalled();
+    expect(adapter.release).not.toHaveBeenCalled();
     await service.stop(second.id);
-    expect(adapter.drop).toHaveBeenCalledTimes(1);
-    expect(adapter.drop).toHaveBeenCalledWith(HASH);
+    expect(adapter.release).toHaveBeenCalledTimes(1);
+    expect(adapter.release).toHaveBeenCalledWith(
+      expect.objectContaining({ hash: HASH, ownership: 'application' }),
+    );
   });
 
   it('cancels source resolution when creation is stopped', async () => {
@@ -166,7 +170,7 @@ describe('original torrent session lifecycle', () => {
     await settle();
     expect(adapter.health).not.toHaveBeenCalled();
     expect(adapter.add).not.toHaveBeenCalled();
-    expect(adapter.drop).not.toHaveBeenCalled();
+    expect(adapter.release).not.toHaveBeenCalled();
   });
 
   it('bounds concurrent creation and releases capacity after cancellation', async () => {
@@ -215,14 +219,14 @@ describe('original torrent session lifecycle', () => {
   it('does not re-add a hash when stopped while waiting for its prior drop', async () => {
     const dropping = deferred<void>();
     const adapter = createAdapter();
-    adapter.drop.mockReturnValue(dropping.promise);
+    adapter.release.mockReturnValue(dropping.promise);
     const resolver = createResolver();
     const service = createService(adapter, resolver);
     const first = service.create(input);
     await waitForState(service, first.id, 'ready');
 
     const firstStop = service.stop(first.id);
-    await waitUntil(() => adapter.drop.mock.calls.length === 1);
+    await waitUntil(() => adapter.release.mock.calls.length === 1);
     const second = service.create(input);
     await waitUntil(() => resolver.resolve.mock.calls.length === 2);
     await settle();
@@ -255,7 +259,7 @@ describe('original torrent session lifecycle', () => {
       message: 'Metadata timed out.',
       transient: true,
     });
-    await waitUntil(() => adapter.drop.mock.calls.length === 1);
+    await waitUntil(() => adapter.release.mock.calls.length === 1);
     await expect(service.stop(created.id)).resolves.toMatchObject({
       state: 'failed',
       error: { code: 'torrent_metadata_timeout' },
@@ -280,7 +284,9 @@ describe('original torrent session lifecycle', () => {
       state: 'expired',
       error: { code: 'session_expired' },
     });
-    expect(adapter.drop).toHaveBeenCalledWith(HASH);
+    expect(adapter.release).toHaveBeenCalledWith(
+      expect.objectContaining({ hash: HASH, ownership: 'application' }),
+    );
     await expect(
       service.resolveStreamCapability(capability),
     ).rejects.toMatchObject({
@@ -310,7 +316,7 @@ describe('original torrent session lifecycle', () => {
     const failed = await waitForState(service, created.id, 'failed');
 
     expect(failed.error?.code).toBe('torrent_file_not_found');
-    await waitUntil(() => adapter.drop.mock.calls.length === 1);
+    await waitUntil(() => adapter.release.mock.calls.length === 1);
   });
 
   it('reports disabled TorrServer without resolving or joining a swarm', async () => {
@@ -350,7 +356,75 @@ describe('original torrent session lifecycle', () => {
     ).rejects.toMatchObject({
       code: 'torrent_pieces_unavailable',
     });
-    expect(adapter.drop).toHaveBeenCalledWith(HASH);
+    expect(adapter.release).toHaveBeenCalledWith(
+      expect.objectContaining({ hash: HASH, ownership: 'application' }),
+    );
+  });
+
+  it('invalidates a stale capability after TorrServer replaces its lease', async () => {
+    const adapter = createAdapter();
+    adapter.validateLease
+      .mockResolvedValueOnce(
+        status([{ id: 1, path: 'original.bin', length: 100 }]),
+      )
+      .mockRejectedValueOnce(
+        new OriginalTorrentRuntimeError(
+          'runtime_restarted',
+          'TorrServer restarted.',
+          true,
+        ),
+      );
+    const service = createService(adapter);
+    const created = service.create(input);
+    const ready = await waitForState(service, created.id, 'ready');
+    const capability = ready.streamUrl!.split('/').at(-1)!;
+
+    await expect(
+      service.resolveStreamCapability(capability),
+    ).rejects.toMatchObject({
+      code: 'torrserver_restarted',
+      transient: true,
+    });
+    await expect(service.get(created.id)).resolves.toMatchObject({
+      state: 'failed',
+      error: { code: 'torrserver_restarted', transient: true },
+    });
+    await expect(
+      service.resolveStreamCapability(capability),
+    ).rejects.toMatchObject({ code: 'torrserver_restarted' });
+  });
+
+  it('runs startup recovery before resolving a new observation', async () => {
+    const adapter = createAdapter();
+    const recovery = deferred<void>();
+    adapter.recoverOwned.mockReturnValue(recovery.promise);
+    const resolver = createResolver();
+    const service = createService(adapter, resolver);
+    const created = service.create(input);
+
+    await settle();
+    expect(adapter.recoverOwned).toHaveBeenCalledTimes(1);
+    expect(resolver.resolve).not.toHaveBeenCalled();
+    recovery.resolve();
+    await waitForState(service, created.id, 'ready');
+    expect(resolver.resolve).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects API startup when the pinned TorrServer version is incompatible', async () => {
+    const adapter = createAdapter();
+    adapter.recoverOwned.mockRejectedValue(
+      new OriginalTorrentRuntimeError(
+        'incompatible_version',
+        'TorrServer version mismatch.',
+        false,
+      ),
+    );
+    const service = createService(adapter);
+
+    await expect(service.onModuleInit()).rejects.toMatchObject({
+      code: 'incompatible_version',
+      transient: false,
+    });
   });
 
   it('shutdown stops sessions and releases different owned torrents', async () => {
@@ -374,9 +448,13 @@ describe('original torrent session lifecycle', () => {
     await expect(service.get(second.id)).resolves.toMatchObject({
       state: 'stopped',
     });
-    expect(adapter.drop).toHaveBeenCalledTimes(2);
-    expect(adapter.drop).toHaveBeenCalledWith(HASH);
-    expect(adapter.drop).toHaveBeenCalledWith(SECOND_HASH);
+    expect(adapter.release).toHaveBeenCalledTimes(2);
+    expect(adapter.release).toHaveBeenCalledWith(
+      expect.objectContaining({ hash: HASH, ownership: 'application' }),
+    );
+    expect(adapter.release).toHaveBeenCalledWith(
+      expect.objectContaining({ hash: SECOND_HASH, ownership: 'application' }),
+    );
   });
 
   it('rejects selection outside selection_required state', async () => {
@@ -416,10 +494,21 @@ function createAdapter(
 ): jest.Mocked<OriginalTorrentRuntimeAdapter> {
   const addedStatus = status(addedFiles);
   return {
+    recoverOwned: jest.fn().mockResolvedValue(undefined),
     health: jest
       .fn()
       .mockResolvedValue({ version: 'MatriX.141', compatible: true }),
-    add: jest.fn().mockResolvedValue(addedStatus),
+    add: jest.fn((source) =>
+      Promise.resolve({
+        ...addedStatus,
+        hash: source.expectedHash,
+        lease: {
+          hash: source.expectedHash,
+          timestamp: 1,
+          ownership: 'application' as const,
+        },
+      }),
+    ),
     waitForMetadata: jest.fn().mockResolvedValue(addedStatus),
     resolveFileTarget: jest.fn((hash, fileId) => {
       const file = addedStatus.files.find((entry) => entry.id === fileId)!;
@@ -433,7 +522,8 @@ function createAdapter(
         inactivityTimeoutMs: 1_000,
       });
     }),
-    drop: jest.fn().mockResolvedValue(undefined),
+    validateLease: jest.fn().mockResolvedValue(addedStatus),
+    release: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -479,6 +569,13 @@ function status(files: { id: number; path: string; length: number }[]) {
     loadedSize: 0,
     torrentSize: files.reduce((sum, file) => sum + file.length, 0),
     files,
+  };
+}
+
+function acquiredStatus(files: { id: number; path: string; length: number }[]) {
+  return {
+    ...status(files),
+    lease: { hash: HASH, timestamp: 1, ownership: 'application' as const },
   };
 }
 

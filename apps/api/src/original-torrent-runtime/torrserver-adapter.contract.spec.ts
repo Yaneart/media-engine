@@ -14,6 +14,7 @@ import { TorrServerAdapter } from './torrserver-adapter';
 
 const HASH = 'a'.repeat(40);
 const OTHER_HASH = 'b'.repeat(40);
+const OWNER_MARKER = 'media-engine-original:v1:media-engine-default';
 const FILE_STATUS = {
   hash: HASH,
   stat: 3,
@@ -22,6 +23,7 @@ const FILE_STATUS = {
   loaded_size: 0,
   torrent_size: 7,
   file_stats: [{ id: 1, path: 'fixture.bin', length: 7 }],
+  timestamp: 1,
 };
 
 type FakeHandler = (
@@ -84,6 +86,14 @@ describe('TorrServerAdapter fake-server contract', () => {
   });
 
   it('adds a hash-bound magnet without persisting it', async () => {
+    handler = async (request, response) => {
+      const body = await recordRequest(request, requests);
+      const action = parseAction(body);
+      if (action === 'get') response.writeHead(404).end();
+      else if (action === 'add') {
+        json(response, 200, { ...FILE_STATUS, data: OWNER_MARKER });
+      } else response.writeHead(400).end();
+    };
     const adapter = createAdapter(baseUrl);
     await expect(
       adapter.add({
@@ -95,17 +105,25 @@ describe('TorrServerAdapter fake-server contract', () => {
     ).resolves.toMatchObject({ hash: HASH });
 
     const body = JSON.parse(
-      new TextDecoder().decode(requests[0]?.body),
+      new TextDecoder().decode(requests[1]?.body),
     ) as Record<string, unknown>;
     expect(body).toEqual({
       action: 'add',
       link: `magnet:?xt=urn:btih:${HASH}&dn=Fixture`,
       save_to_db: false,
+      data: OWNER_MARKER,
       title: 'Fixture',
     });
   });
 
   it('uploads one bounded torrent payload as multipart without a remote URL', async () => {
+    handler = async (request, response) => {
+      await recordRequest(request, requests);
+      if (request.url === '/torrents') response.writeHead(404).end();
+      else if (request.url === '/torrent/upload') {
+        json(response, 200, [{ ...FILE_STATUS, data: OWNER_MARKER }]);
+      } else response.writeHead(400).end();
+    };
     const adapter = createAdapter(baseUrl);
     const bytes = new TextEncoder().encode('d4:infod4:name7:fixtureee');
 
@@ -118,16 +136,140 @@ describe('TorrServerAdapter fake-server contract', () => {
       }),
     ).resolves.toMatchObject({ hash: HASH, files: FILE_STATUS.file_stats });
 
-    const request = requests[0];
+    const request = requests[1];
     expect(request?.url).toBe('/torrent/upload');
     const body = new TextDecoder().decode(request?.body);
     expect(body).toContain('name="file"; filename="source.torrent"');
     expect(body).toContain('application/x-bittorrent');
     expect(body).toContain('d4:infod4:name7:fixtureee');
+    expect(body).toContain(OWNER_MARKER);
     expect(body).not.toContain('save');
   });
 
-  it('lists exact metadata, resolves only a recorded file ID, and drops by hash', async () => {
+  it('borrows a pre-existing torrent and never drops it', async () => {
+    handler = async (request, response) => {
+      const body = await recordRequest(request, requests);
+      if (parseAction(body) === 'get') json(response, 200, FILE_STATUS);
+      else response.writeHead(500).end();
+    };
+    const adapter = createAdapter(baseUrl);
+    const acquired = await adapter.add({
+      kind: 'magnet',
+      uri: `magnet:?xt=urn:btih:${HASH}`,
+      expectedHash: HASH,
+    });
+
+    expect(acquired.lease).toEqual({
+      hash: HASH,
+      timestamp: 1,
+      ownership: 'external',
+    });
+    await adapter.release(acquired.lease);
+    expect(requests.map((request) => parseAction(request.body))).toEqual([
+      'get',
+    ]);
+  });
+
+  it('releases only the matching application-owned lease', async () => {
+    handler = async (request, response) => {
+      const body = await recordRequest(request, requests);
+      const action = parseAction(body);
+      if (action === 'get') {
+        json(response, 200, { ...FILE_STATUS, data: OWNER_MARKER });
+      } else if (action === 'drop') response.writeHead(200).end();
+      else response.writeHead(400).end();
+    };
+    const adapter = createAdapter(baseUrl);
+
+    await expect(
+      adapter.release({
+        hash: HASH,
+        timestamp: 1,
+        ownership: 'application',
+      }),
+    ).resolves.toBeUndefined();
+    expect(requests.map((request) => parseAction(request.body))).toEqual([
+      'get',
+      'drop',
+    ]);
+  });
+
+  it('recovers only stale torrents with the exact owner marker', async () => {
+    handler = async (request, response) => {
+      const body = await recordRequest(request, requests);
+      if (request.url === '/echo') {
+        response.writeHead(200, { 'content-type': 'text/plain' });
+        response.end('MatriX.141');
+        return;
+      }
+      const action = parseAction(body);
+      if (action === 'list') {
+        json(response, 200, [
+          { ...FILE_STATUS, data: OWNER_MARKER },
+          { ...FILE_STATUS, hash: OTHER_HASH, data: 'user-data' },
+        ]);
+      } else if (action === 'drop') response.writeHead(200).end();
+      else response.writeHead(400).end();
+    };
+
+    await expect(
+      createAdapter(baseUrl).recoverOwned(),
+    ).resolves.toBeUndefined();
+    const actions = requests
+      .filter((request) => request.url === '/torrents')
+      .map(
+        (request): unknown =>
+          JSON.parse(new TextDecoder().decode(request.body)) as unknown,
+      );
+    expect(actions).toEqual([
+      { action: 'list' },
+      { action: 'drop', hash: HASH },
+    ]);
+  });
+
+  it('detects a replaced ownership lease and preserves the replacement', async () => {
+    let getCount = 0;
+    handler = async (request, response) => {
+      const body = await recordRequest(request, requests);
+      const action = parseAction(body);
+      if (action === 'get') {
+        getCount += 1;
+        if (getCount === 1) response.writeHead(404).end();
+        else {
+          json(response, 200, {
+            ...FILE_STATUS,
+            timestamp: getCount === 2 ? 1 : 2,
+            data: getCount === 2 ? OWNER_MARKER : 'replacement',
+          });
+        }
+      } else if (action === 'add') {
+        json(response, 200, { ...FILE_STATUS, data: OWNER_MARKER });
+      } else if (action === 'drop') response.writeHead(200).end();
+      else response.writeHead(400).end();
+    };
+    const adapter = createAdapter(baseUrl);
+    const acquired = await adapter.add({
+      kind: 'magnet',
+      uri: `magnet:?xt=urn:btih:${HASH}`,
+      expectedHash: HASH,
+    });
+
+    await expect(adapter.validateLease(acquired.lease)).resolves.toMatchObject({
+      hash: HASH,
+    });
+    await expect(adapter.validateLease(acquired.lease)).rejects.toMatchObject({
+      code: 'runtime_restarted',
+      transient: true,
+    });
+    await expect(adapter.release(acquired.lease)).resolves.toBeUndefined();
+    expect(
+      requests
+        .filter((request) => request.url === '/torrents')
+        .map((request) => parseAction(request.body)),
+    ).not.toContain('drop');
+  });
+
+  it('lists exact metadata and resolves only a recorded file ID', async () => {
     const adapter = createAdapter(baseUrl);
     await expect(adapter.get(HASH)).resolves.toMatchObject({
       hash: HASH,
@@ -149,12 +291,14 @@ describe('TorrServerAdapter fake-server contract', () => {
     await expect(adapter.resolveFileTarget(HASH, 2)).rejects.toMatchObject({
       code: 'file_not_found',
     });
-    await expect(adapter.drop(HASH)).resolves.toBeUndefined();
+    await expect(
+      adapter.release({ hash: HASH, timestamp: 1, ownership: 'external' }),
+    ).resolves.toBeUndefined();
 
     const actions = requests
       .filter((request) => request.url === '/torrents')
       .map((request) => parseAction(request.body));
-    expect(actions).toEqual(['get', 'get', 'get', 'get', 'drop']);
+    expect(actions).toEqual(['get', 'get', 'get', 'get']);
   });
 
   it('polls boundedly until embedded metadata appears', async () => {
@@ -253,13 +397,17 @@ describe('TorrServerAdapter fake-server contract', () => {
         expectedHash: HASH,
       }),
     ).rejects.toMatchObject({ code: 'unavailable' });
-    expect(attempts).toBe(1);
+    expect(attempts).toBe(2);
+    expect(
+      requests.slice(-2).map((request) => parseAction(request.body)),
+    ).toEqual(['get', 'get']);
   });
 
   it('maps an add rejection to a source failure', async () => {
     handler = async (request, response) => {
-      await recordRequest(request, requests);
-      response.writeHead(400).end();
+      const body = await recordRequest(request, requests);
+      if (parseAction(body) === 'get') response.writeHead(404).end();
+      else response.writeHead(400).end();
     };
     await expect(
       createAdapter(baseUrl).add({

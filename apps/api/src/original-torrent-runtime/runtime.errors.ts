@@ -9,6 +9,7 @@ export type OriginalTorrentRuntimeErrorCode =
   | 'rejected'
   | 'unavailable'
   | 'incompatible_version'
+  | 'runtime_restarted'
   | 'invalid_response'
   | 'response_too_large'
   | 'source_invalid'

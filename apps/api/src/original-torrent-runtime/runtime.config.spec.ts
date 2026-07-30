@@ -15,6 +15,7 @@ describe('original torrent runtime configuration', () => {
 
     expect(config).toMatchObject({
       expectedVersion: 'MatriX.141',
+      ownerId: 'media-engine-default',
       controlConnectTimeoutMs: 3_000,
       controlRequestTimeoutMs: 10_000,
       metadataTimeoutMs: 60_000,
@@ -40,10 +41,12 @@ describe('original torrent runtime configuration', () => {
       MEDIA_ENGINE_TORRSERVER_COLD_STREAM_HEADER_TIMEOUT_MS: '3000',
       MEDIA_ENGINE_TORRSERVER_COLD_STREAM_INACTIVITY_TIMEOUT_MS: '4000',
       MEDIA_ENGINE_TORRSERVER_MAX_TORRENT_BYTES: '2048',
+      MEDIA_ENGINE_TORRSERVER_OWNER_ID: 'deployment_owner-01',
     });
 
     expect(config).toMatchObject({
       expectedVersion: 'MatriX.142',
+      ownerId: 'deployment_owner-01',
       controlConnectTimeoutMs: 500,
       controlRequestTimeoutMs: 1_000,
       metadataTimeoutMs: 2_000,
@@ -112,5 +115,11 @@ describe('original torrent runtime configuration', () => {
         MEDIA_ENGINE_TORRSERVER_MAX_TORRENT_BYTES: String(17 * 1024 * 1024),
       }),
     ).toThrow(/between 1024 and 16777216/);
+    expect(() =>
+      readOriginalTorrentRuntimeConfig({
+        MEDIA_ENGINE_TORRSERVER_URL: 'http://torrserver:8090',
+        MEDIA_ENGINE_TORRSERVER_OWNER_ID: 'bad owner',
+      }),
+    ).toThrow(/OWNER_ID/u);
   });
 });

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import type { OnApplicationShutdown } from '@nestjs/common';
+import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
+import { isOriginalTorrentRuntimeError } from '../original-torrent-runtime';
 import { selectRegularTorrentFiles } from './file-selection';
 import type { OriginalTorrentSessionConfig } from './session.config';
 import {
@@ -28,7 +29,9 @@ interface OriginalTorrentSessionServiceDependencies {
   clearInterval?: typeof globalThis.clearInterval;
 }
 
-export class OriginalTorrentSessionService implements OnApplicationShutdown {
+export class OriginalTorrentSessionService
+  implements OnApplicationShutdown, OnModuleInit
+{
   private readonly sessions = new Map<string, OriginalTorrentSessionRecord>();
   private readonly resources = new Map<string, SharedTorrentResource>();
   private readonly capabilities = new Map<string, string>();
@@ -47,6 +50,8 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
   private shuttingDown = false;
   private activeCreations = 0;
   private sweepInProgress?: Promise<void>;
+  private recoveryInProgress?: Promise<void>;
+  private recovered = false;
 
   constructor(
     private readonly adapter: OriginalTorrentRuntimeAdapter | undefined,
@@ -65,6 +70,20 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
       void this.sweepExpiredSessions();
     }, config.cleanupIntervalMs);
     this.cleanupTimer.unref?.();
+  }
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.ensureRecovered();
+    } catch (error) {
+      if (
+        !isOriginalTorrentRuntimeError(error) ||
+        error.code !== 'incompatible_version'
+      ) {
+        return;
+      }
+      throw error;
+    }
   }
 
   create(
@@ -188,6 +207,23 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
         false,
       );
     }
+    try {
+      if (this.adapter !== undefined && record.resource?.lease !== undefined) {
+        await this.adapter.validateLease(record.resource.lease, {
+          signal: record.controller.signal,
+        });
+      }
+    } catch (error) {
+      const failure = this.mapFailure(error);
+      this.fail(record, failure);
+      record.controller.abort(new Error('Original torrent runtime changed.'));
+      await this.releaseSessionResource(record);
+      throw new OriginalTorrentStreamCapabilityError(
+        mapCapabilityErrorCode(failure.code),
+        failure.message,
+        failure.transient,
+      );
+    }
     return {
       sessionId: record.id,
       target: { ...record.target, url: new URL(record.target.url) },
@@ -292,6 +328,9 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
         return;
       }
 
+      await this.ensureRecovered();
+      if (isTerminal(record.state)) return;
+
       const resolved = await this.resolver.resolve(
         input,
         record.controller.signal,
@@ -338,7 +377,7 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
       await this.completeSelection(record, files[0].id);
     } catch (error) {
       if (isTerminal(record.state)) return;
-      this.fail(record, mapSessionFailure(error));
+      this.fail(record, this.mapFailure(error));
       await this.releaseSessionResource(record);
     }
   }
@@ -360,6 +399,15 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
           'The selected file is no longer available to this session.',
         );
       }
+      if (resource.lease === undefined) {
+        throw new OriginalTorrentSessionConflictError(
+          'torrent_file_not_found',
+          'The torrent ownership lease is no longer available.',
+        );
+      }
+      await this.adapter.validateLease(resource.lease, {
+        signal: record.controller.signal,
+      });
       const target = await this.adapter.resolveFileTarget(
         resource.hash,
         fileId,
@@ -386,7 +434,7 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
     } catch (error) {
       if (error instanceof OriginalTorrentSessionConflictError) throw error;
       if (!isTerminal(record.state)) {
-        this.fail(record, mapSessionFailure(error));
+        this.fail(record, this.mapFailure(error));
         await this.releaseSessionResource(record);
       }
       return snapshot(record);
@@ -427,7 +475,9 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
 
   private async prepareResource(
     resource: SharedTorrentResource,
-  ): Promise<Awaited<ReturnType<OriginalTorrentRuntimeAdapter['add']>>> {
+  ): Promise<
+    Awaited<ReturnType<OriginalTorrentRuntimeAdapter['waitForMetadata']>>
+  > {
     const adapter = this.adapter!;
     try {
       await adapter.health({ signal: resource.controller.signal });
@@ -435,6 +485,7 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
         signal: resource.controller.signal,
       });
       resource.added = true;
+      resource.lease = added.lease;
       resource.phase = 'waiting_metadata';
       this.notifyResourcePhase(resource);
       const status =
@@ -486,8 +537,8 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
         // Preparation failures are reflected on the sessions; cleanup still continues.
       }
       try {
-        if (resource.added && this.adapter !== undefined) {
-          await this.adapter.drop(resource.hash);
+        if (resource.lease !== undefined && this.adapter !== undefined) {
+          await this.adapter.release(resource.lease);
         }
       } finally {
         if (this.resources.get(resource.hash) === resource) {
@@ -517,6 +568,12 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
     error: OriginalTorrentSessionFailure,
   ): void {
     this.makeTerminal(record, 'failed', error);
+  }
+
+  private mapFailure(error: unknown): OriginalTorrentSessionFailure {
+    const failure = mapSessionFailure(error);
+    if (failure.code === 'torrserver_restarted') this.recovered = false;
+    return failure;
   }
 
   private makeTerminal(
@@ -593,6 +650,24 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
     });
     record.streamCapability = undefined;
   }
+
+  private ensureRecovered(): Promise<void> {
+    if (this.adapter === undefined || this.recovered) {
+      return Promise.resolve();
+    }
+    if (this.recoveryInProgress !== undefined) {
+      return this.recoveryInProgress;
+    }
+    this.recoveryInProgress = this.adapter
+      .recoverOwned()
+      .then(() => {
+        this.recovered = true;
+      })
+      .finally(() => {
+        this.recoveryInProgress = undefined;
+      });
+    return this.recoveryInProgress;
+  }
 }
 
 function createRandomSessionId(): string {
@@ -659,11 +734,15 @@ function mapCapabilityErrorCode(
 ):
   | 'torrent_pieces_unavailable'
   | 'torrent_stream_failed'
+  | 'torrserver_incompatible'
+  | 'torrserver_restarted'
   | 'session_stopped'
   | 'session_expired' {
   if (
     code === 'torrent_pieces_unavailable' ||
     code === 'torrent_stream_failed' ||
+    code === 'torrserver_incompatible' ||
+    code === 'torrserver_restarted' ||
     code === 'session_stopped' ||
     code === 'session_expired'
   ) {

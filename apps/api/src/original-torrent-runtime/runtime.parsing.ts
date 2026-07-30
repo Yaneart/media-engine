@@ -116,6 +116,21 @@ export function parseTorrentStatus(
   };
 }
 
+export function parseTorrentTimestamp(value: unknown): number {
+  const record = requireRecord(value, 'torrent status');
+  return requireInteger(
+    record.timestamp,
+    'timestamp',
+    1,
+    Number.MAX_SAFE_INTEGER,
+  );
+}
+
+export function hasTorrentOwnerMarker(value: unknown, marker: string): boolean {
+  const record = requireRecord(value, 'torrent status');
+  return record.data === marker;
+}
+
 export function parseUploadedTorrent(
   value: unknown,
   expectedHash: string,

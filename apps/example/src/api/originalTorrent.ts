@@ -10,6 +10,8 @@ export type OriginalTorrentSessionState =
 
 export type OriginalTorrentErrorCode =
   | "torrserver_unavailable"
+  | "torrserver_incompatible"
+  | "torrserver_restarted"
   | "torrent_source_invalid"
   | "torrent_metadata_timeout"
   | "torrent_pieces_unavailable"

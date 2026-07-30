@@ -30,6 +30,18 @@ export interface OriginalTorrentStatus {
   files: OriginalTorrentFile[];
 }
 
+export type OriginalTorrentOwnership = 'application' | 'external';
+
+export interface OriginalTorrentRuntimeLease {
+  hash: string;
+  timestamp: number;
+  ownership: OriginalTorrentOwnership;
+}
+
+export interface AcquiredOriginalTorrent extends OriginalTorrentStatus {
+  lease: OriginalTorrentRuntimeLease;
+}
+
 export interface TorrServerRuntimeHealth {
   version: string;
   compatible: true;
@@ -50,7 +62,15 @@ export interface OriginalTorrentOperationOptions {
 }
 
 export interface TorrServerAdapterEvent {
-  operation: 'health' | 'add' | 'get' | 'metadata' | 'target' | 'drop';
+  operation:
+    | 'health'
+    | 'recover'
+    | 'add'
+    | 'get'
+    | 'metadata'
+    | 'target'
+    | 'validate'
+    | 'drop';
   outcome: 'success' | 'failure';
   code?: string;
   transient?: boolean;

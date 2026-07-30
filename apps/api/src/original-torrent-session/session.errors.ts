@@ -61,6 +61,8 @@ export class OriginalTorrentStreamCapabilityError extends Error {
     readonly code:
       | 'torrent_pieces_unavailable'
       | 'torrent_stream_failed'
+      | 'torrserver_incompatible'
+      | 'torrserver_restarted'
       | 'session_stopped'
       | 'session_expired',
     message: string,
@@ -97,6 +99,12 @@ function mapRuntimeFailure(
   message: string,
   transient: boolean,
 ): OriginalTorrentSessionFailure {
+  if (code === 'incompatible_version') {
+    return { code: 'torrserver_incompatible', message, transient: false };
+  }
+  if (code === 'runtime_restarted') {
+    return { code: 'torrserver_restarted', message, transient: true };
+  }
   if (code === 'source_invalid' || code === 'rejected') {
     return { code: 'torrent_source_invalid', message, transient };
   }

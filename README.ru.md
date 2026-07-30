@@ -89,8 +89,14 @@ trackers, DHT и peers. Application layer создаёт expiring server-owned s
 из точного discovery observation, объединяет sessions с одинаковым info hash, показывает все
 non-padding файлы без фильтрации расширений, проверяет выбранный numeric file ID и очищает runtime
 при stop, expiry или shutdown API. API не принимает raw magnet, hash, upstream URL, path или
-TorrServer target. Готовая session раскрывает только high-entropy application capability. Её
-защищённый `GET`/`HEAD` route стримит точный выбранный original file со строгим single-range,
+TorrServer target.
+Стабильный и уникальный для deployment `MEDIA_ENGINE_TORRSERVER_OWNER_ID` помечает только записи,
+созданные этим API. При startup удаляются его старые помеченные записи, а уже существующие
+непомеченные записи используются без последующего удаления. Timestamped ownership lease аннулирует
+устаревшую stream capability при restart TorrServer или замене записи; несовместимая закреплённая
+версия runtime останавливает startup API.
+Готовая session раскрывает только high-entropy application capability. Её защищённый `GET`/`HEAD`
+route стримит точный выбранный original file со строгим single-range,
 backpressure, cancellation, ограниченными cold-start timeout и active-stream concurrency, не
 раскрывая TorrServer. Создание sessions также ограничено по concurrency и отдельным per-client
 budget, который не затрагивает status, selection и Stop. Example

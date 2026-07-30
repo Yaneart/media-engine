@@ -3,10 +3,12 @@ import type {
   TorrentCandidate,
 } from '@media-engine/core';
 import type {
+  AcquiredOriginalTorrent,
   OriginalTorrentFile,
   OriginalTorrentFileTarget,
   OriginalTorrentSource,
   OriginalTorrentStatus,
+  OriginalTorrentRuntimeLease,
 } from '../original-torrent-runtime';
 
 export type OriginalTorrentSessionState =
@@ -20,6 +22,8 @@ export type OriginalTorrentSessionState =
 
 export type OriginalTorrentSessionErrorCode =
   | 'torrserver_unavailable'
+  | 'torrserver_incompatible'
+  | 'torrserver_restarted'
   | 'torrent_source_invalid'
   | 'torrent_metadata_timeout'
   | 'torrent_pieces_unavailable'
@@ -78,11 +82,12 @@ export interface OriginalTorrentSourceResolver {
 }
 
 export interface OriginalTorrentRuntimeAdapter {
+  recoverOwned(options?: { signal?: AbortSignal }): Promise<void>;
   health(options?: { signal?: AbortSignal }): Promise<unknown>;
   add(
     source: OriginalTorrentSource,
     options?: { signal?: AbortSignal },
-  ): Promise<OriginalTorrentStatus>;
+  ): Promise<AcquiredOriginalTorrent>;
   waitForMetadata(
     hash: string,
     options?: { signal?: AbortSignal },
@@ -92,7 +97,14 @@ export interface OriginalTorrentRuntimeAdapter {
     fileId: number,
     options?: { signal?: AbortSignal },
   ): Promise<OriginalTorrentFileTarget>;
-  drop(hash: string, options?: { signal?: AbortSignal }): Promise<void>;
+  validateLease(
+    lease: OriginalTorrentRuntimeLease,
+    options?: { signal?: AbortSignal },
+  ): Promise<OriginalTorrentStatus>;
+  release(
+    lease: OriginalTorrentRuntimeLease,
+    options?: { signal?: AbortSignal },
+  ): Promise<void>;
 }
 
 export interface OriginalTorrentSessionRecord {
@@ -123,6 +135,7 @@ export interface SharedTorrentResource {
   phase: 'adding' | 'waiting_metadata' | 'ready' | 'failed' | 'closing';
   controller: AbortController;
   added: boolean;
+  lease?: OriginalTorrentRuntimeLease;
   preparation: Promise<OriginalTorrentStatus>;
   closing?: Promise<void>;
 }

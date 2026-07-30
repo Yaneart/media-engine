@@ -49,11 +49,13 @@ describe('Media Engine API (e2e)', () => {
     >
   >;
   let torrentRuntime: {
+    recoverOwned: jest.Mock;
     health: jest.Mock;
     add: jest.Mock;
     waitForMetadata: jest.Mock;
     resolveFileTarget: jest.Mock;
-    drop: jest.Mock;
+    validateLease: jest.Mock;
+    release: jest.Mock;
   };
   let torrentStreamFetch: jest.Mock;
 
@@ -135,6 +137,7 @@ describe('Media Engine API (e2e)', () => {
       getProviderHealth: jest.fn().mockReturnValue([]),
     };
     torrentRuntime = {
+      recoverOwned: jest.fn().mockResolvedValue(undefined),
       health: jest.fn().mockResolvedValue({
         version: 'MatriX.141',
         compatible: true,
@@ -146,6 +149,11 @@ describe('Media Engine API (e2e)', () => {
         loadedSize: 0,
         torrentSize: 100,
         files: [{ id: 1, path: 'original.unusual', length: 100 }],
+        lease: {
+          hash: '0123456789abcdef0123456789abcdef01234567',
+          timestamp: 1,
+          ownership: 'application',
+        },
       }),
       waitForMetadata: jest.fn(),
       resolveFileTarget: jest.fn().mockResolvedValue({
@@ -159,7 +167,8 @@ describe('Media Engine API (e2e)', () => {
         headerTimeoutMs: 45_000,
         inactivityTimeoutMs: 30_000,
       }),
-      drop: jest.fn().mockResolvedValue(undefined),
+      validateLease: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn().mockResolvedValue(undefined),
     };
     torrentStreamFetch = jest.fn(
       (_input: string | URL | Request, init?: RequestInit) => {
@@ -366,9 +375,11 @@ describe('Media Engine API (e2e)', () => {
       },
       { signal: expect.any(AbortSignal) },
     );
-    expect(torrentRuntime.drop).toHaveBeenCalledWith(
-      '0123456789abcdef0123456789abcdef01234567',
-    );
+    expect(torrentRuntime.release).toHaveBeenCalledWith({
+      hash: '0123456789abcdef0123456789abcdef01234567',
+      timestamp: 1,
+      ownership: 'application',
+    });
   });
 
   it('adds security headers with separate API and Swagger CSP policies', async () => {
@@ -437,7 +448,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.10.0',
+      version: '0.11.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/health/live');

@@ -7,7 +7,9 @@ import {
   normalizeFileId,
   normalizeInfoHash,
   normalizeOriginalTorrentSource,
+  hasTorrentOwnerMarker,
   parseTorrentStatus,
+  parseTorrentTimestamp,
   parseUploadedTorrent,
   requireExpectedHash,
 } from './runtime.parsing';
@@ -16,9 +18,11 @@ import {
   type TorrServerFetch,
 } from './runtime.transport';
 import type {
+  AcquiredOriginalTorrent,
   OriginalTorrentFileTarget,
   OriginalTorrentOperationOptions,
   OriginalTorrentSource,
+  OriginalTorrentRuntimeLease,
   OriginalTorrentStatus,
   TorrServerAdapterEvent,
   TorrServerRuntimeHealth,
@@ -37,6 +41,7 @@ export class TorrServerAdapter {
     signal?: AbortSignal,
   ) => Promise<void>;
   private readonly report?: (event: TorrServerAdapterEvent) => void;
+  private readonly ownerMarker: string;
 
   constructor(
     private readonly config: OriginalTorrentRuntimeConfig,
@@ -49,6 +54,7 @@ export class TorrServerAdapter {
     );
     this.delay = dependencies.delay ?? cancellableDelay;
     this.report = dependencies.report;
+    this.ownerMarker = `media-engine-original:v1:${config.ownerId}`;
   }
 
   health(
@@ -74,12 +80,40 @@ export class TorrServerAdapter {
     });
   }
 
+  recoverOwned(options: OriginalTorrentOperationOptions = {}): Promise<void> {
+    return this.run('recover', async () => {
+      await this.health(options);
+      const values = await this.listRaw(options.signal);
+      for (const value of values) {
+        const status = parseTorrentStatus(value, this.config);
+        if (hasTorrentOwnerMarker(value, this.ownerMarker)) {
+          await this.dropHash(status.hash, options.signal);
+        }
+      }
+    });
+  }
+
   add(
     source: OriginalTorrentSource,
     options: OriginalTorrentOperationOptions = {},
-  ): Promise<OriginalTorrentStatus> {
+  ): Promise<AcquiredOriginalTorrent> {
     return this.run('add', async () => {
       const normalized = normalizeOriginalTorrentSource(source, this.config);
+
+      try {
+        const existing = await this.getRawStatus(
+          normalized.expectedHash,
+          options.signal,
+        );
+        return this.acquireStatus(existing.value, existing.status);
+      } catch (error) {
+        if (
+          !isOriginalTorrentRuntimeError(error) ||
+          error.code !== 'not_found'
+        ) {
+          throw error;
+        }
+      }
 
       try {
         if (normalized.kind === 'magnet') {
@@ -88,6 +122,7 @@ export class TorrServerAdapter {
               action: 'add',
               link: normalized.uri,
               save_to_db: false,
+              data: this.ownerMarker,
               ...(normalized.title === undefined
                 ? {}
                 : { title: normalized.title }),
@@ -95,10 +130,12 @@ export class TorrServerAdapter {
             options.signal,
             false,
           );
-          return requireExpectedHash(
-            parseTorrentStatus(await readJson(response), this.config),
+          const value = await readJson(response);
+          const status = requireExpectedHash(
+            parseTorrentStatus(value, this.config),
             normalized.expectedHash,
           );
+          return this.acquireStatus(value, status);
         }
 
         const form = new FormData();
@@ -112,17 +149,20 @@ export class TorrServerAdapter {
         if (normalized.title !== undefined) {
           form.append('title', normalized.title);
         }
+        form.append('data', this.ownerMarker);
         const response = await this.transport.request('torrent/upload', {
           operation: 'torrent upload',
           init: () => ({ method: 'POST', body: form }),
           signal: options.signal,
           retryTransient: false,
         });
-        return parseUploadedTorrent(
-          await readJson(response),
+        const value = await readJson(response);
+        const status = parseUploadedTorrent(
+          value,
           normalized.expectedHash,
           this.config,
         );
+        return this.acquireStatus((value as unknown[])[0], status);
       } catch (error) {
         if (isOriginalTorrentRuntimeError(error) && error.code === 'rejected') {
           throw new OriginalTorrentRuntimeError(
@@ -142,6 +182,36 @@ export class TorrServerAdapter {
     options: OriginalTorrentOperationOptions = {},
   ): Promise<OriginalTorrentStatus> {
     return this.run('get', () => this.getStatus(hash, options.signal));
+  }
+
+  validateLease(
+    lease: OriginalTorrentRuntimeLease,
+    options: OriginalTorrentOperationOptions = {},
+  ): Promise<OriginalTorrentStatus> {
+    return this.run('validate', async () => {
+      try {
+        const current = await this.getRawStatus(lease.hash, options.signal);
+        const ownership = hasTorrentOwnerMarker(current.value, this.ownerMarker)
+          ? 'application'
+          : 'external';
+        if (
+          current.status.hash !== lease.hash ||
+          parseTorrentTimestamp(current.value) !== lease.timestamp ||
+          ownership !== lease.ownership
+        ) {
+          throw restartedError();
+        }
+        return current.status;
+      } catch (error) {
+        if (
+          isOriginalTorrentRuntimeError(error) &&
+          error.code === 'not_found'
+        ) {
+          throw restartedError();
+        }
+        throw error;
+      }
+    });
   }
 
   waitForMetadata(
@@ -231,16 +301,32 @@ export class TorrServerAdapter {
     });
   }
 
-  drop(
-    hash: string,
+  release(
+    lease: OriginalTorrentRuntimeLease,
     options: OriginalTorrentOperationOptions = {},
   ): Promise<void> {
     return this.run('drop', async () => {
-      await this.torrentAction(
-        { action: 'drop', hash: normalizeInfoHash(hash) },
-        options.signal,
-        true,
-      );
+      if (lease.ownership !== 'application') return;
+      let current: { value: unknown; status: OriginalTorrentStatus };
+      try {
+        current = await this.getRawStatus(lease.hash, options.signal);
+      } catch (error) {
+        if (
+          isOriginalTorrentRuntimeError(error) &&
+          error.code === 'not_found'
+        ) {
+          return;
+        }
+        throw error;
+      }
+      if (
+        current.status.hash !== lease.hash ||
+        parseTorrentTimestamp(current.value) !== lease.timestamp ||
+        !hasTorrentOwnerMarker(current.value, this.ownerMarker)
+      ) {
+        return;
+      }
+      await this.dropHash(lease.hash, options.signal);
     });
   }
 
@@ -248,16 +334,67 @@ export class TorrServerAdapter {
     hash: string,
     signal: AbortSignal | undefined,
   ): Promise<OriginalTorrentStatus> {
+    return (await this.getRawStatus(hash, signal)).status;
+  }
+
+  private async getRawStatus(
+    hash: string,
+    signal: AbortSignal | undefined,
+  ): Promise<{ value: unknown; status: OriginalTorrentStatus }> {
     const normalizedHash = normalizeInfoHash(hash);
     const response = await this.torrentAction(
       { action: 'get', hash: normalizedHash },
       signal,
       true,
     );
-    return requireExpectedHash(
-      parseTorrentStatus(await readJson(response), this.config),
-      normalizedHash,
+    const value = await readJson(response);
+    return {
+      value,
+      status: requireExpectedHash(
+        parseTorrentStatus(value, this.config),
+        normalizedHash,
+      ),
+    };
+  }
+
+  private async listRaw(signal: AbortSignal | undefined): Promise<unknown[]> {
+    const response = await this.torrentAction({ action: 'list' }, signal, true);
+    const value = await readJson(response);
+    if (!Array.isArray(value) || value.length > this.config.maxFiles) {
+      throw new OriginalTorrentRuntimeError(
+        'invalid_response',
+        'TorrServer returned an invalid or oversized torrent list.',
+        false,
+      );
+    }
+    return value as unknown[];
+  }
+
+  private async dropHash(
+    hash: string,
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
+    await this.torrentAction(
+      { action: 'drop', hash: normalizeInfoHash(hash) },
+      signal,
+      true,
     );
+  }
+
+  private acquireStatus(
+    value: unknown,
+    status: OriginalTorrentStatus,
+  ): AcquiredOriginalTorrent {
+    return {
+      ...status,
+      lease: {
+        hash: status.hash,
+        timestamp: parseTorrentTimestamp(value),
+        ownership: hasTorrentOwnerMarker(value, this.ownerMarker)
+          ? 'application'
+          : 'external',
+      },
+    };
   }
 
   private torrentAction(
@@ -361,5 +498,13 @@ function abortedError(): OriginalTorrentRuntimeError {
     'aborted',
     'TorrServer operation was cancelled.',
     false,
+  );
+}
+
+function restartedError(): OriginalTorrentRuntimeError {
+  return new OriginalTorrentRuntimeError(
+    'runtime_restarted',
+    'TorrServer restarted or replaced the recorded torrent ownership lease.',
+    true,
   );
 }

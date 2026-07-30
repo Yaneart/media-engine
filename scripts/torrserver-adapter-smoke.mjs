@@ -17,17 +17,19 @@ if (config === undefined) {
 
 const adapter = new TorrServerAdapter(config);
 const fixture = createFixtureTorrent();
+let acquired;
 
 try {
-  await adapter.drop(fixture.hash).catch(() => undefined);
+  await adapter.recoverOwned();
   const health = await adapter.health();
-  const initial = await adapter.add({
+  acquired = await adapter.add({
     kind: "torrent_file",
     bytes: fixture.bytes,
     expectedHash: fixture.hash,
     title: "Media Engine deterministic adapter fixture",
   });
-  const metadata = initial.files.length > 0 ? initial : await adapter.waitForMetadata(fixture.hash);
+  const metadata =
+    acquired.files.length > 0 ? acquired : await adapter.waitForMetadata(fixture.hash);
   const target = await adapter.resolveFileTarget(fixture.hash, 1);
 
   if (
@@ -50,7 +52,9 @@ try {
     })}\n`,
   );
 } finally {
-  await adapter.drop(fixture.hash).catch(() => undefined);
+  if (acquired !== undefined) {
+    await adapter.release(acquired.lease).catch(() => undefined);
+  }
 }
 
 await adapter.get(fixture.hash).then(

@@ -78,8 +78,11 @@ The repository API also has an app-specific original-torrent runtime boundary. I
 service pins TorrServer release `MatriX.141.1`, keeps the API control path on an internal network,
 adds dedicated peer egress without publishing a host port, and verifies the exact `MatriX.141`
 `/echo` wire-version. A private adapter accepts only server-resolved, hash-bound magnets
-or bounded torrent bytes, lists exact file IDs, forms internal original-file targets, and drops
-application entries. A process-local session layer resolves an exact provider observation again,
+or bounded torrent bytes, lists exact file IDs, forms internal original-file targets, and releases
+only entries carrying its stable deployment owner marker and matching timestamped lease. Startup
+removes stale entries for that exact owner; pre-existing entries remain borrowed and are never
+deleted. Lease validation before selection and stream access detects runtime restart or entry
+replacement and retires stale capabilities. A process-local session layer resolves an exact provider observation again,
 coalesces shared hashes, offers every non-padding file without extension filtering, validates only
 server-offered numeric IDs, and owns stop/expiry/shutdown cleanup. A separate application gateway
 maps each ready selection to an expiring high-entropy capability and proxies only that exact target

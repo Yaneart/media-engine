@@ -15,9 +15,12 @@ export {
 } from './runtime.module';
 export { TorrServerAdapter } from './torrserver-adapter';
 export type {
+  AcquiredOriginalTorrent,
   OriginalTorrentFile,
   OriginalTorrentFileTarget,
   OriginalTorrentOperationOptions,
+  OriginalTorrentOwnership,
+  OriginalTorrentRuntimeLease,
   OriginalTorrentSource,
   OriginalTorrentStatus,
   TorrServerAdapterEvent,

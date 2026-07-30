@@ -89,6 +89,10 @@ trackers, DHT, and peers. The application can create expiring server-owned sessi
 exact discovery observation, coalesce sessions that share an info hash, list every non-padding file
 without extension filtering, validate a selected numeric file ID, and clean up on stop, expiry, or
 API shutdown. The API never accepts a raw magnet, hash, upstream URL, path, or TorrServer target.
+A stable, deployment-unique `MEDIA_ENGINE_TORRSERVER_OWNER_ID` marks only entries created by that
+API deployment. Startup removes its stale marked entries, while pre-existing unmarked entries are
+borrowed and never deleted. Timestamped ownership leases invalidate stale stream capabilities if
+TorrServer restarts or replaces an entry, and an incompatible pinned runtime version stops startup.
 A ready session exposes only a high-entropy application capability. Its protected `GET`/`HEAD`
 route streams the exact selected original file with strict single-range handling, backpressure,
 cancellation, bounded cold-start timeouts, bounded active-stream concurrency, and bounded session

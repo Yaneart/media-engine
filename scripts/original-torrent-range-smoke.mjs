@@ -46,6 +46,7 @@ const fixture = createFixtureTorrent(
 fixtureHash = fixture.hash;
 const adapter = new TorrServerAdapter(config);
 const lifecycle = new AbortController();
+let acquired;
 let streamFailure;
 let gatewayServer;
 const checks = [
@@ -65,14 +66,15 @@ const checks = [
 ];
 
 try {
-  await adapter.drop(fixture.hash).catch(() => undefined);
-  const added = await adapter.add({
+  await adapter.recoverOwned();
+  acquired = await adapter.add({
     kind: "torrent_file",
     bytes: fixture.bytes,
     expectedHash: fixture.hash,
     title: "Media Engine deterministic original-range fixture",
   });
-  const metadata = added.files.length > 0 ? added : await adapter.waitForMetadata(fixture.hash);
+  const metadata =
+    acquired.files.length > 0 ? acquired : await adapter.waitForMetadata(fixture.hash);
   const target = await adapter.resolveFileTarget(fixture.hash, 1);
 
   assert.deepEqual(metadata.files, [{ id: 1, path: "fixture.bin", length: payload.length }]);
@@ -131,7 +133,9 @@ try {
 } finally {
   lifecycle.abort();
   await close(gatewayServer);
-  await adapter.drop(fixture.hash).catch(() => undefined);
+  if (acquired !== undefined) {
+    await adapter.release(acquired.lease).catch(() => undefined);
+  }
   for (const socket of peerSockets) socket.destroy();
   await close(tracker);
 }

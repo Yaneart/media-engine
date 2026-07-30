@@ -8,6 +8,11 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added deterministic TorrServer ownership and restart recovery for original-file sessions. Each
+  deployment marks only entries it creates, borrows pre-existing entries without deleting them,
+  removes its stale owned entries at startup, and validates a timestamped ownership lease before
+  selection and every stream access. Runtime replacement now retires stale capabilities with a
+  typed error, while an incompatible pinned TorrServer version prevents startup.
 - Added independent bounded capacities for original-torrent session creation and active original
   streams, with typed overload responses that do not retire healthy capabilities. A separate
   process-local per-client fixed-window budget applies only to exact session creation requests, so

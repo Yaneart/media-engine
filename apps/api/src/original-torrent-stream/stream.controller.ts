@@ -46,7 +46,10 @@ export class OriginalTorrentStreamController {
     description: 'Validated single byte range headers.',
   })
   @ApiBadRequestResponse({ description: 'Malformed or multi-range request.' })
-  @ApiGoneResponse({ description: 'Stopped, expired, or invalid capability.' })
+  @ApiGoneResponse({
+    description:
+      'Stopped, expired, invalid, or restart-invalidated capability.',
+  })
   @Head(':capability')
   head(
     @Param('capability') capability: string,
@@ -64,7 +67,10 @@ export class OriginalTorrentStreamController {
   @ApiOkResponse({ description: 'Complete original file stream.' })
   @ApiPartialContentResponse({ description: 'Validated single byte range.' })
   @ApiBadRequestResponse({ description: 'Malformed or multi-range request.' })
-  @ApiGoneResponse({ description: 'Stopped, expired, or invalid capability.' })
+  @ApiGoneResponse({
+    description:
+      'Stopped, expired, invalid, or restart-invalidated capability.',
+  })
   @ApiBadGatewayResponse({ description: 'Invalid TorrServer stream response.' })
   @ApiServiceUnavailableResponse({
     description:
