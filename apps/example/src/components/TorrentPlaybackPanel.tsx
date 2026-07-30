@@ -29,6 +29,7 @@ import {
   formatTorrentPeers,
   groupTorrentCandidates,
   mapNativeMediaFailure,
+  shouldIgnoreNativeMediaError,
   type TorrentEpisodeSelection,
 } from "../torrent-player/model";
 
@@ -52,10 +53,10 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
   const [controlError, setControlError] = useState<string>();
   const [playerPhase, setPlayerPhase] = useState<PlayerPhase>("idle");
   const [busy, setBusy] = useState(false);
-  const [seasonNumber, setSeasonNumber] = useState("1");
-  const [episodeNumber, setEpisodeNumber] = useState("1");
   const [absoluteEpisodeNumber, setAbsoluteEpisodeNumber] = useState("1");
   const sessionIdRef = useRef<string | undefined>(undefined);
+  const stoppingSessionIdRef = useRef<string | undefined>(undefined);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const pollControllerRef = useRef<AbortController | undefined>(undefined);
   const operationControllerRef = useRef<AbortController | undefined>(undefined);
   const pollGenerationRef = useRef(0);
@@ -116,12 +117,7 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
       return;
     }
 
-    const episode = readEpisodeSelection(
-      details.type,
-      seasonNumber,
-      episodeNumber,
-      absoluteEpisodeNumber,
-    );
+    const episode = readEpisodeSelection(details.type, absoluteEpisodeNumber);
 
     if (episode === false) {
       setControlError("Enter positive whole episode numbers before discovering releases.");
@@ -276,31 +272,72 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
     const sessionId = sessionIdRef.current;
     if (sessionId === undefined) return;
 
+    const previousSnapshot = snapshot;
+    const previousCandidate = activeCandidate;
+    const previousFailure = failure;
+    const previousPlayerPhase = playerPhase;
+    const previousPlayed = playedRef.current;
     pollControllerRef.current?.abort();
     pollGenerationRef.current += 1;
-    await stopOriginalTorrentSession(sessionId);
-    sessionIdRef.current = undefined;
+    stoppingSessionIdRef.current = sessionId;
+    detachVideo();
     setSnapshot(undefined);
     setActiveCandidate(undefined);
     setFailure(undefined);
     setPlayerPhase("idle");
     playedRef.current = false;
+
+    try {
+      await stopOriginalTorrentSession(sessionId);
+      if (sessionIdRef.current === sessionId) sessionIdRef.current = undefined;
+    } catch (error) {
+      if (sessionIdRef.current === sessionId) {
+        setSnapshot(previousSnapshot);
+        setActiveCandidate(previousCandidate);
+        setFailure(previousFailure);
+        setPlayerPhase(previousPlayerPhase);
+        playedRef.current = previousPlayed;
+      }
+      throw error;
+    } finally {
+      if (stoppingSessionIdRef.current === sessionId) {
+        stoppingSessionIdRef.current = undefined;
+      }
+    }
   }
 
   async function handleVideoError(event: SyntheticEvent<HTMLVideoElement>) {
     const mediaErrorCode = event.currentTarget.error?.code ?? 0;
     const sessionId = sessionIdRef.current;
+    if (
+      sessionId === undefined ||
+      shouldIgnoreNativeMediaError(sessionId, sessionIdRef.current, stoppingSessionIdRef.current)
+    ) {
+      return;
+    }
     let currentSnapshot = snapshot;
 
-    if (sessionId !== undefined) {
-      currentSnapshot = await refreshAfterMediaError(sessionId, mediaErrorCode).catch(
-        () => currentSnapshot,
-      );
-      if (currentSnapshot !== undefined) setSnapshot(currentSnapshot);
+    currentSnapshot = await refreshAfterMediaError(sessionId, mediaErrorCode).catch(
+      () => currentSnapshot,
+    );
+    if (
+      shouldIgnoreNativeMediaError(sessionId, sessionIdRef.current, stoppingSessionIdRef.current)
+    ) {
+      return;
     }
+    if (currentSnapshot !== undefined) setSnapshot(currentSnapshot);
 
     setFailure(mapNativeMediaFailure(mediaErrorCode, currentSnapshot));
     setPlayerPhase("idle");
+  }
+
+  function detachVideo() {
+    const video = videoRef.current;
+    if (video === null) return;
+
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
   }
 
   async function refreshAfterMediaError(sessionId: string, mediaErrorCode: number) {
@@ -340,12 +377,6 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
       {enabled ? (
         <>
           <form className="torrent-discovery-form" onSubmit={handleDiscover}>
-            {details.type === "series" ? (
-              <div className="episode-picker__fields">
-                <NumberField label="Season" onChange={setSeasonNumber} value={seasonNumber} />
-                <NumberField label="Episode" onChange={setEpisodeNumber} value={episodeNumber} />
-              </div>
-            ) : null}
             {details.type === "anime" ? (
               <NumberField
                 label="Absolute episode"
@@ -368,7 +399,7 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
           {discovery.status === "empty" ? (
             <TorrentNotice
               title="No torrent releases found"
-              text="Try another title, episode, or configured provider."
+              text="Try another title or configured provider."
             />
           ) : null}
           {discovery.status === "success" ? (
@@ -477,6 +508,7 @@ export function TorrentPlaybackPanel({ details }: { details: MediaDetails }) {
                 }
                 playsInline
                 preload="metadata"
+                ref={videoRef}
                 src={streamUrl}
                 title={`${snapshot.selectedFile.path} original torrent player`}
               />
@@ -629,18 +661,8 @@ function candidateKey(candidate: Pick<TorrentCandidate, "provider" | "id">): str
 
 function readEpisodeSelection(
   type: MediaDetails["type"],
-  season: string,
-  episode: string,
   absoluteEpisode: string,
 ): TorrentEpisodeSelection | false {
-  if (type === "series") {
-    const seasonNumber = readPositiveInteger(season);
-    const episodeNumber = readPositiveInteger(episode);
-    return seasonNumber === undefined || episodeNumber === undefined
-      ? false
-      : { seasonNumber, episodeNumber };
-  }
-
   if (type === "anime") {
     const absoluteEpisodeNumber = readPositiveInteger(absoluteEpisode);
     return absoluteEpisodeNumber === undefined ? false : { absoluteEpisodeNumber };

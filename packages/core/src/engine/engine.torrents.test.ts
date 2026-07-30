@@ -3,7 +3,11 @@ import { test } from "node:test";
 
 import { MemoryCache } from "../cache/index.js";
 import { ProviderError } from "../errors/index.js";
-import type { TorrentDiscoveryResponse, TorrentProvider } from "../torrent/index.js";
+import type {
+  TorrentDiscoveryQuery,
+  TorrentDiscoveryResponse,
+  TorrentProvider,
+} from "../torrent/index.js";
 import { MediaEngine } from "./engine.js";
 import { createTorrentProvider, createTorrentResponse, sleep } from "./test-helpers.js";
 
@@ -347,5 +351,38 @@ test("discoverTorrents rejects malformed and unidentifiable queries", async () =
     () => engine.discoverTorrents({ type: "movie", title: "Dune", seasonNumber: -1 }),
     { code: "INVALID_QUERY" },
   );
+  await assert.rejects(
+    () =>
+      engine.discoverTorrents({
+        type: "movie",
+        title: "Dune",
+        alternativeTitles: Array.from({ length: 21 }, (_, index) => `Dune ${index}`),
+      }),
+    { code: "INVALID_QUERY" },
+  );
   await assert.rejects(() => engine.discoverTorrents({ type: "movie" }), { code: "INVALID_QUERY" });
+});
+
+test("discoverTorrents normalizes bounded alternative titles before provider lookup", async () => {
+  let observedQuery: TorrentDiscoveryQuery | undefined;
+  const provider = createTorrentProvider({
+    async discoverTorrents(query) {
+      observedQuery = query;
+      return null;
+    },
+  });
+
+  await new MediaEngine({ torrentProviders: [provider] }).discoverTorrents({
+    type: "movie",
+    title: " Interstellar ",
+    alternativeTitles: [" Интерстеллар ", "Interstellar", "ИНТЕРСТЕЛЛАР"],
+    year: 2014,
+  });
+
+  assert.deepEqual(observedQuery, {
+    type: "movie",
+    title: "Interstellar",
+    alternativeTitles: ["Интерстеллар"],
+    year: 2014,
+  });
 });

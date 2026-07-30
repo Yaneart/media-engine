@@ -15,6 +15,8 @@ export interface TorrentEpisodeSelection {
   absoluteEpisodeNumber?: number;
 }
 
+const MAX_TORRENT_ALTERNATIVE_TITLES = 20;
+
 export type TorrentSourceGroupKey = "russian" | "international" | "other";
 
 export interface TorrentProviderCandidateGroup {
@@ -34,15 +36,32 @@ export function buildTorrentDiscoveryQuery(
   language: string,
   episode: TorrentEpisodeSelection = {},
 ): TorrentDiscoveryQuery {
+  const title = details.originalTitle?.trim() || details.title;
+  const alternativeTitles = uniqueTitles([details.title, ...(details.alternativeTitles ?? [])])
+    .filter((candidate) => candidate.toLocaleLowerCase() !== title.toLocaleLowerCase())
+    .slice(0, MAX_TORRENT_ALTERNATIVE_TITLES);
+
   return {
     type: details.type,
-    title: details.originalTitle?.trim() || details.title,
+    title,
+    ...(alternativeTitles.length > 0 ? { alternativeTitles } : {}),
     year: details.year,
     ids: details.ids,
     language,
     limit: 25,
     ...episode,
   };
+}
+
+function uniqueTitles(values: string[]): string[] {
+  const titles = new Map<string, string>();
+
+  for (const value of values) {
+    const title = value.trim();
+    if (title) titles.set(title.toLocaleLowerCase(), title);
+  }
+
+  return [...titles.values()];
 }
 
 export function formatTorrentCandidateMeta(candidate: TorrentCandidate): string {
@@ -189,4 +208,16 @@ export function mapNativeMediaFailure(
     message: "The browser could not load the original stream. Retry or check the session status.",
     transient: true,
   };
+}
+
+export function shouldIgnoreNativeMediaError(
+  eventSessionId: string | undefined,
+  currentSessionId: string | undefined,
+  stoppingSessionId: string | undefined,
+): boolean {
+  return (
+    eventSessionId === undefined ||
+    eventSessionId !== currentSessionId ||
+    eventSessionId === stoppingSessionId
+  );
 }

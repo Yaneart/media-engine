@@ -207,6 +207,7 @@ test("discoverTorrents serializes torrent query params and parses handoff candid
     query: {
       type: "series",
       title: "Dark",
+      alternativeTitles: ["Тьма"],
       ids: { imdb: "tt5753856" },
       seasonNumber: 1,
       episodeNumber: 2,
@@ -237,6 +238,7 @@ test("discoverTorrents serializes torrent query params and parses handoff candid
   const result = await client.discoverTorrents({
     type: "series",
     title: " Dark ",
+    alternativeTitles: [" Тьма "],
     ids: { imdb: "tt5753856" },
     seasonNumber: 1,
     episodeNumber: 2,
@@ -247,6 +249,7 @@ test("discoverTorrents serializes torrent query params and parses handoff candid
   assert.deepEqual(result, body);
   assert.equal(mock.calls[0]?.pathname, "/media/torrents");
   assert.equal(mock.calls[0]?.searchParams.get("title"), "Dark");
+  assert.deepEqual(mock.calls[0]?.searchParams.getAll("alternativeTitles"), ["Тьма"]);
   assert.equal(mock.calls[0]?.searchParams.get("ids.imdb"), "tt5753856");
   assert.equal(mock.calls[0]?.searchParams.get("seasonNumber"), "1");
   assert.equal(mock.calls[0]?.searchParams.get("episodeNumber"), "2");

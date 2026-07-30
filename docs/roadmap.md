@@ -24,16 +24,16 @@ The `0.1.x` releases established and hardened the first public baseline:
    tails require an application-owned request budget. Media Engine returns typed candidates and
    handoff data without bundling a frontend player, video proxy, BitTorrent client, storage, or
    transcoder.
-3. Repository torrent-playback hardening is at its final browser acceptance checkpoint.
+3. Repository torrent-playback hardening and final browser acceptance are complete.
    The opt-in discovery bridge, minimal internal TorrServer adapter, authenticated server-owned
    session/file selection lifecycle, protected original HTTP/Range gateway, and example's native
    browser player are complete. Bounded creation/stream concurrency and a create-only per-client
    budget, deterministic ownership, startup recovery, runtime-restart detection, redacted
    observability, phase-by-phase outage coverage, cleanup soak validation, deterministic real-runtime
-   Range coverage, and automated native Firefox acceptance are complete. Current Chromium manual
-   acceptance remains before closing the cross-browser checkpoint. Do not reintroduce media probing,
-   remux, transcode, HLS, FFmpeg, worker processes, external-player fallback, or broad runtime
-   profiles.
+   Range coverage, automated native Firefox acceptance, and real Firefox video/audio/seek acceptance
+   are complete. Additional browsers remain supplementary compatibility observations because the
+   original-file route does not promise universal decoding. Do not reintroduce media probing, remux,
+   transcode, HLS, FFmpeg, worker processes, external-player fallback, or broad runtime profiles.
 4. Run a complete code and architecture audit, then remove proven dead code and accidental
    duplication and reorganize misplaced modules in small behavior-preserving changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before

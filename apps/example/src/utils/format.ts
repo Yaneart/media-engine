@@ -34,6 +34,10 @@ export function formatCount(value: number | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
 }
 
+export function formatCountedLabel(label: string, count: number): string {
+  return count > 1 ? `${label} (${count})` : label;
+}
+
 export function getAvailabilityOptions(state: AvailabilityState): AvailabilityOption[] {
   return state.status === "success" || state.status === "empty" ? state.response.options : [];
 }

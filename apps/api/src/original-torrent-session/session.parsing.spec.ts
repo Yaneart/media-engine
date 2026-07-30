@@ -12,6 +12,7 @@ describe('original torrent session input parsing', () => {
         query: {
           type: 'series',
           title: ' Example ',
+          alternativeTitles: [' Пример ', 'Example title'],
           year: 2026,
           seasonNumber: 1,
           episodeNumber: 2,
@@ -23,6 +24,7 @@ describe('original torrent session input parsing', () => {
       query: {
         type: 'series',
         title: 'Example',
+        alternativeTitles: ['Пример', 'Example title'],
         year: 2026,
         seasonNumber: 1,
         episodeNumber: 2,
@@ -51,6 +53,10 @@ describe('original torrent session input parsing', () => {
     { query: { type: 'book' }, observation: { provider: 'x', id: 'y' } },
     {
       query: { type: 'movie', year: '2026' },
+      observation: { provider: 'x', id: 'y' },
+    },
+    {
+      query: { type: 'movie', alternativeTitles: 'Alias' },
       observation: { provider: 'x', id: 'y' },
     },
   ])(

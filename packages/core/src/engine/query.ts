@@ -38,6 +38,7 @@ const SEARCH_JOINED_FALLBACK_MAX_LENGTH = 8;
 const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_TORRENT_LIMIT = 100;
+const MAX_TORRENT_ALTERNATIVE_TITLES = 20;
 const MAX_PROVIDER_SEARCH_LIMIT = 100;
 const MAX_TITLE_LENGTH = 300;
 const MAX_LANGUAGE_LENGTH = 35;
@@ -114,6 +115,7 @@ export function normalizeStreamQuery(query: StreamQuery): StreamQuery {
 // Нормализует верхнеуровневые сокращения внешних ID в torrent discovery ids object.
 export function normalizeTorrentQuery(query: TorrentDiscoveryQuery): TorrentDiscoveryQuery {
   const title = normalizeOptionalString(query.title);
+  const alternativeTitles = normalizeAlternativeTitles(query.alternativeTitles, title);
   const ids = normalizeExternalIds(query.ids, query);
   const providers = normalizeProviderFilters(query.providers);
   const language = normalizeLanguage(query.language);
@@ -122,6 +124,7 @@ export function normalizeTorrentQuery(query: TorrentDiscoveryQuery): TorrentDisc
     type: query.type,
     ...(ids ? { ids } : {}),
     ...(title ? { title } : {}),
+    ...(alternativeTitles ? { alternativeTitles } : {}),
     ...(query.year !== undefined ? { year: query.year } : {}),
     ...(query.seasonNumber !== undefined ? { seasonNumber: query.seasonNumber } : {}),
     ...(query.episodeNumber !== undefined ? { episodeNumber: query.episodeNumber } : {}),
@@ -237,6 +240,20 @@ export function validateStreamQuery(query: StreamQuery): void {
 // Проверяет, что torrent discovery query может определить медиа или эпизод.
 export function validateTorrentQuery(query: TorrentDiscoveryQuery): void {
   validateCommonQueryFields(query);
+
+  if (query.alternativeTitles && query.alternativeTitles.length > MAX_TORRENT_ALTERNATIVE_TITLES) {
+    throwInvalidQuery(
+      `Torrent discovery query alternativeTitles must contain at most ${MAX_TORRENT_ALTERNATIVE_TITLES} unique titles.`,
+    );
+  }
+
+  for (const alternativeTitle of query.alternativeTitles ?? []) {
+    validateBoundedString(
+      "Torrent discovery query alternative title",
+      alternativeTitle,
+      MAX_TITLE_LENGTH,
+    );
+  }
 
   if (!query.type) {
     throwInvalidQuery("Torrent discovery query type is required.");
@@ -425,6 +442,35 @@ function normalizeProviderFilters(providers: string[] | undefined): string[] | u
   const normalized = [...new Set(providers.map(normalizeOptionalString).filter(isString))].sort();
 
   return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeAlternativeTitles(
+  values: string[] | undefined,
+  primaryTitle: string | undefined,
+): string[] | undefined {
+  if (!values) return undefined;
+  if (!Array.isArray(values) || values.length > MAX_TORRENT_ALTERNATIVE_TITLES) {
+    throwInvalidQuery(
+      `Torrent discovery query alternativeTitles must contain at most ${MAX_TORRENT_ALTERNATIVE_TITLES} titles.`,
+    );
+  }
+
+  const primaryKey = primaryTitle?.toLocaleLowerCase();
+  const titles = new Map<string, string>();
+
+  for (const value of values) {
+    if (typeof value !== "string") {
+      throwInvalidQuery("Torrent discovery query alternativeTitles must contain only strings.");
+    }
+    const normalized = normalizeOptionalString(value);
+    const key = normalized?.toLocaleLowerCase();
+
+    if (normalized && key !== primaryKey && !titles.has(key!)) {
+      titles.set(key!, normalized);
+    }
+  }
+
+  return titles.size > 0 ? [...titles.values()] : undefined;
 }
 
 function normalizeLanguage(language: string | undefined): string | undefined {

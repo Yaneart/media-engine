@@ -20,6 +20,7 @@ const QUERY_KEYS = new Set([
   'myAnimeList',
   'aniList',
   'title',
+  'alternativeTitles',
   'year',
   'seasonNumber',
   'episodeNumber',
@@ -44,6 +45,7 @@ const DIRECT_ID_KEYS = [
   'aniList',
 ] as const;
 const SESSION_ID = /^[A-Za-z0-9_-]{32}$/u;
+const MAX_ALTERNATIVE_TITLES = 20;
 
 export function parseCreateOriginalTorrentSessionBody(
   value: unknown,
@@ -97,6 +99,15 @@ function parseDiscoveryQuery(value: unknown): TorrentDiscoveryQuery {
 
   const result: TorrentDiscoveryQuery = { type: type as MediaType };
   copyString(query, result, 'title', 300);
+  const alternativeTitles = readStringArray(
+    query.alternativeTitles,
+    'query.alternativeTitles',
+    300,
+    MAX_ALTERNATIVE_TITLES,
+  );
+  if (alternativeTitles !== undefined) {
+    result.alternativeTitles = alternativeTitles;
+  }
   copyString(query, result, 'language', 35);
   copyInteger(query, result, 'year');
   copyInteger(query, result, 'seasonNumber');
@@ -194,6 +205,24 @@ function readString(
     );
   }
   return normalized;
+}
+
+function readStringArray(
+  value: unknown,
+  field: string,
+  maxLength: number,
+  maxItems: number,
+): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxItems) {
+    throw new OriginalTorrentSessionInputError(
+      `${field} must contain between 1 and ${maxItems} strings.`,
+    );
+  }
+
+  return value.map((entry, index) =>
+    readString(entry, `${field}[${index}]`, maxLength, true),
+  ) as string[];
 }
 
 function hasControlCharacters(value: string): boolean {

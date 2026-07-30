@@ -61,7 +61,7 @@ The built-in strategy keeps the first result and every score unchanged, but may 
 
 `MemoryCache` can retain metadata for a separate bounded stale window. `MediaEngine` uses it only for search and details when every selected provider fails retryably; stale streaming links are never returned. Such responses set `meta.cached` and `meta.stale` to `true`.
 
-Public search, details, availability, and torrent-discovery inputs are canonicalized before provider selection and cache/coalescing keys are built: strings and IDs are trimmed, language is lowercased, top-level ID shortcuts become `ids`, and provider filters are trimmed, deduplicated, and sorted. Known IMDb/numeric ID formats and bounded field lengths are validated. Search and torrent discovery with `limit: 0` return empty uncached responses without provider or cache work.
+Public search, details, availability, and torrent-discovery inputs are canonicalized before provider selection and cache/coalescing keys are built: strings and IDs are trimmed, language is lowercased, top-level ID shortcuts become `ids`, torrent `alternativeTitles` are trimmed and deduplicated, and provider filters are trimmed, deduplicated, and sorted. Known IMDb/numeric ID formats and bounded field lengths and alias counts are validated. Search and torrent discovery with `limit: 0` return empty uncached responses without provider or cache work.
 
 `MemoryCache` accepts only non-negative safe-integer TTL values. Omit `defaultTtlMs` and per-entry `ttlMs` for entries without expiration; negative values are not a no-expiry sentinel. Stale TTL values follow the same numeric validation.
 

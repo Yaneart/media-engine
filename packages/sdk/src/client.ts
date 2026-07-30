@@ -224,6 +224,11 @@ function appendQuery(
   query: SearchQuery | DetailsQuery | StreamQuery | TorrentDiscoveryQuery,
 ): void {
   appendParam(url, "title", "title" in query ? query.title : undefined);
+  appendArrayParam(
+    url,
+    "alternativeTitles",
+    "alternativeTitles" in query ? query.alternativeTitles : undefined,
+  );
   appendParam(url, "type", query.type);
   appendParam(url, "year", "year" in query ? query.year : undefined);
   appendParam(url, "limit", "limit" in query ? query.limit : undefined);

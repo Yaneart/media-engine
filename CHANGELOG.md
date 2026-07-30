@@ -69,6 +69,11 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- Torrent discovery now accepts bounded `alternativeTitles`. The example sends merged localized
+  aliases with the canonical title, allowing the Russian JacRed catalog and international catalogs
+  to resolve the same media card without making the user's search language choose one catalog.
+  Series torrent discovery no longer forces season/episode input, so full-season and multi-episode
+  releases remain visible and their exact files are selected after metadata arrives.
 - Increased the bounded default original-torrent session lifetime from 30 minutes to six hours so
   full-length movies do not expire during ordinary browser playback. Explicit Stop, release switch,
   page close, expiry, and API shutdown retain the existing cleanup behavior.
@@ -113,6 +118,9 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Fixed
 
+- The example omits redundant `(1)` suffixes from single online-player choices. Explicit torrent
+  Stop now detaches native media before revoking its capability and ignores the expected media error
+  race, instead of showing a false `torrent_stream_failed` notice after successful cleanup.
 - A stopped or unreachable TorrServer during session preparation or lease validation now remains
   `torrserver_unavailable` instead of being misclassified as missing torrent pieces. Capability
   access reports the transient runtime outage as HTTP 503, and no fallback route is attempted.

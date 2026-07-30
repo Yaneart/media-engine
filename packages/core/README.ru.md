@@ -61,7 +61,7 @@ Mandatory ranking предпочитает близкие по длине multi-
 
 `MemoryCache` может сохранять метаданные в отдельном ограниченном stale-окне. `MediaEngine` использует их только для поиска и деталей, когда все выбранные провайдеры завершились с retryable-ошибками; устаревшие streaming-ссылки никогда не возвращаются. В таком ответе `meta.cached` и `meta.stale` равны `true`.
 
-Публичные search, details, availability и torrent-discovery запросы приводятся к canonical-виду до выбора провайдеров и построения cache/coalescing keys: строки и ID обрезаются, язык переводится в нижний регистр, top-level ID shortcuts переносятся в `ids`, а provider filters обрезаются, дедуплицируются и сортируются. Известные форматы IMDb/numeric ID и длины полей валидируются. Search и torrent discovery с `limit: 0` возвращают пустые некешированные ответы без обращений к провайдерам или cache.
+Публичные search, details, availability и torrent-discovery запросы приводятся к canonical-виду до выбора провайдеров и построения cache/coalescing keys: строки и ID обрезаются, язык переводится в нижний регистр, top-level ID shortcuts переносятся в `ids`, torrent `alternativeTitles` обрезаются и дедуплицируются, а provider filters обрезаются, дедуплицируются и сортируются. Известные форматы IMDb/numeric ID, длины полей и количество aliases валидируются. Search и torrent discovery с `limit: 0` возвращают пустые некешированные ответы без обращений к провайдерам или cache.
 
 `MemoryCache` принимает для TTL только неотрицательные safe integer значения. Для записей без срока истечения не задавайте `defaultTtlMs` и per-entry `ttlMs`; отрицательные значения не являются no-expiry sentinel. Для stale TTL действует та же числовая валидация.
 

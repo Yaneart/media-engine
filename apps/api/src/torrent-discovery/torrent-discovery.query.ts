@@ -16,6 +16,7 @@ const NESTED_ONLY_EXTERNAL_ID_KEYS = ['worldArt'] as const;
 const SUPPORTED_QUERY_KEYS = new Set([
   'type',
   'title',
+  'alternativeTitles',
   'year',
   'seasonNumber',
   'episodeNumber',
@@ -29,6 +30,7 @@ const SUPPORTED_QUERY_KEYS = new Set([
 ]);
 
 const MAX_TITLE_LENGTH = 300;
+const MAX_ALTERNATIVE_TITLES = 20;
 const MAX_LANGUAGE_LENGTH = 35;
 const MAX_EXTERNAL_ID_LENGTH = 128;
 const MAX_PROVIDER_FILTER_LENGTH = 100;
@@ -45,10 +47,19 @@ export function parseTorrentDiscoveryQuery(
   const type = readMediaType(query.type);
   const parsed: TorrentDiscoveryQuery = { type };
   const title = readString(query.title, 'title', MAX_TITLE_LENGTH);
+  const alternativeTitles = readRepeatedStringList(
+    query.alternativeTitles,
+    'alternativeTitles',
+    MAX_TITLE_LENGTH,
+    MAX_ALTERNATIVE_TITLES,
+  );
   const language = readString(query.language, 'language', MAX_LANGUAGE_LENGTH);
   const providers = readStringList(query.providers);
 
   if (title !== undefined) parsed.title = title;
+  if (alternativeTitles.length > 0) {
+    parsed.alternativeTitles = alternativeTitles;
+  }
   if (language !== undefined) parsed.language = language;
   if (providers.length > 0) parsed.providers = providers;
 
@@ -167,6 +178,36 @@ function readStringList(value: unknown): string[] {
   }
 
   return [...new Set(providers)];
+}
+
+function readRepeatedStringList(
+  value: unknown,
+  field: string,
+  maxLength: number,
+  maxItems: number,
+): string[] {
+  const rawValues = Array.isArray(value)
+    ? value
+    : value === undefined
+      ? []
+      : [value];
+
+  if (rawValues.length > maxItems) {
+    throw new BadRequestException(
+      `${field} must contain at most ${maxItems} values.`,
+    );
+  }
+
+  const values = rawValues.map((entry, index) =>
+    readString(entry, `${field}[${index}]`, maxLength),
+  );
+  const unique = new Map<string, string>();
+
+  for (const entry of values) {
+    if (entry !== undefined) unique.set(entry.toLocaleLowerCase(), entry);
+  }
+
+  return [...unique.values()];
 }
 
 function readString(

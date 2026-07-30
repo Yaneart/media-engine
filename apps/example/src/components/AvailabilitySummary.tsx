@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   type AvailabilityOptionGroup,
+  formatCountedLabel,
   formatPlayerLabel,
   formatPlayerMeta,
   formatProviderFailure,
@@ -119,7 +120,7 @@ function PlayerPicker({
           >
             {groups.map((group) => (
               <option key={group.key} value={group.key}>
-                {group.label} ({countOptions(group)})
+                {formatCountedLabel(group.label, countOptions(group))}
               </option>
             ))}
           </select>
@@ -135,7 +136,7 @@ function PlayerPicker({
         >
           {selectedGroup.players.map((player) => (
             <option key={player.key} value={player.key}>
-              {player.label} ({player.variants.length})
+              {formatCountedLabel(player.label, player.variants.length)}
             </option>
           ))}
         </select>

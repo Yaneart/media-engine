@@ -58,7 +58,7 @@ export function createJacRedTorrentSearchUrl(
   query: TorrentDiscoveryQuery,
 ): URL {
   const url = new URL(config.searchPath, `${config.baseUrl}/`);
-  url.searchParams.set("query", query.title!.trim());
+  url.searchParams.set("query", selectJacRedTorrentSearchTitle(query));
   url.searchParams.set("year", String(query.year));
   url.searchParams.set("exact", "true");
   url.searchParams.set("sort", "sid");
@@ -70,6 +70,16 @@ export function createJacRedTorrentSearchUrl(
   }
 
   return url;
+}
+
+// JacRed is a Russian-language catalog, so prefer a known Cyrillic alias while retaining the
+// canonical title in the query for other torrent providers and exact session rediscovery.
+export function selectJacRedTorrentSearchTitle(query: TorrentDiscoveryQuery): string {
+  const titles = [query.title, ...(query.alternativeTitles ?? [])]
+    .map((title) => title?.trim())
+    .filter((title): title is string => Boolean(title));
+
+  return titles.find((title) => /[а-яё]/iu.test(title)) ?? titles[0]!;
 }
 
 export function parseJacRedTorrentResponse(

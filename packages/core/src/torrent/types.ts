@@ -14,6 +14,7 @@ export interface TorrentDiscoveryQuery {
   myAnimeList?: string;
   aniList?: string;
   title?: string;
+  alternativeTitles?: string[];
   year?: number;
   seasonNumber?: number;
   episodeNumber?: number;

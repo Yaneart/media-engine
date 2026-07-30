@@ -6,13 +6,17 @@ export function selectJacRedTorrentReleases(
   releases: JacRedTorrentRelease[],
   query: TorrentDiscoveryQuery,
 ): JacRedTorrentRelease[] {
-  const title = normalizeProviderSearchText(query.title ?? "");
+  const titles = new Set(
+    [query.title, ...(query.alternativeTitles ?? [])]
+      .filter((title): title is string => Boolean(title))
+      .map(normalizeProviderSearchText),
+  );
 
   return releases.filter(
     (release) =>
       release.year === query.year &&
       [release.name, release.originalName].some(
-        (candidate) => candidate && normalizeProviderSearchText(candidate) === title,
+        (candidate) => candidate && titles.has(normalizeProviderSearchText(candidate)),
       ) &&
       matchesMediaType(release.categories, query.type) &&
       (query.seasonNumber === undefined || release.seasons.includes(query.seasonNumber)),

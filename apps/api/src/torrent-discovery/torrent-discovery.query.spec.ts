@@ -7,6 +7,7 @@ describe('parseTorrentDiscoveryQuery', () => {
       parseTorrentDiscoveryQuery({
         type: 'series',
         title: ' Dune: Prophecy ',
+        alternativeTitles: [' Дюна: Пророчество ', 'DUNE: PROPHECY'],
         year: '2024',
         seasonNumber: '1',
         episodeNumber: '2',
@@ -20,6 +21,7 @@ describe('parseTorrentDiscoveryQuery', () => {
     ).toEqual({
       type: 'series',
       title: 'Dune: Prophecy',
+      alternativeTitles: ['Дюна: Пророчество', 'DUNE: PROPHECY'],
       year: 2024,
       seasonNumber: 1,
       episodeNumber: 2,
@@ -40,6 +42,10 @@ describe('parseTorrentDiscoveryQuery', () => {
     [{ type: 'movie', title: 'Dune', debug: '1' }, 'Unsupported'],
     [{ type: ['movie', 'series'], title: 'Dune' }, 'single string'],
     [{ type: 'movie', title: 'Dune', providers: [{}] }, 'only strings'],
+    [
+      { type: 'movie', title: 'Dune', alternativeTitles: [{}] },
+      'must be a single string',
+    ],
   ])('rejects malformed or unsupported input %#', (query, message) => {
     expect(() => parseTorrentDiscoveryQuery(query)).toThrow(
       new RegExp(message),
@@ -61,5 +67,16 @@ describe('parseTorrentDiscoveryQuery', () => {
         providers: Array.from({ length: 101 }, (_, index) => `p${index}`),
       }),
     ).toThrow(/at most 100 names/);
+
+    expect(() =>
+      parseTorrentDiscoveryQuery({
+        type: 'movie',
+        title: 'Dune',
+        alternativeTitles: Array.from(
+          { length: 21 },
+          (_, index) => `Dune ${index}`,
+        ),
+      }),
+    ).toThrow(/at most 20 values/);
   });
 });

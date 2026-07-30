@@ -448,7 +448,7 @@ describe('Media Engine API (e2e)', () => {
     expect(body.openapi).toBe('3.0.0');
     expect(body.info).toMatchObject({
       title: 'Media Engine API',
-      version: '0.11.0',
+      version: '0.12.0',
     });
     expect(body.paths).toHaveProperty('/health');
     expect(body.paths).toHaveProperty('/health/live');
@@ -471,6 +471,9 @@ describe('Media Engine API (e2e)', () => {
     );
     expect(detailsParameterNames).toContain('imdb');
     expect(detailsParameterNames).not.toContain('id');
+    expect(getOpenApiParameterNames(body.paths, '/media/torrents')).toContain(
+      'alternativeTitles',
+    );
   });
 
   afterEach(async () => {

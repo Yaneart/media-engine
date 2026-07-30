@@ -16,16 +16,27 @@ test("jacRedTorrentProvider resolves exact title/year movie and season queries",
   });
 
   const movie = await provider.discoverTorrents({ type: "movie", title: "Дюна", year: 2021 }, {});
+  const localizedAlias = await provider.discoverTorrents(
+    {
+      type: "movie",
+      title: "Dune: Part One",
+      alternativeTitles: ["Дюна"],
+      year: 2021,
+    },
+    {},
+  );
   const missingSeason = await provider.discoverTorrents(
     { type: "series", title: "Дюна", year: 2021, seasonNumber: 1 },
     {},
   );
 
   assert.equal(movie?.candidates.length, 1);
+  assert.equal(localizedAlias?.candidates.length, 1);
+  assert.equal(requested[1]?.searchParams.get("query"), "Дюна");
   assert.equal(missingSeason, null);
   assert.equal(requested[0]?.pathname, "/api/search");
   assert.equal(requested[0]?.searchParams.get("category"), "movie");
-  assert.equal(requested[1]?.searchParams.get("season"), "1");
+  assert.equal(requested[2]?.searchParams.get("season"), "1");
 });
 
 test("jacRedTorrentProvider skips unsupported, ambiguous, and filtered queries without I/O", async () => {

@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ProviderError } from "@media-engine/core";
-import { createJacRedTorrentSearchUrl, parseJacRedTorrentResponse } from "./client.js";
+import {
+  createJacRedTorrentSearchUrl,
+  parseJacRedTorrentResponse,
+  selectJacRedTorrentSearchTitle,
+} from "./client.js";
 import { createJacRedTorrentPayload, JACRED_INFO_HASH } from "./test-helpers.js";
 
 test("parseJacRedTorrentResponse accepts bounded nullable release metadata", () => {
@@ -121,5 +125,20 @@ test("createJacRedTorrentSearchUrl emits the observed bounded public route", () 
       { type: "anime", title: "Атака титанов", year: 2013 },
     ).searchParams.get("category"),
     "anime",
+  );
+
+  const localizedQuery = {
+    type: "movie" as const,
+    title: "Interstellar",
+    alternativeTitles: ["Интерстеллар"],
+    year: 2014,
+  };
+  assert.equal(selectJacRedTorrentSearchTitle(localizedQuery), "Интерстеллар");
+  assert.equal(
+    createJacRedTorrentSearchUrl(
+      { baseUrl: "https://api.jacred.test", searchPath: "/api/search", resultLimit: 25 },
+      localizedQuery,
+    ).searchParams.get("query"),
+    "Интерстеллар",
   );
 });

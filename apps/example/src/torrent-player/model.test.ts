@@ -9,12 +9,14 @@ import {
   formatTorrentPeers,
   groupTorrentCandidates,
   mapNativeMediaFailure,
+  shouldIgnoreNativeMediaError,
 } from "./model.ts";
 
 const details = {
   type: "series",
   title: "Игра престолов",
   originalTitle: "Game of Thrones",
+  alternativeTitles: ["A Game of Thrones", "Game of Thrones"],
   year: 2011,
   ids: { imdb: "tt0944947" },
 } as MediaDetails;
@@ -35,12 +37,13 @@ const candidate = {
   availability: "available",
 } as TorrentCandidate;
 
-test("torrent discovery query preserves exact media and episode identity", () => {
+test("torrent discovery query preserves media aliases and optional episode identity", () => {
   assert.deepEqual(
     buildTorrentDiscoveryQuery(details, "ru", { seasonNumber: 2, episodeNumber: 4 }),
     {
       type: "series",
       title: "Game of Thrones",
+      alternativeTitles: ["Игра престолов", "A Game of Thrones"],
       year: 2011,
       ids: { imdb: "tt0944947" },
       language: "ru",
@@ -49,6 +52,16 @@ test("torrent discovery query preserves exact media and episode identity", () =>
       episodeNumber: 4,
     },
   );
+
+  assert.deepEqual(buildTorrentDiscoveryQuery(details, "ru"), {
+    type: "series",
+    title: "Game of Thrones",
+    alternativeTitles: ["Игра престолов", "A Game of Thrones"],
+    year: 2011,
+    ids: { imdb: "tt0944947" },
+    language: "ru",
+    limit: 25,
+  });
 });
 
 test("release presentation preserves provider metadata and peer observations", () => {
@@ -161,4 +174,11 @@ test("native decode rejection is distinct from known server stream failures", ()
       transient: true,
     },
   );
+});
+
+test("native media errors from an explicit stop or replaced session are ignored", () => {
+  assert.equal(shouldIgnoreNativeMediaError("session-a", "session-a", undefined), false);
+  assert.equal(shouldIgnoreNativeMediaError("session-a", "session-a", "session-a"), true);
+  assert.equal(shouldIgnoreNativeMediaError("session-a", "session-b", undefined), true);
+  assert.equal(shouldIgnoreNativeMediaError(undefined, undefined, undefined), true);
 });

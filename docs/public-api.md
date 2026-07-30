@@ -116,14 +116,14 @@ Returned options are discovered from third-party sources. They are not a guarant
 ```ts
 const torrents = await engine.discoverTorrents({
   type: "series",
+  title: "Dark",
+  alternativeTitles: ["Тьма"],
   imdb: "tt5753856",
-  seasonNumber: 1,
-  episodeNumber: 2,
   limit: 20,
 });
 ```
 
-Torrent discovery is a separate provider category and operation. A `TorrentDiscoveryResponse` contains normalized candidates, source attribution, optional release/file/peer metadata, and an explicit handoff of kind `magnet`, `torrent_file`, or `external`. A provider may expose optional `catalog` presentation metadata (display name, regional or international scope, and locale), while a candidate from a meta-indexer may retain its concrete `catalogSource`. These fields support honest UI grouping and attribution; they do not assert the audio or subtitle language of a release. Core does not open the handoff, download torrent metadata, join a swarm, select files, store media, proxy traffic, or transcode video.
+Torrent discovery is a separate provider category and operation. A query may pair its canonical `title` with up to 20 bounded `alternativeTitles`; providers can use a suitable known alias for their catalog without changing the returned media identity. A `TorrentDiscoveryResponse` contains normalized candidates, source attribution, optional release/file/peer metadata, and an explicit handoff of kind `magnet`, `torrent_file`, or `external`. A provider may expose optional `catalog` presentation metadata (display name, regional or international scope, and locale), while a candidate from a meta-indexer may retain its concrete `catalogSource`. These fields support honest UI grouping and attribution; they do not assert the audio or subtitle language of a release. Core does not open the handoff, download torrent metadata, join a swarm, select files, store media, proxy traffic, or transcode video.
 
 `torrentProviders` are selected by media type, supported external IDs or title lookup, episode capability, and an optional provider filter. Calls use the same bounded timeout, cancellation, concurrency, circuit-breaker, partial-failure, cache, and identical-request coalescing behavior as other provider operations. Handoff data is never served from the stale metadata cache and an advertised `expiresAt` bounds its normal cache lifetime. `limit: 0` is a zero-work response.
 

@@ -32,6 +32,12 @@ export class TorrentDiscoveryController {
     enum: ['movie', 'series', 'anime'],
   })
   @ApiQuery({ name: 'title', required: false, type: String })
+  @ApiQuery({
+    name: 'alternativeTitles',
+    required: false,
+    type: String,
+    isArray: true,
+  })
   @ApiQuery({ name: 'year', required: false, type: Number })
   @ApiQuery({ name: 'seasonNumber', required: false, type: Number })
   @ApiQuery({ name: 'episodeNumber', required: false, type: Number })

@@ -33,10 +33,13 @@ under an unusual extension, honest rejection of healthy non-media bytes, and fin
 headless run proves the audio track reaches the decoder, not that sound was physically audible.
 No probe, FFmpeg, remux, transcode, generated HLS, or stored media fixture is involved.
 
-Before a release, manually repeat the example-player flow in current Firefox and Chromium: visible
-video, audible audio, buffering state, start/middle/tail and repeated seeks, Stop, release switch,
-unsupported-format messaging, tab/page cleanup, and TorrServer-down behavior. When TorrServer is
-down, the only accepted result is `torrserver_unavailable`; there is no fallback player or engine.
+Before a release, manually repeat the example-player flow in a current supported browser when the
+player or stream contract changes: visible video, audible audio, buffering state, start/middle/tail
+and repeated seeks, Stop, release switch, unsupported-format messaging, tab/page cleanup, and
+TorrServer-down behavior. The repository's reproducible native-browser gate uses current Firefox;
+additional browsers are supplementary compatibility observations, not a universal decode promise.
+When TorrServer is down, the only accepted result is `torrserver_unavailable`; there is no fallback
+player or engine.
 
 ## Deterministic CI
 
