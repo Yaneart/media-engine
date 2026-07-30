@@ -34,6 +34,7 @@
     "smoke:search-quality:scheduled": "pnpm build && node scripts/search-quality-smoke.mjs --matrix full --max-warnings 4 --json",
     "smoke:source-filter-audit": "pnpm build && node scripts/source-filter-audit.mjs",
     "smoke:torrserver-adapter": "node scripts/torrserver-adapter-smoke.mjs",
+    "smoke:torrent-browser": "node scripts/original-torrent-browser-smoke.mjs",
     "smoke:torrent-range": "node scripts/original-torrent-range-smoke.mjs",
     "smoke:providers": "pnpm build && node scripts/provider-smoke.mjs",
     "typecheck": "pnpm -r typecheck",

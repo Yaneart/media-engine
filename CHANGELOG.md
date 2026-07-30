@@ -8,6 +8,12 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added a deterministic native-Firefox original-torrent acceptance smoke. An in-memory browser-made
+  VP8/Opus fixture passes through a local tracker, peer, pinned TorrServer, protected Range gateway,
+  and native `<video>`; the gate verifies playback, decoded video, audio-track presence, seeking,
+  one-file and multi-file torrents, extension-independent bytes, honest non-media rejection,
+  cancellation, and complete cleanup
+  without probing, conversion, generated HLS, public swarms, or stored media fixtures.
 - Added structured, redacted original-torrent runtime/session/stream observability for operation and
   metadata latency, upstream header wait, first body byte, exact Range position, cancellation,
   active sessions/streams, shared references, and cleanup. Deterministic outage coverage now spans
@@ -107,6 +113,9 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Fixed
 
+- A stopped or unreachable TorrServer during session preparation or lease validation now remains
+  `torrserver_unavailable` instead of being misclassified as missing torrent pieces. Capability
+  access reports the transient runtime outage as HTTP 503, and no fallback route is attempted.
 - Protected original-file responses now override the API-wide same-origin resource policy with a
   capability-route-specific cross-origin media policy. This lets the separately served example
   `<video>` consume valid MP4 ranges without weakening security headers on other API routes. The

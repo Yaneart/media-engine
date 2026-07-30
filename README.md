@@ -123,6 +123,8 @@ pnpm release:check
 pnpm coverage
 pnpm pack:check
 pnpm smoke:search-quality:scheduled
+# Requires the running Compose stack and host Firefox:
+pnpm smoke:torrent-browser
 ```
 
 `release:check` is the complete local release-candidate gate: formatting, check-only lint,

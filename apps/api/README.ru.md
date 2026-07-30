@@ -58,6 +58,8 @@ Torrent discovery по умолчанию выключен. В `MEDIA_ENGINE_TOR
 
 App-specific original-file runtime отделён от discovery. `docker compose up -d` запускает release `MatriX.141.1` по закреплённому digest без host port вместе с API и example. TorrServer использует private control network с API и отдельную outbound network для trackers, DHT и peers. Internal adapter требует его точную `/echo` wire-version `MatriX.141`, принимает только hash-bound magnets или уже разрешённые ограниченные `.torrent` bytes и реализует health, add, metadata, exact-file target и drop.
 
+`MEDIA_ENGINE_TORRSERVER_OWNER_ID` должен быть стабильным и уникальным для каждого API deployment, использующего общий TorrServer. При startup удаляются только устаревшие записи с точным owner marker этого deployment; существующие записи заимствуются и никогда не удаляются. Timestamped ownership lease проверяется перед selection и каждым stream access, поэтому restart TorrServer или замена записи аннулирует устаревшую capability.
+
 Session routes принимают ограниченную media query и только точные `provider`/opaque candidate `id`. API повторно разрешает observation, при необходимости загружает provider-owned `.torrent` с жёсткими size/time/redirect ограничениями и не принимает browser-controlled magnet, hash, upstream URL, path или TorrServer target. Session states: `adding`, `waiting_metadata`, `selection_required`, `ready`, `failed`, `stopped`, `expired`. Все обычные non-padding файлы предлагаются независимо от расширения; неоднозначный torrent требует один предложенный numeric file ID. Sessions с одинаковым hash совместно используют подготовку TorrServer, а последний stop/expiry/shutdown освобождает запись.
 
 Все create/status/select/stop routes требуют `Authorization: Bearer <MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN>`. Example browser не получает этот token: lifecycle-вызовы аутентифицирует same-origin server-side BFF. Для `GET`/`HEAD` media bytes единственным credential остаётся high-entropy stream capability.
@@ -65,6 +67,8 @@ Session routes принимают ограниченную media query и тол
 Snapshot в состоянии `ready` содержит expiring high-entropy `streamUrl`, но не upstream target. Его `GET`/`HEAD` route отдаёт точные выбранные original bytes, принимает один closed/open/suffix Range, возвращает строгие `200`/`206`/`416` metadata, пропускает только безопасные validators и стримит с backpressure. Capability route явно разрешает cross-origin media embedding, чтобы отдельно запущенный example frontend мог его использовать; script access остаётся ограничен configured CORS allowlist. Отключение клиента, stop/expiry session, header deadline и inactivity body отменяют upstream work. Исправный original stream всё ещё не обещает поддержку codec браузером.
 
 Session lifetime, retention terminal-записей, cleanup cadence и timeout загрузки torrent-file ограничены настройками `MEDIA_ENGINE_TORRENT_SESSION_TTL_MS`, `MEDIA_ENGINE_TORRENT_SESSION_TERMINAL_RETENTION_MS`, `MEDIA_ENGINE_TORRENT_SESSION_CLEANUP_INTERVAL_MS` и `MEDIA_ENGINE_TORRENT_SOURCE_REQUEST_TIMEOUT_MS`. По умолчанию session живёт шесть часов, чтобы защищённой original stream-ссылки хватило на полнометражный фильм. `MEDIA_ENGINE_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS` и `MEDIA_ENGINE_TORRENT_STREAM_MAX_CONCURRENT` ограничивают process-local creation work и активные original streams; исчерпание capacity возвращает типизированный `503`, не инвалидируя исправную stream capability.
+
+Original-torrent операции записывают JSON structured logs с component `original_torrent` и scope `runtime`, `session` или `stream`. Allowlist содержит duration операций и metadata, ожидание upstream headers и первого body byte, full/partial Range offsets, success/failure/cancellation, количество активных sessions/creations/streams, resources/references, ownership class, file count и cleanup. Capability/session IDs, info hashes, magnets, torrent payloads, titles и file paths, internal URLs, credentials и исходные тексты ошибок не логируются. Сбой telemetry sink не влияет на control и streaming behavior.
 
 `/health/live` проверяет только способность API-процесса отвечать HTTP. `/health/ready` и обратно совместимый `/health` также проверяют provider circuits и возвращают `status: "degraded"`, если хотя бы один circuit открыт или восстанавливается. Degraded readiness остается HTTP 200, потому что API все еще может отдавать частичные результаты.
 
@@ -82,6 +86,8 @@ pnpm --filter @media-engine/api test
 pnpm --filter @media-engine/api test:e2e
 # При запущенном Compose stack и уже собранном API:
 docker compose exec -T api node scripts/original-torrent-range-smoke.mjs
+# При установленном Firefox на host:
+pnpm smoke:torrent-browser
 ```
 
 Provider-код находится в `@media-engine/providers`, merging - в `@media-engine/core`. Это приложение только подключает их к HTTP и не раскрывает secrets в ответах.

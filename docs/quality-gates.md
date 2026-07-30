@@ -9,6 +9,35 @@ control, metadata, selection, and stream phases, verify telemetry redaction, and
 shared sessions to prove terminal records, references, and runtime entries are cleaned up. These
 tests use local fakes and do not depend on public swarms.
 
+## Original-torrent acceptance
+
+With the Compose stack running and the API already built, two local smoke gates exercise the
+pinned TorrServer without a public swarm:
+
+```bash
+docker compose exec -T api node scripts/original-torrent-range-smoke.mjs
+docker compose exec -T api node scripts/original-torrent-range-smoke.mjs --single-file
+pnpm smoke:torrent-browser
+```
+
+The Range smoke uses a deterministic local tracker and peer. It verifies a multi-file torrent,
+extension-independent selection, exact start/middle/tail and repeated ranges, concurrent ranges,
+client cancellation, and ownership-safe cleanup. Unit coverage separately injects slow metadata,
+first-piece delay, missing pieces, no peers, stalled bodies, stop, expiry, runtime replacement, and
+concurrent-session pressure.
+
+The browser smoke requires Firefox on the host. It creates a short VP8/Opus WebM with browser
+`MediaRecorder`, keeps it only in memory, and streams it through the same local torrent path. It
+checks native playback, decoded video dimensions, an audio track, a meaningful seek, the same bytes
+under an unusual extension, honest rejection of healthy non-media bytes, and final cleanup. A
+headless run proves the audio track reaches the decoder, not that sound was physically audible.
+No probe, FFmpeg, remux, transcode, generated HLS, or stored media fixture is involved.
+
+Before a release, manually repeat the example-player flow in current Firefox and Chromium: visible
+video, audible audio, buffering state, start/middle/tail and repeated seeks, Stop, release switch,
+unsupported-format messaging, tab/page cleanup, and TorrServer-down behavior. When TorrServer is
+down, the only accepted result is `torrserver_unavailable`; there is no fallback player or engine.
+
 ## Deterministic CI
 
 Every push and pull request installs the frozen pnpm lockfile and runs the complete

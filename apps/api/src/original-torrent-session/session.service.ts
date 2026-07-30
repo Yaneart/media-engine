@@ -822,6 +822,7 @@ function mapCapabilityErrorCode(
 ):
   | 'torrent_pieces_unavailable'
   | 'torrent_stream_failed'
+  | 'torrserver_unavailable'
   | 'torrserver_incompatible'
   | 'torrserver_restarted'
   | 'session_stopped'
@@ -829,6 +830,7 @@ function mapCapabilityErrorCode(
   if (
     code === 'torrent_pieces_unavailable' ||
     code === 'torrent_stream_failed' ||
+    code === 'torrserver_unavailable' ||
     code === 'torrserver_incompatible' ||
     code === 'torrserver_restarted' ||
     code === 'session_stopped' ||

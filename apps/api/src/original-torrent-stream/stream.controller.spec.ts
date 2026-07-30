@@ -94,6 +94,26 @@ describe('original torrent stream HTTP controller', () => {
       });
   });
 
+  it('maps an unavailable TorrServer capability check to a retryable response', async () => {
+    gateway.handle.mockRejectedValueOnce(
+      new OriginalTorrentStreamCapabilityError(
+        'torrserver_unavailable',
+        'TorrServer is unavailable.',
+        true,
+      ),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/media/torrent-streams/${CAPABILITY}`)
+      .expect(503)
+      .expect({
+        statusCode: 503,
+        code: 'torrserver_unavailable',
+        message: 'TorrServer is unavailable.',
+        error: 'Service Unavailable',
+      });
+  });
+
   it.each([
     ['torrent_pieces_unavailable' as const, true, 503, 'Service Unavailable'],
     ['torrent_stream_failed' as const, false, 502, 'Bad Gateway'],

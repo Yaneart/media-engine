@@ -21,12 +21,30 @@ if (config === undefined) {
   throw new Error("MEDIA_ENGINE_TORRSERVER_URL is required for the original-range smoke.");
 }
 
+const stdinMedia = process.argv.includes("--stdin-media");
+const browserMode = process.argv.includes("--browser");
+const allowBrowserRejection = process.argv.includes("--allow-browser-rejection");
+const singleFile = process.argv.includes("--single-file");
+const selectedName =
+  process.argv.find((argument) => argument.startsWith("--name="))?.slice("--name=".length) ??
+  "fixture.unusual";
+if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(selectedName)) {
+  throw new Error("The deterministic fixture filename is invalid.");
+}
+
 const fixtureHost =
   process.env.MEDIA_ENGINE_TORRENT_FIXTURE_HOST ?? (await resolveLocalAddress(config.baseUrl));
-const payload = Buffer.allocUnsafe(192 * 1024);
-for (let index = 0; index < payload.length; index += 1) {
-  payload[index] = (index * 31 + 7) % 256;
+const payload = stdinMedia ? await readStdin() : Buffer.allocUnsafe(192 * 1024);
+if (!stdinMedia) {
+  for (let index = 0; index < payload.length; index += 1) {
+    payload[index] = (index * 31 + 7) % 256;
+  }
 }
+if (payload.length < 1 || payload.length > config.maxFileSizeBytes) {
+  throw new Error("The deterministic fixture payload is empty or oversized.");
+}
+const sidecar = Buffer.from("healthy non-media sidecar\n", "utf8");
+const torrentPayload = singleFile ? payload : Buffer.concat([sidecar, payload]);
 
 const peerSockets = new Set();
 const trace = {
@@ -37,10 +55,15 @@ const trace = {
   pieceRequests: 0,
 };
 let fixtureHash;
-const tracker = createTrackerServer(payload, () => fixtureHash, peerSockets, trace);
+const tracker = createTrackerServer(torrentPayload, () => fixtureHash, peerSockets, trace);
 const trackerAddress = await listen(tracker, "0.0.0.0");
 const fixture = createFixtureTorrent(
-  payload,
+  singleFile
+    ? [{ path: selectedName, bytes: payload }]
+    : [
+        { path: "notes.txt", bytes: sidecar },
+        { path: selectedName, bytes: payload },
+      ],
   `http://${fixtureHost}:${trackerAddress.port}/announce`,
 );
 fixtureHash = fixture.hash;
@@ -49,19 +72,45 @@ const lifecycle = new AbortController();
 let acquired;
 let streamFailure;
 let gatewayServer;
+let browserBarrier;
+let resolveBrowserResult;
+let rejectBrowserResult;
+const browserResult = new Promise((resolve, reject) => {
+  resolveBrowserResult = resolve;
+  rejectBrowserResult = reject;
+});
+const rangeLength = Math.min(4_096, payload.length);
+const middleStart = Math.max(0, Math.floor((payload.length - rangeLength) / 2));
 const checks = [
-  { name: "start", header: "bytes=0-4095", start: 0, end: 4095 },
+  {
+    name: "start",
+    header: `bytes=0-${rangeLength - 1}`,
+    start: 0,
+    end: rangeLength - 1,
+  },
   {
     name: "middle",
-    header: "bytes=98304-102399",
-    start: 98_304,
-    end: 102_399,
+    header: `bytes=${middleStart}-${middleStart + rangeLength - 1}`,
+    start: middleStart,
+    end: middleStart + rangeLength - 1,
   },
   {
     name: "end",
-    header: "bytes=-4096",
-    start: payload.length - 4096,
+    header: `bytes=-${rangeLength}`,
+    start: payload.length - rangeLength,
     end: payload.length - 1,
+  },
+  {
+    name: "start-repeat",
+    header: `bytes=0-${rangeLength - 1}`,
+    start: 0,
+    end: rangeLength - 1,
+  },
+  {
+    name: "middle-repeat",
+    header: `bytes=${middleStart}-${middleStart + rangeLength - 1}`,
+    start: middleStart,
+    end: middleStart + rangeLength - 1,
   },
 ];
 
@@ -75,10 +124,16 @@ try {
   });
   const metadata =
     acquired.files.length > 0 ? acquired : await adapter.waitForMetadata(fixture.hash);
-  const target = await adapter.resolveFileTarget(fixture.hash, 1);
+  assert.equal(metadata.files.length, singleFile ? 1 : 2);
+  const sidecarFile = metadata.files.find((file) => file.path.endsWith("notes.txt"));
+  const selectedFile = metadata.files.find((file) => file.path.endsWith(selectedName));
+  if (singleFile) assert.equal(sidecarFile, undefined);
+  else assert.equal(sidecarFile?.length, sidecar.length);
+  assert.equal(selectedFile?.length, payload.length);
+  assert.notEqual(selectedFile, undefined);
+  const target = await adapter.resolveFileTarget(fixture.hash, selectedFile.id);
 
-  assert.deepEqual(metadata.files, [{ id: 1, path: "fixture.bin", length: payload.length }]);
-  assert.equal(target.path, "fixture.bin");
+  assert.equal(target.path.endsWith(selectedName), true);
   assert.equal(target.length, payload.length);
 
   const sessions = {
@@ -99,6 +154,7 @@ try {
     retryDelayMs: 50,
   });
   gatewayServer = createServer((request, response) => {
+    if (browserMode && handleBrowserRequest(request, response)) return;
     void gateway.handle(request, response, "deterministic-capability", "GET").catch((error) => {
       if (!response.headersSent) {
         response.statusCode = 500;
@@ -108,30 +164,46 @@ try {
       }
     });
   });
-  const gatewayAddress = await listen(gatewayServer, "127.0.0.1");
+  const gatewayAddress = await listen(gatewayServer, browserMode ? "0.0.0.0" : "127.0.0.1");
   const streamUrl = `http://127.0.0.1:${gatewayAddress.port}/original`;
   for (const check of checks) {
-    const response = await fetch(streamUrl, {
-      headers: { Range: check.header },
-    });
-    const body = Buffer.from(await response.arrayBuffer());
-    assert.equal(
-      response.status,
-      206,
-      `${check.name} status: ${body.toString("utf8")}; trace=${JSON.stringify(trace)}`,
-    );
-    assert.equal(response.headers.get("accept-ranges"), "bytes");
-    assert.equal(
-      response.headers.get("content-range"),
-      `bytes ${check.start}-${check.end}/${payload.length}`,
-    );
-    assert.equal(response.headers.get("content-length"), String(body.length));
-    assert.deepEqual(body, payload.subarray(check.start, check.end + 1));
+    await verifyRange(streamUrl, check, payload, trace);
   }
+  await Promise.all(
+    checks.slice(0, 3).map((check) => verifyRange(streamUrl, check, payload, trace)),
+  );
+  let nativeBrowser;
+  if (browserMode) {
+    process.stdout.write(`${JSON.stringify({ status: "READY", port: gatewayAddress.port })}\n`);
+    const browserTimeout = new Promise((_, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("Native browser acceptance timed out.")),
+        60_000,
+      );
+      timer.unref();
+    });
+    nativeBrowser = await Promise.race([browserResult, browserTimeout]);
+    if (nativeBrowser.outcome === "pass") {
+      assert.equal(nativeBrowser.played, true);
+      assert.equal(nativeBrowser.seeked, true);
+      assert.equal(nativeBrowser.videoWidth > 0, true);
+      assert.equal(nativeBrowser.duration > 0, true);
+    } else {
+      assert.equal(allowBrowserRejection, true, JSON.stringify(nativeBrowser));
+      assert.match(nativeBrowser.message, /^media error [34]$/u);
+    }
+  }
+  const cancelled = await fetch(streamUrl);
+  const reader = cancelled.body?.getReader();
+  assert.notEqual(reader, undefined);
+  await reader.read();
+  await reader.cancel();
+  await new Promise((resolve) => setTimeout(resolve, 20));
 
   assert.equal(streamFailure, undefined);
 } finally {
   lifecycle.abort();
+  browserBarrier?.end();
   await close(gatewayServer);
   if (acquired !== undefined) {
     await adapter.release(acquired.lease).catch(() => undefined);
@@ -153,10 +225,135 @@ process.stdout.write(
     status: "PASS",
     hash: fixture.hash,
     bytes: payload.length,
+    files: singleFile ? 1 : 2,
+    selectedName,
+    extensionIndependent: true,
     ranges: checks.map(({ name, start, end }) => ({ name, start, end })),
+    concurrentRanges: 3,
+    cancellation: "verified",
+    ...(browserMode ? { nativeBrowser: await browserResult } : {}),
     cleanup: "verified",
   })}\n`,
 );
+
+async function verifyRange(streamUrl, check, expected, trace) {
+  const response = await fetch(streamUrl, {
+    headers: { Range: check.header },
+  });
+  const body = Buffer.from(await response.arrayBuffer());
+  assert.equal(
+    response.status,
+    206,
+    `${check.name} status: ${body.toString("utf8")}; trace=${JSON.stringify(trace)}`,
+  );
+  assert.equal(response.headers.get("accept-ranges"), "bytes");
+  assert.equal(
+    response.headers.get("content-range"),
+    `bytes ${check.start}-${check.end}/${expected.length}`,
+  );
+  assert.equal(response.headers.get("content-length"), String(body.length));
+  assert.deepEqual(body, expected.subarray(check.start, check.end + 1));
+}
+
+function handleBrowserRequest(request, response) {
+  if (request.url === "/test") {
+    const body = browserAcceptanceHtml();
+    response.writeHead(200, {
+      "Content-Length": String(Buffer.byteLength(body)),
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    response.end(body);
+    return true;
+  }
+  if (request.url === "/barrier") {
+    browserBarrier = response;
+    response.writeHead(200, {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "no-store",
+    });
+    return true;
+  }
+  if (request.url === "/result" && request.method === "POST") {
+    void readJsonBody(request).then(
+      (result) => {
+        resolveBrowserResult(result);
+        browserBarrier?.end('<svg xmlns="http://www.w3.org/2000/svg"/>');
+      },
+      (error) => {
+        rejectBrowserResult(error);
+        browserBarrier?.end();
+      },
+    );
+    response.writeHead(204).end();
+    return true;
+  }
+  if (request.url !== "/original") {
+    response.writeHead(404, { "Content-Length": "0" }).end();
+    return true;
+  }
+  return false;
+}
+
+function browserAcceptanceHtml() {
+  return `<!doctype html>
+<meta charset="utf-8">
+<title>Media Engine native browser acceptance</title>
+<video id="fixture" muted playsinline preload="auto"></video>
+<script>
+const video = document.querySelector("#fixture");
+const wait = (event) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error(event + " timeout")), 30000);
+  video.addEventListener(event, () => { clearTimeout(timer); resolve(); }, { once: true });
+  video.addEventListener("error", () => { clearTimeout(timer); reject(new Error("media error " + (video.error?.code ?? "unknown"))); }, { once: true });
+});
+const report = (value) => fetch("/result", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify(value),
+});
+(async () => {
+  try {
+    video.src = "/original";
+    await wait("loadedmetadata");
+    await video.play();
+    const played = !video.paused && video.readyState >= 2;
+    const seekedPromise = wait("seeked");
+    video.currentTime = Math.min(Math.max(video.duration / 2, 0.1), 2);
+    await seekedPromise;
+    await report({
+      outcome: "pass",
+      played,
+      seeked: true,
+      duration: video.duration,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+      hasAudio: Boolean(video.mozHasAudio || video.audioTracks?.length),
+    });
+  } catch (error) {
+    await report({ outcome: "fail", message: error instanceof Error ? error.message : String(error) });
+  }
+})();
+</script>
+<img src="/barrier" alt="">`;
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  let length = 0;
+  for await (const chunk of request) {
+    length += chunk.length;
+    if (length > 16_384) throw new Error("Browser result exceeded its bound.");
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
 
 function createTrackerServer(bytes, readHash, sockets, trace) {
   const body = bencodeDictionary([
@@ -290,7 +487,8 @@ function createPeerMessage(id, payload = Buffer.alloc(0)) {
   return message;
 }
 
-function createFixtureTorrent(bytes, announceUrl) {
+function createFixtureTorrent(files, announceUrl) {
+  const bytes = Buffer.concat(files.map((file) => file.bytes));
   const pieceLength = 16_384;
   const pieces = [];
   for (let offset = 0; offset < bytes.length; offset += pieceLength) {
@@ -301,8 +499,18 @@ function createFixtureTorrent(bytes, announceUrl) {
     );
   }
   const info = bencodeDictionary([
-    ["length", bencodeInteger(bytes.length)],
-    ["name", bencodeBytes(Buffer.from("fixture.bin", "utf8"))],
+    [
+      "files",
+      bencodeList(
+        files.map((file) =>
+          bencodeDictionary([
+            ["length", bencodeInteger(file.bytes.length)],
+            ["path", bencodeList([bencodeBytes(Buffer.from(file.path, "utf8"))])],
+          ]),
+        ),
+      ),
+    ],
+    ["name", bencodeBytes(Buffer.from("fixture-root", "utf8"))],
     ["piece length", bencodeInteger(pieceLength)],
     ["pieces", bencodeBytes(Buffer.concat(pieces))],
   ]);
@@ -327,6 +535,10 @@ function bencodeDictionary(entries) {
 
 function bencodeInteger(value) {
   return Buffer.from(`i${value}e`);
+}
+
+function bencodeList(values) {
+  return Buffer.concat([Buffer.from("l"), ...values, Buffer.from("e")]);
 }
 
 function bencodeBytes(value) {

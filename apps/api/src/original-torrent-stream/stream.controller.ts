@@ -101,6 +101,17 @@ export class OriginalTorrentStreamController {
         throw new BadRequestException(error.message);
       }
       if (error instanceof OriginalTorrentStreamCapabilityError) {
+        if (error.code === 'torrserver_unavailable') {
+          throw new HttpException(
+            {
+              statusCode: 503,
+              code: error.code,
+              message: error.message,
+              error: 'Service Unavailable',
+            },
+            503,
+          );
+        }
         throw new GoneException({
           statusCode: 410,
           code: error.code,

@@ -61,6 +61,7 @@ export class OriginalTorrentStreamCapabilityError extends Error {
     readonly code:
       | 'torrent_pieces_unavailable'
       | 'torrent_stream_failed'
+      | 'torrserver_unavailable'
       | 'torrserver_incompatible'
       | 'torrserver_restarted'
       | 'session_stopped'
@@ -112,7 +113,7 @@ function mapRuntimeFailure(
     return { code: 'torrent_metadata_timeout', message, transient: true };
   }
   if (code === 'unavailable' || code === 'not_found') {
-    return { code: 'torrent_pieces_unavailable', message, transient: true };
+    return { code: 'torrserver_unavailable', message, transient: true };
   }
   if (code === 'file_not_found') {
     return { code: 'torrent_file_not_found', message, transient };

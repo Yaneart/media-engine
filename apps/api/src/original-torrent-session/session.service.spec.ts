@@ -459,7 +459,7 @@ describe('original torrent session lifecycle', () => {
       const failed = await waitForState(service, created.id, 'failed');
 
       expect(failed.error).toMatchObject({
-        code: 'torrent_pieces_unavailable',
+        code: 'torrserver_unavailable',
         transient: true,
       });
       const acquired = ['metadata', 'validate', 'target'].includes(phase);

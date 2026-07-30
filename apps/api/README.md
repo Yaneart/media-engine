@@ -84,6 +84,8 @@ pnpm --filter @media-engine/api test
 pnpm --filter @media-engine/api test:e2e
 # With the Compose stack running and the API already built:
 docker compose exec -T api node scripts/original-torrent-range-smoke.mjs
+# With Firefox installed on the host:
+pnpm smoke:torrent-browser
 ```
 
 Provider code lives in `@media-engine/providers`; merging lives in `@media-engine/core`. This app only connects them to HTTP and keeps secrets out of responses.
