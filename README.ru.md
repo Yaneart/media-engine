@@ -91,7 +91,9 @@ non-padding файлы без фильтрации расширений, про�
 при stop, expiry или shutdown API. API не принимает raw magnet, hash, upstream URL, path или
 TorrServer target. Готовая session раскрывает только high-entropy application capability. Её
 защищённый `GET`/`HEAD` route стримит точный выбранный original file со строгим single-range,
-backpressure, cancellation и ограниченными cold-start timeout, не раскрывая TorrServer. Example
+backpressure, cancellation, ограниченными cold-start timeout и active-stream concurrency, не
+раскрывая TorrServer. Создание sessions также ограничено по concurrency и отдельным per-client
+budget, который не затрагивает status, selection и Stop. Example
 использует server-authenticated same-origin BFF для lifecycle calls и один нативный `<video>` для
 original capability. Он различает metadata wait и first-piece buffering, а отказ браузера сообщает
 как `client_format_unsupported`. Media worker, probe, remux, transcode и HLS отсутствуют.

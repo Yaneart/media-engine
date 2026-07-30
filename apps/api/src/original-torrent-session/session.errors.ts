@@ -34,6 +34,15 @@ export class OriginalTorrentSessionConflictError extends Error {
   }
 }
 
+export class OriginalTorrentSessionCapacityError extends Error {
+  override readonly name = 'OriginalTorrentSessionCapacityError';
+  readonly code = 'torrent_session_creation_capacity_exceeded';
+
+  constructor() {
+    super('The original torrent session creation capacity is exhausted.');
+  }
+}
+
 export class TorrentSourceResolutionError extends Error {
   override readonly name = 'TorrentSourceResolutionError';
 

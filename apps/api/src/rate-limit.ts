@@ -19,6 +19,7 @@ export interface RateLimitOptions {
   now?: () => number;
   matches?: (request: Request) => boolean;
   message?: string;
+  code?: string;
 }
 
 // Apply one bounded process-local budget across the expensive public media routes.
@@ -76,12 +77,22 @@ export function createRateLimitMiddleware(
     response.setHeader('Retry-After', String(retryAfterSeconds));
     response.status(429).json({
       statusCode: 429,
+      ...(options.code === undefined ? {} : { code: options.code }),
       message:
         options.message ??
         'Too many media requests. Retry after the current rate-limit window.',
       error: 'Too Many Requests',
     });
   };
+}
+
+export function isOriginalTorrentSessionCreationRequest(
+  request: Request,
+): boolean {
+  return (
+    request.method === 'POST' &&
+    normalizePath(request.path) === '/media/torrent-sessions'
+  );
 }
 
 function isExpensiveMediaRequest(request: Request): boolean {

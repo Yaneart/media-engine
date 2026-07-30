@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,10 +22,13 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import {
   OriginalTorrentSessionConflictError,
+  OriginalTorrentSessionCapacityError,
   OriginalTorrentSessionInputError,
   OriginalTorrentSessionNotFoundError,
 } from './session.errors';
@@ -53,7 +57,13 @@ export class OriginalTorrentSessionController {
       'Session creation started. Poll the returned ID until selection_required, ready, or failed.',
   })
   @ApiBadRequestResponse({ description: 'Invalid or unbounded session input.' })
+  @ApiTooManyRequestsResponse({
+    description: 'The per-client session creation rate was exceeded.',
+  })
   @ApiConflictResponse({ description: 'The session runtime is shutting down.' })
+  @ApiServiceUnavailableResponse({
+    description: 'The bounded session creation capacity is exhausted.',
+  })
   @HttpCode(202)
   @Post()
   create(@Body() body: unknown) {
@@ -135,6 +145,14 @@ async function mapHttpErrors<T>(operation: () => T | Promise<T>): Promise<T> {
         code: error.code,
         message: error.message,
         error: 'Conflict',
+      });
+    }
+    if (error instanceof OriginalTorrentSessionCapacityError) {
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        code: error.code,
+        message: error.message,
+        error: 'Service Unavailable',
       });
     }
     throw error;

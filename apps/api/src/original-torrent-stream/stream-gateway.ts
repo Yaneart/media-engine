@@ -10,6 +10,7 @@ import type {
 import {
   OriginalTorrentClientDisconnectedError,
   OriginalTorrentInactivityError,
+  OriginalTorrentStreamCapacityError,
   OriginalTorrentUpstreamStreamError,
 } from './stream.errors';
 import {
@@ -29,6 +30,7 @@ interface OriginalTorrentStreamGatewayDependencies {
   delay?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   maxHeaderRetries?: number;
   retryDelayMs?: number;
+  maxConcurrentStreams?: number;
 }
 
 interface UpstreamResult {
@@ -48,6 +50,8 @@ export class OriginalTorrentStreamGateway {
   ) => Promise<void>;
   private readonly maxHeaderRetries: number;
   private readonly retryDelayMs: number;
+  private readonly maxConcurrentStreams: number;
+  private activeStreams = 0;
 
   constructor(
     private readonly sessions: OriginalTorrentSessionService,
@@ -57,6 +61,7 @@ export class OriginalTorrentStreamGateway {
     this.delay = dependencies.delay ?? abortableDelay;
     this.maxHeaderRetries = dependencies.maxHeaderRetries ?? 1;
     this.retryDelayMs = dependencies.retryDelayMs ?? 100;
+    this.maxConcurrentStreams = dependencies.maxConcurrentStreams ?? 8;
     if (
       !Number.isSafeInteger(this.maxHeaderRetries) ||
       this.maxHeaderRetries < 0 ||
@@ -64,6 +69,15 @@ export class OriginalTorrentStreamGateway {
     ) {
       throw new Error(
         'Original torrent stream header retries must be between 0 and 2.',
+      );
+    }
+    if (
+      !Number.isSafeInteger(this.maxConcurrentStreams) ||
+      this.maxConcurrentStreams < 1 ||
+      this.maxConcurrentStreams > 256
+    ) {
+      throw new Error(
+        'Original torrent stream concurrency must be between 1 and 256.',
       );
     }
     if (
@@ -97,6 +111,8 @@ export class OriginalTorrentStreamGateway {
       writeUnsatisfiable(response, access.target.length);
       return;
     }
+
+    const releaseStream = this.acquireStream();
 
     const downstream = new AbortController();
     let downstreamDisconnected = false;
@@ -203,11 +219,25 @@ export class OriginalTorrentStreamGateway {
       }
       throw error;
     } finally {
+      releaseStream();
       upstream?.unlink();
       request.removeListener('aborted', disconnect);
       response.removeListener('close', disconnect);
       access.signal.removeEventListener('abort', onLifecycleEnd);
     }
+  }
+
+  private acquireStream(): () => void {
+    if (this.activeStreams >= this.maxConcurrentStreams) {
+      throw new OriginalTorrentStreamCapacityError();
+    }
+    this.activeStreams += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.activeStreams -= 1;
+    };
   }
 
   private async openWithRetry(

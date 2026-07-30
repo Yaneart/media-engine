@@ -3,6 +3,7 @@ import { Writable, type WritableOptions } from 'node:stream';
 import type { Request, Response as ExpressResponse } from 'express';
 import type { OriginalTorrentSessionService } from '../original-torrent-session/session.service';
 import type { OriginalTorrentStreamAccess } from '../original-torrent-session/session.types';
+import { OriginalTorrentStreamCapacityError } from './stream.errors';
 import { OriginalTorrentStreamGateway } from './stream-gateway';
 import { OriginalTorrentRangeInputError } from './stream-range';
 
@@ -146,6 +147,59 @@ describe('protected original torrent stream gateway', () => {
       ),
     ).rejects.toBeInstanceOf(OriginalTorrentRangeInputError);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('bounds active streams, preserves the session, and releases capacity', async () => {
+    const sessions = createSessions(access(10));
+    const fetch = jest.fn((_url, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(new Error('downstream aborted')),
+          { once: true },
+        );
+      });
+    });
+    const gateway = new OriginalTorrentStreamGateway(sessions.service, {
+      fetch,
+      maxConcurrentStreams: 1,
+    });
+    const firstRequest = request();
+    const first = gateway.handle(
+      firstRequest,
+      new FakeResponse().asExpress(),
+      CAPABILITY,
+      'GET',
+    );
+    await waitUntil(() => fetch.mock.calls.length === 1);
+
+    await expect(
+      gateway.handle(
+        request(),
+        new FakeResponse().asExpress(),
+        CAPABILITY,
+        'GET',
+      ),
+    ).rejects.toBeInstanceOf(OriginalTorrentStreamCapacityError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sessions.sessions.failStreamCapability).not.toHaveBeenCalled();
+
+    firstRequest.emit('aborted');
+    await first;
+    fetch.mockResolvedValueOnce(
+      new Response(new Uint8Array(10), {
+        status: 200,
+        headers: { 'content-length': '10' },
+      }),
+    );
+    await expect(
+      gateway.handle(
+        request(),
+        new FakeResponse().asExpress(),
+        CAPABILITY,
+        'GET',
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('retries one transient pre-header response and never retries invalid headers', async () => {

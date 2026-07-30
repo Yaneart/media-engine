@@ -8,6 +8,10 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added independent bounded capacities for original-torrent session creation and active original
+  streams, with typed overload responses that do not retire healthy capabilities. A separate
+  process-local per-client fixed-window budget applies only to exact session creation requests, so
+  status, file selection, and Stop remain available under creation pressure.
 - Added optional torrent provider catalog metadata with a stable display name, regional or
   international scope, and optional locale, plus candidate-level upstream catalog attribution.
   The example loads this safe metadata through the SDK and groups releases into Russian-language,

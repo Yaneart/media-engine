@@ -72,6 +72,6 @@ export const ORIGINAL_TORRENT_SOURCE_RESOLVER = Symbol(
         new OriginalTorrentSessionService(adapter, resolver, config),
     },
   ],
-  exports: [OriginalTorrentSessionService],
+  exports: [OriginalTorrentSessionService, ORIGINAL_TORRENT_SESSION_CONFIG],
 })
 export class OriginalTorrentSessionModule {}

@@ -2,17 +2,23 @@ export const DEFAULT_TORRENT_SESSION_TTL_MS = 6 * 60 * 60_000;
 export const DEFAULT_TORRENT_SESSION_TERMINAL_RETENTION_MS = 5 * 60_000;
 export const DEFAULT_TORRENT_SESSION_CLEANUP_INTERVAL_MS = 10_000;
 export const DEFAULT_TORRENT_SOURCE_REQUEST_TIMEOUT_MS = 30_000;
+export const DEFAULT_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS = 4;
+export const DEFAULT_TORRENT_STREAM_MAX_CONCURRENT = 8;
 
 const MAX_SESSION_TTL_MS = 24 * 60 * 60_000;
 const MAX_TERMINAL_RETENTION_MS = 60 * 60_000;
 const MAX_CLEANUP_INTERVAL_MS = 60_000;
 const MAX_SOURCE_REQUEST_TIMEOUT_MS = 5 * 60_000;
+const MAX_SESSION_CONCURRENCY = 64;
+const MAX_STREAM_CONCURRENCY = 256;
 
 export interface OriginalTorrentSessionEnv extends NodeJS.ProcessEnv {
   MEDIA_ENGINE_TORRENT_SESSION_TTL_MS?: string;
   MEDIA_ENGINE_TORRENT_SESSION_TERMINAL_RETENTION_MS?: string;
   MEDIA_ENGINE_TORRENT_SESSION_CLEANUP_INTERVAL_MS?: string;
   MEDIA_ENGINE_TORRENT_SOURCE_REQUEST_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS?: string;
+  MEDIA_ENGINE_TORRENT_STREAM_MAX_CONCURRENT?: string;
 }
 
 export interface OriginalTorrentSessionConfig {
@@ -20,6 +26,8 @@ export interface OriginalTorrentSessionConfig {
   terminalRetentionMs: number;
   cleanupIntervalMs: number;
   sourceRequestTimeoutMs: number;
+  maxConcurrentCreations: number;
+  maxConcurrentStreams: number;
   maxTorrentBytes: number;
 }
 
@@ -59,6 +67,20 @@ export function readOriginalTorrentSessionConfig(
       DEFAULT_TORRENT_SOURCE_REQUEST_TIMEOUT_MS,
       100,
       MAX_SOURCE_REQUEST_TIMEOUT_MS,
+    ),
+    maxConcurrentCreations: readInteger(
+      env.MEDIA_ENGINE_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS,
+      'MEDIA_ENGINE_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS',
+      DEFAULT_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS,
+      1,
+      MAX_SESSION_CONCURRENCY,
+    ),
+    maxConcurrentStreams: readInteger(
+      env.MEDIA_ENGINE_TORRENT_STREAM_MAX_CONCURRENT,
+      'MEDIA_ENGINE_TORRENT_STREAM_MAX_CONCURRENT',
+      DEFAULT_TORRENT_STREAM_MAX_CONCURRENT,
+      1,
+      MAX_STREAM_CONCURRENCY,
     ),
     maxTorrentBytes,
   };

@@ -3,6 +3,7 @@ import { OriginalTorrentRuntimeError } from '../original-torrent-runtime';
 import type { OriginalTorrentSessionConfig } from './session.config';
 import {
   OriginalTorrentSessionConflictError,
+  OriginalTorrentSessionCapacityError,
   OriginalTorrentSessionNotFoundError,
 } from './session.errors';
 import { OriginalTorrentSessionService } from './session.service';
@@ -21,6 +22,8 @@ const config: OriginalTorrentSessionConfig = {
   terminalRetentionMs: 1_000,
   cleanupIntervalMs: 60_000,
   sourceRequestTimeoutMs: 1_000,
+  maxConcurrentCreations: 4,
+  maxConcurrentStreams: 8,
   maxTorrentBytes: 4_194_304,
 };
 const input: CreateOriginalTorrentSessionInput = {
@@ -164,6 +167,49 @@ describe('original torrent session lifecycle', () => {
     expect(adapter.health).not.toHaveBeenCalled();
     expect(adapter.add).not.toHaveBeenCalled();
     expect(adapter.drop).not.toHaveBeenCalled();
+  });
+
+  it('bounds concurrent creation and releases capacity after cancellation', async () => {
+    const resolver: OriginalTorrentSourceResolver = {
+      resolve: jest.fn(
+        (_input, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener(
+              'abort',
+              () =>
+                reject(
+                  signal.reason instanceof Error
+                    ? signal.reason
+                    : new Error('cancelled'),
+                ),
+              { once: true },
+            );
+          }),
+      ),
+    };
+    const service = createService(createAdapter(), resolver, undefined, {
+      ...config,
+      maxConcurrentCreations: 1,
+    });
+    const first = service.create(input);
+
+    expect(() => service.create(input)).toThrow(
+      OriginalTorrentSessionCapacityError,
+    );
+    await expect(service.get(first.id)).resolves.toMatchObject({
+      state: 'adding',
+    });
+    await service.stop(first.id);
+    await waitUntil(() => {
+      try {
+        const next = service.create(input);
+        void service.stop(next.id);
+        return true;
+      } catch (error) {
+        if (error instanceof OriginalTorrentSessionCapacityError) return false;
+        throw error;
+      }
+    });
   });
 
   it('does not re-add a hash when stopped while waiting for its prior drop', async () => {

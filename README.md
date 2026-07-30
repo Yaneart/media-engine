@@ -91,7 +91,9 @@ without extension filtering, validate a selected numeric file ID, and clean up o
 API shutdown. The API never accepts a raw magnet, hash, upstream URL, path, or TorrServer target.
 A ready session exposes only a high-entropy application capability. Its protected `GET`/`HEAD`
 route streams the exact selected original file with strict single-range handling, backpressure,
-cancellation, and bounded cold-start timeouts while keeping TorrServer private. The example uses a
+cancellation, bounded cold-start timeouts, bounded active-stream concurrency, and bounded session
+creation while keeping TorrServer private. A separate per-client budget covers only session create
+requests, leaving status, selection, and Stop available. The example uses a
 server-authenticated same-origin BFF for lifecycle calls and one native `<video>` for that original
 capability. It distinguishes metadata wait from first-piece buffering and reports browser rejection
 as `client_format_unsupported`. No media worker, probe, remuxer, transcoder, or HLS pipeline exists.

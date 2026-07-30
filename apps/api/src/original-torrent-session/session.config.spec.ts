@@ -1,8 +1,10 @@
 import {
   DEFAULT_TORRENT_SESSION_CLEANUP_INTERVAL_MS,
+  DEFAULT_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS,
   DEFAULT_TORRENT_SESSION_TERMINAL_RETENTION_MS,
   DEFAULT_TORRENT_SESSION_TTL_MS,
   DEFAULT_TORRENT_SOURCE_REQUEST_TIMEOUT_MS,
+  DEFAULT_TORRENT_STREAM_MAX_CONCURRENT,
   readOriginalTorrentSessionConfig,
 } from './session.config';
 
@@ -13,6 +15,8 @@ describe('original torrent session config', () => {
       terminalRetentionMs: DEFAULT_TORRENT_SESSION_TERMINAL_RETENTION_MS,
       cleanupIntervalMs: DEFAULT_TORRENT_SESSION_CLEANUP_INTERVAL_MS,
       sourceRequestTimeoutMs: DEFAULT_TORRENT_SOURCE_REQUEST_TIMEOUT_MS,
+      maxConcurrentCreations: DEFAULT_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS,
+      maxConcurrentStreams: DEFAULT_TORRENT_STREAM_MAX_CONCURRENT,
       maxTorrentBytes: 4_194_304,
     });
   });
@@ -24,12 +28,16 @@ describe('original torrent session config', () => {
         MEDIA_ENGINE_TORRENT_SESSION_TERMINAL_RETENTION_MS: '0',
         MEDIA_ENGINE_TORRENT_SESSION_CLEANUP_INTERVAL_MS: '500',
         MEDIA_ENGINE_TORRENT_SOURCE_REQUEST_TIMEOUT_MS: '2500',
+        MEDIA_ENGINE_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS: '7',
+        MEDIA_ENGINE_TORRENT_STREAM_MAX_CONCURRENT: '12',
       }),
     ).toEqual({
       sessionTtlMs: 60_000,
       terminalRetentionMs: 0,
       cleanupIntervalMs: 500,
       sourceRequestTimeoutMs: 2_500,
+      maxConcurrentCreations: 7,
+      maxConcurrentStreams: 12,
       maxTorrentBytes: 8_192,
     });
   });
@@ -40,6 +48,10 @@ describe('original torrent session config', () => {
     ['MEDIA_ENGINE_TORRENT_SESSION_TERMINAL_RETENTION_MS', '-1'],
     ['MEDIA_ENGINE_TORRENT_SESSION_CLEANUP_INTERVAL_MS', '99'],
     ['MEDIA_ENGINE_TORRENT_SOURCE_REQUEST_TIMEOUT_MS', '1.5'],
+    ['MEDIA_ENGINE_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS', '0'],
+    ['MEDIA_ENGINE_TORRENT_SESSION_MAX_CONCURRENT_CREATIONS', '65'],
+    ['MEDIA_ENGINE_TORRENT_STREAM_MAX_CONCURRENT', '0'],
+    ['MEDIA_ENGINE_TORRENT_STREAM_MAX_CONCURRENT', '257'],
   ])('rejects invalid %s=%s', (name, value) => {
     expect(() =>
       readOriginalTorrentSessionConfig(4_194_304, { [name]: value }),

@@ -26,3 +26,12 @@ export class OriginalTorrentInactivityError extends Error {
     super('TorrServer stopped delivering original file bytes.');
   }
 }
+
+export class OriginalTorrentStreamCapacityError extends Error {
+  override readonly name = 'OriginalTorrentStreamCapacityError';
+  readonly code = 'torrent_stream_capacity_exceeded';
+
+  constructor() {
+    super('The original torrent stream capacity is exhausted.');
+  }
+}

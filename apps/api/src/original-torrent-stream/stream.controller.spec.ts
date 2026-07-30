@@ -4,7 +4,10 @@ import type { Response } from 'express';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { OriginalTorrentStreamCapabilityError } from '../original-torrent-session/session.errors';
-import { OriginalTorrentUpstreamStreamError } from './stream.errors';
+import {
+  OriginalTorrentStreamCapacityError,
+  OriginalTorrentUpstreamStreamError,
+} from './stream.errors';
 import { OriginalTorrentStreamGateway } from './stream-gateway';
 import { OriginalTorrentRangeInputError } from './stream-range';
 import { OriginalTorrentStreamController } from './stream.controller';
@@ -114,4 +117,20 @@ describe('original torrent stream HTTP controller', () => {
         });
     },
   );
+
+  it('maps exhausted stream capacity without retiring the capability', async () => {
+    gateway.handle.mockRejectedValueOnce(
+      new OriginalTorrentStreamCapacityError(),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/media/torrent-streams/${CAPABILITY}`)
+      .expect(503)
+      .expect({
+        statusCode: 503,
+        code: 'torrent_stream_capacity_exceeded',
+        message: 'The original torrent stream capacity is exhausted.',
+        error: 'Service Unavailable',
+      });
+  });
 });

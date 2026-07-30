@@ -13,6 +13,8 @@ const config: OriginalTorrentSessionConfig = {
   terminalRetentionMs: 1_000,
   cleanupIntervalMs: 1_000,
   sourceRequestTimeoutMs: 1_000,
+  maxConcurrentCreations: 4,
+  maxConcurrentStreams: 8,
   maxTorrentBytes: 8,
 };
 const input = {

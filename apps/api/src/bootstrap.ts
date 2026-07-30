@@ -1,5 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
-import { createRateLimitMiddleware } from './rate-limit';
+import {
+  createRateLimitMiddleware,
+  isOriginalTorrentSessionCreationRequest,
+} from './rate-limit';
 import type { ApiRuntimeConfig } from './runtime-config';
 import { createSecurityHeadersMiddleware } from './security';
 import { setupOpenApi } from './openapi';
@@ -20,5 +23,14 @@ export function configureApiApplication(
     }),
   );
   app.use(createRateLimitMiddleware(config.rateLimit));
+  app.use(
+    createRateLimitMiddleware({
+      ...config.torrentSessionCreationRateLimit,
+      matches: isOriginalTorrentSessionCreationRequest,
+      code: 'torrent_session_creation_rate_exceeded',
+      message:
+        'Too many original torrent session creation requests from this client.',
+    }),
+  );
   setupOpenApi(app);
 }

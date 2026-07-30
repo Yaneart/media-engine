@@ -23,6 +23,7 @@ import {
 import type { Request, Response } from 'express';
 import { OriginalTorrentStreamCapabilityError } from '../original-torrent-session/session.errors';
 import { OriginalTorrentUpstreamStreamError } from './stream.errors';
+import { OriginalTorrentStreamCapacityError } from './stream.errors';
 import { OriginalTorrentStreamGateway } from './stream-gateway';
 import { OriginalTorrentRangeInputError } from './stream-range';
 
@@ -66,7 +67,8 @@ export class OriginalTorrentStreamController {
   @ApiGoneResponse({ description: 'Stopped, expired, or invalid capability.' })
   @ApiBadGatewayResponse({ description: 'Invalid TorrServer stream response.' })
   @ApiServiceUnavailableResponse({
-    description: 'Torrent pieces are temporarily unavailable.',
+    description:
+      'Torrent pieces are temporarily unavailable or bounded stream capacity is exhausted.',
   })
   @Get(':capability')
   get(
@@ -99,6 +101,17 @@ export class OriginalTorrentStreamController {
           message: error.message,
           error: 'Gone',
         });
+      }
+      if (error instanceof OriginalTorrentStreamCapacityError) {
+        throw new HttpException(
+          {
+            statusCode: 503,
+            code: error.code,
+            message: error.message,
+            error: 'Service Unavailable',
+          },
+          503,
+        );
       }
       if (error instanceof OriginalTorrentUpstreamStreamError) {
         throw new HttpException(

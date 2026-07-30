@@ -1,5 +1,8 @@
 import type { Request, Response } from 'express';
-import { createRateLimitMiddleware } from './rate-limit';
+import {
+  createRateLimitMiddleware,
+  isOriginalTorrentSessionCreationRequest,
+} from './rate-limit';
 
 interface TestResponse {
   setHeader: jest.Mock;
@@ -96,6 +99,71 @@ describe('createRateLimitMiddleware', () => {
     expect(response.json).toHaveBeenCalledWith({
       statusCode: 429,
       message: 'Custom limit exceeded.',
+      error: 'Too Many Requests',
+    });
+  });
+
+  it('limits only exact session creation per client', () => {
+    const next = jest.fn();
+    const response = createResponse();
+    const middleware = createRateLimitMiddleware({
+      windowMs: 10_000,
+      maxRequests: 1,
+      matches: isOriginalTorrentSessionCreationRequest,
+      code: 'torrent_session_creation_rate_exceeded',
+      message: 'Creation limit exceeded.',
+      now: () => 1_000,
+    });
+
+    middleware(
+      createRequest('POST', '/media/torrent-sessions/', 'client-a'),
+      response as unknown as Response,
+      next,
+    );
+    middleware(
+      createRequest('POST', '/media/torrent-sessions', 'client-a'),
+      response as unknown as Response,
+      next,
+    );
+    middleware(
+      createRequest(
+        'GET',
+        `/media/torrent-sessions/${'A'.repeat(32)}`,
+        'client-a',
+      ),
+      response as unknown as Response,
+      next,
+    );
+    middleware(
+      createRequest(
+        'DELETE',
+        `/media/torrent-sessions/${'A'.repeat(32)}`,
+        'client-a',
+      ),
+      response as unknown as Response,
+      next,
+    );
+    middleware(
+      createRequest(
+        'POST',
+        `/media/torrent-sessions/${'A'.repeat(32)}/selection`,
+        'client-a',
+      ),
+      response as unknown as Response,
+      next,
+    );
+    middleware(
+      createRequest('POST', '/media/torrent-sessions', 'client-b'),
+      response as unknown as Response,
+      next,
+    );
+
+    expect(next).toHaveBeenCalledTimes(5);
+    expect(response.status).toHaveBeenCalledTimes(1);
+    expect(response.json).toHaveBeenCalledWith({
+      statusCode: 429,
+      code: 'torrent_session_creation_rate_exceeded',
+      message: 'Creation limit exceeded.',
       error: 'Too Many Requests',
     });
   });

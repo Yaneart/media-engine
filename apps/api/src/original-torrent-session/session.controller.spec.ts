@@ -4,6 +4,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import {
   OriginalTorrentSessionConflictError,
+  OriginalTorrentSessionCapacityError,
   OriginalTorrentSessionNotFoundError,
 } from './session.errors';
 import { OriginalTorrentSessionController } from './session.controller';
@@ -153,6 +154,27 @@ describe('original torrent session HTTP lifecycle', () => {
         code: 'torrent_file_not_found',
         message: 'The file was not offered.',
         error: 'Conflict',
+      });
+  });
+
+  it('maps exhausted creation capacity without allocating a session', async () => {
+    sessions.create.mockImplementationOnce(() => {
+      throw new OriginalTorrentSessionCapacityError();
+    });
+
+    await request(app.getHttpServer())
+      .post('/media/torrent-sessions')
+      .set('Authorization', `Bearer ${TOKEN}`)
+      .send({
+        query: { type: 'movie', title: 'Example' },
+        observation: { provider: 'provider-a', id: 'provider-a:opaque' },
+      })
+      .expect(503)
+      .expect({
+        statusCode: 503,
+        code: 'torrent_session_creation_capacity_exceeded',
+        message: 'The original torrent session creation capacity is exhausted.',
+        error: 'Service Unavailable',
       });
   });
 

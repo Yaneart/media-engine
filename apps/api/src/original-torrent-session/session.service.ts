@@ -4,6 +4,7 @@ import { selectRegularTorrentFiles } from './file-selection';
 import type { OriginalTorrentSessionConfig } from './session.config';
 import {
   mapSessionFailure,
+  OriginalTorrentSessionCapacityError,
   OriginalTorrentSessionConflictError,
   OriginalTorrentSessionNotFoundError,
   OriginalTorrentStreamCapabilityError,
@@ -44,6 +45,7 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
   private readonly clearInterval: typeof globalThis.clearInterval;
   private readonly cleanupTimer: ReturnType<typeof globalThis.setInterval>;
   private shuttingDown = false;
+  private activeCreations = 0;
   private sweepInProgress?: Promise<void>;
 
   constructor(
@@ -74,21 +76,32 @@ export class OriginalTorrentSessionService implements OnApplicationShutdown {
         'The API is shutting down and cannot create a torrent session.',
       );
     }
+    if (this.activeCreations >= this.config.maxConcurrentCreations) {
+      throw new OriginalTorrentSessionCapacityError();
+    }
 
-    const now = this.now();
-    const record: OriginalTorrentSessionRecord = {
-      id: this.allocateSessionId(),
-      state: 'adding',
-      observation: { ...input.observation },
-      createdAtMs: now,
-      updatedAtMs: now,
-      expiresAtMs: now + this.config.sessionTtlMs,
-      controller: new AbortController(),
-      resourceReleased: true,
-    };
-    this.sessions.set(record.id, record);
-    void this.runCreation(record, input);
-    return snapshot(record);
+    this.activeCreations += 1;
+    try {
+      const now = this.now();
+      const record: OriginalTorrentSessionRecord = {
+        id: this.allocateSessionId(),
+        state: 'adding',
+        observation: { ...input.observation },
+        createdAtMs: now,
+        updatedAtMs: now,
+        expiresAtMs: now + this.config.sessionTtlMs,
+        controller: new AbortController(),
+        resourceReleased: true,
+      };
+      this.sessions.set(record.id, record);
+      void this.runCreation(record, input).finally(() => {
+        this.activeCreations -= 1;
+      });
+      return snapshot(record);
+    } catch (error) {
+      this.activeCreations -= 1;
+      throw error;
+    }
   }
 
   async get(id: string): Promise<OriginalTorrentSessionSnapshot> {

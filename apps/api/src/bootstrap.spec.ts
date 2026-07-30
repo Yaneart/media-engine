@@ -26,6 +26,10 @@ describe('API application bootstrap', () => {
       port: 3000,
       corsOrigins: ['http://127.0.0.1:5173'],
       rateLimit: { windowMs: 60_000, maxRequests: 60 },
+      torrentSessionCreationRateLimit: {
+        windowMs: 60_000,
+        maxRequests: 10,
+      },
     };
 
     configureApiApplication(app, config);
@@ -34,13 +38,13 @@ describe('API application bootstrap', () => {
       origin: config.corsOrigins,
       methods: ['GET', 'HEAD', 'POST', 'DELETE', 'OPTIONS'],
     });
-    expect(use).toHaveBeenCalledTimes(2);
+    expect(use).toHaveBeenCalledTimes(3);
     expect(createDocument).toHaveBeenCalledWith(
       app,
       expect.objectContaining({
         info: expect.objectContaining({
           title: 'Media Engine API',
-          version: '0.9.0',
+          version: '0.10.0',
         }),
       }),
     );
