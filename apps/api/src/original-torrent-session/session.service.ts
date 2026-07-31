@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
-import type { OriginalTorrentSessionTelemetryEvent } from '../original-torrent-observability';
-import { isOriginalTorrentRuntimeError } from '../original-torrent-runtime';
+import type { OriginalTorrentSessionTelemetryEvent } from '../original-torrent-observability/observability.types';
+import { isOriginalTorrentRuntimeError } from '../original-torrent-runtime/runtime.errors';
 import { selectRegularTorrentFiles } from './file-selection';
 import type { OriginalTorrentSessionConfig } from './session.config';
 import {

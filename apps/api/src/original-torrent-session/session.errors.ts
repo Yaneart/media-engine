@@ -1,7 +1,7 @@
 import {
   isOriginalTorrentRuntimeError,
   type OriginalTorrentRuntimeErrorCode,
-} from '../original-torrent-runtime';
+} from '../original-torrent-runtime/runtime.errors';
 import type {
   OriginalTorrentSessionErrorCode,
   OriginalTorrentSessionFailure,

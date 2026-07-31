@@ -6,12 +6,7 @@ import type {
   TranslationInfo,
 } from "@media-engine/core";
 import { normalizeProviderOutputUrl } from "../shared/index.js";
-import type { DdbbPlayer, DdbbTranslation } from "./client.js";
-
-export interface DdbbLookup {
-  source: "kinopoisk" | "imdb";
-  id: string;
-}
+import type { DdbbLookup, DdbbPlayer, DdbbTranslation } from "./client.js";
 
 export interface DdbbMappedPlayers {
   options: StreamOption[];

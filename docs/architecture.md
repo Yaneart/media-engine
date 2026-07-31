@@ -5,13 +5,10 @@ Media Engine is a TypeScript monorepo that separates orchestration, external dat
 ## Packages and applications
 
 ```text
-@media-engine/core
-        ↑
-@media-engine/providers
+apps/api ─────────→ @media-engine/core
+    └─────────────→ @media-engine/providers ─→ @media-engine/core
 
-@media-engine/core
-        ↑
-apps/api ← @media-engine/sdk ← apps/example
+apps/example ─────→ @media-engine/sdk ───────→ @media-engine/core
 ```
 
 ### `@media-engine/core`

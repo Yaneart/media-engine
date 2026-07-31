@@ -1,10 +1,14 @@
 import { ProviderError, type ProviderContext } from "@media-engine/core";
 import { fetchJson } from "../shared/index.js";
 import type { DdbbStreamingConfig } from "./config.js";
-import type { DdbbLookup } from "./mapping.js";
 
 const PLAYER_ENTRY_LIMIT = 32;
 const TRANSLATION_ENTRY_LIMIT = 64;
+
+export interface DdbbLookup {
+  source: "kinopoisk" | "imdb";
+  id: string;
+}
 
 export interface DdbbTranslation {
   id?: string;

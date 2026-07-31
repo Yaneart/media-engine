@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { TorrServerAdapterEvent } from '../original-torrent-runtime';
+import type { TorrServerAdapterEvent } from '../original-torrent-runtime/runtime.types';
 import type {
   OriginalTorrentSessionTelemetryEvent,
   OriginalTorrentStreamTelemetryEvent,

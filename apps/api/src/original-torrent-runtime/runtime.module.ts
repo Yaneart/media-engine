@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
-import {
-  OriginalTorrentObservability,
-  OriginalTorrentObservabilityModule,
-} from '../original-torrent-observability';
+import { OriginalTorrentObservabilityModule } from '../original-torrent-observability/observability.module';
+import { OriginalTorrentObservability } from '../original-torrent-observability/observability.service';
 import {
   readOriginalTorrentRuntimeConfig,
   type OriginalTorrentRuntimeConfig,

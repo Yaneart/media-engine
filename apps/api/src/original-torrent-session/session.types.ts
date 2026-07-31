@@ -9,7 +9,7 @@ import type {
   OriginalTorrentSource,
   OriginalTorrentStatus,
   OriginalTorrentRuntimeLease,
-} from '../original-torrent-runtime';
+} from '../original-torrent-runtime/runtime.types';
 
 export type OriginalTorrentSessionState =
   | 'adding'

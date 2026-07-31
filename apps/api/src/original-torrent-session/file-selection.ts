@@ -1,4 +1,4 @@
-import type { OriginalTorrentFile } from '../original-torrent-runtime';
+import type { OriginalTorrentFile } from '../original-torrent-runtime/runtime.types';
 
 // BEP 47 clients commonly expose padding entries under .pad or with padding_file names.
 // These storage-only entries are the sole filename-based exclusion; extensions are never filtered.
