@@ -15,6 +15,8 @@ import type {
   MediaDetailsHttpQuery,
   MediaSearchHttpQuery,
 } from './media.service';
+import { ApiExternalIdQueryParameters } from '../media-query/media-query.openapi';
+import { MEDIA_TYPES } from '../media-query/media-query.constants';
 import { runWithHttpRequestSignal } from './request-cancellation';
 
 @ApiTags('media')
@@ -34,24 +36,12 @@ export class MediaController {
   @ApiQuery({
     name: 'type',
     required: false,
-    enum: ['movie', 'series', 'anime'],
+    enum: [...MEDIA_TYPES],
   })
   @ApiQuery({ name: 'year', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'language', required: false, type: String })
-  @ApiQuery({ name: 'imdb', required: false, type: String })
-  @ApiQuery({ name: 'tmdb', required: false, type: String })
-  @ApiQuery({ name: 'kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'shikimori', required: false, type: String })
-  @ApiQuery({ name: 'myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.imdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.tmdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
-  @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'ids.aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
+  @ApiExternalIdQueryParameters()
   @ApiOkResponse({ description: 'Merged search results.' })
   @ApiBadRequestResponse({ description: 'Invalid search query.' })
   @ApiServiceUnavailableResponse({
@@ -78,22 +68,10 @@ export class MediaController {
   @ApiQuery({
     name: 'type',
     required: false,
-    enum: ['movie', 'series', 'anime'],
+    enum: [...MEDIA_TYPES],
   })
   @ApiQuery({ name: 'language', required: false, type: String })
-  @ApiQuery({ name: 'imdb', required: false, type: String })
-  @ApiQuery({ name: 'tmdb', required: false, type: String })
-  @ApiQuery({ name: 'kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'shikimori', required: false, type: String })
-  @ApiQuery({ name: 'myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.imdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.tmdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
-  @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'ids.aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
+  @ApiExternalIdQueryParameters()
   @ApiOkResponse({ description: 'Merged details response.' })
   @ApiBadRequestResponse({
     description: 'Invalid details query or unsupported id-only lookup.',
@@ -120,7 +98,7 @@ export class MediaController {
   @ApiQuery({
     name: 'type',
     required: true,
-    enum: ['movie', 'series', 'anime'],
+    enum: [...MEDIA_TYPES],
   })
   @ApiQuery({ name: 'title', required: false, type: String })
   @ApiQuery({ name: 'year', required: false, type: Number })
@@ -129,19 +107,7 @@ export class MediaController {
   @ApiQuery({ name: 'absoluteEpisodeNumber', required: false, type: Number })
   @ApiQuery({ name: 'providers', required: false, type: String })
   @ApiQuery({ name: 'language', required: false, type: String })
-  @ApiQuery({ name: 'imdb', required: false, type: String })
-  @ApiQuery({ name: 'tmdb', required: false, type: String })
-  @ApiQuery({ name: 'kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'shikimori', required: false, type: String })
-  @ApiQuery({ name: 'myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.imdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.tmdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
-  @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'ids.aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
+  @ApiExternalIdQueryParameters()
   @ApiOkResponse({ description: 'Normalized player availability response.' })
   @ApiBadRequestResponse({
     description: 'Invalid streaming availability query.',

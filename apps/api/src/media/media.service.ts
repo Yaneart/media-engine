@@ -7,6 +7,7 @@ import {
 import {
   type DetailsQuery,
   type DetailsResponse,
+  type ExternalIds,
   type MediaAvailability,
   type MediaEngine,
   type MediaEngineOperationOptions,
@@ -18,6 +19,11 @@ import {
   type StreamingProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
+import {
+  isMediaType,
+  NESTED_ONLY_EXTERNAL_ID_KEYS,
+  TOP_LEVEL_EXTERNAL_ID_KEYS,
+} from '../media-query/media-query.constants';
 
 // EN: Raw query shape received from HTTP before API-level normalization.
 // RU: Сырая форма query из HTTP до нормализации на уровне API.
@@ -39,19 +45,6 @@ export type MediaAvailabilityHttpQuery = Record<
   string,
   string | string[] | undefined
 >;
-
-const MEDIA_TYPES: readonly MediaType[] = ['movie', 'series', 'anime'];
-// EN: External ID shortcuts accepted as top-level HTTP query parameters.
-// RU: Сокращения внешних ID, которые принимаются верхнеуровневыми HTTP query параметрами.
-const EXTERNAL_ID_KEYS = [
-  'imdb',
-  'tmdb',
-  'kinopoisk',
-  'shikimori',
-  'myAnimeList',
-  'aniList',
-] as const satisfies readonly (keyof SearchQuery)[];
-const NESTED_ONLY_EXTERNAL_ID_KEYS = ['worldArt'] as const;
 
 @Injectable()
 // EN: Application service that adapts HTTP media requests to the core engine.
@@ -138,19 +131,7 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
     searchQuery.limit = limit;
   }
 
-  for (const key of EXTERNAL_ID_KEYS) {
-    const value = readString(query[key]) ?? readString(query[`ids.${key}`]);
-
-    if (value !== undefined) {
-      searchQuery[key] = value;
-    }
-  }
-
-  const nestedIds = readNestedOnlyExternalIds(query);
-
-  if (nestedIds !== undefined) {
-    searchQuery.ids = nestedIds;
-  }
+  copyExternalIds(query, searchQuery);
 
   return searchQuery;
 }
@@ -177,19 +158,7 @@ export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
     detailsQuery.type = type;
   }
 
-  for (const key of EXTERNAL_ID_KEYS) {
-    const value = readString(query[key]) ?? readString(query[`ids.${key}`]);
-
-    if (value !== undefined) {
-      detailsQuery[key] = value;
-    }
-  }
-
-  const nestedIds = readNestedOnlyExternalIds(query);
-
-  if (nestedIds !== undefined) {
-    detailsQuery.ids = nestedIds;
-  }
+  copyExternalIds(query, detailsQuery);
 
   return detailsQuery;
 }
@@ -243,19 +212,7 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
     streamQuery.providers = providers;
   }
 
-  for (const key of EXTERNAL_ID_KEYS) {
-    const value = readString(query[key]) ?? readString(query[`ids.${key}`]);
-
-    if (value !== undefined) {
-      streamQuery[key] = value;
-    }
-  }
-
-  const nestedIds = readNestedOnlyExternalIds(query);
-
-  if (nestedIds !== undefined) {
-    streamQuery.ids = nestedIds;
-  }
+  copyExternalIds(query, streamQuery);
 
   return streamQuery;
 }
@@ -305,12 +262,21 @@ function readStringList(value: string | string[] | undefined): string[] {
     .filter((entry) => entry.length > 0);
 }
 
-// EN: Preserve external IDs that intentionally have no top-level query shortcut.
-// RU: Сохраняет внешние ID, для которых намеренно нет верхнеуровневого сокращения.
-function readNestedOnlyExternalIds(
+// EN: Apply the shared top-level shortcut precedence and nested-only IDs.
+// RU: Применяет общий приоритет сокращений и nested-only ID.
+function copyExternalIds(
   query: Record<string, string | string[] | undefined>,
-): SearchQuery['ids'] | undefined {
-  const ids: NonNullable<SearchQuery['ids']> = {};
+  target: ExternalIdQueryTarget,
+): void {
+  for (const key of TOP_LEVEL_EXTERNAL_ID_KEYS) {
+    const value = readString(query[key]) ?? readString(query[`ids.${key}`]);
+
+    if (value !== undefined) {
+      target[key] = value;
+    }
+  }
+
+  const ids: ExternalIds = {};
 
   for (const key of NESTED_ONLY_EXTERNAL_ID_KEYS) {
     const value = readString(query[`ids.${key}`]);
@@ -320,7 +286,9 @@ function readNestedOnlyExternalIds(
     }
   }
 
-  return Object.keys(ids).length > 0 ? ids : undefined;
+  if (Object.keys(ids).length > 0) {
+    target.ids = ids;
+  }
 }
 
 // EN: Accept only the media type values supported by the public core model.
@@ -341,10 +309,6 @@ function readMediaType(
   throw new BadRequestException('type must be movie, series, or anime.');
 }
 
-function isMediaType(value: string): value is MediaType {
-  return MEDIA_TYPES.some((mediaType) => mediaType === value);
-}
-
 // EN: Keep core-to-HTTP error mapping consistent across media endpoints.
 // RU: Держит единый mapping ошибок core в HTTP для media endpoints.
 async function runEngineRequest<T>(operation: () => Promise<T>): Promise<T> {
@@ -362,6 +326,10 @@ async function runEngineRequest<T>(operation: () => Promise<T>): Promise<T> {
     throw error;
   }
 }
+
+type ExternalIdQueryTarget = {
+  ids?: ExternalIds;
+} & Partial<Record<(typeof TOP_LEVEL_EXTERNAL_ID_KEYS)[number], string>>;
 
 // EN: Detect core engine errors without requiring the ESM-only core package at runtime.
 // RU: Определяет ошибки core engine без runtime require ESM-only core package.

@@ -474,6 +474,32 @@ describe('Media Engine API (e2e)', () => {
     expect(getOpenApiParameterNames(body.paths, '/media/torrents')).toContain(
       'alternativeTitles',
     );
+
+    const externalIdParameters = [
+      'imdb',
+      'tmdb',
+      'kinopoisk',
+      'shikimori',
+      'myAnimeList',
+      'aniList',
+      'ids.imdb',
+      'ids.tmdb',
+      'ids.kinopoisk',
+      'ids.shikimori',
+      'ids.myAnimeList',
+      'ids.aniList',
+      'ids.worldArt',
+    ];
+    for (const path of [
+      '/media/search',
+      '/media/details',
+      '/media/availability',
+      '/media/torrents',
+    ]) {
+      expect(getOpenApiParameterNames(body.paths, path)).toEqual(
+        expect.arrayContaining(externalIdParameters),
+      );
+    }
   });
 
   afterEach(async () => {

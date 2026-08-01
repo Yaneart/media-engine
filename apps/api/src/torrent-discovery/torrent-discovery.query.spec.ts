@@ -16,6 +16,11 @@ describe('parseTorrentDiscoveryQuery', () => {
         limit: '25',
         imdb: ' ',
         'ids.imdb': ' tt10466872 ',
+        tmdb: ' 90228 ',
+        'ids.kinopoisk': ' 804093 ',
+        shikimori: ' 56512 ',
+        'ids.myAnimeList': ' 53439 ',
+        aniList: ' 162582 ',
         'ids.worldArt': ' 12345 ',
       }),
     ).toEqual({
@@ -29,6 +34,11 @@ describe('parseTorrentDiscoveryQuery', () => {
       language: 'en',
       limit: 25,
       imdb: 'tt10466872',
+      tmdb: '90228',
+      kinopoisk: '804093',
+      shikimori: '56512',
+      myAnimeList: '53439',
+      aniList: '162582',
       ids: { worldArt: '12345' },
     });
   });

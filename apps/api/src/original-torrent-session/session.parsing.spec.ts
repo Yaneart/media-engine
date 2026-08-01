@@ -16,6 +16,11 @@ describe('original torrent session input parsing', () => {
           year: 2026,
           seasonNumber: 1,
           episodeNumber: 2,
+          tmdb: ' 123 ',
+          kinopoisk: ' 456 ',
+          shikimori: ' 789 ',
+          myAnimeList: ' 1011 ',
+          aniList: ' 1213 ',
           ids: { imdb: ' tt1234567 ', worldArt: '42' },
         },
         observation: { provider: ' test-torrent ', id: ' opaque:id ' },
@@ -28,6 +33,11 @@ describe('original torrent session input parsing', () => {
         year: 2026,
         seasonNumber: 1,
         episodeNumber: 2,
+        tmdb: '123',
+        kinopoisk: '456',
+        shikimori: '789',
+        myAnimeList: '1011',
+        aniList: '1213',
         ids: { imdb: 'tt1234567', worldArt: '42' },
       },
       observation: { provider: 'test-torrent', id: 'opaque:id' },
@@ -70,6 +80,9 @@ describe('original torrent session input parsing', () => {
 
   it('accepts only one positive numeric offered file ID', () => {
     expect(parseOriginalTorrentFileSelectionBody({ fileId: 7 })).toBe(7);
+    expect(parseOriginalTorrentFileSelectionBody({ fileId: 1_000_000 })).toBe(
+      1_000_000,
+    );
     expect(() =>
       parseOriginalTorrentFileSelectionBody({ fileId: 7, path: 'movie.mkv' }),
     ).toThrow(/unsupported fields/u);
@@ -79,6 +92,9 @@ describe('original torrent session input parsing', () => {
     expect(() => parseOriginalTorrentFileSelectionBody({ fileId: 0 })).toThrow(
       /integer/u,
     );
+    expect(() =>
+      parseOriginalTorrentFileSelectionBody({ fileId: 1_000_001 }),
+    ).toThrow(/integer/u);
   });
 
   it('accepts only exact bounded random session IDs', () => {

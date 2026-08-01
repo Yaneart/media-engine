@@ -1,18 +1,19 @@
 import { BadRequestException } from '@nestjs/common';
-import type { MediaType, TorrentDiscoveryQuery } from '@media-engine/core';
+import type {
+  ExternalIds,
+  MediaType,
+  TorrentDiscoveryQuery,
+} from '@media-engine/core';
+import {
+  EXTERNAL_ID_KEYS,
+  isMediaType,
+  MEDIA_QUERY_BOUNDS,
+  NESTED_ONLY_EXTERNAL_ID_KEYS,
+  TOP_LEVEL_EXTERNAL_ID_KEYS,
+} from '../media-query/media-query.constants';
 
 export type TorrentDiscoveryHttpQuery = Record<string, unknown>;
 
-const MEDIA_TYPES = new Set<MediaType>(['movie', 'series', 'anime']);
-const EXTERNAL_ID_KEYS = [
-  'imdb',
-  'tmdb',
-  'kinopoisk',
-  'shikimori',
-  'myAnimeList',
-  'aniList',
-] as const satisfies readonly (keyof TorrentDiscoveryQuery)[];
-const NESTED_ONLY_EXTERNAL_ID_KEYS = ['worldArt'] as const;
 const SUPPORTED_QUERY_KEYS = new Set([
   'type',
   'title',
@@ -24,18 +25,9 @@ const SUPPORTED_QUERY_KEYS = new Set([
   'providers',
   'language',
   'limit',
-  ...EXTERNAL_ID_KEYS,
+  ...TOP_LEVEL_EXTERNAL_ID_KEYS,
   ...EXTERNAL_ID_KEYS.map((key) => `ids.${key}`),
-  ...NESTED_ONLY_EXTERNAL_ID_KEYS.map((key) => `ids.${key}`),
 ]);
-
-const MAX_TITLE_LENGTH = 300;
-const MAX_ALTERNATIVE_TITLES = 20;
-const MAX_LANGUAGE_LENGTH = 35;
-const MAX_EXTERNAL_ID_LENGTH = 128;
-const MAX_PROVIDER_FILTER_LENGTH = 100;
-const MAX_PROVIDER_FILTERS = 100;
-const MAX_TORRENT_LIMIT = 100;
 
 // Convert the bounded public HTTP shape into the package-owned discovery query.
 // Преобразует ограниченную публичную HTTP-форму в package-owned discovery query.
@@ -46,14 +38,22 @@ export function parseTorrentDiscoveryQuery(
 
   const type = readMediaType(query.type);
   const parsed: TorrentDiscoveryQuery = { type };
-  const title = readString(query.title, 'title', MAX_TITLE_LENGTH);
+  const title = readString(
+    query.title,
+    'title',
+    MEDIA_QUERY_BOUNDS.titleLength,
+  );
   const alternativeTitles = readRepeatedStringList(
     query.alternativeTitles,
     'alternativeTitles',
-    MAX_TITLE_LENGTH,
-    MAX_ALTERNATIVE_TITLES,
+    MEDIA_QUERY_BOUNDS.titleLength,
+    MEDIA_QUERY_BOUNDS.alternativeTitles,
   );
-  const language = readString(query.language, 'language', MAX_LANGUAGE_LENGTH);
+  const language = readString(
+    query.language,
+    'language',
+    MEDIA_QUERY_BOUNDS.languageLength,
+  );
   const providers = readStringList(query.providers);
 
   if (title !== undefined) parsed.title = title;
@@ -68,23 +68,35 @@ export function parseTorrentDiscoveryQuery(
   copyInteger(query, parsed, 'episodeNumber');
   copyInteger(query, parsed, 'absoluteEpisodeNumber');
 
-  const limit = readInteger(query.limit, 'limit', MAX_TORRENT_LIMIT);
+  const limit = readInteger(
+    query.limit,
+    'limit',
+    MEDIA_QUERY_BOUNDS.torrentLimit,
+  );
   if (limit !== undefined) parsed.limit = limit;
 
-  for (const key of EXTERNAL_ID_KEYS) {
+  for (const key of TOP_LEVEL_EXTERNAL_ID_KEYS) {
     const value =
-      readString(query[key], key, MAX_EXTERNAL_ID_LENGTH) ??
-      readString(query[`ids.${key}`], `ids.${key}`, MAX_EXTERNAL_ID_LENGTH);
+      readString(query[key], key, MEDIA_QUERY_BOUNDS.externalIdLength) ??
+      readString(
+        query[`ids.${key}`],
+        `ids.${key}`,
+        MEDIA_QUERY_BOUNDS.externalIdLength,
+      );
 
     if (value !== undefined) parsed[key] = value;
   }
 
-  const worldArt = readString(
-    query['ids.worldArt'],
-    'ids.worldArt',
-    MAX_EXTERNAL_ID_LENGTH,
-  );
-  if (worldArt !== undefined) parsed.ids = { worldArt };
+  const nestedIds: ExternalIds = {};
+  for (const key of NESTED_ONLY_EXTERNAL_ID_KEYS) {
+    const value = readString(
+      query[`ids.${key}`],
+      `ids.${key}`,
+      MEDIA_QUERY_BOUNDS.externalIdLength,
+    );
+    if (value !== undefined) nestedIds[key] = value;
+  }
+  if (Object.keys(nestedIds).length > 0) parsed.ids = nestedIds;
 
   return parsed;
 }
@@ -102,17 +114,17 @@ function rejectUnknownParameters(query: TorrentDiscoveryHttpQuery): void {
 }
 
 function readMediaType(value: unknown): MediaType {
-  const type = readString(value, 'type', 16);
+  const type = readString(value, 'type', MEDIA_QUERY_BOUNDS.mediaTypeLength);
 
   if (type === undefined) {
     throw new BadRequestException('type is required.');
   }
 
-  if (!MEDIA_TYPES.has(type as MediaType)) {
+  if (!isMediaType(type)) {
     throw new BadRequestException('type must be movie, series, or anime.');
   }
 
-  return type as MediaType;
+  return type;
 }
 
 function copyInteger<
@@ -164,16 +176,18 @@ function readStringList(value: unknown): string[] {
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 
-  if (providers.length > MAX_PROVIDER_FILTERS) {
+  if (providers.length > MEDIA_QUERY_BOUNDS.providers) {
     throw new BadRequestException(
-      `providers must contain at most ${MAX_PROVIDER_FILTERS} names.`,
+      `providers must contain at most ${MEDIA_QUERY_BOUNDS.providers} names.`,
     );
   }
   if (
-    providers.some((provider) => provider.length > MAX_PROVIDER_FILTER_LENGTH)
+    providers.some(
+      (provider) => provider.length > MEDIA_QUERY_BOUNDS.providerNameLength,
+    )
   ) {
     throw new BadRequestException(
-      `provider names must contain at most ${MAX_PROVIDER_FILTER_LENGTH} characters.`,
+      `provider names must contain at most ${MEDIA_QUERY_BOUNDS.providerNameLength} characters.`,
     );
   }
 

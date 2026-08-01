@@ -10,6 +10,8 @@ import {
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import { runWithHttpRequestSignal } from '../media/request-cancellation';
+import { MEDIA_TYPES } from '../media-query/media-query.constants';
+import { ApiExternalIdQueryParameters } from '../media-query/media-query.openapi';
 import type { TorrentDiscoveryHttpQuery } from './torrent-discovery.query';
 import { TorrentDiscoveryService } from './torrent-discovery.service';
 
@@ -29,7 +31,7 @@ export class TorrentDiscoveryController {
   @ApiQuery({
     name: 'type',
     required: true,
-    enum: ['movie', 'series', 'anime'],
+    enum: [...MEDIA_TYPES],
   })
   @ApiQuery({ name: 'title', required: false, type: String })
   @ApiQuery({
@@ -45,19 +47,7 @@ export class TorrentDiscoveryController {
   @ApiQuery({ name: 'providers', required: false, type: String })
   @ApiQuery({ name: 'language', required: false, type: String })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'imdb', required: false, type: String })
-  @ApiQuery({ name: 'tmdb', required: false, type: String })
-  @ApiQuery({ name: 'kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'shikimori', required: false, type: String })
-  @ApiQuery({ name: 'myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.imdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.tmdb', required: false, type: String })
-  @ApiQuery({ name: 'ids.kinopoisk', required: false, type: String })
-  @ApiQuery({ name: 'ids.shikimori', required: false, type: String })
-  @ApiQuery({ name: 'ids.myAnimeList', required: false, type: String })
-  @ApiQuery({ name: 'ids.aniList', required: false, type: String })
-  @ApiQuery({ name: 'ids.worldArt', required: false, type: String })
+  @ApiExternalIdQueryParameters()
   @ApiOkResponse({ description: 'Normalized torrent discovery response.' })
   @ApiBadRequestResponse({ description: 'Invalid torrent discovery query.' })
   @ApiServiceUnavailableResponse({

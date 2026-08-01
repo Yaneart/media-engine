@@ -1,4 +1,5 @@
 import type { OriginalTorrentRuntimeConfig } from './runtime.config';
+import { MAX_ORIGINAL_TORRENT_FILE_ID } from './runtime.constants';
 import { OriginalTorrentRuntimeError } from './runtime.errors';
 import type {
   OriginalTorrentSource,
@@ -60,7 +61,11 @@ export function normalizeInfoHash(value: string): string {
 }
 
 export function normalizeFileId(value: number): number {
-  if (!Number.isSafeInteger(value) || value < 1 || value > 1_000_000) {
+  if (
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
+    value > MAX_ORIGINAL_TORRENT_FILE_ID
+  ) {
     throw new OriginalTorrentRuntimeError(
       'file_not_found',
       'The requested TorrServer file ID is outside the accepted range.',
@@ -216,7 +221,12 @@ function parseFiles(
   const ids = new Set<number>();
   return value.map((entry) => {
     const record = requireRecord(entry, 'file');
-    const id = requireInteger(record.id, 'file ID', 1, 1_000_000);
+    const id = requireInteger(
+      record.id,
+      'file ID',
+      1,
+      MAX_ORIGINAL_TORRENT_FILE_ID,
+    );
     const path = requireSafePath(record.path, config.maxPathLength);
     const length = requireInteger(
       record.length,

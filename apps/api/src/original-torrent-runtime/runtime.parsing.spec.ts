@@ -79,7 +79,11 @@ describe('original torrent runtime parsing', () => {
         config,
       ),
     ).toThrow(/40 hexadecimal/);
+    expect(normalizeFileId(1_000_000)).toBe(1_000_000);
     expect(() => normalizeFileId(0)).toThrow(/outside the accepted range/);
+    expect(() => normalizeFileId(1_000_001)).toThrow(
+      /outside the accepted range/,
+    );
   });
 
   it('parses exact bounded file metadata', () => {

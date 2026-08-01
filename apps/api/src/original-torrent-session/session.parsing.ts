@@ -1,24 +1,21 @@
-import type {
-  ExternalIds,
-  MediaType,
-  TorrentDiscoveryQuery,
-} from '@media-engine/core';
+import type { ExternalIds, TorrentDiscoveryQuery } from '@media-engine/core';
+import {
+  EXTERNAL_ID_KEYS,
+  isMediaType,
+  MEDIA_QUERY_BOUNDS,
+  TOP_LEVEL_EXTERNAL_ID_KEYS,
+} from '../media-query/media-query.constants';
+import { MAX_ORIGINAL_TORRENT_FILE_ID } from '../original-torrent-runtime/runtime.constants';
 import { OriginalTorrentSessionInputError } from './session.errors';
 import type {
   CreateOriginalTorrentSessionInput,
   TorrentObservationSelection,
 } from './session.types';
 
-const MEDIA_TYPES = new Set<MediaType>(['movie', 'series', 'anime']);
 const QUERY_KEYS = new Set([
   'type',
   'ids',
-  'imdb',
-  'tmdb',
-  'kinopoisk',
-  'shikimori',
-  'myAnimeList',
-  'aniList',
+  ...TOP_LEVEL_EXTERNAL_ID_KEYS,
   'title',
   'alternativeTitles',
   'year',
@@ -27,25 +24,7 @@ const QUERY_KEYS = new Set([
   'absoluteEpisodeNumber',
   'language',
 ]);
-const EXTERNAL_ID_KEYS = [
-  'imdb',
-  'tmdb',
-  'kinopoisk',
-  'shikimori',
-  'myAnimeList',
-  'aniList',
-  'worldArt',
-] as const satisfies readonly (keyof ExternalIds)[];
-const DIRECT_ID_KEYS = [
-  'imdb',
-  'tmdb',
-  'kinopoisk',
-  'shikimori',
-  'myAnimeList',
-  'aniList',
-] as const;
 const SESSION_ID = /^[A-Za-z0-9_-]{32}$/u;
-const MAX_ALTERNATIVE_TITLES = 20;
 
 export function parseCreateOriginalTorrentSessionBody(
   value: unknown,
@@ -63,7 +42,13 @@ export function parseCreateOriginalTorrentSessionBody(
 export function parseOriginalTorrentFileSelectionBody(value: unknown): number {
   const body = readRecord(value, 'file selection body');
   rejectUnknownKeys(body, new Set(['fileId']), 'file selection body');
-  return readInteger(body.fileId, 'fileId', 1, 1_000_000, true)!;
+  return readInteger(
+    body.fileId,
+    'fileId',
+    1,
+    MAX_ORIGINAL_TORRENT_FILE_ID,
+    true,
+  )!;
 }
 
 export function parseOriginalTorrentSessionId(value: string): string {
@@ -80,7 +65,7 @@ function parseObservation(value: unknown): TorrentObservationSelection {
     provider: readString(
       observation.provider,
       'observation.provider',
-      100,
+      MEDIA_QUERY_BOUNDS.providerNameLength,
       true,
     )!,
     id: readString(observation.id, 'observation.id', 500, true)!,
@@ -90,32 +75,41 @@ function parseObservation(value: unknown): TorrentObservationSelection {
 function parseDiscoveryQuery(value: unknown): TorrentDiscoveryQuery {
   const query = readRecord(value, 'query');
   rejectUnknownKeys(query, QUERY_KEYS, 'query');
-  const type = readString(query.type, 'query.type', 16, true)!;
-  if (!MEDIA_TYPES.has(type as MediaType)) {
+  const type = readString(
+    query.type,
+    'query.type',
+    MEDIA_QUERY_BOUNDS.mediaTypeLength,
+    true,
+  )!;
+  if (!isMediaType(type)) {
     throw new OriginalTorrentSessionInputError(
       'query.type must be movie, series, or anime.',
     );
   }
 
-  const result: TorrentDiscoveryQuery = { type: type as MediaType };
-  copyString(query, result, 'title', 300);
+  const result: TorrentDiscoveryQuery = { type };
+  copyString(query, result, 'title', MEDIA_QUERY_BOUNDS.titleLength);
   const alternativeTitles = readStringArray(
     query.alternativeTitles,
     'query.alternativeTitles',
-    300,
-    MAX_ALTERNATIVE_TITLES,
+    MEDIA_QUERY_BOUNDS.titleLength,
+    MEDIA_QUERY_BOUNDS.alternativeTitles,
   );
   if (alternativeTitles !== undefined) {
     result.alternativeTitles = alternativeTitles;
   }
-  copyString(query, result, 'language', 35);
+  copyString(query, result, 'language', MEDIA_QUERY_BOUNDS.languageLength);
   copyInteger(query, result, 'year');
   copyInteger(query, result, 'seasonNumber');
   copyInteger(query, result, 'episodeNumber');
   copyInteger(query, result, 'absoluteEpisodeNumber');
 
-  for (const key of DIRECT_ID_KEYS) {
-    const direct = readString(query[key], `query.${key}`, 128);
+  for (const key of TOP_LEVEL_EXTERNAL_ID_KEYS) {
+    const direct = readString(
+      query[key],
+      `query.${key}`,
+      MEDIA_QUERY_BOUNDS.externalIdLength,
+    );
     if (direct !== undefined) result[key] = direct;
   }
 
@@ -124,7 +118,11 @@ function parseDiscoveryQuery(value: unknown): TorrentDiscoveryQuery {
     rejectUnknownKeys(ids, new Set(EXTERNAL_ID_KEYS), 'query.ids');
     const parsedIds: ExternalIds = {};
     for (const key of EXTERNAL_ID_KEYS) {
-      const id = readString(ids[key], `query.ids.${key}`, 128);
+      const id = readString(
+        ids[key],
+        `query.ids.${key}`,
+        MEDIA_QUERY_BOUNDS.externalIdLength,
+      );
       if (id !== undefined) parsedIds[key] = id;
     }
     if (Object.keys(parsedIds).length > 0) result.ids = parsedIds;
