@@ -56,6 +56,12 @@ compatibility job because the deterministic built-in Node coverage filters requi
 or newer. The optional persisted IMDb SQLite adapter keeps its separately documented Node.js 22.13
 minimum.
 
+Stop the bind-mounted Compose API before running `pnpm build`, `pnpm build:check`, or
+`pnpm release:check` locally. Those commands deliberately replace package and application `dist`
+trees, while the Compose development process watches the same workspace. Running both concurrently
+can make the watcher observe an intentionally incomplete clean-build state. Build first, start
+Compose afterward, and then use the read-only smoke preflight described below.
+
 ## Network smoke
 
 Live provider checks run in a separate scheduled/manual workflow, never in the required pull
@@ -63,6 +69,11 @@ request gate. The scheduled full search matrix runs twice per week and permits a
 results out of its 17 canonical cases. This is a fixed operational budget: zero contract
 regressions, while allowing transient degradation in fewer than one quarter of the cases. It is
 not adjusted to make an individual bad provider run pass.
+
+The package-level `smoke:*` commands first run the read-only `pnpm smoke:verify-builds` preflight.
+It verifies the exact Core/Providers source-to-output inventory without deleting or rewriting any
+build artifact. A missing build fails with a direct inventory error; build the repository before
+starting Compose rather than compiling concurrently with its watcher.
 
 The existing latency budgets remain 5 seconds for search/details and 8 seconds for availability.
 They are warning thresholds, not API timeout promises. A caller can make any smoke warning fatal

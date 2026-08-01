@@ -69,6 +69,10 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- Package-level live-provider smoke commands now use a read-only Core/Providers build-inventory
+  preflight. They no longer delete or rewrite package outputs, or rebuild the bind-mounted API and
+  example applications, while a Compose development stack is running; the full repository build
+  and release gates remain hermetic and must run separately from that watcher.
 - Completed a behavior-preserving code and architecture audit. Internal type-only dependency cycles
   were removed, API media query keys and bounds now have one application-owned vocabulary, repeated
   HTTP error and text-validation primitives are shared, provider gates use one abortable delay, and
