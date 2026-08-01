@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { hasAsciiControlCharacters } from '../text-validation';
 import { OriginalTorrentUpstreamStreamError } from './stream.errors';
 import {
   isOriginalTorrentHttpDate,
@@ -123,7 +124,7 @@ function readContentType(value: string | null): string {
     value === null ||
     value.length === 0 ||
     value.length > 200 ||
-    hasControlCharacters(value) ||
+    hasAsciiControlCharacters(value) ||
     !/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+(?:\s*;\s*[A-Za-z0-9!#$&^_.+-]+=(?:[A-Za-z0-9!#$&^_.+-]+|"[^"]*"))*$/u.test(
       value,
     )
@@ -152,7 +153,7 @@ function readSafeHeader(value: string | null): string | undefined {
   return value !== null &&
     value.length > 0 &&
     value.length <= MAX_SAFE_HEADER_LENGTH &&
-    !hasControlCharacters(value)
+    !hasAsciiControlCharacters(value)
     ? value
     : undefined;
 }
@@ -164,11 +165,4 @@ export function invalidUpstream(
     { code: 'torrent_stream_failed', message, transient: false },
     false,
   );
-}
-
-function hasControlCharacters(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codePoint = character.codePointAt(0);
-    return codePoint !== undefined && (codePoint <= 31 || codePoint === 127);
-  });
 }

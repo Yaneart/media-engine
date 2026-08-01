@@ -1,3 +1,4 @@
+import { waitForAbortableDelay } from "./abort.js";
 import { parseRetryAfterMs } from "./retry.js";
 
 const DEFAULT_MAX_COOLDOWN_MS = 30_000;
@@ -47,7 +48,7 @@ export class ProviderRateLimitGate {
         return;
       }
 
-      await abortableDelay(remainingMs, signal);
+      await waitForAbortableDelay(remainingMs, signal);
     }
   }
 }
@@ -69,24 +70,4 @@ export function deferProviderRateLimitFromResponse(
   if (response.status >= 500 && retryAfterMs !== undefined) {
     gate.defer(retryAfterMs);
   }
-}
-
-function abortableDelay(ms: number, signal: AbortSignal | undefined): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason);
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timeout);
-      reject(signal?.reason);
-    };
-
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
 }

@@ -1,3 +1,5 @@
+import { waitForAbortableDelay } from "../shared/abort.js";
+
 const DEFAULT_NOW = Date.now;
 
 export interface MagnetzRequestGateOptions {
@@ -28,7 +30,7 @@ export class MagnetzRequestGate {
 
     try {
       await waitForPromise(previous, signal);
-      await abortableDelay(Math.max(0, this.#nextStartAt - this.#now()), signal);
+      await waitForAbortableDelay(Math.max(0, this.#nextStartAt - this.#now()), signal);
       this.#nextStartAt = this.#now() + this.#intervalMs;
     } finally {
       release();
@@ -53,26 +55,5 @@ function waitForPromise(promise: Promise<void>, signal: AbortSignal | undefined)
         reject(error);
       },
     );
-  });
-}
-
-function abortableDelay(ms: number, signal: AbortSignal | undefined): Promise<void> {
-  if (ms <= 0) return signal?.aborted ? Promise.reject(signal.reason) : Promise.resolve();
-
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason);
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timeout);
-      reject(signal?.reason);
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }

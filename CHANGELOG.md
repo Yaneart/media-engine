@@ -69,6 +69,12 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Changed
 
+- Completed a behavior-preserving code and architecture audit. Internal type-only dependency cycles
+  were removed, API media query keys and bounds now have one application-owned vocabulary, repeated
+  HTTP error and text-validation primitives are shared, provider gates use one abortable delay, and
+  exact TorrServer response validation is separated from stream lifecycle and body orchestration.
+  The final scan found no dead production modules and retained large coordinators whose remaining
+  state and sequencing are cohesive; public package and REST/OpenAPI contracts are unchanged.
 - Torrent discovery now accepts bounded `alternativeTitles`. The example sends merged localized
   aliases with the canonical title, allowing the Russian JacRed catalog and international catalogs
   to resolve the same media card without making the user's search language choose one catalog.

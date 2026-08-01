@@ -34,8 +34,11 @@ The `0.1.x` releases established and hardened the first public baseline:
    are complete. Additional browsers remain supplementary compatibility observations because the
    original-file route does not promise universal decoding. Do not reintroduce media probing, remux,
    transcode, HLS, FFmpeg, worker processes, external-player fallback, or broad runtime profiles.
-4. Run a complete code and architecture audit, then remove proven dead code and accidental
-   duplication and reorganize misplaced modules in small behavior-preserving changes.
+4. The complete code and architecture audit is finished. It removed internal dependency cycles,
+   centralized genuinely shared API query and validation contracts, and separated the original-file
+   upstream response boundary from stream lifecycle orchestration. The scan found no dead production
+   modules; large remaining coordinators stay intact where their state and sequencing are cohesive.
+   Public package and REST contracts were preserved throughout the small reviewable changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before
    preparing `1.0.0`.
 6. Finish with a minimal beginner quick start that shows, without requiring architecture

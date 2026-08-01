@@ -6,6 +6,7 @@ import {
   TOP_LEVEL_EXTERNAL_ID_KEYS,
 } from '../media-query/media-query.constants';
 import { MAX_ORIGINAL_TORRENT_FILE_ID } from '../original-torrent-runtime/runtime.constants';
+import { hasAsciiControlCharacters } from '../text-validation';
 import { OriginalTorrentSessionInputError } from './session.errors';
 import type {
   CreateOriginalTorrentSessionInput,
@@ -196,7 +197,7 @@ function readString(
   if (
     normalized.length === 0 ||
     normalized.length > maxLength ||
-    hasControlCharacters(normalized)
+    hasAsciiControlCharacters(normalized)
   ) {
     throw new OriginalTorrentSessionInputError(
       `${field} must contain between 1 and ${maxLength} safe characters.`,
@@ -221,13 +222,6 @@ function readStringArray(
   return value.map((entry, index) =>
     readString(entry, `${field}[${index}]`, maxLength, true),
   ) as string[];
-}
-
-function hasControlCharacters(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codePoint = character.codePointAt(0);
-    return codePoint !== undefined && (codePoint <= 31 || codePoint === 127);
-  });
 }
 
 function readInteger(

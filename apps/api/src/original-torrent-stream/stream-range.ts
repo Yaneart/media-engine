@@ -1,3 +1,5 @@
+import { hasAsciiControlCharacters } from '../text-validation';
+
 export type OriginalTorrentByteRange =
   | { kind: 'full' }
   | { kind: 'unsatisfiable' }
@@ -61,7 +63,7 @@ export function parseOriginalTorrentIfRange(
     Array.isArray(value) ||
     value.length === 0 ||
     value.length > MAX_IF_RANGE_LENGTH ||
-    hasControlCharacters(value)
+    hasAsciiControlCharacters(value)
   ) {
     throw new OriginalTorrentRangeInputError('If-Range header is invalid.');
   }
@@ -107,11 +109,4 @@ function invalidRange(): OriginalTorrentRangeInputError {
   return new OriginalTorrentRangeInputError(
     'Range must contain one bounded bytes=start-end, bytes=start-, or bytes=-suffix value.',
   );
-}
-
-function hasControlCharacters(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codePoint = character.codePointAt(0);
-    return codePoint !== undefined && (codePoint <= 31 || codePoint === 127);
-  });
 }

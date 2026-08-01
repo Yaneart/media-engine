@@ -85,7 +85,9 @@ server-offered numeric IDs, and owns stop/expiry/shutdown cleanup. A separate ap
 maps each ready selection to an expiring high-entropy capability and proxies only that exact target
 through strict `GET`/`HEAD` single-range semantics. It preserves backpressure and cancellation,
 bounds cold headers, body inactivity, concurrent creation work, and active streams, and invalidates
-the capability with its session. A separate process-local per-client budget matches only the exact
+the capability with its session. Exact upstream status, length, range, validator, and safe response
+header handling form a separate leaf boundary from retry, lifecycle, and body streaming. A separate
+process-local per-client budget matches only the exact
 session creation route so status, selection, and cleanup remain available under creation pressure. None of
 this extends the public core/providers/SDK contracts or introduces probing, remuxing, transcoding,
 or HLS. The example maps this boundary to one native `<video>`, keeps metadata acquisition distinct

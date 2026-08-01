@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   type DetailsQuery,
   type DetailsResponse,
@@ -19,6 +14,7 @@ import {
   type StreamingProviderInfo,
 } from '@media-engine/core';
 import { MEDIA_ENGINE } from '../media-engine';
+import { rethrowMediaEngineHttpError } from '../media-engine/media-engine.errors';
 import {
   isMediaType,
   NESTED_ONLY_EXTERNAL_ID_KEYS,
@@ -315,37 +311,10 @@ async function runEngineRequest<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (error) {
-    if (isMediaEngineError(error, 'INVALID_QUERY')) {
-      throw new BadRequestException(error.message);
-    }
-
-    if (isMediaEngineError(error, 'PROVIDER_ERROR')) {
-      throw new ServiceUnavailableException(error.message);
-    }
-
-    throw error;
+    rethrowMediaEngineHttpError(error);
   }
 }
 
 type ExternalIdQueryTarget = {
   ids?: ExternalIds;
 } & Partial<Record<(typeof TOP_LEVEL_EXTERNAL_ID_KEYS)[number], string>>;
-
-// EN: Detect core engine errors without requiring the ESM-only core package at runtime.
-// RU: Определяет ошибки core engine без runtime require ESM-only core package.
-function isMediaEngineError(
-  error: unknown,
-  code: 'INVALID_QUERY' | 'PROVIDER_ERROR',
-): error is { message: string } {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const value = error as Record<string, unknown>;
-
-  return (
-    value.name === 'MediaEngineError' &&
-    value.code === code &&
-    typeof value.message === 'string'
-  );
-}

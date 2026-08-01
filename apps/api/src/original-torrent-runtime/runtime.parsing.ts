@@ -1,4 +1,5 @@
 import type { OriginalTorrentRuntimeConfig } from './runtime.config';
+import { hasAsciiControlCharacters } from '../text-validation';
 import { MAX_ORIGINAL_TORRENT_FILE_ID } from './runtime.constants';
 import { OriginalTorrentRuntimeError } from './runtime.errors';
 import type {
@@ -169,7 +170,7 @@ function normalizeMagnet(value: string, expectedHash: string): string {
   if (
     normalized.length < 20 ||
     normalized.length > MAX_MAGNET_LENGTH ||
-    hasControlCharacters(normalized) ||
+    hasAsciiControlCharacters(normalized) ||
     !normalized.toLowerCase().startsWith('magnet:?')
   ) {
     throw sourceInvalid('Torrent source is not a valid bounded magnet URI.');
@@ -200,7 +201,7 @@ function normalizeTitle(value: string | undefined): string | undefined {
   if (normalized === undefined || normalized.length === 0) return undefined;
   if (
     normalized.length > MAX_TITLE_LENGTH ||
-    hasControlCharacters(normalized)
+    hasAsciiControlCharacters(normalized)
   ) {
     throw sourceInvalid('Torrent source title is invalid or too long.');
   }
@@ -301,7 +302,7 @@ function requireString(
     typeof value !== 'string' ||
     value.length === 0 ||
     value.length > maxLength ||
-    hasControlCharacters(value)
+    hasAsciiControlCharacters(value)
   ) {
     throw invalidResponse(`TorrServer returned an invalid ${label}.`);
   }
@@ -319,13 +320,6 @@ function requireSafePath(value: unknown, maxLength: number): string {
     throw invalidResponse('TorrServer returned an unsafe file path.');
   }
   return path;
-}
-
-function hasControlCharacters(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const codePoint = character.codePointAt(0);
-    return codePoint !== undefined && (codePoint <= 31 || codePoint === 127);
-  });
 }
 
 function sourceInvalid(message: string): OriginalTorrentRuntimeError {
