@@ -41,9 +41,10 @@ The `0.1.x` releases established and hardened the first public baseline:
    Public package and REST contracts were preserved throughout the small reviewable changes.
 5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before
    preparing `1.0.0`.
-6. Finish with a minimal beginner quick start that shows, without requiring architecture
-   knowledge, how to connect Media Engine to a NestJS backend and how a frontend should call that
-   backend through the SDK.
+6. The bilingual beginner quick start is complete. Without requiring architecture knowledge, it
+   builds a minimal NestJS backend with one long-lived Media Engine instance and calls its search
+   route from a Vite frontend through the SDK. The copy-paste flow is verified against fresh NestJS
+   11 and current Vite scaffolds using the published packages.
 
 ## Later
 

@@ -8,6 +8,10 @@ This project follows semantic versioning after the first stable release. Before 
 
 ### Added
 
+- Added a bilingual beginner quick start for the smallest browser-to-Media-Engine application. It
+  creates a NestJS backend that owns one long-lived engine and a Vite frontend that talks only to
+  that backend through the SDK; the copy-paste flow is verified against fresh scaffolds and the
+  published packages.
 - Added a deterministic native-Firefox original-torrent acceptance smoke. An in-memory browser-made
   VP8/Opus fixture passes through a local tracker, peer, pinned TorrServer, protected Range gateway,
   and native `<video>`; the gate verifies playback, decoded video, audio-track presence, seeking,

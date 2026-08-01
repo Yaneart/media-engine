@@ -57,6 +57,9 @@ const result = await media.search({ imdb: "tt0816692" });
 
 No API keys, private tokens, or account cookies are needed for the built-in providers.
 
+Building a browser application? Follow the [beginner quick start](docs/quick-start.md) to create a
+minimal NestJS backend and call it from a frontend through `@media-engine/sdk`.
+
 ## What is included
 
 - [`@media-engine/core`](https://www.npmjs.com/package/@media-engine/core) — the engine and public types;

@@ -45,6 +45,8 @@ Failed HTTP responses and invalid payloads throw `MediaEngineApiError`, which ke
 The SDK does not call providers, render players, or run a torrent client. It only turns typed method calls into HTTP requests.
 
 See the [public API guide](https://github.com/Yaneart/media-engine/blob/main/docs/public-api.md) for query examples.
+For a complete browser-to-NestJS setup, follow the
+[beginner quick start](https://github.com/Yaneart/media-engine/blob/main/docs/quick-start.md).
 
 ## License
 

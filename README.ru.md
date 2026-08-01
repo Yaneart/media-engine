@@ -57,6 +57,9 @@ const result = await media.search({ imdb: "tt0816692" });
 
 Для встроенных провайдеров не нужны API-ключи, приватные токены или cookie аккаунта.
 
+Создаёте browser application? В [быстром старте для новичка](docs/quick-start.ru.md) показано, как
+собрать минимальный backend на NestJS и вызвать его из frontend через `@media-engine/sdk`.
+
 ## Что входит в проект
 
 - [`@media-engine/core`](https://www.npmjs.com/package/@media-engine/core) — движок и публичные типы;

@@ -45,6 +45,8 @@ const ready = await media.getReadiness();
 SDK не вызывает провайдеры, не рисует плееры и не запускает torrent-клиент. Он только превращает типизированные методы в HTTP-запросы.
 
 Примеры запросов есть в [описании публичного API](https://github.com/Yaneart/media-engine/blob/main/docs/public-api.md).
+Полная настройка связи browser с NestJS показана в
+[быстром старте для новичка](https://github.com/Yaneart/media-engine/blob/main/docs/quick-start.ru.md).
 
 ## Лицензия
 

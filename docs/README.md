@@ -2,6 +2,8 @@
 
 This directory contains current technical documentation for Media Engine.
 
+- [Beginner quick start](quick-start.md) builds a minimal NestJS backend and calls it from a
+  frontend through the SDK. A [Russian version](quick-start.ru.md) is also available.
 - [Architecture](architecture.md) explains the packages, dependency boundaries, and request flow.
 - [Public API](public-api.md) shows the main library and HTTP operations without duplicating every TypeScript type.
 - [Data model](data-model.md) describes the normalized media and streaming shapes.
