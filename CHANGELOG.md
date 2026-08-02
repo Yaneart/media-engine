@@ -2,9 +2,29 @@
 
 All notable project changes are recorded here.
 
-This project follows semantic versioning after the first stable release. Before v1.0, breaking changes are allowed when they are documented in the public API audit and release notes.
+This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
+documented breaking changes.
 
 ## Unreleased
+
+No changes yet.
+
+## 1.0.0 - 2026-08-02
+
+### Release Notes
+
+- This is the first stable release of the jointly versioned `@media-engine/core`,
+  `@media-engine/providers`, and `@media-engine/sdk` packages. The private API and example
+  applications remain at `0.0.0`; the independent REST/OpenAPI contract remains at `0.12.0`.
+- The deterministic clean-install, package, test, architecture, Docker, TorrServer Range, and
+  Firefox playback checkpoints are complete. The latest scheduled 17-case live metadata checkpoint
+  found every expected identity with zero contract regressions, but reported 15 classified
+  upstream-degraded warnings, above the fixed budget of four, after Wikidata, Cinemeta, and
+  Shikimori timeouts. The warning budget remains unchanged and the exception is recorded rather
+  than presented as a healthy upstream run.
+- Public package consumers should use namespaced external IDs for details lookup. The ambiguous
+  plain `DetailsQuery.id` input is deprecated and rejected by the repository API; use `ids` or a
+  shortcut such as `imdb`, `tmdb`, or `kinopoisk`.
 
 ### Added
 

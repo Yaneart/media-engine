@@ -6,7 +6,7 @@ Movie data is easy to find. The hard part is that every source names things diff
 
 Media Engine puts those sources behind one TypeScript API. You ask for a movie, series, or anime; the engine calls suitable providers, joins matching results, and tells you honestly when part of the data could not be loaded.
 
-Version `0.1.1` is available on npm.
+Release candidate version in this source tree: `1.0.0`.
 
 Package, API contract, and User-Agent versions have distinct meanings; see the
 [versioning and package build contract](./docs/versioning.md).

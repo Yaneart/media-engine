@@ -25,6 +25,16 @@ dependencies, built runtime constants, the latest released changelog heading, th
 named API contract version, and production User-Agent defaults. It runs as part of
 `pnpm release:check` and `pnpm pack:check`.
 
+Release preparation updates the three public manifests together, the Core and Providers runtime
+version constants, the latest released changelog heading, and user-facing current-version text.
+The root, API, and example manifests stay at `0.0.0`. The REST/OpenAPI contract changes only when
+its HTTP contract changes; a package release alone does not change it.
+
+A release candidate must pass `pnpm release:check`, including version consistency and dry-package
+inventory validation. Live provider smoke remains a separately classified network checkpoint. If
+upstream degradation exceeds its warning budget without a contract regression, record that result
+explicitly; do not weaken the budget or describe the run as healthy.
+
 `pnpm release:check` builds once and then reuses those clean outputs for type checks, thresholded
 coverage, API e2e, release consistency, and dry-pack verification. Package-level `test` and
 `coverage` scripts remain standalone and build their own package first; their internal `test:unit`

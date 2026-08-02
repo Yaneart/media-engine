@@ -39,12 +39,19 @@ The `0.1.x` releases established and hardened the first public baseline:
    upstream response boundary from stream lifecycle orchestration. The scan found no dead production
    modules; large remaining coordinators stay intact where their state and sequencing are cohesive.
    Public package and REST contracts were preserved throughout the small reviewable changes.
-5. Complete a clean-install, package, runtime, Docker, and live regression checkpoint before
-   preparing `1.0.0`.
+5. The deterministic clean-install, package, runtime, Docker, Range, and browser checkpoints are
+   complete. Preparation of `1.0.0` proceeds with an explicit live-upstream exception: the latest
+   scheduled metadata matrix found every expected identity and no contract regression, but its 15
+   upstream-degraded warnings exceeded the unchanged budget of four. Continue monitoring this gate
+   without weakening or presenting it as healthy.
 6. The bilingual beginner quick start is complete. Without requiring architecture knowledge, it
    builds a minimal NestJS backend with one long-lived Media Engine instance and calls its search
    route from a Vite frontend through the SDK. The copy-paste flow is verified against fresh NestJS
    11 and current Vite scaffolds using the published packages.
+7. The three jointly versioned public packages, changelog, release notes, consistency gate, and dry
+   package artifacts are prepared for `1.0.0`. The private application versions remain at `0.0.0`,
+   the independently versioned REST/OpenAPI contract remains at `0.12.0`, and the complete
+   deterministic release gate passes for the candidate.
 
 ## Later
 
