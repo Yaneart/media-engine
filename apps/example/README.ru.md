@@ -1,45 +1,71 @@
-# Media Engine React example
+# Пример приложения Media Engine
 
-[English](https://github.com/Yaneart/media-engine/blob/main/apps/example/README.md) | **Русский**
+[English](README.md) | **Русский**
 
-Небольшое приложение для проверки Media Engine в браузере: поиск, детали, выбор эпизода, доступные online player options, поиск torrent-релизов, выбор любого обычного файла и воспроизведение его защищённого original stream в одном нативном `<video>`.
+Это небольшое React-приложение, в котором Media Engine можно попробовать прямо в браузере. Оно
+умеет искать, открывать подробности, показывать варианты плееров, находить torrent-раздачи и
+воспроизводить выбранный исходный файл.
 
-## Запуск
+Это демонстрация возможностей проекта, а не готовый онлайн-кинотеатр.
 
-Из корня репозитория:
+## Полный запуск
+
+Понадобятся Docker и pnpm. Выполните из корня проекта:
 
 ```bash
 pnpm install
-# Сначала задайте в .env случайный server token длиной от 32 символов:
-# MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN=...
+cp .env.example .env
+openssl rand -hex 32
+```
+
+Скопируйте полученное значение в `.env` после `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN=`, затем
+запустите проект:
+
+```bash
 docker compose up -d
 ```
 
-Откройте <http://127.0.0.1:5173>.
+Откройте <http://127.0.0.1:5173>. API будет доступен на <http://127.0.0.1:3000>.
 
-Чтобы запустить только frontend:
+Остановить всё можно командой:
+
+```bash
+docker compose down
+```
+
+## Запуск только frontend
 
 ```bash
 pnpm --filter @media-engine/example dev
 ```
 
-По умолчанию frontend ожидает API на `http://127.0.0.1:3000`. Измените `VITE_MEDIA_ENGINE_API_URL`, если API находится в другом месте.
+По умолчанию frontend ждёт API на `http://127.0.0.1:3000`. Если адрес другой, задайте
+`VITE_MEDIA_ENGINE_API_URL`.
 
-Браузер использует `@media-engine/sdk` для public discovery и безопасных metadata torrent-провайдеров. Он передает canonical title вместе с известными локализованными aliases, поэтому русскоязычные и международные каталоги могут найти одну выбранную карточку. Релизы группируются по каталогу и настоящему display name провайдера. Для кандидатов JacRed также показывается конкретный upstream-каталог, например BitRu или RuTracker, если JacRed его сообщил. Эти подписи каталога не гарантируют фактический язык аудиодорожки релиза. Поиск torrent-сериалов намеренно не требует сезон и серию: полный сезон или многосерийная раздача остаются видимыми, а точный файл выбирается после загрузки torrent metadata. Вызовы create/status/select/stop torrent-session проходят через same-origin server-side BFF, который добавляет `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN`; token не раскрывается через переменную с префиксом `VITE_` и не попадает в browser bundle. Вне Compose example server обращается к API по `MEDIA_ENGINE_ORIGINAL_TORRENT_API_URL`, по умолчанию `http://127.0.0.1:3000`.
+## Что полезно знать
 
-Torrent player стримит точные выбранные bytes без фильтрации расширений, probing, conversion или fallback. `waiting_metadata` означает ожидание torrent metadata; `Buffering first pieces` означает, что capability уже готова, но браузер ждёт stream bytes. Исправный stream всё равно может завершиться как `client_format_unsupported`, если браузер не декодирует исходный container или codecs.
+Обычные запросы браузер отправляет через `@media-engine/sdk`. Защищённые запросы torrent-сессий идут
+через небольшой серверный BFF, поэтому `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` не попадает в браузерный
+bundle.
 
-## Проверка
+Выбранный torrent-файл передаётся как есть. Media Engine не конвертирует и не перекодирует его.
+Даже исправный поток может не воспроизвестись, если браузер не поддерживает контейнер или кодеки
+файла.
+
+Сторонние плееры по умолчанию открываются обычной внешней ссылкой. Для встраивания нужен отдельный
+клик, но хост плеера или Content Security Policy всё равно могут его заблокировать. В production
+лучше отключить embeds или использовать небольшой явный список разрешённых `frame-src`.
+
+Публичные плееры и torrent-сети могут быть недоступны в некоторых странах или сетях. Для
+демонстрации на сторонних источниках это ожидаемо.
+
+## Проверки
 
 ```bash
 pnpm --filter @media-engine/example typecheck
 pnpm --filter @media-engine/example test:unit
 pnpm --filter @media-engine/example build
 ```
-
-Это демонстрация, а не готовый киносайт. Сторонние плееры и публичные torrent swarms могут работать не в каждом браузере, стране или сети. Embed-плееры не загружаются автоматически: по умолчанию доступна внешняя ссылка, а встроенное воспроизведение требует явного нажатия и работает с ограниченной iframe-политикой, которая сохраняет origin стороннего плеера и передает в referrer только origin frontend-приложения. Некоторые хосты плееров отклоняют полностью referrerless-запросы.
-
-Example не поставляет универсальный `frame-src` Content Security Policy, потому что player hosts динамические. Production deployment должен отключить embeds или задать CSP с явным allowlist под выбранных providers; external-link flow остается доступен, когда framing заблокирован.
 
 ## Лицензия
 

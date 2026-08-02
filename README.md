@@ -2,16 +2,13 @@
 
 **English** | [Русский](README.ru.md)
 
-Movie data is easy to find. The hard part is that every source names things differently, uses different IDs, and sometimes simply stops responding.
+Media Engine is a TypeScript library that gives you one clean API for movies, series, and anime.
+It searches several public sources, recognizes when they describe the same title, merges their
+answers, and keeps useful results even when one of the sources is down.
 
-Media Engine puts those sources behind one TypeScript API. You ask for a movie, series, or anime; the engine calls suitable providers, joins matching results, and tells you honestly when part of the data could not be loaded.
+Version `1.0.0` is available on npm.
 
-Release candidate version in this source tree: `1.0.0`.
-
-Package, API contract, and User-Agent versions have distinct meanings; see the
-[versioning and package build contract](./docs/versioning.md).
-
-## Try it
+## Quick start
 
 You need Node.js 20 or newer.
 
@@ -19,26 +16,14 @@ You need Node.js 20 or newer.
 npm install @media-engine/core @media-engine/providers
 ```
 
+Create one `MediaEngine` instance and keep it for the lifetime of your application:
+
 ```ts
 import { MediaEngine } from "@media-engine/core";
-import {
-  aniListProvider,
-  cinemetaProvider,
-  kinobdProvider,
-  shikimoriProvider,
-  tvMazeProvider,
-  wikidataProvider,
-} from "@media-engine/providers";
+import { cinemetaProvider, kinobdProvider } from "@media-engine/providers";
 
 const media = new MediaEngine({
-  providers: [
-    kinobdProvider(),
-    cinemetaProvider(),
-    shikimoriProvider(),
-    aniListProvider(),
-    tvMazeProvider(),
-    wikidataProvider(),
-  ],
+  providers: [kinobdProvider(), cinemetaProvider()],
 });
 
 const result = await media.search({
@@ -47,98 +32,103 @@ const result = await media.search({
 });
 
 console.log(result.results[0]?.item);
+console.log(result.meta.providers.failed);
 ```
 
-You can search by external ID too:
+You can also search and load details by a known external ID:
 
 ```ts
-const result = await media.search({ imdb: "tt0816692" });
+const search = await media.search({ imdb: "tt0816692" });
+const details = await media.getDetails({ imdb: "tt0816692" });
 ```
 
-No API keys, private tokens, or account cookies are needed for the built-in providers.
+The built-in providers do not require API keys, account cookies, or private tokens.
 
-Building a browser application? Follow the [beginner quick start](docs/quick-start.md) to create a
-minimal NestJS backend and call it from a frontend through `@media-engine/sdk`.
+If you are building a browser application, do not create the engine in the browser. Put it in your
+backend and call that backend through `@media-engine/sdk`. The
+[beginner quick start](docs/quick-start.md) walks through a complete NestJS and Vite example.
 
-## What is included
+## What you get
 
-- [`@media-engine/core`](https://www.npmjs.com/package/@media-engine/core) — the engine and public types;
-- [`@media-engine/providers`](https://www.npmjs.com/package/@media-engine/providers) — ready-to-use metadata and player sources;
-- [`@media-engine/sdk`](https://www.npmjs.com/package/@media-engine/sdk) — a typed client for the included REST API;
-- `apps/api` — a runnable NestJS API;
-- `apps/example` — a small React example.
+- [`@media-engine/core`](https://www.npmjs.com/package/@media-engine/core) — the engine, public
+  types, caching, merging, timeouts, and error handling;
+- [`@media-engine/providers`](https://www.npmjs.com/package/@media-engine/providers) — ready-to-use
+  metadata, player, and optional torrent-discovery providers;
+- [`@media-engine/sdk`](https://www.npmjs.com/package/@media-engine/sdk) — a typed client for the
+  included REST API;
+- `apps/api` — a NestJS API that shows how to run one shared engine on a server;
+- `apps/example` — a small React application that uses the API.
 
-Metadata and player lookup are separate. You can use Media Engine only for search and details, or add streaming providers when your application needs player choices.
+Search, player lookup, and torrent discovery are separate. Use only the parts your application
+actually needs.
 
-## See it in a browser
+## Run the example
+
+For the complete local stack you need Docker and pnpm.
 
 ```bash
 pnpm install
-pnpm dev:compose
+cp .env.example .env
 ```
 
-Then open <http://127.0.0.1:5173>. The API runs on <http://127.0.0.1:3000>, and its Swagger page is at <http://127.0.0.1:3000/docs>.
+Generate a secret:
 
-The default Compose stack includes a separately licensed, pinned, non-published TorrServer runtime.
-Set one random 32+ character `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` in `.env`, then start the complete
-stack:
+```bash
+openssl rand -hex 32
+```
+
+Paste it into `.env` as `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN`, then start the stack:
 
 ```bash
 docker compose up -d
 ```
 
-TorrServer has no host port. It uses a private API network plus a dedicated outbound network for
-trackers, DHT, and peers. The application can create expiring server-owned sessions from an
-exact discovery observation, coalesce sessions that share an info hash, list every non-padding file
-without extension filtering, validate a selected numeric file ID, and clean up on stop, expiry, or
-API shutdown. The API never accepts a raw magnet, hash, upstream URL, path, or TorrServer target.
-A stable, deployment-unique `MEDIA_ENGINE_TORRSERVER_OWNER_ID` marks only entries created by that
-API deployment. Startup removes its stale marked entries, while pre-existing unmarked entries are
-borrowed and never deleted. Timestamped ownership leases invalidate stale stream capabilities if
-TorrServer restarts or replaces an entry, and an incompatible pinned runtime version stops startup.
-A ready session exposes only a high-entropy application capability. Its protected `GET`/`HEAD`
-route streams the exact selected original file with strict single-range handling, backpressure,
-cancellation, bounded cold-start timeouts, bounded active-stream concurrency, and bounded session
-creation while keeping TorrServer private. A separate per-client budget covers only session create
-requests, leaving status, selection, and Stop available. The example uses a
-server-authenticated same-origin BFF for lifecycle calls and one native `<video>` for that original
-capability. It distinguishes metadata wait from first-piece buffering and reports browser rejection
-as `client_format_unsupported`. No media worker, probe, remuxer, transcoder, or HLS pipeline exists.
-Structured server logs expose only bounded operational fields: metadata and upstream wait latency,
-first-byte timing, Range offsets, cancellation/outcome, active counts, shared references, and
-cleanup. They never include capabilities, hashes, magnets, torrent bytes, file names, internal URLs,
-credentials, or raw error messages.
+Open:
 
-## A small but important warning
+- example application: <http://127.0.0.1:5173>;
+- API: <http://127.0.0.1:3000>;
+- Swagger: <http://127.0.0.1:3000/docs>.
 
-Media Engine works with public third-party sources. They can be slow, unavailable, or change without warning. The engine limits failures and returns partial results when it can, but it cannot promise that every source or player will always work.
+Stop everything with:
 
-Media Engine does not host video. It only normalizes information and third-party player options for your application.
+```bash
+docker compose down
+```
 
-## Learn more
+Torrent providers are disabled until you explicitly enable them in `.env`. The example can stream
+the exact selected original file through its private TorrServer-backed route, but it does not probe,
+convert, remux, or transcode media. Whether a file plays depends on the browser's support for its
+container and codecs. See the
+[original-torrent architecture decision](docs/decisions/0001-original-torrent-streaming.md) for the
+security and lifecycle details.
 
-The [documentation index](docs/README.md) links to the architecture, API, data model, providers, and roadmap. Package-specific setup stays in each package README so this page does not repeat it.
+## A note about public sources
 
-For local checks:
+Public providers can be slow, unavailable, rate-limited, or changed by their owners. Media Engine
+bounds their work and reports partial failures instead of hiding successful data from other sources,
+but it cannot guarantee that every third-party source or player will always work.
+
+Media Engine does not host video. It normalizes metadata and third-party handoff options for your
+application.
+
+## Documentation and development
+
+Start with the [documentation index](docs/README.md). It links to the public API, provider list,
+architecture, data model, quality gates, and roadmap. Exact fields are documented by the exported
+TypeScript types.
+
+Useful repository checks:
 
 ```bash
 pnpm release:check
-pnpm coverage
-pnpm pack:check
 pnpm smoke:search-quality:scheduled
-# Requires the running Compose stack and host Firefox:
+# Requires the running Compose stack and Firefox:
 pnpm smoke:torrent-browser
 ```
 
-`release:check` is the complete local release-candidate gate: formatting, check-only lint,
-clean builds, type checks, thresholded unit coverage, API e2e tests, version consistency, and
-dry-pack verification. Built-in coverage filtering and thresholds require Node.js 22.8 or newer;
-the published packages retain their documented Node.js 20 runtime support.
-
-Pushes and pull requests run the deterministic gate on Node.js 24 and 26, while the public
-packages are tested separately on their minimum Node.js 20 line. Live provider checks are kept out
-of the pull-request gate and run through the scheduled/manual network workflow with classified
-results and an explicit warning budget. See [quality gates and live smoke policy](docs/quality-gates.md).
+`release:check` covers formatting, builds, lint, type checks, unit coverage, API end-to-end tests,
+version consistency, and dry package contents. The published packages support Node.js 20 and newer;
+the full repository coverage gate requires Node.js 22.8 or newer.
 
 ## License
 

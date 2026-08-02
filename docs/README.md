@@ -1,18 +1,28 @@
-# Media Engine documentation
+# Documentation / Документация
 
-This directory contains current technical documentation for Media Engine.
+This folder contains the details that would only make the main README harder to read.
 
-- [Beginner quick start](quick-start.md) builds a minimal NestJS backend and calls it from a
-  frontend through the SDK. A [Russian version](quick-start.ru.md) is also available.
-- [Architecture](architecture.md) explains the packages, dependency boundaries, and request flow.
-- [Public API](public-api.md) shows the main library and HTTP operations without duplicating every TypeScript type.
-- [Data model](data-model.md) describes the normalized media and streaming shapes.
-- [Providers](providers.md) lists the built-in providers and their safety boundaries.
-- [Quality gates](quality-gates.md) documents deterministic CI and classified live smoke policy.
-- [Architecture decisions](decisions/0001-original-torrent-streaming.md) record accepted product
-  and runtime boundaries.
-- [Roadmap](roadmap.md) contains a short public view of completed and planned work.
+Здесь лежат подробности, которыми не хочется перегружать главный README.
 
-The TypeScript declarations exported by the packages are the source of truth for exact fields. Package READMEs contain installation and quick-start examples.
+## Start here / С чего начать
 
-Internal task lists, session notes, audit logs, and completed release plans are intentionally not stored here. They become stale quickly and are not useful product documentation.
+- [Quick start](quick-start.md) — build a small backend and call it from a frontend;
+- [Быстрый старт](quick-start.ru.md) — тот же пример на русском;
+- [Public API](public-api.md) — the four main engine and HTTP operations;
+- [Providers](providers.md) — built-in data sources and their settings.
+
+## More details / Остальные материалы
+
+- [Architecture](architecture.md) — packages and request flow;
+- [Data model](data-model.md) — normalized media, player, and torrent types;
+- [Quality gates](quality-gates.md) — tests, checks, and live smoke policy;
+- [Original torrent streaming decision](decisions/0001-original-torrent-streaming.md) — security and
+  lifecycle boundaries;
+- [Roadmap](roadmap.md) — completed work and future plans;
+- [Versioning](versioning.md) — release and compatibility rules.
+
+The exported TypeScript types are the source of truth for exact fields. The documents here explain
+how the pieces fit together and why the project behaves the way it does.
+
+Точные поля всегда лучше смотреть в экспортируемых TypeScript-типах. Эти документы объясняют общую
+логику проекта и причины принятых решений.

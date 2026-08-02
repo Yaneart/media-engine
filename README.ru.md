@@ -2,16 +2,13 @@
 
 [English](README.md) | **Русский**
 
-Найти информацию о фильме несложно. Сложность начинается, когда каждый источник по-своему пишет названия, использует свои ID и иногда просто перестаёт отвечать.
+Media Engine — это TypeScript-библиотека с единым API для фильмов, сериалов и аниме. Она ищет
+данные сразу в нескольких публичных источниках, понимает, когда речь идёт об одном и том же тайтле,
+объединяет ответы и сохраняет полезный результат, даже если один из источников временно не работает.
 
-Media Engine прячет эти различия за одним TypeScript API. Вы просите найти фильм, сериал или аниме, а движок сам обращается к подходящим источникам, объединяет совпадения и честно сообщает, если часть данных получить не удалось.
+Версия `1.0.0` опубликована в npm.
 
-Версия release candidate в текущем дереве исходников: `1.0.0`.
-
-Версии пакетов, API-контракта и User-Agent имеют разный смысл; детали описаны в
-[контракте версий и сборки пакетов](./docs/versioning.md).
-
-## Попробовать
+## Быстрый старт
 
 Понадобится Node.js 20 или новее.
 
@@ -19,26 +16,14 @@ Media Engine прячет эти различия за одним TypeScript API
 npm install @media-engine/core @media-engine/providers
 ```
 
+Создайте один экземпляр `MediaEngine` и используйте его всё время, пока работает приложение:
+
 ```ts
 import { MediaEngine } from "@media-engine/core";
-import {
-  aniListProvider,
-  cinemetaProvider,
-  kinobdProvider,
-  shikimoriProvider,
-  tvMazeProvider,
-  wikidataProvider,
-} from "@media-engine/providers";
+import { cinemetaProvider, kinobdProvider } from "@media-engine/providers";
 
 const media = new MediaEngine({
-  providers: [
-    kinobdProvider(),
-    cinemetaProvider(),
-    shikimoriProvider(),
-    aniListProvider(),
-    tvMazeProvider(),
-    wikidataProvider(),
-  ],
+  providers: [kinobdProvider(), cinemetaProvider()],
 });
 
 const result = await media.search({
@@ -47,101 +32,103 @@ const result = await media.search({
 });
 
 console.log(result.results[0]?.item);
+console.log(result.meta.providers.failed);
 ```
 
-Искать можно и по внешнему ID:
+Искать и загружать подробности можно и по известному внешнему ID:
 
 ```ts
-const result = await media.search({ imdb: "tt0816692" });
+const search = await media.search({ imdb: "tt0816692" });
+const details = await media.getDetails({ imdb: "tt0816692" });
 ```
 
-Для встроенных провайдеров не нужны API-ключи, приватные токены или cookie аккаунта.
+Для встроенных провайдеров не нужны API-ключи, cookie аккаунта или приватные токены.
 
-Создаёте browser application? В [быстром старте для новичка](docs/quick-start.ru.md) показано, как
-собрать минимальный backend на NestJS и вызвать его из frontend через `@media-engine/sdk`.
+Если вы делаете браузерное приложение, не запускайте движок в браузере. Разместите его на своём
+backend и обращайтесь к нему через `@media-engine/sdk`. В
+[быстром старте для новичка](docs/quick-start.ru.md) пошагово собран полный пример на NestJS и Vite.
 
 ## Что входит в проект
 
-- [`@media-engine/core`](https://www.npmjs.com/package/@media-engine/core) — движок и публичные типы;
-- [`@media-engine/providers`](https://www.npmjs.com/package/@media-engine/providers) — готовые источники метаданных и плееров;
-- [`@media-engine/sdk`](https://www.npmjs.com/package/@media-engine/sdk) — типизированный клиент для REST API;
-- `apps/api` — запускаемый API на NestJS;
-- `apps/example` — небольшой пример на React.
+- [`@media-engine/core`](https://www.npmjs.com/package/@media-engine/core) — движок, публичные типы,
+  кэширование, объединение результатов, таймауты и обработка ошибок;
+- [`@media-engine/providers`](https://www.npmjs.com/package/@media-engine/providers) — готовые
+  провайдеры метаданных, плееров и опционального поиска torrent-раздач;
+- [`@media-engine/sdk`](https://www.npmjs.com/package/@media-engine/sdk) — типизированный клиент для
+  готового REST API;
+- `apps/api` — API на NestJS с одним общим экземпляром движка на сервере;
+- `apps/example` — небольшое React-приложение, которое работает через API.
 
-Поиск метаданных и поиск плееров разделены. Можно использовать Media Engine только для названий, постеров и описаний, а стриминговые провайдеры подключить позже, если приложению понадобятся варианты плееров.
+Поиск, варианты просмотра и torrent-раздачи — независимые части. Подключайте только то, что нужно
+вашему приложению.
 
-## Посмотреть в браузере
+## Запуск примера
+
+Для полного локального запуска понадобятся Docker и pnpm.
 
 ```bash
 pnpm install
-pnpm dev:compose
+cp .env.example .env
 ```
 
-После запуска откройте <http://127.0.0.1:5173>. API будет доступен на <http://127.0.0.1:3000>, а Swagger — на <http://127.0.0.1:3000/docs>.
+Создайте секрет:
 
-В default Compose stack входит отдельно лицензируемый, закреплённый и не публикуемый TorrServer runtime.
-Задайте в `.env` случайный `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN` длиной от 32 символов, затем
-запустите весь stack:
+```bash
+openssl rand -hex 32
+```
+
+Вставьте его в `.env` как значение `MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN`, затем запустите проект:
 
 ```bash
 docker compose up -d
 ```
 
-TorrServer не публикует host port. Он использует private API network и отдельную outbound network для
-trackers, DHT и peers. Application layer создаёт expiring server-owned sessions
-из точного discovery observation, объединяет sessions с одинаковым info hash, показывает все
-non-padding файлы без фильтрации расширений, проверяет выбранный numeric file ID и очищает runtime
-при stop, expiry или shutdown API. API не принимает raw magnet, hash, upstream URL, path или
-TorrServer target.
-Стабильный и уникальный для deployment `MEDIA_ENGINE_TORRSERVER_OWNER_ID` помечает только записи,
-созданные этим API. При startup удаляются его старые помеченные записи, а уже существующие
-непомеченные записи используются без последующего удаления. Timestamped ownership lease аннулирует
-устаревшую stream capability при restart TorrServer или замене записи; несовместимая закреплённая
-версия runtime останавливает startup API.
-Готовая session раскрывает только high-entropy application capability. Её защищённый `GET`/`HEAD`
-route стримит точный выбранный original file со строгим single-range,
-backpressure, cancellation, ограниченными cold-start timeout и active-stream concurrency, не
-раскрывая TorrServer. Создание sessions также ограничено по concurrency и отдельным per-client
-budget, который не затрагивает status, selection и Stop. Example
-использует server-authenticated same-origin BFF для lifecycle calls и один нативный `<video>` для
-original capability. Он различает metadata wait и first-piece buffering, а отказ браузера сообщает
-как `client_format_unsupported`. Media worker, probe, remux, transcode и HLS отсутствуют.
-Структурированные server logs содержат только ограниченные operational fields: latency metadata и
-upstream wait, first-byte timing, Range offsets, cancellation/outcome, active counts, shared
-references и cleanup. В них не попадают capabilities, hashes, magnets, torrent bytes, имена файлов,
-internal URLs, credentials или исходные тексты ошибок.
+После запуска доступны:
 
-## Небольшое, но важное предупреждение
+- пример приложения: <http://127.0.0.1:5173>;
+- API: <http://127.0.0.1:3000>;
+- Swagger: <http://127.0.0.1:3000/docs>.
 
-Media Engine работает с публичными сторонними источниками. Они могут отвечать медленно, временно не работать или неожиданно изменить формат. Движок ограничивает последствия таких сбоев и по возможности возвращает частичный результат, но не может обещать вечную работу каждого источника или плеера.
+Остановить всё можно командой:
 
-Media Engine не хранит видео. Он только приводит метаданные и сторонние варианты плееров к удобному для приложения виду.
+```bash
+docker compose down
+```
 
-## Узнать больше
+Torrent-провайдеры выключены, пока вы явно не включите их в `.env`. Пример умеет передавать точный
+выбранный файл через приватный маршрут на базе TorrServer, но не анализирует, не конвертирует и не
+перекодирует видео. Воспроизведение зависит от того, поддерживает ли браузер исходный контейнер и
+кодеки. Безопасность и жизненный цикл подробно описаны в
+[архитектурном решении о torrent-воспроизведении](docs/decisions/0001-original-torrent-streaming.md).
 
-В [индексе документации](docs/README.md) есть ссылки на архитектуру, API, модель данных, провайдеры и roadmap. Настройки отдельных пакетов находятся в их README, чтобы не повторять всё на этой странице.
+## Важно знать о публичных источниках
 
-Локальные проверки:
+Публичные провайдеры могут отвечать медленно, ограничивать запросы, временно не работать или менять
+свои API. Media Engine ограничивает их работу и честно сообщает о частичных сбоях, не скрывая данные
+от исправных источников. Но гарантировать вечную доступность любого стороннего источника или плеера
+невозможно.
+
+Media Engine не хранит видео. Он приводит метаданные и сторонние варианты перехода к единому и
+понятному для приложения виду.
+
+## Документация и разработка
+
+Начните с [индекса документации](docs/README.md). Там есть ссылки на публичный API, список
+провайдеров, архитектуру, модель данных, проверки качества и roadmap. Точные поля всегда можно
+посмотреть в TypeScript-типах, экспортируемых пакетами.
+
+Основные проверки репозитория:
 
 ```bash
 pnpm release:check
-pnpm coverage
-pnpm pack:check
 pnpm smoke:search-quality:scheduled
-# Требует запущенный Compose stack и Firefox на host:
+# Требует запущенный Compose stack и Firefox:
 pnpm smoke:torrent-browser
 ```
 
-`release:check` — полный локальный gate релиз-кандидата: форматирование, lint без изменения
-файлов, чистая сборка, typecheck, unit coverage с порогами, API e2e, согласованность версий и
-проверка dry-pack. Для встроенных coverage-фильтров и порогов нужен Node.js 22.8 или новее;
-опубликованные пакеты сохраняют заявленную runtime-поддержку Node.js 20.
-
-Push и pull request запускают детерминированный gate на Node.js 24 и 26, а публичные пакеты
-отдельно проверяются на минимальной ветке Node.js 20. Live-проверки провайдеров не входят в
-обязательный PR gate: для них есть scheduled/manual workflow с классификацией результатов и
-явным бюджетом предупреждений. Подробности — в документе
-[quality gates and live smoke policy](docs/quality-gates.md).
+`release:check` проверяет форматирование, сборку, lint, типы, unit coverage, end-to-end тесты API,
+согласованность версий и содержимое пакетов. Опубликованные пакеты поддерживают Node.js 20 и новее;
+для полного coverage gate репозитория нужен Node.js 22.8 или новее.
 
 ## Лицензия
 

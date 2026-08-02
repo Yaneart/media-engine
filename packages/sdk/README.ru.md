@@ -2,13 +2,18 @@
 
 [English](https://github.com/Yaneart/media-engine/blob/main/packages/sdk/README.md) | **Русский**
 
-Типизированный `fetch`-клиент для REST API Media Engine.
+Это небольшой типизированный клиент для HTTP API Media Engine. Используйте его в браузере, боте или
+другом сервисе, чтобы не собирать URL запросов вручную.
 
-Он нужен, когда браузер, бот или другой сервис обращается к `apps/api`, а не создаёт `MediaEngine` напрямую.
+## Установка
 
 ```bash
 npm install @media-engine/sdk
 ```
+
+Для серверного использования нужен Node.js 20 или новее.
+
+## Простой пример
 
 ```ts
 import { MediaEngineClient } from "@media-engine/sdk";
@@ -19,34 +24,41 @@ const media = new MediaEngineClient({
 
 const search = await media.search({ title: "Интерстеллар" });
 const details = await media.getDetails({ imdb: "tt0816692" });
-const torrents = await media.discoverTorrents({ type: "movie", imdb: "tt0816692" });
-const health = await media.getHealth();
-const live = await media.getLiveness();
-const ready = await media.getReadiness();
 ```
 
-В `getDetails()` передавайте внешний ID с указанием источника — через `ids` или сокращение вроде `imdb`. API отклоняет устаревший запрос с одним обычным `id` и возвращает HTTP 400.
-
-Основные методы клиента:
+У клиента есть методы для всего публичного API:
 
 - `search()`;
 - `getDetails()`;
 - `getAvailability()`;
 - `discoverTorrents()`;
-- `getProviders()`;
-- `getStreamingProviders()`;
-- `getTorrentProviders()`;
-- `getHealth()`.
+- `getProviders()`, `getStreamingProviders()` и `getTorrentProviders()`;
+- `getHealth()`, `getLiveness()` и `getReadiness()`.
 
-Каждый метод принимает дополнительные заголовки и `AbortSignal`. При необходимости можно передать собственную совместимую реализацию `fetch`.
+Для подробностей передавайте внешний ID вместе с его типом, например
+`media.getDetails({ imdb: "tt0816692" })`.
 
-При неуспешном HTTP-ответе или неверных данных SDK выбрасывает `MediaEngineApiError` и по возможности сохраняет HTTP-статус и тело ответа.
+## Запросы и ошибки
 
-SDK не вызывает провайдеры, не рисует плееры и не запускает torrent-клиент. Он только превращает типизированные методы в HTTP-запросы.
+Headers можно задать сразу для всего клиента или только для одного запроса. Каждый метод также
+принимает `AbortSignal`:
 
-Примеры запросов есть в [описании публичного API](https://github.com/Yaneart/media-engine/blob/main/docs/public-api.md).
-Полная настройка связи browser с NestJS показана в
-[быстром старте для новичка](https://github.com/Yaneart/media-engine/blob/main/docs/quick-start.ru.md).
+```ts
+const controller = new AbortController();
+
+const request = media.search(
+  { title: "Дюна" },
+  { signal: controller.signal },
+);
+```
+
+Через опцию `fetch` конструктора можно передать свою fetch-совместимую функцию. При неуспешном HTTP
+ответе или неверном JSON SDK выбрасывает `MediaEngineApiError`. В ошибке по возможности сохраняются
+HTTP status и тело ответа.
+
+SDK только общается с API. Он не вызывает провайдеры напрямую, не рисует плееры и не запускает
+torrent-клиент. Полный пример backend и frontend есть в
+[быстром старте](https://github.com/Yaneart/media-engine/blob/main/docs/quick-start.ru.md).
 
 ## Лицензия
 
