@@ -13,7 +13,12 @@ const PRIMARY_STREAMING_PROVIDERS = [
   "filmix-streaming",
   "aniliberty-streaming",
 ];
-const EMBED_STREAMING_PROVIDERS = ["kinobd-streaming", "flixhq-streaming", "ddbb-streaming"];
+const EMBED_STREAMING_PROVIDERS = [
+  "rutube-streaming",
+  "kinobd-streaming",
+  "flixhq-streaming",
+  "ddbb-streaming",
+];
 
 // EN: Root React component for the Media Engine example application shell.
 // RU: Корневой React component для оболочки example приложения Media Engine.

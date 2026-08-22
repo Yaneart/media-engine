@@ -62,6 +62,10 @@ forwards the availability request's User-Agent and isolates these links in cache
 separate timeout defaults to 20 seconds and can be changed with
 `MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS`.
 
+Rutube's official movie embed is opt-in with `MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED=true`. It uses
+no account or token, requires an exact title and year, and keeps playback inside Rutube's public
+iframe. Series and direct Rutube media URLs are intentionally unsupported.
+
 ```dotenv
 MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent
 ```

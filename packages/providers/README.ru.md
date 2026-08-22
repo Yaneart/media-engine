@@ -73,7 +73,8 @@ const result = await media.getAvailability({
 ```
 
 Пакет также экспортирует `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
-`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()` и
+`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
+`rutubeStreamingProvider()` и
 `experimentalStreamingProvider()`.
 Подключайте их явно, если они
 подходят вашему приложению. Filmix работает без аккаунта и в гостевом режиме возвращает только
@@ -85,6 +86,9 @@ VideoHUB ищет по ID Кинопоиска, а для сериала тре�
 клиента и могут быть привязаны к внешнему IP. Передавайте точный User-Agent клиента через
 `MediaEngineOperationOptions.playbackUserAgent`; для небраузерных клиентов нужное значение также
 сохраняется в `access.headers` каждого варианта.
+Rutube выполняет ограниченный точный поиск фильма по названию и году и возвращает только
+официальный публичный embed-плеер Rutube. Прямые media-URL не извлекаются и не проксируются;
+сериалы намеренно не поддерживаются.
 
 Эти провайдеры возвращают сторонние ссылки или потоки. Media Engine не хранит видео, а внешний
 плеер может быть недоступен в конкретной стране, сети или браузере.

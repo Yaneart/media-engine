@@ -13,6 +13,7 @@ export interface MediaEngineEnv {
   MEDIA_ENGINE_FILMIX_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED?: string;
+  MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_TORRENT_PROVIDERS?: string;
   MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS?: string;
 }
@@ -70,6 +71,7 @@ export async function createConfiguredStreamingProviders(
     filmixStreamingProvider,
     flixHqStreamingProvider,
     kinobdStreamingProvider,
+    rutubeStreamingProvider,
     veoVeoStreamingProvider,
     videoHubStreamingProvider,
   } = await import('@media-engine/providers');
@@ -90,6 +92,10 @@ export async function createConfiguredStreamingProviders(
 
   if (readVideoHubStreamingEnabled(env)) {
     providers.unshift(videoHubStreamingProvider());
+  }
+
+  if (readRutubeStreamingEnabled(env)) {
+    providers.unshift(rutubeStreamingProvider());
   }
 
   return providers;
@@ -167,6 +173,7 @@ export async function createMediaEngine(
       'filmix-streaming': streamingTimeoutMs,
       'veoveo-streaming': streamingTimeoutMs,
       'videohub-streaming': videoHubTimeoutMs,
+      'rutube-streaming': streamingTimeoutMs,
       'yts-torrent': torrentTimeoutMs,
       'jacred-torrent': torrentTimeoutMs,
       'bitsearch-torrent': torrentTimeoutMs,
@@ -306,6 +313,15 @@ export function readVideoHubStreamingEnabled(
   return readBooleanEnv(
     env.MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED,
     'MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED',
+  );
+}
+
+export function readRutubeStreamingEnabled(
+  env: MediaEngineEnv = process.env,
+): boolean {
+  return readBooleanEnv(
+    env.MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED,
+    'MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED',
   );
 }
 

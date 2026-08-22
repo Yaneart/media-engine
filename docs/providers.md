@@ -82,6 +82,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                        | None                      |
 | VeoVeo streaming       | Opt-in Kinopoisk/IMDb movie and series-episode direct signed HLS                   | None                      |
 | VideoHUB streaming     | Opt-in Kinopoisk movie and exact series-episode direct signed MP4 qualities        | None                      |
+| Rutube streaming       | Opt-in exact title/year movie lookup to the official public embed player           | None                      |
 | Experimental streaming | Deterministic configured options for development and tests                         | Application configuration |
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
@@ -140,6 +141,13 @@ does this from the availability request and partitions its cache by that value. 
 remains disabled by default and is best suited to clients that share the API server's public egress
 address. The repository API gives this opt-in source a
 separate 20-second timeout through `MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS`.
+
+Rutube streaming is opt-in through `rutubeStreamingProvider()` or
+`MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED=true`. It supports movies only and searches the public
+Rutube catalog with a bounded result and response size. A candidate must be a full-length public,
+unlocked, unpaid, non-adult movie whose normalized title and explicit year exactly match the query.
+The adapter returns the documented `https://rutube.ru/play/embed/{id}` player and source-page
+attribution; it deliberately does not extract HLS, proxy media, or bypass Rutube's player behavior.
 
 ## Torrent discovery providers
 

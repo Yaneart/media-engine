@@ -20,6 +20,9 @@ documented breaking changes.
 - Added an opt-in `videoHubStreamingProvider()` for public Kinopoisk-ID lookup and bounded direct
   signed MP4 qualities for movies or exact series episodes. The repository API can enable it with
   `MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`; existing defaults remain unchanged.
+- Added an opt-in `rutubeStreamingProvider()` for bounded exact title/year movie lookup and the
+  official public Rutube embed player. It uses no account or token and intentionally does not
+  extract or proxy direct Rutube media; enable it with `MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED=true`.
 
 ### Changed
 

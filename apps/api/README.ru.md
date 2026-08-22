@@ -64,6 +64,11 @@ curl 'http://127.0.0.1:3000/media/search?title=Интерстеллар&language
 Отдельный таймаут по умолчанию равен 20 секундам и настраивается через
 `MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS`.
 
+Официальный embed-плеер Rutube для фильмов подключается через
+`MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED=true`. Аккаунт и токен не нужны; источник требует точное
+название и год и оставляет воспроизведение в публичном iframe Rutube. Сериалы и прямые media-URL
+Rutube намеренно не поддерживаются.
+
 ```dotenv
 MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent
 ```

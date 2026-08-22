@@ -114,6 +114,9 @@ but it cannot guarantee that every third-party source or player will always work
 Media Engine does not host video. It normalizes metadata and third-party handoff options for your
 application.
 
+Optional streaming sources include direct Filmix, VeoVeo, and VideoHUB adapters plus an official
+Rutube movie embed adapter. Each stays disabled until its corresponding `.env` flag is enabled.
+
 ## Documentation and development
 
 Start with the [documentation index](docs/README.md). It links to the public API, provider list,

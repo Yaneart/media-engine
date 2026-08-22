@@ -164,6 +164,7 @@ export function formatPlayerLabel(value: string): string {
     flixcdn: "FlixCDN",
     hdvb: "HDVB",
     kodik: "Kodik",
+    rutube: "Rutube",
     veoveo: "VeoVeo",
     videohub: "VideoHUB",
     vibix: "Vibix",
@@ -179,6 +180,7 @@ export function formatProviderLabel(value: string): string {
     "flixhq-streaming": "FlixHQ",
     "filmix-streaming": "Filmix",
     "kinobd-streaming": "KinoBD",
+    "rutube-streaming": "Rutube",
     "veoveo-streaming": "VeoVeo",
     "videohub-streaming": "VideoHUB",
   };

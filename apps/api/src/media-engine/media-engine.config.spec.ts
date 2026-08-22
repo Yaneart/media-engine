@@ -10,6 +10,7 @@ import {
   readFilmixStreamingEnabled,
   readFlixHqStreamingProviderTimeoutMs,
   readProviderTimeoutMs,
+  readRutubeStreamingEnabled,
   readStreamingProviderTimeoutMs,
   readVeoVeoStreamingEnabled,
   readVideoHubStreamingEnabled,
@@ -136,6 +137,33 @@ describe('MediaEngine configuration', () => {
     expect(() =>
       readVideoHubStreamingEnabled({
         MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED: 'yes',
+      }),
+    ).toThrow(/either true or false/);
+  });
+
+  it('adds the official Rutube movie embed only when explicitly enabled', async () => {
+    expect(readRutubeStreamingEnabled({})).toBe(false);
+    expect(
+      readRutubeStreamingEnabled({
+        MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED: 'true',
+      }),
+    ).toBe(true);
+    expect(
+      (
+        await createConfiguredStreamingProviders({
+          MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED: 'true',
+        })
+      ).map((provider) => provider.name),
+    ).toEqual([
+      'rutube-streaming',
+      'kinobd-streaming',
+      'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
+    ]);
+    expect(() =>
+      readRutubeStreamingEnabled({
+        MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED: 'yes',
       }),
     ).toThrow(/either true or false/);
   });

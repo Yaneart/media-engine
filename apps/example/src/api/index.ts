@@ -88,7 +88,7 @@ export function getMediaAvailability(
   return mediaEngineClient.getAvailability(
     {
       type: item.type,
-      title: item.originalTitle?.trim() || item.title,
+      title: selectAvailabilityTitle(item, providers),
       year: item.year,
       ids: item.ids,
       seasonNumber: item.seasonNumber,
@@ -99,6 +99,18 @@ export function getMediaAvailability(
     },
     { signal },
   );
+}
+
+export function selectAvailabilityTitle(
+  item: Pick<AvailabilityMediaInput, "title" | "originalTitle">,
+  providers: string[],
+): string {
+  // Rutube's Russian catalog search needs the localized display title. The other embed providers
+  // receive normalized external IDs in the same request, so retaining that title does not weaken
+  // their identity lookup. Primary direct providers keep the previous original-title preference.
+  return providers.includes("rutube-streaming")
+    ? item.title.trim()
+    : item.originalTitle?.trim() || item.title.trim();
 }
 
 // Discover release observations through the public SDK. Session creation still goes through the BFF.
