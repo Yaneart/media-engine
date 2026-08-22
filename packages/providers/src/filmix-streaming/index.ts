@@ -40,6 +40,7 @@ export function filmixStreamingProvider(
           createFilmixSourceUrl(config, candidate),
           config.now(),
           config.linkTtlMs,
+          config.maxQuality,
         );
       } catch (error) {
         rethrowIfProviderAborted(context, error);

@@ -29,6 +29,10 @@ export interface FilmixStreamingProviderOptions {
   episodeLimit?: number;
   linkTtlMs?: number;
   deviceId?: string;
+  /** User-owned Filmix device token. Authenticated requests require an HTTPS API endpoint. */
+  token?: string;
+  /** Explicit local-only opt-in for Filmix endpoints that transmit the token over plain HTTP. */
+  allowInsecureHttpToken?: boolean;
   userAgent?: string;
   now?: () => number;
 }
@@ -46,16 +50,26 @@ export interface FilmixStreamingConfig {
   episodeLimit: number;
   linkTtlMs: number;
   deviceId: string;
+  token?: string;
+  maxQuality: 480 | 720;
   userAgent: string;
   now: () => number;
 }
 
 export function createFilmixConfig(options: FilmixStreamingProviderOptions): FilmixStreamingConfig {
   const name = normalizeProviderName(options.name ?? DEFAULT_PROVIDER_NAME);
+  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL, "baseUrl");
+  const token = normalizeToken(options.token);
+
+  if (token && new URL(baseUrl).protocol !== "https:" && options.allowInsecureHttpToken !== true) {
+    throw new TypeError(
+      "Filmix streaming token requires an HTTPS baseUrl unless allowInsecureHttpToken is explicitly enabled.",
+    );
+  }
 
   return {
     name,
-    baseUrl: normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL, "baseUrl"),
+    baseUrl,
     siteBaseUrl: normalizeBaseUrl(options.siteBaseUrl ?? DEFAULT_SITE_BASE_URL, "siteBaseUrl"),
     fetch: options.fetch ?? createHardenedProviderFetch({ provider: name, maxRedirects: 2 }),
     rateLimitGate: new ProviderRateLimitGate(),
@@ -102,9 +116,21 @@ export function createFilmixConfig(options: FilmixStreamingProviderOptions): Fil
       2 * 60 * 60_000,
     ),
     deviceId: normalizeDeviceId(options.deviceId ?? randomBytes(8).toString("hex")),
+    ...(token ? { token } : {}),
+    maxQuality: token ? 720 : 480,
     userAgent: options.userAgent?.trim() || MEDIA_ENGINE_DEFAULT_USER_AGENT,
     now: options.now ?? Date.now,
   };
+}
+
+function normalizeToken(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+
+  const token = value.trim();
+  if (!token || token.length > 512 || /\s/u.test(token)) {
+    throw new TypeError("Filmix streaming token must contain 1 to 512 non-whitespace characters.");
+  }
+  return token;
 }
 
 export function createFilmixCapabilities(): StreamingProviderCapabilities {

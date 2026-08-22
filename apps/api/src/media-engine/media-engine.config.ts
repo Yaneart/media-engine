@@ -11,6 +11,9 @@ export interface MediaEngineEnv {
   MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FILMIX_STREAMING_ENABLED?: string;
+  MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL?: string;
+  MEDIA_ENGINE_FILMIX_STREAMING_TOKEN?: string;
+  MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH?: string;
   MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED?: string;
@@ -83,7 +86,19 @@ export async function createConfiguredStreamingProviders(
   ];
 
   if (readFilmixStreamingEnabled(env)) {
-    providers.unshift(filmixStreamingProvider());
+    const baseUrl = readOptionalEnv(env.MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL);
+    const token = readOptionalEnv(env.MEDIA_ENGINE_FILMIX_STREAMING_TOKEN);
+    const allowInsecureHttpToken = readBooleanEnv(
+      env.MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH,
+      'MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH',
+    );
+    providers.unshift(
+      filmixStreamingProvider({
+        ...(baseUrl ? { baseUrl } : {}),
+        ...(token ? { token } : {}),
+        ...(allowInsecureHttpToken ? { allowInsecureHttpToken: true } : {}),
+      }),
+    );
   }
 
   if (readVeoVeoStreamingEnabled(env)) {

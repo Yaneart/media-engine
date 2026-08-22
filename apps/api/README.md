@@ -47,9 +47,13 @@ development defaults for the port, CORS, timeouts, and rate limits.
 Metadata and player providers work without your API keys. Torrent discovery is off by default. To
 enable it, set `MEDIA_ENGINE_TORRENT_PROVIDERS` to the providers you want, for example:
 
-Filmix direct guest MP4 is also opt-in. Set `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true` to add it;
-guest mode needs no account or activation and intentionally returns only full 480p. Its current
-metadata endpoint uses plain HTTP, while returned CDN video links use HTTPS.
+Filmix direct MP4 is also opt-in. Set `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true` to add guest
+480p lookup; known copyright/service placeholder streams are filtered instead of being marked
+playable. Authenticated 720p requires your own device token in
+`MEDIA_ENGINE_FILMIX_STREAMING_TOKEN`. HTTPS is required by default. For a local compatibility test
+against Filmix's current plain-HTTP app endpoint, you must additionally set
+`MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH=true`; this transmits the token without TLS
+and must not be used by a public deployment. Returned CDN video links use HTTPS.
 
 VeoVeo direct signed HLS is opt-in with `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It needs a
 Kinopoisk or IMDb ID, uses DDBB only to resolve VeoVeo's public content ID, and discards the iframe

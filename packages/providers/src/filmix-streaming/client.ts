@@ -145,11 +145,13 @@ export function createFilmixSourceUrl(
 
 function createApiUrl(config: FilmixStreamingConfig, path: string): URL {
   const url = new URL(`${config.baseUrl}/${path}`);
+  url.searchParams.set("app_lang", "ru_RU");
   url.searchParams.set("user_dev_id", config.deviceId);
   url.searchParams.set("user_dev_name", "media-engine");
   url.searchParams.set("user_dev_vendor", "media-engine");
   url.searchParams.set("user_dev_os", "node");
-  url.searchParams.set("user_dev_apk", "2.0.9");
+  url.searchParams.set("user_dev_apk", "2.2.13");
+  if (config.token) url.searchParams.set("user_dev_token", config.token);
   return url;
 }
 

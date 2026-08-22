@@ -9,10 +9,12 @@ documented breaking changes.
 
 ### Added
 
-- Added an opt-in `filmixStreamingProvider()` for credential-free Filmix title/year lookup, exact
-  series episode mapping, translations, and confirmed full guest 480p MP4 links. The repository API
-  can enable it with `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true`; existing streaming defaults stay
-  unchanged.
+- Added an opt-in `filmixStreamingProvider()` for Filmix title/year lookup, exact series episode
+  mapping, translations, guest 480p MP4, and user-token 720p MP4. HTTPS authentication remains the
+  default; an explicit local-only insecure-HTTP override supports the current app endpoint while
+  warning that the token is transmitted without TLS. Known copyright/service placeholder videos are
+  filtered. The repository API can enable it with `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true`;
+  existing streaming defaults stay unchanged.
 - Added an opt-in `veoVeoStreamingProvider()` that uses DDBB only to resolve a Kinopoisk/IMDb item
   to a public VeoVeo content ID, discards the iframe token, and returns bounded direct signed HTTPS
   HLS for movies or series episodes. The repository API can enable it with

@@ -112,12 +112,16 @@ Filmix streaming is opt-in through `filmixStreamingProvider()` or the repository
 flag `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true`. It requires title and year; series additionally
 require an exact season and episode. The adapter accepts only a unique title/year/type identity, or
 one unique search-scoped year/type candidate when Filmix uses a different localized title, and then
-revalidates the loaded post. Guest mode needs no login, activation, cookie, or shared token and
-exposes only confirmed full 480p MP4 links; higher qualities are intentionally excluded because the
-guest API can return previews for them. Search results, seasons, translations, episodes, response
-bytes, and signed-link cache lifetime are bounded. The current upstream metadata API is available
-only over plain HTTP, so the provider is disabled by default; no credentials are sent, and normalized
-CDN MP4 output URLs are HTTPS.
+revalidates the loaded post. Guest mode needs no login, activation, cookie, or shared token and is
+capped at 480p. Known copyright/service placeholder translations and `abuse_*.mp4` links are
+discarded. Passing a user-owned `token` raises the cap to 720p. Authenticated mode requires an HTTPS
+`baseUrl` by default. `allowInsecureHttpToken` is an explicit local-only compatibility override for
+Filmix app endpoints that still use HTTP; it sends the token without TLS and is unsuitable for public
+deployment. The repository API maps these options from `MEDIA_ENGINE_FILMIX_STREAMING_TOKEN`,
+`MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL`, and the matching
+`MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH` override; none belongs in a client-visible
+`VITE_` variable. Search results, seasons, translations, episodes, response bytes, and signed-link
+cache lifetime are bounded. Normalized CDN MP4 output URLs are HTTPS.
 
 VeoVeo streaming is opt-in through `veoVeoStreamingProvider()` or
 `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk or IMDb ID. The

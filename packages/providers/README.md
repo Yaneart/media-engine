@@ -76,10 +76,12 @@ The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider
 `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
 `rutubeStreamingProvider()`, and
 `experimentalStreamingProvider()`.
-Add them explicitly when they fit your application. Filmix works without an account and returns
-only confirmed full 480p MP4 in guest mode. VeoVeo uses DDBB only to resolve its public content ID,
-discards the iframe token, and returns direct signed HTTPS HLS. Filmix's current metadata endpoint
-uses plain HTTP, while returned CDN video URLs use HTTPS. VideoHUB uses a Kinopoisk ID and returns
+Add them explicitly when they fit your application. Filmix guest mode is capped at 480p and filters
+known copyright/service placeholder videos. A user-owned device token raises the cap to 720p.
+Authenticated mode requires an HTTPS `baseUrl` unless the application explicitly enables
+`allowInsecureHttpToken` for a local compatibility test. That override sends the token without TLS
+and must not be used in a public deployment. Returned CDN video URLs use HTTPS. VeoVeo uses DDBB only to resolve its
+public content ID, discards the iframe token, and returns direct signed HTTPS HLS. VideoHUB uses a Kinopoisk ID and returns
 short-lived direct MP4 qualities for movies or one exact series episode. Its links are bound to the
 playback User-Agent and may also be bound to the requesting public IP. Pass the playback client's
 exact User-Agent as `MediaEngineOperationOptions.playbackUserAgent`; the required value is retained

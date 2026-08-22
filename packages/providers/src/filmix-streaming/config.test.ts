@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { filmixStreamingProvider } from "./index.js";
 
-test("filmixStreamingProvider exposes guest MP4 capabilities", () => {
+test("filmixStreamingProvider exposes direct MP4 capabilities", () => {
   const provider = filmixStreamingProvider({
     deviceId: "0123456789abcdef",
     fetch: async () => Response.json([]),
@@ -18,7 +18,7 @@ test("filmixStreamingProvider exposes guest MP4 capabilities", () => {
   });
 });
 
-test("filmixStreamingProvider validates bounded credential-free configuration", () => {
+test("filmixStreamingProvider validates bounded configuration and protects tokens", () => {
   const fetch = async () => Response.json([]);
 
   assert.throws(() => filmixStreamingProvider({ name: " ", fetch }), /name is required/u);
@@ -33,6 +33,37 @@ test("filmixStreamingProvider validates bounded credential-free configuration", 
   assert.throws(
     () => filmixStreamingProvider({ deviceId: "not-a-device-id", fetch }),
     /16 hexadecimal/u,
+  );
+  assert.throws(
+    () => filmixStreamingProvider({ token: "owned-token", fetch }),
+    /token requires an HTTPS baseUrl/u,
+  );
+  assert.throws(
+    () =>
+      filmixStreamingProvider({
+        baseUrl: "https://filmix-api.test/api/v2",
+        token: "has whitespace",
+        fetch,
+      }),
+    /non-whitespace/u,
+  );
+
+  assert.doesNotThrow(() =>
+    filmixStreamingProvider({
+      baseUrl: "https://filmix-api.test/api/v2",
+      token: "owned-token",
+      deviceId: "0123456789abcdef",
+      fetch,
+    }),
+  );
+  assert.doesNotThrow(() =>
+    filmixStreamingProvider({
+      baseUrl: "http://filmix-api.test/api/v2",
+      token: "owned-token",
+      allowInsecureHttpToken: true,
+      deviceId: "0123456789abcdef",
+      fetch,
+    }),
   );
 
   for (const options of [

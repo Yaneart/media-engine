@@ -60,7 +60,7 @@ describe('MediaEngine configuration', () => {
     );
   });
 
-  it('adds guest Filmix MP4 only when explicitly enabled', async () => {
+  it('adds Filmix MP4 only when explicitly enabled and protects authenticated mode', async () => {
     expect(readFilmixStreamingEnabled({})).toBe(false);
     expect(
       readFilmixStreamingEnabled({
@@ -85,6 +85,37 @@ describe('MediaEngine configuration', () => {
         MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'yes',
       }),
     ).toThrow(/either true or false/);
+
+    await expect(
+      createConfiguredStreamingProviders({
+        MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
+        MEDIA_ENGINE_FILMIX_STREAMING_TOKEN: 'owned-token',
+      }),
+    ).rejects.toThrow(/requires an HTTPS baseUrl/);
+
+    await expect(
+      createConfiguredStreamingProviders({
+        MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
+        MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL:
+          'https://filmix-api.test/api/v2',
+        MEDIA_ENGINE_FILMIX_STREAMING_TOKEN: 'owned-token',
+      }),
+    ).resolves.toHaveLength(5);
+
+    await expect(
+      createConfiguredStreamingProviders({
+        MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
+        MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL: 'http://filmix-api.test/api/v2',
+        MEDIA_ENGINE_FILMIX_STREAMING_TOKEN: 'owned-token',
+        MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH: 'true',
+      }),
+    ).resolves.toHaveLength(5);
+    await expect(
+      createConfiguredStreamingProviders({
+        MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
+        MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH: 'yes',
+      }),
+    ).rejects.toThrow(/must be either true or false/);
   });
 
   it('adds direct VeoVeo HLS only when explicitly enabled', async () => {

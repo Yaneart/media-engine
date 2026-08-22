@@ -31,6 +31,8 @@ test("filmixStreamingProvider resolves one exact series episode into direct gues
   assert.equal(requestedUrls[0]!.pathname, "/api/v2/search");
   assert.equal(requestedUrls[0]!.searchParams.get("story"), "Укрытие");
   assert.equal(requestedUrls[0]!.searchParams.get("user_dev_id"), "0123456789abcdef");
+  assert.equal(requestedUrls[0]!.searchParams.get("user_dev_apk"), "2.2.13");
+  assert.equal(requestedUrls[0]!.searchParams.get("app_lang"), "ru_RU");
   assert.equal(requestedUrls[0]!.searchParams.has("user_dev_token"), false);
   assert.equal(requestedUrls[1]!.pathname, "/api/v2/post/165638");
   assert.equal(result?.options[0]?.player.kind, "mp4");
@@ -42,6 +44,42 @@ test("filmixStreamingProvider resolves one exact series episode into direct gues
       url: "https://filmix.test/seria/165638-silo-2023.html",
     },
   ]);
+});
+
+test("filmixStreamingProvider sends an owned token only to HTTPS and exposes 720p", async () => {
+  const requestedUrls: URL[] = [];
+  const provider = filmixStreamingProvider({
+    baseUrl: BASE_URL,
+    token: "owned-token",
+    deviceId: "0123456789abcdef",
+    fetch: async (input) => {
+      const url = new URL(input.toString());
+      requestedUrls.push(url);
+      return url.pathname.endsWith("/search")
+        ? Response.json([createSummary()])
+        : Response.json(createPost());
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "series", title: "Silo", year: 2023, seasonNumber: 3, episodeNumber: 1 },
+    {},
+  );
+
+  assert.equal(requestedUrls.length, 2);
+  assert.equal(
+    requestedUrls.every((url) => url.protocol === "https:"),
+    true,
+  );
+  assert.equal(
+    requestedUrls.every((url) => url.searchParams.get("user_dev_token") === "owned-token"),
+    true,
+  );
+  assert.deepEqual(
+    result?.options.map((option) => option.quality?.height),
+    [720, 480],
+  );
+  assert.equal(JSON.stringify(result).includes("owned-token"), false);
 });
 
 test("filmixStreamingProvider avoids unsupported or underidentified queries", async () => {

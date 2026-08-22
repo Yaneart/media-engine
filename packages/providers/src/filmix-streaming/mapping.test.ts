@@ -6,7 +6,7 @@ import { mapFilmixAvailability } from "./mapping.js";
 
 const NOW = Date.parse("2026-08-22T10:00:00.000Z");
 
-test("mapFilmixAvailability exposes only full guest 480p MP4 movie options", () => {
+test("mapFilmixAvailability exposes only guest 480p MP4 movie options", () => {
   const post = createMovie();
   post.movies.push({
     translation: "Preview only",
@@ -41,6 +41,55 @@ test("mapFilmixAvailability exposes only full guest 480p MP4 movie options", () 
     sourceUrl: "https://filmix.test/film/10-movie.html",
   });
   assert.equal(result?.checkedAt, "2026-08-22T10:00:00.000Z");
+});
+
+test("mapFilmixAvailability exposes 720p only for authenticated mode", () => {
+  const result = mapFilmixAvailability(
+    "filmix-streaming",
+    createMovie(),
+    { type: "movie", title: "Movie", year: 2024 },
+    undefined,
+    NOW,
+    900_000,
+    720,
+  );
+
+  assert.deepEqual(
+    result?.options.map((option) => [option.quality?.height, option.access.url]),
+    [
+      [720, "https://cdn.test/movie_720.mp4"],
+      [480, "https://cdn.test/movie_480.mp4"],
+    ],
+  );
+});
+
+test("mapFilmixAvailability drops copyright and service placeholder streams", () => {
+  const post = createMovie();
+  post.movies = [
+    {
+      translation: "Заблокировано правообладателем!",
+      link: "https://cdn.test/s/hash/abuse_[480].mp4",
+      qualities: [480],
+    },
+    {
+      translation: "Dub",
+      link: "https://cdn.test/s/hash/abuse_[720,480].mp4",
+      qualities: [720, 480],
+    },
+  ];
+
+  assert.equal(
+    mapFilmixAvailability(
+      "filmix-streaming",
+      post,
+      { type: "movie", title: "Movie", year: 2024 },
+      undefined,
+      NOW,
+      900_000,
+      720,
+    ),
+    null,
+  );
 });
 
 test("mapFilmixAvailability maps one exact series episode across translations", () => {
