@@ -121,8 +121,26 @@ export class MediaController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return runWithHttpRequestSignal(request, response, (signal) =>
-      this.mediaService.getAvailability(query, { signal }),
-    );
+    return runWithHttpRequestSignal(request, response, (signal) => {
+      const playbackUserAgent = readPlaybackUserAgent(request);
+      return this.mediaService.getAvailability(query, {
+        signal,
+        ...(playbackUserAgent ? { playbackUserAgent } : {}),
+      });
+    });
   }
+}
+
+function readPlaybackUserAgent(request: Request): string | undefined {
+  const value = request.get('user-agent')?.trim();
+  return value && value.length <= 512 && !hasControlCharacter(value)
+    ? value
+    : undefined;
+}
+
+function hasControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  });
 }

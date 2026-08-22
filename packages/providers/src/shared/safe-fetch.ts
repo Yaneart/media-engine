@@ -26,6 +26,7 @@ export type PinnedHttpTransport = (
 export interface HardenedProviderFetchOptions {
   provider: string;
   maxRedirects?: number;
+  addressAttemptTimeoutMs?: number;
   resolver?: HostnameResolver;
   transport?: PinnedHttpTransport;
 }
@@ -42,6 +43,14 @@ export function createHardenedProviderFetch(
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
     throw new TypeError(
       "Hardened provider fetch maxRedirects must be a non-negative safe integer.",
+    );
+  }
+  if (
+    options.addressAttemptTimeoutMs !== undefined &&
+    (!Number.isSafeInteger(options.addressAttemptTimeoutMs) || options.addressAttemptTimeoutMs <= 0)
+  ) {
+    throw new TypeError(
+      "Hardened provider fetch addressAttemptTimeoutMs must be a positive safe integer.",
     );
   }
 
@@ -62,6 +71,7 @@ export function createHardenedProviderFetch(
         { ...init, redirect: "manual" },
         preferIpv4(addresses),
         transport,
+        options.addressAttemptTimeoutMs,
       );
       const location = REDIRECT_STATUSES.has(response.status)
         ? response.headers.get("location")
@@ -254,19 +264,40 @@ async function requestResolvedAddresses(
   init: RequestInit,
   addresses: ReadonlyArray<ResolvedAddress>,
   transport: PinnedHttpTransport,
+  addressAttemptTimeoutMs?: number,
 ): Promise<Response> {
   let lastError: unknown;
 
   for (const address of addresses) {
+    const attempt = createAddressAttempt(init.signal, addressAttemptTimeoutMs);
     try {
-      return await transport(url, init, address);
+      return await transport(url, { ...init, signal: attempt.signal }, address);
     } catch (error) {
       if (init.signal?.aborted) throw error;
       lastError = error;
+    } finally {
+      attempt.clear();
     }
   }
 
   throw lastError ?? new Error("No validated provider address was available.");
+}
+
+function createAddressAttempt(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number | undefined,
+): { signal: AbortSignal | null | undefined; clear: () => void } {
+  if (timeoutMs === undefined) return { signal, clear: () => undefined };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new DOMException("Provider address attempt timed out.", "AbortError"));
+  }, timeoutMs);
+
+  return {
+    signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+    clear: () => clearTimeout(timeout),
+  };
 }
 
 function preferIpv4(addresses: ReadonlyArray<ResolvedAddress>): ReadonlyArray<ResolvedAddress> {

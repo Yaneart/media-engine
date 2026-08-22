@@ -8,6 +8,7 @@ import type { AvailabilityMediaInput, MediaSummary, SearchFormQuery } from "./ap
 import type { AvailabilityState, DetailsState, SearchState } from "./state";
 
 const PRIMARY_STREAMING_PROVIDERS = [
+  "videohub-streaming",
   "veoveo-streaming",
   "filmix-streaming",
   "aniliberty-streaming",

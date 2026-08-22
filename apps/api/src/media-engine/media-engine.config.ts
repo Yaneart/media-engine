@@ -9,8 +9,10 @@ export interface MediaEngineEnv {
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FILMIX_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED?: string;
+  MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_TORRENT_PROVIDERS?: string;
   MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS?: string;
 }
@@ -18,6 +20,7 @@ export interface MediaEngineEnv {
 export const DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS = 5_000;
 export const DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS = 10_000;
 export const DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS = 15_000;
+export const DEFAULT_MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS = 20_000;
 export const DEFAULT_MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS = 15_000;
 export const DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS = 5 * 60_000;
 export const DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS = 30 * 60_000;
@@ -68,6 +71,7 @@ export async function createConfiguredStreamingProviders(
     flixHqStreamingProvider,
     kinobdStreamingProvider,
     veoVeoStreamingProvider,
+    videoHubStreamingProvider,
   } = await import('@media-engine/providers');
   const providers: StreamingProvider[] = [
     kinobdStreamingProvider(),
@@ -82,6 +86,10 @@ export async function createConfiguredStreamingProviders(
 
   if (readVeoVeoStreamingEnabled(env)) {
     providers.unshift(veoVeoStreamingProvider());
+  }
+
+  if (readVideoHubStreamingEnabled(env)) {
+    providers.unshift(videoHubStreamingProvider());
   }
 
   return providers;
@@ -123,6 +131,7 @@ export async function createMediaEngine(
   const metadataTimeoutMs = readProviderTimeoutMs(env);
   const streamingTimeoutMs = readStreamingProviderTimeoutMs(env);
   const flixHqTimeoutMs = readFlixHqStreamingProviderTimeoutMs(env);
+  const videoHubTimeoutMs = readVideoHubStreamingProviderTimeoutMs(env);
   const torrentTimeoutMs = readTorrentProviderTimeoutMs(env);
   const torrentProviders = await createConfiguredTorrentProviders(env);
   const operationTimeouts = [
@@ -130,6 +139,8 @@ export async function createMediaEngine(
     streamingTimeoutMs,
     flixHqTimeoutMs,
   ];
+  if (readVideoHubStreamingEnabled(env))
+    operationTimeouts.push(videoHubTimeoutMs);
   if (torrentProviders.length > 0) operationTimeouts.push(torrentTimeoutMs);
 
   return new MediaEngine({
@@ -155,6 +166,7 @@ export async function createMediaEngine(
       'aniliberty-streaming': streamingTimeoutMs,
       'filmix-streaming': streamingTimeoutMs,
       'veoveo-streaming': streamingTimeoutMs,
+      'videohub-streaming': videoHubTimeoutMs,
       'yts-torrent': torrentTimeoutMs,
       'jacred-torrent': torrentTimeoutMs,
       'bitsearch-torrent': torrentTimeoutMs,
@@ -233,6 +245,18 @@ export function readFlixHqStreamingProviderTimeoutMs(
   );
 }
 
+// VideoHUB may resolve several exact-episode voice variants after its playlist lookup.
+// VideoHUB может резолвить несколько озвучек точного эпизода после запроса playlist.
+export function readVideoHubStreamingProviderTimeoutMs(
+  env: MediaEngineEnv = process.env,
+): number {
+  return readPositiveIntegerEnv(
+    env.MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS,
+    DEFAULT_MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS,
+    'MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS',
+  );
+}
+
 // Streaming lookup covers bounded KinoBD, DDBB, and AniLiberty network work.
 // Streaming lookup ограничивает сетевую работу KinoBD, DDBB и AniLiberty.
 export function readStreamingProviderTimeoutMs(
@@ -273,6 +297,15 @@ export function readVeoVeoStreamingEnabled(
   return readBooleanEnv(
     env.MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED,
     'MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED',
+  );
+}
+
+export function readVideoHubStreamingEnabled(
+  env: MediaEngineEnv = process.env,
+): boolean {
+  return readBooleanEnv(
+    env.MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED,
+    'MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED',
   );
 }
 

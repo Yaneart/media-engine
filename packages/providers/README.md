@@ -73,11 +73,16 @@ const result = await media.getAvailability({
 ```
 
 The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
-`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, and `experimentalStreamingProvider()`.
+`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`, and
+`experimentalStreamingProvider()`.
 Add them explicitly when they fit your application. Filmix works without an account and returns
 only confirmed full 480p MP4 in guest mode. VeoVeo uses DDBB only to resolve its public content ID,
 discards the iframe token, and returns direct signed HTTPS HLS. Filmix's current metadata endpoint
-uses plain HTTP, while returned CDN video URLs use HTTPS.
+uses plain HTTP, while returned CDN video URLs use HTTPS. VideoHUB uses a Kinopoisk ID and returns
+short-lived direct MP4 qualities for movies or one exact series episode. Its links are bound to the
+playback User-Agent and may also be bound to the requesting public IP. Pass the playback client's
+exact User-Agent as `MediaEngineOperationOptions.playbackUserAgent`; the required value is retained
+in each option's `access.headers` for non-browser clients.
 
 These providers return third-party links or streams. Media Engine does not host the video, and an
 external player may be unavailable in some countries, networks, or browsers.

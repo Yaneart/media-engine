@@ -54,6 +54,8 @@ export interface ProviderContext {
   timeoutMs?: number;
   debug?: boolean;
   language?: string;
+  // Exact playback-client User-Agent for upstreams that bind signed media URLs to it.
+  playbackUserAgent?: string;
 }
 
 // Normalized provider-facing query for search calls.

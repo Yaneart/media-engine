@@ -17,6 +17,18 @@ documented breaking changes.
   to a public VeoVeo content ID, discards the iframe token, and returns bounded direct signed HTTPS
   HLS for movies or series episodes. The repository API can enable it with
   `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`.
+- Added an opt-in `videoHubStreamingProvider()` for public Kinopoisk-ID lookup and bounded direct
+  signed MP4 qualities for movies or exact series episodes. The repository API can enable it with
+  `MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`; existing defaults remain unchanged.
+
+### Changed
+
+- Availability operations can carry a playback User-Agent for upstreams that bind signed media
+  URLs to the requesting client. The repository HTTP API forwards and cache-partitions this value,
+  fixing VideoHUB MP4 playback that previously returned HTTP 400 in browsers.
+- Docker Compose now keeps workspace dependencies in a persistent Linux volume and runs a
+  lockfile-aware bootstrap before the API. This avoids repeatedly loading the pnpm dependency tree
+  through a Windows bind mount and gives cold TypeScript/Nest/Vite starts enough healthcheck time.
 
 ## 1.0.0 - 2026-08-02
 

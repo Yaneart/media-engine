@@ -64,10 +64,10 @@ actually needs.
 
 ## Run the example
 
-For the complete local stack you need Docker and pnpm.
+For the complete local stack you only need Docker. Compose keeps pnpm dependencies in a persistent
+Linux volume and installs them automatically when the lockfile changes.
 
 ```bash
-pnpm install
 cp .env.example .env
 ```
 
@@ -94,6 +94,9 @@ Stop everything with:
 ```bash
 docker compose down
 ```
+
+Ordinary `docker compose down` keeps the dependency volume, so later starts are fast. The first
+start, or a start after `docker compose down -v`, must install dependencies and will take longer.
 
 Torrent providers are disabled until you explicitly enable them in `.env`. The example can stream
 the exact selected original file through its private TorrServer-backed route, but it does not probe,

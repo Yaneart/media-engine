@@ -470,6 +470,38 @@ test("getAvailability cache integration keeps response shape", async () => {
   assert.equal(second.meta?.cached, true);
 });
 
+test("getAvailability isolates User-Agent-bound links in cache and provider context", async () => {
+  const seenUserAgents: Array<string | undefined> = [];
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    streamingProviders: [
+      createStreamingProvider({
+        availabilityDependsOnPlaybackUserAgent: true,
+        async getAvailability(query, context): Promise<MediaAvailability> {
+          seenUserAgents.push(context.playbackUserAgent);
+          return createAvailability(query, "test-stream");
+        },
+      }),
+    ],
+  });
+  const query = { type: "anime" as const, title: "Naruto" };
+
+  const chrome = await engine.getAvailability(query, {
+    playbackUserAgent: "Chrome Test/1.0",
+  });
+  const cachedChrome = await engine.getAvailability(query, {
+    playbackUserAgent: "Chrome Test/1.0",
+  });
+  const firefox = await engine.getAvailability(query, {
+    playbackUserAgent: "Firefox Test/1.0",
+  });
+
+  assert.deepEqual(seenUserAgents, ["Chrome Test/1.0", "Firefox Test/1.0"]);
+  assert.equal(chrome.meta?.cached, false);
+  assert.equal(cachedChrome.meta?.cached, true);
+  assert.equal(firefox.meta?.cached, false);
+});
+
 test("getAvailability does not cache partial results after a retryable provider failure", async () => {
   let stableCalls = 0;
   let recoveringCalls = 0;

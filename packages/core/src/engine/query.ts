@@ -395,8 +395,11 @@ export function createDetailsCacheKey(query: DetailsQuery): string {
 
 // Creates a stable cache key for a normalized streaming query.
 // Создает стабильный cache key для нормализованного streaming query.
-export function createAvailabilityCacheKey(query: StreamQuery): string {
-  return `availability:${JSON.stringify(sortObject(query))}`;
+export function createAvailabilityCacheKey(query: StreamQuery, playbackUserAgent?: string): string {
+  const base = `availability:${JSON.stringify(sortObject(query))}`;
+  return playbackUserAgent === undefined
+    ? base
+    : `${base}:playback-user-agent:${JSON.stringify(playbackUserAgent)}`;
 }
 
 // Creates a stable cache key for a normalized torrent discovery query.

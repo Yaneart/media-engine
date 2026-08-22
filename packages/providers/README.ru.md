@@ -73,12 +73,18 @@ const result = await media.getAvailability({
 ```
 
 Пакет также экспортирует `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
-`filmixStreamingProvider()`, `veoVeoStreamingProvider()` и `experimentalStreamingProvider()`.
+`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()` и
+`experimentalStreamingProvider()`.
 Подключайте их явно, если они
 подходят вашему приложению. Filmix работает без аккаунта и в гостевом режиме возвращает только
 подтверждённый полный MP4 480p. Текущий endpoint метаданных использует обычный HTTP, а полученные
 ссылки на видео CDN используют HTTPS. VeoVeo использует DDBB только для получения публичного
 content ID, отбрасывает iframe-токен и возвращает прямой подписанный HTTPS HLS.
+VideoHUB ищет по ID Кинопоиска, а для сериала требует точный сезон и серию. Он возвращает
+короткоживущие прямые MP4 в нескольких качествах. Ссылки привязаны к User-Agent проигрывающего
+клиента и могут быть привязаны к внешнему IP. Передавайте точный User-Agent клиента через
+`MediaEngineOperationOptions.playbackUserAgent`; для небраузерных клиентов нужное значение также
+сохраняется в `access.headers` каждого варианта.
 
 Эти провайдеры возвращают сторонние ссылки или потоки. Media Engine не хранит видео, а внешний
 плеер может быть недоступен в конкретной стране, сети или браузере.

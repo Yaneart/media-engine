@@ -658,8 +658,15 @@ export class MediaEngine {
     const startedAt = Date.now();
     const normalizedQuery = normalizeStreamQuery(query);
     validateStreamQuery(normalizedQuery);
+    const playbackUserAgent = normalizePlaybackUserAgent(options.playbackUserAgent);
+    const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
+    const cachePlaybackUserAgent = providers.some(
+      (provider) => provider.availabilityDependsOnPlaybackUserAgent,
+    )
+      ? playbackUserAgent
+      : undefined;
 
-    const cacheKey = createAvailabilityCacheKey(normalizedQuery);
+    const cacheKey = createAvailabilityCacheKey(normalizedQuery, cachePlaybackUserAgent);
     const cached = await waitForCaller(
       this.cache?.get<MediaAvailability>(cacheKey),
       options.signal,
@@ -684,7 +691,6 @@ export class MediaEngine {
     const inFlight = this.inFlightRequests.forCaller(options);
     return inFlight.run(`availability:${cacheKey}`, async (operationSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
-      const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
       const failed: ProviderFailure[] = [];
@@ -696,6 +702,7 @@ export class MediaEngine {
           callTimedProviderAvailability(provider, normalizedQuery, {
             debug: this.debug,
             language: normalizedQuery.language,
+            playbackUserAgent,
             signal: operationSignal,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
@@ -916,4 +923,14 @@ export class MediaEngine {
 
 function hasRetryableProviderFailure(failures: ProviderFailure[]): boolean {
   return failures.some((failure) => failure.retryable);
+}
+
+function normalizePlaybackUserAgent(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized.length > 0 &&
+    normalized.length <= 512 &&
+    !/[\u0000-\u001f\u007f]/u.test(normalized)
+    ? normalized
+    : undefined;
 }

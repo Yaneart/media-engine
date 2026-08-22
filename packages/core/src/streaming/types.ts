@@ -192,6 +192,8 @@ export interface StreamingProvider {
   version?: string;
   kind: "streaming";
   capabilities: StreamingProviderCapabilities;
+  // Opt in when signed availability output changes with ProviderContext.playbackUserAgent.
+  availabilityDependsOnPlaybackUserAgent?: boolean;
 
   getAvailability(query: StreamQuery, context: ProviderContext): Promise<MediaAvailability | null>;
 }

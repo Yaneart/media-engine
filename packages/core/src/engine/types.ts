@@ -43,6 +43,8 @@ export interface ProviderHealthStatus {
 // Опции одного вызова для независимой отмены публичных операций движка.
 export interface MediaEngineOperationOptions {
   signal?: AbortSignal;
+  // Used by getAvailability when an upstream signs media URLs for the requesting client.
+  playbackUserAgent?: string;
 }
 
 // Options accepted by the MediaEngine constructor.

@@ -4,6 +4,7 @@ import {
   DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
+  DEFAULT_MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS,
   createConfiguredStreamingProviders,
   createMediaEngine,
   readFilmixStreamingEnabled,
@@ -11,6 +12,8 @@ import {
   readProviderTimeoutMs,
   readStreamingProviderTimeoutMs,
   readVeoVeoStreamingEnabled,
+  readVideoHubStreamingEnabled,
+  readVideoHubStreamingProviderTimeoutMs,
 } from './media-engine.config';
 
 describe('MediaEngine configuration', () => {
@@ -108,6 +111,52 @@ describe('MediaEngine configuration', () => {
         MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: 'yes',
       }),
     ).toThrow(/either true or false/);
+  });
+
+  it('adds direct VideoHUB MP4 only when explicitly enabled', async () => {
+    expect(readVideoHubStreamingEnabled({})).toBe(false);
+    expect(
+      readVideoHubStreamingEnabled({
+        MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED: 'true',
+      }),
+    ).toBe(true);
+    expect(
+      (
+        await createConfiguredStreamingProviders({
+          MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED: 'true',
+        })
+      ).map((provider) => provider.name),
+    ).toEqual([
+      'videohub-streaming',
+      'kinobd-streaming',
+      'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
+    ]);
+    expect(() =>
+      readVideoHubStreamingEnabled({
+        MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED: 'yes',
+      }),
+    ).toThrow(/either true or false/);
+  });
+
+  it('uses and validates a separate VideoHUB timeout', () => {
+    expect(readVideoHubStreamingProviderTimeoutMs({})).toBe(
+      DEFAULT_MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS,
+    );
+    expect(
+      DEFAULT_MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS,
+    ).toBeGreaterThan(DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS);
+    expect(
+      readVideoHubStreamingProviderTimeoutMs({
+        MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS: ' 18000 ',
+      }),
+    ).toBe(18_000);
+    expect(() =>
+      readVideoHubStreamingProviderTimeoutMs({
+        MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS: 'later',
+      }),
+    ).toThrow(/positive integer/);
   });
 
   it('uses a finite provider timeout by default', () => {

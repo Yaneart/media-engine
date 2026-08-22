@@ -26,6 +26,7 @@ export function PlaybackPanel({
     item: MediaSummary,
     availabilityItem?: AvailabilityMediaInput,
   ) => Promise<void>;
+  primaryAvailabilityState: AvailabilityState;
 }) {
   const [mode, setMode] = useState<"primary" | "embed" | "torrent">("primary");
   const primaryOptions = getAvailabilityOptions(primaryAvailabilityState);

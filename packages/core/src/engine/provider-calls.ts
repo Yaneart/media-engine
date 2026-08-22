@@ -23,6 +23,7 @@ import { elapsedSince } from "./response-meta.js";
 export interface ProviderCallContext {
   debug: boolean;
   language?: string;
+  playbackUserAgent?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
   circuitBreaker?: ProviderCircuitBreaker | undefined;
@@ -222,6 +223,7 @@ export async function callTimedProviderAvailability(
           timeoutMs: context.timeoutMs,
           debug: context.debug,
           language: context.language,
+          playbackUserAgent: context.playbackUserAgent,
         }),
     );
 

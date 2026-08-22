@@ -137,6 +137,40 @@ test("hardened fetch prefers IPv4 and falls back across validated addresses", as
   assert.deepEqual(calls, ["203.0.114.10", "203.0.114.11"]);
 });
 
+test("hardened fetch bounds a stalled address before trying the next validated address", async () => {
+  const calls: string[] = [];
+  const request = createHardenedProviderFetch({
+    provider: "test-provider",
+    addressAttemptTimeoutMs: 10,
+    resolver: async () => [
+      { address: "203.0.114.10", family: 4 },
+      { address: "203.0.114.11", family: 4 },
+    ],
+    transport: async (_url, init, address) => {
+      calls.push(address.address);
+      if (address.address === "203.0.114.11") return new Response("fallback working");
+
+      return new Promise((_resolve, reject) => {
+        const rejectOnAbort = () => reject(init.signal?.reason);
+        if (init.signal?.aborted) rejectOnAbort();
+        else init.signal?.addEventListener("abort", rejectOnAbort, { once: true });
+      });
+    },
+  });
+
+  const response = await request("https://player.example/embed");
+
+  assert.equal(await response.text(), "fallback working");
+  assert.deepEqual(calls, ["203.0.114.10", "203.0.114.11"]);
+});
+
+test("hardened fetch validates the optional address attempt timeout", () => {
+  assert.throws(
+    () => createHardenedProviderFetch({ provider: "test-provider", addressAttemptTimeoutMs: 0 }),
+    /positive safe integer/u,
+  );
+});
+
 test("hardened fetch retains the validated final URL after redirects", async () => {
   const request = createHardenedProviderFetch({
     provider: "test-provider",

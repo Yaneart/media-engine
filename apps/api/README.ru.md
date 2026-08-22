@@ -56,6 +56,14 @@ curl 'http://127.0.0.1:3000/media/search?title=Интерстеллар&language
 `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. Нужен ID Кинопоиска или IMDb; DDBB используется только
 для получения публичного content ID VeoVeo, а iframe-токен отбрасывается без загрузки iframe.
 
+Прямые подписанные MP4 от VideoHUB подключаются через
+`MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. Нужен ID Кинопоиска, а для сериала — точный сезон и
+серия. Ссылки короткоживущие, привязаны к User-Agent проигрывающего клиента и могут быть привязаны
+к внешнему IP API-сервера. HTTP API передаёт VideoHUB User-Agent запроса доступности и разделяет
+такие ссылки в кеше.
+Отдельный таймаут по умолчанию равен 20 секундам и настраивается через
+`MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS`.
+
 ```dotenv
 MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent
 ```

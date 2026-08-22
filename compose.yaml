@@ -6,10 +6,41 @@ x-node-dev-service: &node-dev-service
   working_dir: /workspace
   volumes:
     - .:/workspace
+    # Keep the dependency tree on the Linux filesystem. Reading thousands of package files from a
+    # Windows bind mount makes every cold Nest/Vite start take minutes.
+    - workspace-node-modules:/workspace/node_modules
 
 services:
+  workspace-bootstrap:
+    <<: *node-dev-service
+    restart: "no"
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        set -eu
+        mkdir -p /tmp/corepack-bin
+        corepack enable --install-directory /tmp/corepack-bin
+        export PATH="/tmp/corepack-bin:$$PATH"
+
+        dependency_hash="$$(sha256sum pnpm-lock.yaml package.json pnpm-workspace.yaml packages/*/package.json apps/*/package.json | sha256sum | cut -d ' ' -f 1)"
+        dependency_marker="node_modules/.media-engine-dependency-hash"
+        if [ ! -f "$$dependency_marker" ] || [ "$$(cat "$$dependency_marker")" != "$$dependency_hash" ]; then
+          pnpm install --frozen-lockfile --force
+          printf '%s\n' "$$dependency_hash" > "$$dependency_marker"
+        fi
+
+        if [ ! -f packages/core/dist/index.js ] || [ ! -f packages/providers/dist/index.js ] || [ ! -f packages/sdk/dist/index.js ]; then
+          pnpm --filter @media-engine/core build
+          pnpm --filter @media-engine/providers build
+          pnpm --filter @media-engine/sdk build
+        fi
+
   api:
     <<: *node-dev-service
+    depends_on:
+      workspace-bootstrap:
+        condition: service_completed_successfully
     ports:
       - "${MEDIA_ENGINE_COMPOSE_BIND_ADDRESS:-0.0.0.0}:3000:3000"
     environment:
@@ -21,8 +52,10 @@ services:
       MEDIA_ENGINE_RATE_LIMIT_MAX_REQUESTS: ${MEDIA_ENGINE_RATE_LIMIT_MAX_REQUESTS:-60}
       MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS:-10000}
       MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS:-15000}
+      MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS:-20000}
       MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: ${MEDIA_ENGINE_FILMIX_STREAMING_ENABLED:-false}
       MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: ${MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED:-false}
+      MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED: ${MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED:-false}
       MEDIA_ENGINE_TORRENT_PROVIDERS: ${MEDIA_ENGINE_TORRENT_PROVIDERS:-}
       MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS: ${MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS:-15000}
       MEDIA_ENGINE_TORRSERVER_URL: ${MEDIA_ENGINE_TORRSERVER_URL:-http://torrserver:8090}
@@ -59,7 +92,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 20s
+      # A cold TypeScript/Nest watch build can take over a minute on Docker Desktop.
+      start_period: 120s
 
   # GPL-3.0 runtime is pinned, has a private API path, and uses a dedicated peer-egress network.
   torrserver:
@@ -129,7 +163,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 20s
+      # Keep the dependency chain tolerant of a cold Vite/TypeScript startup too.
+      start_period: 60s
 
 networks:
   original-torrent-runtime:
@@ -138,3 +173,4 @@ networks:
 
 volumes:
   torrserver-state:
+  workspace-node-modules:

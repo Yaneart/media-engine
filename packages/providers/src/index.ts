@@ -13,6 +13,7 @@ export * from "./ddbb-streaming/index.js";
 export * from "./aniliberty-streaming/index.js";
 export * from "./filmix-streaming/index.js";
 export * from "./veoveo-streaming/index.js";
+export * from "./videohub-streaming/index.js";
 export * from "./yts-torrent/index.js";
 export * from "./jacred-torrent/index.js";
 export * from "./bitsearch-torrent/index.js";

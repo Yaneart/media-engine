@@ -165,6 +165,7 @@ export function formatPlayerLabel(value: string): string {
     hdvb: "HDVB",
     kodik: "Kodik",
     veoveo: "VeoVeo",
+    videohub: "VideoHUB",
     vibix: "Vibix",
   };
 
@@ -179,6 +180,7 @@ export function formatProviderLabel(value: string): string {
     "filmix-streaming": "Filmix",
     "kinobd-streaming": "KinoBD",
     "veoveo-streaming": "VeoVeo",
+    "videohub-streaming": "VideoHUB",
   };
 
   return knownLabels[value] ?? value;

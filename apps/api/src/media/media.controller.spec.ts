@@ -376,6 +376,7 @@ describe('MediaController', () => {
   it('maps GET /media/availability query parameters to MediaEngine.getAvailability', async () => {
     await request(app.getHttpServer())
       .get('/media/availability')
+      .set('User-Agent', 'Playback Browser/1.0')
       .query({
         title: ' Naruto ',
         type: 'anime',
@@ -396,7 +397,10 @@ describe('MediaController', () => {
         providers: ['experimental-streaming', 'mirror'],
         language: 'ru',
       },
-      { signal: expect.any(AbortSignal) },
+      {
+        signal: expect.any(AbortSignal),
+        playbackUserAgent: 'Playback Browser/1.0',
+      },
     );
   });
 
