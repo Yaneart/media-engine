@@ -175,6 +175,7 @@ function formatProviderLabel(value: string): string {
     "aniliberty-streaming": "AniLiberty",
     "ddbb-streaming": "DDBB",
     "flixhq-streaming": "FlixHQ",
+    "filmix-streaming": "Filmix",
     "kinobd-streaming": "KinoBD",
   };
 

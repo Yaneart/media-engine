@@ -6,6 +6,7 @@ import {
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
   createConfiguredStreamingProviders,
   createMediaEngine,
+  readFilmixStreamingEnabled,
   readFlixHqStreamingProviderTimeoutMs,
   readProviderTimeoutMs,
   readStreamingProviderTimeoutMs,
@@ -52,6 +53,33 @@ describe('MediaEngine configuration', () => {
     expect(providers.every((provider) => provider.kind === 'streaming')).toBe(
       true,
     );
+  });
+
+  it('adds guest Filmix MP4 only when explicitly enabled', async () => {
+    expect(readFilmixStreamingEnabled({})).toBe(false);
+    expect(
+      readFilmixStreamingEnabled({
+        MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
+      }),
+    ).toBe(true);
+    expect(
+      (
+        await createConfiguredStreamingProviders({
+          MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
+        })
+      ).map((provider) => provider.name),
+    ).toEqual([
+      'filmix-streaming',
+      'kinobd-streaming',
+      'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
+    ]);
+    expect(() =>
+      readFilmixStreamingEnabled({
+        MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'yes',
+      }),
+    ).toThrow(/either true or false/);
   });
 
   it('uses a finite provider timeout by default', () => {

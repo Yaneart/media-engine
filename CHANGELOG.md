@@ -7,7 +7,12 @@ documented breaking changes.
 
 ## Unreleased
 
-No changes yet.
+### Added
+
+- Added an opt-in `filmixStreamingProvider()` for credential-free Filmix title/year lookup, exact
+  series episode mapping, translations, and confirmed full guest 480p MP4 links. The repository API
+  can enable it with `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true`; existing streaming defaults stay
+  unchanged.
 
 ## 1.0.0 - 2026-08-02
 

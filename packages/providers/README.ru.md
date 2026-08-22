@@ -72,8 +72,11 @@ const result = await media.getAvailability({
 });
 ```
 
-Пакет также экспортирует `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()` и
-`experimentalStreamingProvider()`. Подключайте их явно, если они подходят вашему приложению.
+Пакет также экспортирует `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
+`filmixStreamingProvider()` и `experimentalStreamingProvider()`. Подключайте их явно, если они
+подходят вашему приложению. Filmix работает без аккаунта и в гостевом режиме возвращает только
+подтверждённый полный MP4 480p. Текущий endpoint метаданных использует обычный HTTP, а полученные
+ссылки на видео CDN используют HTTPS.
 
 Эти провайдеры возвращают сторонние ссылки или потоки. Media Engine не хранит видео, а внешний
 плеер может быть недоступен в конкретной стране, сети или браузере.

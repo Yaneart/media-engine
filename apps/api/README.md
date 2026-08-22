@@ -47,6 +47,10 @@ development defaults for the port, CORS, timeouts, and rate limits.
 Metadata and player providers work without your API keys. Torrent discovery is off by default. To
 enable it, set `MEDIA_ENGINE_TORRENT_PROVIDERS` to the providers you want, for example:
 
+Filmix direct guest MP4 is also opt-in. Set `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true` to add it;
+guest mode needs no account or activation and intentionally returns only full 480p. Its current
+metadata endpoint uses plain HTTP, while returned CDN video links use HTTPS.
+
 ```dotenv
 MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent
 ```

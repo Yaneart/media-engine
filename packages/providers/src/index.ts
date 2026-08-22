@@ -11,6 +11,7 @@ export * from "./kinobd-streaming/index.js";
 export * from "./flixhq-streaming/index.js";
 export * from "./ddbb-streaming/index.js";
 export * from "./aniliberty-streaming/index.js";
+export * from "./filmix-streaming/index.js";
 export * from "./yts-torrent/index.js";
 export * from "./jacred-torrent/index.js";
 export * from "./bitsearch-torrent/index.js";

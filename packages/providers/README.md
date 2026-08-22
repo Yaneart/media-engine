@@ -72,8 +72,10 @@ const result = await media.getAvailability({
 });
 ```
 
-The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`, and
-`experimentalStreamingProvider()`. Add them explicitly when they fit your application.
+The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
+`filmixStreamingProvider()`, and `experimentalStreamingProvider()`. Add them explicitly when they
+fit your application. Filmix works without an account and returns only confirmed full 480p MP4 in
+guest mode. Its current metadata endpoint uses plain HTTP, while returned CDN video URLs use HTTPS.
 
 These providers return third-party links or streams. Media Engine does not host the video, and an
 external player may be unavailable in some countries, networks, or browsers.

@@ -77,7 +77,7 @@ export function SearchPanel({
               <span>{formatRating(result.item.ratings)}</span>
               <span>
                 {result.sources.map((source, index) => (
-                  <span key={source.provider}>
+                  <span key={`${source.provider}:${source.url ?? "no-url"}:${index}`}>
                     {index > 0 ? ", " : null}
                     {source.url ? (
                       <a href={source.url} rel="noreferrer" target="_blank">

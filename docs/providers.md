@@ -79,6 +79,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available | None                      |
 | DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds        | None                      |
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities              | None                      |
+| Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                        | None                      |
 | Experimental streaming | Deterministic configured options for development and tests                         | Application configuration |
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
@@ -103,6 +104,17 @@ return a bounded episode map; exact anime lookup uses `absoluteEpisodeNumber`. S
 1080p URLs are classified as direct HLS, while upstream geo/copyright flags become normalized
 `region_locked` or `temporarily_unavailable` states. Search results, episode arrays, and response
 bytes are bounded, and API calls use the hardened default transport.
+
+Filmix streaming is opt-in through `filmixStreamingProvider()` or the repository API environment
+flag `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true`. It requires title and year; series additionally
+require an exact season and episode. The adapter accepts only a unique title/year/type identity, or
+one unique search-scoped year/type candidate when Filmix uses a different localized title, and then
+revalidates the loaded post. Guest mode needs no login, activation, cookie, or shared token and
+exposes only confirmed full 480p MP4 links; higher qualities are intentionally excluded because the
+guest API can return previews for them. Search results, seasons, translations, episodes, response
+bytes, and signed-link cache lifetime are bounded. The current upstream metadata API is available
+only over plain HTTP, so the provider is disabled by default; no credentials are sent, and normalized
+CDN MP4 output URLs are HTTPS.
 
 ## Torrent discovery providers
 

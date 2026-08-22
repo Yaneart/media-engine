@@ -9,6 +9,7 @@ export interface MediaEngineEnv {
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS?: string;
+  MEDIA_ENGINE_FILMIX_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_TORRENT_PROVIDERS?: string;
   MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS?: string;
 }
@@ -56,21 +57,28 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
 
 // EN: Build streaming providers from environment without requiring them for local boot.
 // RU: Собираем streaming-провайдеры из env без обязательности для локального запуска.
-export async function createConfiguredStreamingProviders(): Promise<
-  StreamingProvider[]
-> {
+export async function createConfiguredStreamingProviders(
+  env: MediaEngineEnv = process.env,
+): Promise<StreamingProvider[]> {
   const {
     aniLibertyStreamingProvider,
     ddbbStreamingProvider,
+    filmixStreamingProvider,
     flixHqStreamingProvider,
     kinobdStreamingProvider,
   } = await import('@media-engine/providers');
-  return [
+  const providers: StreamingProvider[] = [
     kinobdStreamingProvider(),
     flixHqStreamingProvider(),
     ddbbStreamingProvider(),
     aniLibertyStreamingProvider(),
   ];
+
+  if (readFilmixStreamingEnabled(env)) {
+    providers.unshift(filmixStreamingProvider());
+  }
+
+  return providers;
 }
 
 // Build only explicitly selected discovery providers; repository defaults stay empty.
@@ -120,7 +128,7 @@ export async function createMediaEngine(
 
   return new MediaEngine({
     providers: await createConfiguredProviders(),
-    streamingProviders: await createConfiguredStreamingProviders(),
+    streamingProviders: await createConfiguredStreamingProviders(env),
     torrentProviders,
     cache: new MemoryCache({
       defaultTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
@@ -139,6 +147,7 @@ export async function createMediaEngine(
       'flixhq-streaming': flixHqTimeoutMs,
       'ddbb-streaming': streamingTimeoutMs,
       'aniliberty-streaming': streamingTimeoutMs,
+      'filmix-streaming': streamingTimeoutMs,
       'yts-torrent': torrentTimeoutMs,
       'jacred-torrent': torrentTimeoutMs,
       'bitsearch-torrent': torrentTimeoutMs,
@@ -236,6 +245,18 @@ export function readProviderTimeoutMs(
     env.MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
     DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
     'MEDIA_ENGINE_PROVIDER_TIMEOUT_MS',
+  );
+}
+
+export function readFilmixStreamingEnabled(
+  env: MediaEngineEnv = process.env,
+): boolean {
+  const value = readOptionalEnv(env.MEDIA_ENGINE_FILMIX_STREAMING_ENABLED);
+  if (value === undefined || value === 'false') return false;
+  if (value === 'true') return true;
+
+  throw new Error(
+    'MEDIA_ENGINE_FILMIX_STREAMING_ENABLED must be either true or false.',
   );
 }
 
