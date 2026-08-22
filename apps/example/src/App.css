@@ -341,7 +341,7 @@
 
 .playback-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   border: 1px solid #d8e3e4;
@@ -465,12 +465,6 @@
 
 .episode-picker {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.episode-picker {
-  display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 8px;
@@ -522,6 +516,34 @@
   min-height: 44px;
 }
 
+.episode-picker__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #2b3b48;
+  border-radius: 8px;
+  background: #121c25;
+  color: #b8c7d1;
+  font-size: 0.82rem;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid #35505c;
+  border-top-color: #58b7ba;
+  border-radius: 50%;
+  animation: loading-spin 0.75s linear infinite;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .details-panel {
   display: flex;
   flex-direction: column;
@@ -546,6 +568,13 @@
 .details-panel p {
   margin: 0;
   color: #3d4752;
+}
+
+.details-panel__content > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .details-grid {
@@ -632,6 +661,94 @@
   gap: 6px;
 }
 
+.primary-player-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dfe7e8;
+  border-radius: 10px;
+  background: #f8fbfb;
+}
+
+.primary-player-controls .field select {
+  min-height: 44px;
+}
+
+.quality-picker {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.quality-picker > span {
+  color: #5c6671;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.quality-picker__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.primary-player__selection {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  gap: 3px;
+  padding-top: 2px;
+}
+
+.primary-player__selection span {
+  font-size: 0.8rem;
+}
+
+.embed-player-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.embed-player-card {
+  display: flex;
+  min-width: 0;
+  min-height: 68px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #d8dee4;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #1f3d52;
+  cursor: pointer;
+  text-align: left;
+}
+
+.embed-player-card span {
+  overflow: hidden;
+  color: #5c6671;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.embed-player-card:hover,
+.embed-player-card:focus-visible,
+.embed-player-card[aria-pressed="true"] {
+  border-color: #2f6f73;
+  outline: none;
+}
+
+.embed-player-card[aria-pressed="true"] {
+  background: #edf6f6;
+  box-shadow: inset 3px 0 #2f6f73;
+}
+
 .player-option__action[aria-pressed="true"] {
   border-color: #2f6f73;
   background: #edf3f3;
@@ -680,6 +797,24 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.stream-player__status,
+.primary-player__hint {
+  color: #a8b8c4;
+  font-size: 0.82rem;
+}
+
+.stream-player__status--ready {
+  color: #83cbc2;
+}
+
+.primary-player__hint {
+  display: block;
+  padding: 8px 10px;
+  border-left: 3px solid #3d8d91;
+  border-radius: 4px;
+  background: #16232c;
 }
 
 .stream-player__error {
@@ -948,11 +1083,217 @@
   .workspace,
   .result-card,
   .details-grid,
-  .torrent-selection-summary {
+  .torrent-selection-summary,
+  .primary-player-controls,
+  .playback-tabs {
     grid-template-columns: 1fr;
   }
 
   .details-panel--loaded {
     position: static;
   }
+}
+
+/* The example app intentionally uses one permanent dark theme. */
+.app-shell {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(46, 123, 129, 0.18), transparent 34%),
+    linear-gradient(180deg, #101721, #0b1017 72%);
+}
+
+.overview h1,
+.state-panel strong,
+.results__summary strong,
+.result-card strong,
+.details-panel strong,
+.torrent-source-group h3,
+.detail-value strong,
+.primary-player__selection strong,
+.embed-player-card strong {
+  color: #edf4f8;
+}
+
+.state-panel span,
+.results__summary span,
+.result-card span,
+.details-panel span,
+.muted,
+.quality-picker > span,
+.embed-player-card span,
+.player-picker__selection span {
+  color: #9aa9b8;
+}
+
+.field span,
+.detail-section > span,
+.detail-value span {
+  color: #92a4b4;
+}
+
+.details-panel p {
+  color: #adbbc7;
+}
+
+a {
+  color: #76c3c7;
+}
+
+.field input,
+.field select,
+.search-button,
+.details-button,
+.playback-panel,
+.playback-panel__body,
+.state-panel,
+.results,
+.details-panel,
+.player-picker,
+.primary-player-controls,
+.torrent-discovery-form,
+.torrent-release,
+.torrent-selection-summary,
+.torrent-file-list,
+.torrent-file-list button,
+.original-video-player,
+.embed-player-card {
+  border-color: #293746;
+}
+
+.result-card + .result-card,
+.detail-value {
+  border-color: #293746;
+}
+
+.detail-value {
+  background: #111923;
+}
+
+.field input,
+.field select,
+.details-button,
+.playback-panel__body,
+.state-panel,
+.results,
+.details-panel,
+.torrent-release,
+.torrent-file-list button,
+.embed-player-card {
+  background: #151e28;
+  color: #dce7ee;
+}
+
+.playback-panel,
+.player-picker,
+.primary-player-controls,
+.torrent-discovery-form,
+.torrent-selection-summary,
+.original-video-player {
+  background: #111923;
+}
+
+.playback-tabs {
+  border-color: #293746;
+  background: #0e151e;
+}
+
+.playback-tab {
+  color: #95a6b6;
+}
+
+.playback-tab[aria-selected="true"] {
+  border-color: #375665;
+  background: #1b2935;
+  color: #f2f7fa;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.playback-tab__count {
+  background: #263642;
+  color: #b9c8d2 !important;
+}
+
+.playback-tab[aria-selected="true"] .playback-tab__count {
+  background: #3d8d91;
+  color: #ffffff !important;
+}
+
+.playback-mode__intro {
+  border-color: #25313d;
+}
+
+.playback-empty-state,
+.provider-warnings,
+.torrent-file-list,
+.torrent-session-status {
+  border-color: #2b3b48;
+  background: #121c25;
+}
+
+.provider-warnings {
+  color: #9aa9b8;
+}
+
+.playback-empty-state--error,
+.stream-player__error {
+  border-color: #8c4d54;
+  background: #2b171c;
+  color: #f0a7ad;
+}
+
+.provider-failures {
+  border-color: #705b31;
+  background: #2b2416;
+  color: #dfc17d;
+}
+
+.chip,
+.meta-list span,
+.playback-stats > span,
+.playback-status {
+  background: #1d3036;
+  color: #9bc8c9;
+}
+
+.playback-stats strong {
+  color: #b7e4e3;
+}
+
+.player-option__action {
+  border-color: #3a4b59;
+  background: #18232e;
+  color: #c9d8e1;
+}
+
+.player-option__action[aria-pressed="true"],
+.embed-player-card[aria-pressed="true"],
+.torrent-release[aria-pressed="true"] {
+  border-color: #4a9498;
+  background: #183237;
+  box-shadow: inset 3px 0 #4a9498;
+}
+
+.player-preview iframe,
+.player-preview video,
+.original-video-player video {
+  border-color: #344654;
+  background: #070b10;
+}
+
+.player-preview a,
+.player-preview button {
+  border-color: #4a737c;
+  color: #bfe2e3;
+}
+
+.playback-primary-action,
+.search-button {
+  border-color: #3f898d;
+  background: #327478;
+  color: #ffffff;
+}
+
+.playback-stop-action {
+  border-color: #8c4d54;
+  background: #2b171c;
+  color: #f0a7ad;
 }

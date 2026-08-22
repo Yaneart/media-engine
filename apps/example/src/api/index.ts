@@ -80,6 +80,7 @@ export function getMediaDetails(
 // RU: Загружает доступность плееров выбранного результата через публичный SDK.
 export function getMediaAvailability(
   item: AvailabilityMediaInput,
+  providers: string[],
   signal?: AbortSignal,
 ): Promise<AvailabilityResponse> {
   const language = inferTitleLanguage(item.title);
@@ -94,6 +95,7 @@ export function getMediaAvailability(
       episodeNumber: item.episodeNumber,
       absoluteEpisodeNumber: item.absoluteEpisodeNumber,
       language,
+      providers,
     },
     { signal },
   );

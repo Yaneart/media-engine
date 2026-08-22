@@ -52,6 +52,10 @@ curl 'http://127.0.0.1:3000/media/search?title=Интерстеллар&language
 намеренно возвращает только полный 480p. Текущий endpoint метаданных использует обычный HTTP, а
 полученные ссылки на видео CDN — HTTPS.
 
+Прямой подписанный HLS от VeoVeo подключается через
+`MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. Нужен ID Кинопоиска или IMDb; DDBB используется только
+для получения публичного content ID VeoVeo, а iframe-токен отбрасывается без загрузки iframe.
+
 ```dotenv
 MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent
 ```

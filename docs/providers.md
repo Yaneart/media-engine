@@ -80,6 +80,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds        | None                      |
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities              | None                      |
 | Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                        | None                      |
+| VeoVeo streaming       | Opt-in Kinopoisk/IMDb movie and series-episode direct signed HLS                   | None                      |
 | Experimental streaming | Deterministic configured options for development and tests                         | Application configuration |
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
@@ -115,6 +116,15 @@ guest API can return previews for them. Search results, seasons, translations, e
 bytes, and signed-link cache lifetime are bounded. The current upstream metadata API is available
 only over plain HTTP, so the provider is disabled by default; no credentials are sent, and normalized
 CDN MP4 output URLs are HTTPS.
+
+VeoVeo streaming is opt-in through `veoVeoStreamingProvider()` or
+`MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk or IMDb ID. The
+adapter asks the open DDBB player lookup only for VeoVeo's public `movie_id`, discards the iframe
+token without requesting the iframe, and loads the bounded episode catalog from VeoVeo's no-auth
+API. Only direct HTTPS `.m3u8` variants are exposed; JSON indirection and unsafe URLs are excluded.
+Series queries support a bounded generic episode map or an exact season/episode. Output links are
+treated as short-lived and the provider stays disabled by default because availability depends on
+both upstream contracts.
 
 ## Torrent discovery providers
 

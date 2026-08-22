@@ -51,6 +51,10 @@ Filmix direct guest MP4 is also opt-in. Set `MEDIA_ENGINE_FILMIX_STREAMING_ENABL
 guest mode needs no account or activation and intentionally returns only full 480p. Its current
 metadata endpoint uses plain HTTP, while returned CDN video links use HTTPS.
 
+VeoVeo direct signed HLS is opt-in with `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It needs a
+Kinopoisk or IMDb ID, uses DDBB only to resolve VeoVeo's public content ID, and discards the iframe
+token without loading the iframe.
+
 ```dotenv
 MEDIA_ENGINE_TORRENT_PROVIDERS=yts-torrent,jacred-torrent
 ```

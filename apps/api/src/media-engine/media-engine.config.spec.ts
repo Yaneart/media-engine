@@ -10,6 +10,7 @@ import {
   readFlixHqStreamingProviderTimeoutMs,
   readProviderTimeoutMs,
   readStreamingProviderTimeoutMs,
+  readVeoVeoStreamingEnabled,
 } from './media-engine.config';
 
 describe('MediaEngine configuration', () => {
@@ -42,7 +43,7 @@ describe('MediaEngine configuration', () => {
   });
 
   it('creates no-token streaming providers by default', async () => {
-    const providers = await createConfiguredStreamingProviders();
+    const providers = await createConfiguredStreamingProviders({});
 
     expect(providers.map((provider) => provider.name)).toEqual([
       'kinobd-streaming',
@@ -78,6 +79,33 @@ describe('MediaEngine configuration', () => {
     expect(() =>
       readFilmixStreamingEnabled({
         MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'yes',
+      }),
+    ).toThrow(/either true or false/);
+  });
+
+  it('adds direct VeoVeo HLS only when explicitly enabled', async () => {
+    expect(readVeoVeoStreamingEnabled({})).toBe(false);
+    expect(
+      readVeoVeoStreamingEnabled({
+        MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: 'true',
+      }),
+    ).toBe(true);
+    expect(
+      (
+        await createConfiguredStreamingProviders({
+          MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: 'true',
+        })
+      ).map((provider) => provider.name),
+    ).toEqual([
+      'veoveo-streaming',
+      'kinobd-streaming',
+      'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
+    ]);
+    expect(() =>
+      readVeoVeoStreamingEnabled({
+        MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: 'yes',
       }),
     ).toThrow(/either true or false/);
   });

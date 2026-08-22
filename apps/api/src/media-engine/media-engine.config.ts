@@ -10,6 +10,7 @@ export interface MediaEngineEnv {
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FILMIX_STREAMING_ENABLED?: string;
+  MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_TORRENT_PROVIDERS?: string;
   MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS?: string;
 }
@@ -66,6 +67,7 @@ export async function createConfiguredStreamingProviders(
     filmixStreamingProvider,
     flixHqStreamingProvider,
     kinobdStreamingProvider,
+    veoVeoStreamingProvider,
   } = await import('@media-engine/providers');
   const providers: StreamingProvider[] = [
     kinobdStreamingProvider(),
@@ -76,6 +78,10 @@ export async function createConfiguredStreamingProviders(
 
   if (readFilmixStreamingEnabled(env)) {
     providers.unshift(filmixStreamingProvider());
+  }
+
+  if (readVeoVeoStreamingEnabled(env)) {
+    providers.unshift(veoVeoStreamingProvider());
   }
 
   return providers;
@@ -148,6 +154,7 @@ export async function createMediaEngine(
       'ddbb-streaming': streamingTimeoutMs,
       'aniliberty-streaming': streamingTimeoutMs,
       'filmix-streaming': streamingTimeoutMs,
+      'veoveo-streaming': streamingTimeoutMs,
       'yts-torrent': torrentTimeoutMs,
       'jacred-torrent': torrentTimeoutMs,
       'bitsearch-torrent': torrentTimeoutMs,
@@ -258,6 +265,23 @@ export function readFilmixStreamingEnabled(
   throw new Error(
     'MEDIA_ENGINE_FILMIX_STREAMING_ENABLED must be either true or false.',
   );
+}
+
+export function readVeoVeoStreamingEnabled(
+  env: MediaEngineEnv = process.env,
+): boolean {
+  return readBooleanEnv(
+    env.MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED,
+    'MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED',
+  );
+}
+
+function readBooleanEnv(value: string | undefined, name: string): boolean {
+  const normalized = readOptionalEnv(value);
+  if (normalized === undefined || normalized === 'false') return false;
+  if (normalized === 'true') return true;
+
+  throw new Error(`${name} must be either true or false.`);
 }
 
 function readOptionalEnv(value: string | undefined): string | undefined {

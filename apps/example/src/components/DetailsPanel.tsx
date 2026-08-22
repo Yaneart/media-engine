@@ -12,12 +12,19 @@ import { DetailValue, MediaPoster, MetaList } from "./common";
 import { PlaybackPanel } from "./PlaybackPanel";
 
 export function DetailsPanel({
-  availabilityState,
-  onLoadAvailability,
+  embedAvailabilityState,
+  onLoadEmbedAvailability,
+  onLoadPrimaryAvailability,
+  primaryAvailabilityState,
   state,
 }: {
-  availabilityState: AvailabilityState;
-  onLoadAvailability: (
+  embedAvailabilityState: AvailabilityState;
+  primaryAvailabilityState: AvailabilityState;
+  onLoadEmbedAvailability: (
+    item: MediaSummary,
+    availabilityItem?: AvailabilityMediaInput,
+  ) => Promise<void>;
+  onLoadPrimaryAvailability: (
     item: MediaSummary,
     availabilityItem?: AvailabilityMediaInput,
   ) => Promise<void>;
@@ -85,11 +92,13 @@ export function DetailsPanel({
         </div>
 
         <PlaybackPanel
-          availabilityState={availabilityState}
           details={details}
+          embedAvailabilityState={embedAvailabilityState}
           item={state.item}
           key={`${state.item.type}:${state.item.id}`}
-          onLoadAvailability={onLoadAvailability}
+          onLoadEmbedAvailability={onLoadEmbedAvailability}
+          onLoadPrimaryAvailability={onLoadPrimaryAvailability}
+          primaryAvailabilityState={primaryAvailabilityState}
         />
 
         <section className="detail-section">

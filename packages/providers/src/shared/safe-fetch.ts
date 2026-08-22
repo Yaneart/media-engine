@@ -8,6 +8,7 @@ import { ProviderError } from "@media-engine/core";
 
 const DEFAULT_MAX_REDIRECTS = 3;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const finalResponseUrls = new WeakMap<Response, string>();
 
 export interface ResolvedAddress {
   address: string;
@@ -67,6 +68,7 @@ export function createHardenedProviderFetch(
         : null;
 
       if (!location) {
+        finalResponseUrls.set(response, url.href);
         return response;
       }
 
@@ -79,6 +81,11 @@ export function createHardenedProviderFetch(
       url = normalizeExternalUrl(options.provider, new URL(location, url));
     }
   };
+}
+
+// Returns the validated final URL after hardened redirects without exposing it as a response header.
+export function getHardenedProviderResponseUrl(response: Response): string | undefined {
+  return finalResponseUrls.get(response) ?? (response.url || undefined);
 }
 
 // Returns true only for globally routable IPv4/IPv6 unicast addresses.

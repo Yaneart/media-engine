@@ -18,50 +18,89 @@ export function EpisodeAvailabilityControls({
 }) {
   const [seasonNumber, setSeasonNumber] = useState("1");
   const [episodeNumber, setEpisodeNumber] = useState("1");
+  const [pending, setPending] = useState(false);
+  const [requestedLabel, setRequestedLabel] = useState<string>();
+  const isAnime = details.type === "anime";
+  const busy = loading || pending;
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const episode = Number.parseInt(episodeNumber, 10);
-    const season = Number.parseInt(seasonNumber, 10);
+    if (!Number.isInteger(episode) || episode <= 0) return;
 
-    if (!Number.isInteger(episode) || episode <= 0 || !Number.isInteger(season) || season <= 0) {
-      return;
+    let availabilityItem: AvailabilityMediaInput;
+    let label: string;
+
+    if (isAnime) {
+      availabilityItem = {
+        ...details,
+        absoluteEpisodeNumber: episode,
+      };
+      label = `эпизода ${episode}`;
+    } else {
+      const season = Number.parseInt(seasonNumber, 10);
+      if (!Number.isInteger(season) || season <= 0) return;
+      availabilityItem = {
+        ...details,
+        seasonNumber: season,
+        episodeNumber: episode,
+      };
+      label = `сезона ${season}, серии ${episode}`;
     }
 
-    void onLoadAvailability(item, {
-      ...details,
-      seasonNumber: season,
-      episodeNumber: episode,
-    });
+    setRequestedLabel(label);
+    setPending(true);
+    try {
+      await onLoadAvailability(item, availabilityItem);
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
-    <form className="episode-picker" onSubmit={handleSubmit}>
-      <span>Episode selection</span>
+    <form aria-busy={busy} className="episode-picker" onSubmit={handleSubmit}>
+      <strong>{isAnime ? "Выбор эпизода" : "Выбор сезона и серии"}</strong>
       <div className="episode-picker__fields">
+        {!isAnime ? (
+          <label className="field">
+            <span>Сезон</span>
+            <input
+              disabled={busy}
+              min="1"
+              onChange={(event) => setSeasonNumber(event.target.value)}
+              required
+              type="number"
+              value={seasonNumber}
+            />
+          </label>
+        ) : null}
         <label className="field">
-          <span>Season</span>
+          <span>{isAnime ? "Эпизод" : "Серия"}</span>
           <input
-            min="1"
-            onChange={(event) => setSeasonNumber(event.target.value)}
-            type="number"
-            value={seasonNumber}
-          />
-        </label>
-        <label className="field">
-          <span>Episode</span>
-          <input
+            disabled={busy}
             min="1"
             onChange={(event) => setEpisodeNumber(event.target.value)}
+            required
             type="number"
             value={episodeNumber}
           />
         </label>
-        <button className="details-button" disabled={loading} type="submit">
-          {loading ? "Loading..." : "Load players"}
+        <button className="details-button" disabled={busy} type="submit">
+          {busy ? "Ищем источники…" : isAnime ? "Показать эпизод" : "Показать серию"}
         </button>
       </div>
-      <span className="muted">Optional: load players for a specific episode.</span>
+      {busy ? (
+        <div className="episode-picker__loading" role="status">
+          <span aria-hidden="true" className="loading-spinner" />
+          <span>
+            {requestedLabel
+              ? `Загружаем источники для ${requestedLabel}. Это обычно занимает 5–15 секунд.`
+              : "Проверяем доступные источники…"}
+          </span>
+        </div>
+      ) : (
+        <span className="muted">Основной плеер покажет потоки выбранной серии.</span>
+      )}
     </form>
   );
 }

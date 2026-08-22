@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   createHardenedProviderFetch,
+  getHardenedProviderResponseUrl,
   isPublicIpAddress,
   type HostnameResolver,
   type PinnedHttpTransport,
@@ -134,6 +135,29 @@ test("hardened fetch prefers IPv4 and falls back across validated addresses", as
 
   assert.equal(await response.text(), "fallback working");
   assert.deepEqual(calls, ["203.0.114.10", "203.0.114.11"]);
+});
+
+test("hardened fetch retains the validated final URL after redirects", async () => {
+  const request = createHardenedProviderFetch({
+    provider: "test-provider",
+    resolver: async () => [{ address: "203.0.114.10", family: 4 }],
+    transport: async (url) =>
+      url.hostname === "router.example"
+        ? new Response(null, {
+            status: 307,
+            headers: { location: "https://cdn.example/media/master.m3u8?token=signed" },
+          })
+        : new Response("#EXTM3U", {
+            headers: { "content-type": "application/vnd.apple.mpegurl" },
+          }),
+  });
+
+  const response = await request("https://router.example/media/master.m3u8");
+
+  assert.equal(
+    getHardenedProviderResponseUrl(response),
+    "https://cdn.example/media/master.m3u8?token=signed",
+  );
 });
 
 test("hardened fetch rejects a redirect from a public host to a private target", async () => {

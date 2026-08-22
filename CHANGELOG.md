@@ -13,6 +13,10 @@ documented breaking changes.
   series episode mapping, translations, and confirmed full guest 480p MP4 links. The repository API
   can enable it with `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true`; existing streaming defaults stay
   unchanged.
+- Added an opt-in `veoVeoStreamingProvider()` that uses DDBB only to resolve a Kinopoisk/IMDb item
+  to a public VeoVeo content ID, discards the iframe token, and returns bounded direct signed HTTPS
+  HLS for movies or series episodes. The repository API can enable it with
+  `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`.
 
 ## 1.0.0 - 2026-08-02
 
