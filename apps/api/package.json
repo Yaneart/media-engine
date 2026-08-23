@@ -18,10 +18,10 @@
     "test": "pnpm test:unit",
     "test:watch": "jest --watch",
     "test:cov": "pnpm coverage:unit",
-    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "coverage:unit": "NODE_OPTIONS=--experimental-vm-modules jest --coverage --runInBand",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "coverage:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --runInBand",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json"
+    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@media-engine/core": "workspace:*",

@@ -7,6 +7,8 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.1.0 - 2026-08-23
+
 ### Added
 
 - Added an opt-in `filmixStreamingProvider()` for Filmix title/year lookup, exact series episode
@@ -28,6 +30,10 @@ documented breaking changes.
 
 ### Changed
 
+- Release checks now invoke Jest and recursive pnpm packing portably on Windows as well as POSIX
+  systems, without adding runtime dependencies.
+- SQLite IMDb index durability sync now opens the writable temporary database with write access,
+  avoiding Windows `EPERM` failures while retaining directory sync on supported platforms.
 - Availability operations can carry a playback User-Agent for upstreams that bind signed media
   URLs to the requesting client. The repository HTTP API forwards and cache-partitions this value,
   fixing VideoHUB MP4 playback that previously returned HTTP 400 in browsers.

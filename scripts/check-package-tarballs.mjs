@@ -26,11 +26,14 @@ for (const packageInfo of publicPackages) {
     "package.json",
   ].sort();
 
-  const output = execFileSync(
-    "pnpm",
-    ["--filter", packageInfo.name, "pack", "--dry-run", "--json"],
-    { cwd: workspaceRoot, encoding: "utf8" },
-  );
+  const pnpmArguments = ["--filter", packageInfo.name, "pack", "--dry-run", "--json"];
+  const pnpmCliPath = process.env.npm_execpath;
+  const output = pnpmCliPath
+    ? execFileSync(process.execPath, [pnpmCliPath, ...pnpmArguments], {
+        cwd: workspaceRoot,
+        encoding: "utf8",
+      })
+    : execFileSync("pnpm", pnpmArguments, { cwd: workspaceRoot, encoding: "utf8" });
   const pack = JSON.parse(output);
   const actualFiles = pack.files.map(({ path: file }) => file).sort();
 

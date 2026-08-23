@@ -410,7 +410,11 @@ function resolveRequiredPath(value: string, name: string): string {
 }
 
 async function syncFile(path: string): Promise<void> {
-  const file = await open(path, "r");
+  await syncPath(path, "r+");
+}
+
+async function syncPath(path: string, flags: "r" | "r+"): Promise<void> {
+  const file = await open(path, flags);
 
   try {
     await file.sync();
@@ -421,7 +425,7 @@ async function syncFile(path: string): Promise<void> {
 
 async function syncDirectory(path: string): Promise<void> {
   try {
-    await syncFile(path);
+    await syncPath(path, "r");
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
 
