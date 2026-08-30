@@ -7,6 +7,8 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.2.0 - 2026-08-30
+
 ### Added
 
 - VideoHUB streaming now supports exact anime episodes when a Kinopoisk ID is available. Absolute
