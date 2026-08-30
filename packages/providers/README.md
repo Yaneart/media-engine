@@ -82,7 +82,8 @@ Authenticated mode requires an HTTPS `baseUrl` unless the application explicitly
 `allowInsecureHttpToken` for a local compatibility test. That override sends the token without TLS
 and must not be used in a public deployment. Returned CDN video URLs use HTTPS. VeoVeo uses DDBB only to resolve its
 public content ID, discards the iframe token, and returns direct signed HTTPS HLS. VideoHUB uses a Kinopoisk ID and returns
-short-lived direct MP4 qualities for movies or one exact series episode. Its links are bound to the
+short-lived direct MP4 qualities for movies or one exact series/anime episode. Anime accepts an
+absolute episode or a seasonal episode pair and preserves both identities in its result. Its links are bound to the
 playback User-Agent and may also be bound to the requesting public IP. Pass the playback client's
 exact User-Agent as `MediaEngineOperationOptions.playbackUserAgent`; the required value is retained
 in each option's `access.headers` for non-browser clients.

@@ -40,7 +40,7 @@ export function videoHubStreamingProvider(
           context,
           playbackUserAgent,
         );
-        if ((query.type === "series") !== playlist.isSerial) return null;
+        if ((query.type !== "movie") !== playlist.isSerial) return null;
         const items = await resolveVideoHubItems(
           config,
           playlist,
@@ -74,16 +74,26 @@ function resolvePlaybackUserAgent(context: ProviderContext, fallback: string): s
 }
 
 function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>[0]): boolean {
-  if (query.type !== "movie" && query.type !== "series") return false;
-  if (query.absoluteEpisodeNumber !== undefined) return false;
   if (query.type === "movie") {
-    return query.seasonNumber === undefined && query.episodeNumber === undefined;
+    return (
+      query.seasonNumber === undefined &&
+      query.episodeNumber === undefined &&
+      query.absoluteEpisodeNumber === undefined
+    );
   }
 
-  return (
-    Number.isInteger(query.seasonNumber) &&
-    (query.seasonNumber ?? 0) > 0 &&
-    Number.isInteger(query.episodeNumber) &&
-    (query.episodeNumber ?? 0) > 0
-  );
+  const hasSeason = isPositiveInteger(query.seasonNumber);
+  const hasEpisode = isPositiveInteger(query.episodeNumber);
+  const hasAbsoluteEpisode = isPositiveInteger(query.absoluteEpisodeNumber);
+
+  if (query.type === "series") {
+    return hasSeason && hasEpisode && query.absoluteEpisodeNumber === undefined;
+  }
+
+  if (query.type !== "anime" || hasSeason !== hasEpisode) return false;
+  return hasAbsoluteEpisode || (hasSeason && hasEpisode);
+}
+
+function isPositiveInteger(value: number | undefined): boolean {
+  return Number.isInteger(value) && (value ?? 0) > 0;
 }

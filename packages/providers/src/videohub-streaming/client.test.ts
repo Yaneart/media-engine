@@ -7,6 +7,7 @@ import {
   parseVideoHubPlaylist,
   parseVideoHubSources,
   resolveVideoHubKinopoiskId,
+  selectVideoHubPlaylistItems,
 } from "./client.js";
 
 test("VideoHUB URL builders use the public Kinopoisk and video contracts", () => {
@@ -106,5 +107,64 @@ test("parseVideoHubSources rejects missing current source containers", () => {
   assert.throws(
     () => parseVideoHubSources("videohub-streaming", { hlsUrl: "https://cdn.test/a.m3u8" }),
     ProviderError,
+  );
+});
+
+test("selectVideoHubPlaylistItems maps anime absolute episodes across sorted seasons", () => {
+  const playlist = parseVideoHubPlaylist(
+    "videohub-streaming",
+    {
+      isSerial: true,
+      items: [
+        { season: 2, episode: 1, voiceStudio: "Dub", vkId: "301" },
+        { season: 1, episode: 2, voiceStudio: "Dub", vkId: "201" },
+        { season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" },
+        { season: 1, episode: 1, voiceStudio: "Sub", vkId: "102" },
+      ],
+    },
+    10,
+  );
+
+  assert.deepEqual(
+    selectVideoHubPlaylistItems(playlist, {
+      type: "anime",
+      kinopoisk: "5401195",
+      absoluteEpisodeNumber: 1,
+    }),
+    [
+      {
+        seasonNumber: 1,
+        episodeNumber: 1,
+        absoluteEpisodeNumber: 1,
+        voiceStudio: "Dub",
+        vkId: "101",
+      },
+      {
+        seasonNumber: 1,
+        episodeNumber: 1,
+        absoluteEpisodeNumber: 1,
+        voiceStudio: "Sub",
+        vkId: "102",
+      },
+    ],
+  );
+  assert.deepEqual(
+    selectVideoHubPlaylistItems(playlist, {
+      type: "anime",
+      kinopoisk: "5401195",
+      seasonNumber: 2,
+      episodeNumber: 1,
+    }).map((item) => [item.vkId, item.absoluteEpisodeNumber]),
+    [["301", 3]],
+  );
+  assert.deepEqual(
+    selectVideoHubPlaylistItems(playlist, {
+      type: "anime",
+      kinopoisk: "5401195",
+      seasonNumber: 1,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 2,
+    }),
+    [],
   );
 });

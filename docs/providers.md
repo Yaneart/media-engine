@@ -81,7 +81,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities              | None                      |
 | Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                        | None                      |
 | VeoVeo streaming       | Opt-in Kinopoisk/IMDb movie and series-episode direct signed HLS                   | None                      |
-| VideoHUB streaming     | Opt-in Kinopoisk movie and exact series-episode direct signed MP4 qualities        | None                      |
+| VideoHUB streaming     | Opt-in Kinopoisk movie, series, and anime exact-episode signed MP4 qualities       | None                      |
 | Rutube streaming       | Opt-in exact title/year movie lookup to the official public embed player           | None                      |
 | Experimental streaming | Deterministic configured options for development and tests                         | Application configuration |
 
@@ -133,18 +133,21 @@ treated as short-lived and the provider stays disabled by default because availa
 both upstream contracts.
 
 VideoHUB streaming is opt-in through `videoHubStreamingProvider()` or
-`MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk ID; series also
-require an exact season and episode so one request cannot fan out over a whole catalog. The adapter
-uses the public playlist and video JSON contracts without an account, cookie, or token, bounds
-catalog bytes/items, video lookups, concurrency, response bytes, and output lifetime, and accepts
-only fixed HTTPS MP4 source fields. VideoHUB HLS is intentionally not exposed because the observed
+`MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk ID. Series require
+an exact season and episode; anime accepts an exact absolute episode or an exact season and episode,
+so one request cannot fan out over a whole catalog. Absolute anime numbering is derived
+deterministically from unique season/episode pairs sorted by season and episode, and returned options
+preserve both identities. The adapter uses the public playlist and video JSON contracts without an
+account, cookie, or token, bounds catalog bytes/items, video lookups, concurrency, response bytes,
+and output lifetime, and accepts only fixed HTTPS MP4 source fields. VideoHUB HLS is intentionally not exposed because the observed
 master response does not allow browser cross-origin fetches. Returned MP4 URLs are short-lived,
 bound to the playback User-Agent, and may be source-IP-bound. Engine callers must pass the exact
 playback client value as `MediaEngineOperationOptions.playbackUserAgent`; the repository HTTP API
 does this from the availability request and partitions its cache by that value. This provider
 remains disabled by default and is best suited to clients that share the API server's public egress
 address. The repository API gives this opt-in source a
-separate 20-second timeout through `MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS`.
+separate 20-second timeout through `MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS`; individual
+video lookups use a bounded 15-second default within that ceiling.
 
 Rutube streaming is opt-in through `rutubeStreamingProvider()` or
 `MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED=true`. It supports movies only and searches the public

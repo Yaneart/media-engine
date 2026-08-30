@@ -104,3 +104,44 @@ test("mapVideoHubAvailability returns null without playable MP4 sources", () => 
     null,
   );
 });
+
+test("mapVideoHubAvailability preserves anime type and seasonal plus absolute episode refs", () => {
+  const item: ResolvedVideoHubItem = {
+    vkId: "101",
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+    voiceStudio: "Dub",
+    sourceUrl: "https://videohub.test/video/101",
+    sources: [{ url: "https://cdn.test/anime-1080.mp4", label: "1080p", height: 1080 }],
+  };
+  const result = mapVideoHubAvailability(
+    "videohub-streaming",
+    "5401195",
+    "Провожающая в последний путь Фрирен",
+    [item],
+    {
+      type: "anime",
+      ids: { aniList: "154587", kinopoisk: "5401195" },
+      absoluteEpisodeNumber: 1,
+    },
+    "https://videohub.test/playlist?id=5401195",
+    now,
+    300_000,
+    playbackUserAgent,
+  );
+
+  assert.equal(result?.item?.type, "anime");
+  assert.deepEqual(result?.item?.ids, { aniList: "154587", kinopoisk: "5401195" });
+  assert.deepEqual(result?.options[0]?.episode, {
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+  });
+  assert.deepEqual(result?.episodes?.[0], {
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+    options: result?.options,
+  });
+});

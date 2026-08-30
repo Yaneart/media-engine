@@ -23,6 +23,7 @@ export interface VideoHubPlaylistItem {
   vkId: string;
   seasonNumber?: number;
   episodeNumber?: number;
+  absoluteEpisodeNumber?: number;
   voiceStudio?: string;
   voiceType?: string;
 }
@@ -93,7 +94,7 @@ export async function resolveVideoHubItems(
   context: ProviderContext,
   playbackUserAgent: string,
 ): Promise<ResolvedVideoHubItem[]> {
-  const selected = selectPlaylistItems(playlist, query).slice(0, config.videoLookupLimit);
+  const selected = selectVideoHubPlaylistItems(playlist, query).slice(0, config.videoLookupLimit);
   if (selected.length === 0) return [];
 
   const resolved: Array<ResolvedVideoHubItem | undefined> = new Array(selected.length);
@@ -184,17 +185,53 @@ export function parseVideoHubSources(provider: string, value: unknown): VideoHub
   return sources;
 }
 
-function selectPlaylistItems(
+export function selectVideoHubPlaylistItems(
   playlist: VideoHubPlaylist,
   query: MediaAvailability["query"],
 ): VideoHubPlaylistItem[] {
   if (query.type === "movie") return playlist.isSerial ? [] : playlist.items;
   if (!playlist.isSerial) return [];
 
-  return playlist.items.filter(
-    (item) =>
-      item.seasonNumber === query.seasonNumber && item.episodeNumber === query.episodeNumber,
-  );
+  const items = query.type === "anime" ? addAbsoluteEpisodeNumbers(playlist.items) : playlist.items;
+
+  return items.filter((item) => {
+    if (query.seasonNumber !== undefined && item.seasonNumber !== query.seasonNumber) {
+      return false;
+    }
+    if (query.episodeNumber !== undefined && item.episodeNumber !== query.episodeNumber) {
+      return false;
+    }
+    return (
+      query.absoluteEpisodeNumber === undefined ||
+      item.absoluteEpisodeNumber === query.absoluteEpisodeNumber
+    );
+  });
+}
+
+function addAbsoluteEpisodeNumbers(items: VideoHubPlaylistItem[]): VideoHubPlaylistItem[] {
+  const episodeKeys = [
+    ...new Set(
+      items.flatMap((item) => {
+        if (item.seasonNumber === undefined || item.episodeNumber === undefined) return [];
+        return [`${item.seasonNumber}:${item.episodeNumber}`];
+      }),
+    ),
+  ].sort(compareEpisodeKeys);
+  const absoluteByEpisode = new Map(episodeKeys.map((key, index) => [key, index + 1] as const));
+
+  return items.flatMap((item) => {
+    if (item.seasonNumber === undefined || item.episodeNumber === undefined) return [];
+    const absoluteEpisodeNumber = absoluteByEpisode.get(
+      `${item.seasonNumber}:${item.episodeNumber}`,
+    );
+    return absoluteEpisodeNumber === undefined ? [] : [{ ...item, absoluteEpisodeNumber }];
+  });
+}
+
+function compareEpisodeKeys(left: string, right: string): number {
+  const [leftSeason = 0, leftEpisode = 0] = left.split(":").map(Number);
+  const [rightSeason = 0, rightEpisode = 0] = right.split(":").map(Number);
+  return leftSeason - rightSeason || leftEpisode - rightEpisode;
 }
 
 async function loadVideoHubSources(

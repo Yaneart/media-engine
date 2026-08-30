@@ -60,7 +60,8 @@ Kinopoisk or IMDb ID, uses DDBB only to resolve VeoVeo's public content ID, and 
 token without loading the iframe.
 
 VideoHUB direct signed MP4 is opt-in with `MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. It needs
-a Kinopoisk ID; series need an exact season and episode. Links are short-lived, bound to the
+a Kinopoisk ID; series need an exact season and episode, while anime accepts an exact absolute
+episode or season/episode pair. Links are short-lived, bound to the
 playback User-Agent, and may also be bound to the API server's public egress IP. The HTTP API
 forwards the availability request's User-Agent and isolates these links in cache accordingly. Its
 separate timeout defaults to 20 seconds and can be changed with

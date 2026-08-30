@@ -94,12 +94,69 @@ test("videoHubStreamingProvider resolves a movie and ignores unsupported queries
     { type: "movie" as const, title: "Interstellar" },
     { type: "series" as const, kinopoisk: "404900" },
     { type: "series" as const, kinopoisk: "404900", seasonNumber: 1 },
-    { type: "anime" as const, kinopoisk: "404900", absoluteEpisodeNumber: 1 },
+    { type: "anime" as const, kinopoisk: "404900" },
+    { type: "anime" as const, kinopoisk: "404900", seasonNumber: 1 },
     { type: "movie" as const, kinopoisk: "258687", providers: ["other"] },
   ]) {
     assert.equal(await provider.getAvailability(query, context()), null);
   }
   assert.equal(calls, 2);
+});
+
+test("videoHubStreamingProvider resolves an anime absolute episode as a serial playlist", async () => {
+  const requestedVideos: string[] = [];
+  const provider = videoHubStreamingProvider({
+    baseUrl: "https://videohub.test",
+    now: () => Date.parse("2026-08-30T12:00:00.000Z"),
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.includes("/playlist?")) {
+        return Response.json({
+          titleName: "Провожающая в последний путь Фрирен",
+          isSerial: true,
+          items: [
+            { season: 1, episode: 2, voiceStudio: "Dub", vkId: "201" },
+            { season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" },
+            { season: 1, episode: 1, voiceStudio: "Sub", vkId: "102" },
+          ],
+        });
+      }
+
+      const vkId = new URL(url).pathname.split("/").at(-1)!;
+      requestedVideos.push(vkId);
+      return Response.json({
+        sources: { mpegFullHdUrl: `https://cdn.test/${vkId}/1080.mp4` },
+      });
+    },
+  });
+
+  const result = await provider.getAvailability(
+    {
+      type: "anime",
+      title: "Frieren: Beyond Journey's End",
+      ids: { aniList: "154587", kinopoisk: "5401195" },
+      absoluteEpisodeNumber: 1,
+    },
+    context(undefined, "Playback Browser/1.0"),
+  );
+
+  assert.deepEqual(requestedVideos, ["101", "102"]);
+  assert.equal(result?.item?.type, "anime");
+  assert.deepEqual(result?.item?.ids, { aniList: "154587", kinopoisk: "5401195" });
+  assert.deepEqual(result?.episodes?.[0], {
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+    options: result?.options,
+  });
+  assert.ok(
+    result?.options.every(
+      (option) =>
+        option.episode?.seasonNumber === 1 &&
+        option.episode.episodeNumber === 1 &&
+        option.episode.absoluteEpisodeNumber === 1,
+    ),
+  );
 });
 
 test("videoHubStreamingProvider rejects type mismatches without resolving video URLs", async () => {

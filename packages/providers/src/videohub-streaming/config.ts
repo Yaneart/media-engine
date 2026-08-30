@@ -11,7 +11,7 @@ const DEFAULT_MAX_VIDEO_RESPONSE_BYTES = 256 * 1024;
 const DEFAULT_PLAYLIST_ITEM_LIMIT = 1_000;
 const DEFAULT_VIDEO_LOOKUP_LIMIT = 8;
 const DEFAULT_VIDEO_LOOKUP_CONCURRENCY = 4;
-const DEFAULT_VIDEO_LOOKUP_TIMEOUT_MS = 8_000;
+const DEFAULT_VIDEO_LOOKUP_TIMEOUT_MS = 15_000;
 const DEFAULT_LINK_TTL_MS = 5 * 60_000;
 const DEFAULT_ADDRESS_ATTEMPT_TIMEOUT_MS = 3_500;
 
@@ -119,7 +119,7 @@ export function createVideoHubConfig(
 
 export function createVideoHubCapabilities(): StreamingProviderCapabilities {
   return {
-    mediaTypes: ["movie", "series"],
+    mediaTypes: ["movie", "series", "anime"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk"],

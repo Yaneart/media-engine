@@ -27,16 +27,15 @@ export function mapVideoHubAvailability(
   );
   if (options.length === 0) return null;
 
-  const episodes: StreamEpisodeAvailability[] | undefined =
-    query.type === "series"
-      ? [
-          {
-            seasonNumber: query.seasonNumber,
-            episodeNumber: query.episodeNumber,
-            options,
-          },
-        ]
-      : undefined;
+  const episode = items[0] ? createEpisodeRef(items[0], query) : undefined;
+  const episodes: StreamEpisodeAvailability[] | undefined = episode
+    ? [
+        {
+          ...episode,
+          options,
+        },
+      ]
+    : undefined;
   const ids = { ...query.ids, kinopoisk: kinopoiskId };
 
   return {
@@ -63,12 +62,9 @@ function createOption(
   expiresAt: string,
   playbackUserAgent: string,
 ): StreamOption {
-  const episode =
-    query.type === "series"
-      ? { seasonNumber: item.seasonNumber, episodeNumber: item.episodeNumber }
-      : undefined;
+  const episode = createEpisodeRef(item, query);
   const translation = createTranslation(item.voiceStudio, item.voiceType);
-  const episodeKey = episode ? `:${episode.seasonNumber}:${episode.episodeNumber}` : "";
+  const episodeKey = createEpisodeKey(episode, query.type);
 
   return {
     id: `${provider}:${kinopoiskId}${episodeKey}:${item.vkId}:${source.label}`,
@@ -89,6 +85,30 @@ function createOption(
     expiresAt,
     sourceUrl: item.sourceUrl,
   };
+}
+
+function createEpisodeRef(
+  item: ResolvedVideoHubItem,
+  query: MediaAvailability["query"],
+): StreamOption["episode"] {
+  if (query.type === "movie") return undefined;
+
+  return {
+    ...(item.seasonNumber !== undefined ? { seasonNumber: item.seasonNumber } : {}),
+    ...(item.episodeNumber !== undefined ? { episodeNumber: item.episodeNumber } : {}),
+    ...(query.type === "anime" && item.absoluteEpisodeNumber !== undefined
+      ? { absoluteEpisodeNumber: item.absoluteEpisodeNumber }
+      : {}),
+  };
+}
+
+function createEpisodeKey(
+  episode: StreamOption["episode"],
+  type: MediaAvailability["query"]["type"],
+): string {
+  if (!episode) return "";
+  if (type === "series") return `:${episode.seasonNumber}:${episode.episodeNumber}`;
+  return `:a:${episode.absoluteEpisodeNumber}:s:${episode.seasonNumber}:e:${episode.episodeNumber}`;
 }
 
 function createTranslation(voiceStudio?: string, voiceType?: string): TranslationInfo {

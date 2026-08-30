@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createVideoHubConfig } from "./config.js";
 import { videoHubStreamingProvider } from "./index.js";
 
 test("videoHubStreamingProvider exposes direct Kinopoisk MP4 capabilities", () => {
@@ -7,7 +8,7 @@ test("videoHubStreamingProvider exposes direct Kinopoisk MP4 capabilities", () =
 
   assert.equal(provider.name, "videohub-streaming");
   assert.deepEqual(provider.capabilities, {
-    mediaTypes: ["movie", "series"],
+    mediaTypes: ["movie", "series", "anime"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk"],
@@ -43,4 +44,14 @@ test("videoHubStreamingProvider validates credential-free bounded configuration"
       /must be an integer between/u,
     );
   }
+});
+
+test("VideoHUB keeps video lookups inside the repository provider ceiling", () => {
+  const fetch = async () => Response.json({});
+
+  assert.equal(createVideoHubConfig({ fetch }).videoLookupTimeoutMs, 15_000);
+  assert.equal(
+    createVideoHubConfig({ fetch, videoLookupTimeoutMs: 12_000 }).videoLookupTimeoutMs,
+    12_000,
+  );
 });

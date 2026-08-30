@@ -7,6 +7,18 @@ documented breaking changes.
 
 ## Unreleased
 
+### Added
+
+- VideoHUB streaming now supports exact anime episodes when a Kinopoisk ID is available. Absolute
+  episode numbers are deterministically mapped across the provider's ordered season/episode
+  catalog, while output preserves both absolute and seasonal episode references.
+
+### Changed
+
+- VideoHUB's bounded per-video lookup window now defaults to 15 seconds within the repository
+  API's existing 20-second provider ceiling, reducing false misses during intermittent upstream
+  connection delays.
+
 ## 1.1.0 - 2026-08-23
 
 ### Added
