@@ -125,7 +125,7 @@ export function createVideoHubCapabilities(): StreamingProviderCapabilities {
       byExternalIds: ["kinopoisk"],
       byEpisode: true,
     },
-    features: ["mp4", "translations", "qualities", "episode_mapping", "headers"],
+    features: ["mp4", "translations", "qualities", "episode_mapping", "episode_catalog", "headers"],
   };
 }
 

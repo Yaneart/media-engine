@@ -2,9 +2,39 @@ import type {
   MediaAvailability,
   StreamEpisodeAvailability,
   StreamOption,
+  StreamSeasonAvailability,
   TranslationInfo,
 } from "@media-engine/core";
-import type { ResolvedVideoHubItem, VideoHubMp4Source } from "./client.js";
+import { selectVideoHubPlaylistItems } from "./client.js";
+import type {
+  ResolvedVideoHubItem,
+  VideoHubMp4Source,
+  VideoHubPlaylist,
+  VideoHubPlaylistItem,
+} from "./client.js";
+
+export function mapVideoHubEpisodeCatalog(
+  provider: string,
+  kinopoiskId: string,
+  playlist: VideoHubPlaylist,
+  query: MediaAvailability["query"],
+  sourceUrl: string,
+  now: number,
+): MediaAvailability | null {
+  const episodes = uniqueEpisodeRefs(selectVideoHubPlaylistItems(playlist, query));
+  if (episodes.length === 0) return null;
+  const ids = { ...query.ids, kinopoisk: kinopoiskId };
+
+  return {
+    query,
+    item: { type: "anime", title: playlist.title ?? query.title, year: query.year, ids },
+    seasons: createSeasons(episodes),
+    episodes,
+    options: [],
+    sourceProviders: [{ provider, url: sourceUrl, ids }],
+    checkedAt: new Date(now).toISOString(),
+  };
+}
 
 export function mapVideoHubAvailability(
   provider: string,
@@ -139,4 +169,43 @@ function uniqueOptions(options: StreamOption[]): StreamOption[] {
     seen.add(key);
     return true;
   });
+}
+
+function uniqueEpisodeRefs(items: VideoHubPlaylistItem[]): StreamEpisodeAvailability[] {
+  const episodes = new Map<string, StreamEpisodeAvailability>();
+
+  for (const item of items) {
+    if (item.seasonNumber === undefined || item.episodeNumber === undefined) continue;
+    const key = `${item.seasonNumber}:${item.episodeNumber}`;
+    if (episodes.has(key)) continue;
+    episodes.set(key, {
+      seasonNumber: item.seasonNumber,
+      episodeNumber: item.episodeNumber,
+      absoluteEpisodeNumber: item.absoluteEpisodeNumber,
+      options: [],
+    });
+  }
+
+  return [...episodes.values()].sort(
+    (left, right) =>
+      (left.seasonNumber ?? 0) - (right.seasonNumber ?? 0) ||
+      (left.episodeNumber ?? 0) - (right.episodeNumber ?? 0),
+  );
+}
+
+function createSeasons(episodes: StreamEpisodeAvailability[]): StreamSeasonAvailability[] {
+  const seasons = new Map<number, StreamEpisodeAvailability[]>();
+
+  for (const episode of episodes) {
+    if (episode.seasonNumber === undefined) continue;
+    const entries = seasons.get(episode.seasonNumber) ?? [];
+    entries.push(episode);
+    seasons.set(episode.seasonNumber, entries);
+  }
+
+  return [...seasons.entries()].map(([seasonNumber, seasonEpisodes]) => ({
+    seasonNumber,
+    episodes: seasonEpisodes,
+    episodesCount: seasonEpisodes.length,
+  }));
 }

@@ -11,6 +11,9 @@ documented breaking changes.
 
 - AniList anime metadata now preserves `bannerImage` as normalized horizontal backdrop artwork in
   search results and details, while retaining existing poster and provider image collections.
+- Anime availability can now expose a provider-neutral season catalog. VideoHUB builds it from one
+  bounded playlist request without resolving every episode stream, preserving seasonal and absolute
+  episode numbers and season-zero specials.
 
 ## 1.2.0 - 2026-08-30
 

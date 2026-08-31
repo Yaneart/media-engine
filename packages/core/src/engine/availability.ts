@@ -5,6 +5,7 @@ import type {
   StreamEpisodeAvailability,
   StreamOption,
   StreamQuery,
+  StreamSeasonAvailability,
   StreamingProvider,
   StreamingProviderSource,
 } from "../streaming/index.js";
@@ -44,10 +45,14 @@ export function mergeAvailabilityResults(
   query: StreamQuery,
   results: MediaAvailability[],
 ): MediaAvailability {
+  const episodes = mergeEpisodeAvailability(results);
+  const seasons = createSeasonAvailability(episodes);
+
   return {
     query,
     item: results.find((result) => result.item)?.item,
-    episodes: mergeEpisodeAvailability(results),
+    ...(seasons ? { seasons } : {}),
+    episodes,
     options: uniqueBy(
       results.flatMap((result) => result.options),
       (option) => `${option.provider}:${option.id}`,
@@ -58,6 +63,35 @@ export function mergeAvailabilityResults(
     ),
     checkedAt: new Date().toISOString(),
   };
+}
+
+// Groups a normalized flat episode catalog into selectable seasons.
+// Группирует нормализованный плоский каталог эпизодов в выбираемые сезоны.
+function createSeasonAvailability(
+  episodes: StreamEpisodeAvailability[] | undefined,
+): StreamSeasonAvailability[] | undefined {
+  const seasons = new Map<number, StreamEpisodeAvailability[]>();
+
+  for (const episode of episodes ?? []) {
+    if (episode.seasonNumber === undefined) continue;
+    const entries = seasons.get(episode.seasonNumber) ?? [];
+    entries.push(episode);
+    seasons.set(episode.seasonNumber, entries);
+  }
+
+  return seasons.size
+    ? [...seasons.entries()]
+        .sort(([left], [right]) => left - right)
+        .map(([seasonNumber, seasonEpisodes]) => ({
+          seasonNumber,
+          episodes: seasonEpisodes.sort(
+            (left, right) =>
+              (left.episodeNumber ?? Number.MAX_SAFE_INTEGER) -
+              (right.episodeNumber ?? Number.MAX_SAFE_INTEGER),
+          ),
+          episodesCount: seasonEpisodes.length,
+        }))
+    : undefined;
 }
 
 // Keeps cached direct links from outliving the earliest advertised expiration.
@@ -104,6 +138,7 @@ function mergeEpisodeAvailability(
 
   for (const episode of results.flatMap((result) => [
     ...(result.episodes ?? []),
+    ...(result.seasons?.flatMap((season) => season.episodes) ?? []),
     ...createEpisodeAvailabilityFromOptions(result.options),
   ])) {
     const key = createEpisodeKey(episode);

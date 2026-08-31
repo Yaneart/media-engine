@@ -134,10 +134,11 @@ both upstream contracts.
 
 VideoHUB streaming is opt-in through `videoHubStreamingProvider()` or
 `MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk ID. Series require
-an exact season and episode; anime accepts an exact absolute episode or an exact season and episode,
-so one request cannot fan out over a whole catalog. Absolute anime numbering is derived
-deterministically from unique season/episode pairs sorted by season and episode, and returned options
-preserve both identities. The adapter uses the public playlist and video JSON contracts without an
+an exact season and episode. An anime request without episode coordinates returns a bounded season
+catalog from the playlist without resolving every stream; exact playback accepts an absolute episode
+or a season/episode pair. Absolute anime numbering is derived deterministically from unique pairs
+sorted by season and episode, including season-zero specials, and returned options preserve both
+identities. The adapter uses the public playlist and video JSON contracts without an
 account, cookie, or token, bounds catalog bytes/items, video lookups, concurrency, response bytes,
 and output lifetime, and accepts only fixed HTTPS MP4 source fields. VideoHUB HLS is intentionally not exposed because the observed
 master response does not allow browser cross-origin fetches. Returned MP4 URLs are short-lived,

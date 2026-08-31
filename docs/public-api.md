@@ -107,7 +107,11 @@ const availability = await streamingEngine.getAvailability({
 });
 ```
 
-Availability responses contain normalized player/stream options and optional episode groups. Options may describe an embed, HLS, MP4, or external target together with translation, quality, subtitle, audio, expiry, and provider metadata when available.
+Availability responses contain normalized player/stream options, optional episode groups, and
+optional `seasons`. For anime providers with catalog support, omit episode coordinates to list
+seasons and their seasonal plus absolute episode identities before requesting exact playback.
+Options may describe an embed, HLS, MP4, or external target together with translation, quality,
+subtitle, audio, expiry, and provider metadata when available.
 
 Returned options are discovered from third-party sources. They are not a guarantee that playback works in every browser, country, or network.
 

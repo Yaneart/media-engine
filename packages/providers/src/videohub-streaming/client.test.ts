@@ -72,7 +72,7 @@ test("parseVideoHubPlaylist rejects structurally invalid non-empty catalogs", ()
     () =>
       parseVideoHubPlaylist(
         "videohub-streaming",
-        { isSerial: true, items: [{ season: 0, episode: 1, vkId: "bad" }] },
+        { isSerial: true, items: [{ season: -1, episode: 1, vkId: "bad" }] },
         10,
       ),
     (error) => error instanceof ProviderError && error.code === "PROVIDER_INVALID_RESPONSE",
@@ -116,6 +116,7 @@ test("selectVideoHubPlaylistItems maps anime absolute episodes across sorted sea
     {
       isSerial: true,
       items: [
+        { season: 0, episode: 1, voiceStudio: "Special", vkId: "401" },
         { season: 2, episode: 1, voiceStudio: "Dub", vkId: "301" },
         { season: 1, episode: 2, voiceStudio: "Dub", vkId: "201" },
         { season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" },

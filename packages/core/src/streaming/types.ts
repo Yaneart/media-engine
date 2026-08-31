@@ -47,6 +47,14 @@ export interface StreamEpisodeAvailability extends StreamEpisodeRef {
   options: StreamOption[];
 }
 
+// Season-level episode catalog, including specials represented as season zero.
+// Каталог эпизодов сезона; специальные выпуски могут находиться в сезоне 0.
+export interface StreamSeasonAvailability {
+  seasonNumber: number;
+  episodes: StreamEpisodeAvailability[];
+  episodesCount: number;
+}
+
 // Type of player target the application can render or open.
 // Тип player-цели, которую приложение может отрисовать или открыть.
 export type PlayerSourceKind = "embed" | "hls" | "mp4" | "external";
@@ -144,6 +152,7 @@ export interface StreamingProviderSource {
 export interface MediaAvailability {
   query: StreamQuery;
   item?: StreamMediaItem;
+  seasons?: StreamSeasonAvailability[];
   episodes?: StreamEpisodeAvailability[];
   options: StreamOption[];
   sourceProviders: StreamingProviderSource[];
@@ -162,6 +171,7 @@ export type StreamingProviderFeature =
   | "subtitles"
   | "qualities"
   | "episode_mapping"
+  | "episode_catalog"
   | "headers";
 
 // Capabilities used to select streaming providers for a stream query.

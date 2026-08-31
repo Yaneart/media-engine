@@ -212,7 +212,12 @@ function addAbsoluteEpisodeNumbers(items: VideoHubPlaylistItem[]): VideoHubPlayl
   const episodeKeys = [
     ...new Set(
       items.flatMap((item) => {
-        if (item.seasonNumber === undefined || item.episodeNumber === undefined) return [];
+        if (
+          item.seasonNumber === undefined ||
+          item.seasonNumber === 0 ||
+          item.episodeNumber === undefined
+        )
+          return [];
         return [`${item.seasonNumber}:${item.episodeNumber}`];
       }),
     ),
@@ -221,6 +226,7 @@ function addAbsoluteEpisodeNumbers(items: VideoHubPlaylistItem[]): VideoHubPlayl
 
   return items.flatMap((item) => {
     if (item.seasonNumber === undefined || item.episodeNumber === undefined) return [];
+    if (item.seasonNumber === 0) return [item];
     const absoluteEpisodeNumber = absoluteByEpisode.get(
       `${item.seasonNumber}:${item.episodeNumber}`,
     );
@@ -263,7 +269,7 @@ function parsePlaylistItem(value: unknown, isSerial: boolean): VideoHubPlaylistI
   const vkId = readIdentifier(value.vkId);
   if (!vkId) return undefined;
 
-  const seasonNumber = isSerial ? readPositiveInteger(value.season) : undefined;
+  const seasonNumber = isSerial ? readNonNegativeInteger(value.season) : undefined;
   const episodeNumber = isSerial ? readPositiveInteger(value.episode) : undefined;
   if (isSerial && (seasonNumber === undefined || episodeNumber === undefined)) return undefined;
 
@@ -300,6 +306,10 @@ function readIdentifier(value: unknown): string | undefined {
 
 function readPositiveInteger(value: unknown): number | undefined {
   return Number.isSafeInteger(value) && (value as number) > 0 ? (value as number) : undefined;
+}
+
+function readNonNegativeInteger(value: unknown): number | undefined {
+  return Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : undefined;
 }
 
 function readString(value: unknown, maxLength: number): string | undefined {

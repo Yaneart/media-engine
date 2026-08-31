@@ -116,6 +116,38 @@ test("getAvailability derives episode groups from top-level episode options", as
   assert.deepEqual(availability.episodes?.[0]?.options, availability.options);
 });
 
+test("getAvailability groups episode catalogs into seasons including specials", async () => {
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(query): Promise<MediaAvailability> {
+          return {
+            query,
+            episodes: [
+              { seasonNumber: 0, episodeNumber: 1, absoluteEpisodeNumber: 1, options: [] },
+              { seasonNumber: 1, episodeNumber: 1, absoluteEpisodeNumber: 2, options: [] },
+              { seasonNumber: 1, episodeNumber: 2, absoluteEpisodeNumber: 3, options: [] },
+            ],
+            options: [],
+            sourceProviders: [{ provider: "catalog" }],
+            checkedAt: "2026-08-31T00:00:00.000Z",
+          };
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({ type: "anime", title: "Seasonal Anime" });
+
+  assert.deepEqual(
+    availability.seasons?.map((season) => [season.seasonNumber, season.episodesCount]),
+    [
+      [0, 1],
+      [1, 2],
+    ],
+  );
+});
+
 test("getAvailability respects requested streaming provider filter", async () => {
   const engine = new MediaEngine({
     streamingProviders: [

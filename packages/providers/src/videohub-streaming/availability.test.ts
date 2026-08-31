@@ -94,13 +94,63 @@ test("videoHubStreamingProvider resolves a movie and ignores unsupported queries
     { type: "movie" as const, title: "Interstellar" },
     { type: "series" as const, kinopoisk: "404900" },
     { type: "series" as const, kinopoisk: "404900", seasonNumber: 1 },
-    { type: "anime" as const, kinopoisk: "404900" },
     { type: "anime" as const, kinopoisk: "404900", seasonNumber: 1 },
     { type: "movie" as const, kinopoisk: "258687", providers: ["other"] },
   ]) {
     assert.equal(await provider.getAvailability(query, context()), null);
   }
   assert.equal(calls, 2);
+});
+
+test("videoHubStreamingProvider lists anime seasons without resolving episode streams", async () => {
+  const requests: string[] = [];
+  const provider = videoHubStreamingProvider({
+    baseUrl: "https://videohub.test",
+    now: () => Date.parse("2026-08-31T12:00:00.000Z"),
+    fetch: async (input) => {
+      requests.push(String(input));
+      return Response.json({
+        titleName: "Seasonal Anime",
+        isSerial: true,
+        items: [
+          { season: 1, episode: 2, voiceStudio: "Dub", vkId: "201" },
+          { season: 0, episode: 1, voiceStudio: "Special", vkId: "401" },
+          { season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" },
+          { season: 1, episode: 1, voiceStudio: "Sub", vkId: "102" },
+          { season: 2, episode: 1, voiceStudio: "Dub", vkId: "301" },
+        ],
+      });
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "anime", ids: { kinopoisk: "5401195", aniList: "154587" } },
+    context(),
+  );
+
+  assert.equal(requests.length, 1);
+  assert.deepEqual(result?.options, []);
+  assert.deepEqual(
+    result?.seasons?.map((season) => [season.seasonNumber, season.episodesCount]),
+    [
+      [0, 1],
+      [1, 2],
+      [2, 1],
+    ],
+  );
+  assert.deepEqual(
+    result?.episodes?.map((episode) => [
+      episode.seasonNumber,
+      episode.episodeNumber,
+      episode.absoluteEpisodeNumber,
+    ]),
+    [
+      [0, 1, undefined],
+      [1, 1, 1],
+      [1, 2, 2],
+      [2, 1, 3],
+    ],
+  );
 });
 
 test("videoHubStreamingProvider resolves an anime absolute episode as a serial playlist", async () => {
