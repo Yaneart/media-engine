@@ -1,5 +1,5 @@
 // Keep this runtime value aligned with packages/providers/package.json.
 // scripts/check-release-consistency.mjs enforces the manifest/runtime contract.
-export const MEDIA_ENGINE_PROVIDERS_VERSION = "1.2.0";
+export const MEDIA_ENGINE_PROVIDERS_VERSION = "1.3.0";
 
 export const MEDIA_ENGINE_DEFAULT_USER_AGENT = `MediaEngine/${MEDIA_ENGINE_PROVIDERS_VERSION} (https://github.com/Yaneart/media-engine)`;

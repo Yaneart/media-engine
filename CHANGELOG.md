@@ -5,7 +5,7 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
-## Unreleased
+## 1.3.0 - 2026-08-31
 
 ### Added
 
@@ -14,6 +14,10 @@ documented breaking changes.
 - Anime availability can now expose a provider-neutral season catalog. VideoHUB builds it from one
   bounded playlist request without resolving every episode stream, preserving seasonal and absolute
   episode numbers and season-zero specials.
+
+### Changed
+
+- The additive REST/OpenAPI contract version is now `0.13.0` for normalized anime season catalogs.
 
 ## 1.2.0 - 2026-08-30
 
