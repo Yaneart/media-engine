@@ -31,7 +31,7 @@ const MEDIA_FIELDS = `
   id idMal title { romaji english native } synonyms format status episodes duration
   startDate { year month day } endDate { year month day }
   description(asHtml: false) averageScore popularity isAdult countryOfOrigin
-  coverImage { extraLarge large } genres siteUrl
+  coverImage { extraLarge large } bannerImage genres siteUrl
 `;
 
 export interface AniListProviderOptions {
@@ -70,6 +70,7 @@ interface AniListMedia {
   isAdult?: boolean;
   countryOfOrigin?: string | null;
   coverImage?: { extraLarge?: string | null; large?: string | null };
+  bannerImage?: string | null;
   genres?: string[];
   siteUrl?: string | null;
 }
@@ -103,7 +104,7 @@ export function aniListProvider(options: AniListProviderOptions = {}): MediaProv
       mediaTypes: ["anime"],
       search: { byTitle: true, byExternalIds: ["aniList", "myAnimeList"] },
       details: { byExternalIds: ["aniList", "myAnimeList"] },
-      features: ["posters", "ratings", "genres"],
+      features: ["posters", "backdrops", "ratings", "genres"],
     },
     search: (query, context) => searchAniList(config, query, context),
     getDetails: (query, context) => getAniListDetails(config, query, context),
@@ -213,6 +214,7 @@ function mapMediaItem(media: AniListMedia): MediaItem | undefined {
     releaseDate,
     description: normalizeText(media.description),
     poster: mapPoster(media.coverImage),
+    backdrop: createProviderImage(media.bannerImage, "backdrop", PROVIDER_NAME),
     genres: mapGenres(media.genres),
     ratings: mapRating(media),
     ids: { aniList: String(media.id), myAnimeList: media.idMal ? String(media.idMal) : undefined },
@@ -290,6 +292,8 @@ function repairMojibake(value: string | undefined): string | undefined {
 }
 
 function mapDetails(item: MediaItem, media: AniListMedia): AnimeDetails {
+  const images = [item.poster, item.backdrop].filter((image): image is Image => Boolean(image));
+
   return {
     ...item,
     type: "anime",
@@ -297,6 +301,7 @@ function mapDetails(item: MediaItem, media: AniListMedia): AnimeDetails {
     runtimeMinutes: media.duration ?? undefined,
     countries: media.countryOfOrigin ? [media.countryOfOrigin] : undefined,
     languages: media.countryOfOrigin === "JP" ? ["ja"] : undefined,
+    images: images.length ? images : undefined,
     sourceProviders: [createSource(item.ids)],
     animeKind: mapKind(media.format),
     episodesCount: media.episodes ?? undefined,

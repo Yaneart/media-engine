@@ -7,6 +7,11 @@ documented breaking changes.
 
 ## Unreleased
 
+### Added
+
+- AniList anime metadata now preserves `bannerImage` as normalized horizontal backdrop artwork in
+  search results and details, while retaining existing poster and provider image collections.
+
 ## 1.2.0 - 2026-08-30
 
 ### Added

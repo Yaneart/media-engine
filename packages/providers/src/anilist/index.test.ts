@@ -25,6 +25,7 @@ test("aniListProvider searches English anime titles with popularity", async () =
                 averageScore: 84,
                 popularity: 4_000_000,
                 description: "First line.<br><br><b>Second line.</b>",
+                bannerImage: "https://images.example/attack-on-titan-banner.jpg",
               },
             ],
           },
@@ -40,8 +41,10 @@ test("aniListProvider searches English anime titles with popularity", async () =
   assert.equal(results[0]?.item.ids?.aniList, "16498");
   assert.equal(results[0]?.item.ratings?.[0]?.votes, 4_000_000);
   assert.equal(results[0]?.item.description, "First line.\n\nSecond line.");
+  assert.equal(results[0]?.item.backdrop?.url, "https://images.example/attack-on-titan-banner.jpg");
   assert.equal(body.variables?.search, "Attack on Titan");
   assert.match(body.query ?? "", /POPULARITY_DESC/);
+  assert.match(body.query ?? "", /bannerImage/);
 });
 
 test("aniListProvider loads details by AniList ID", async () => {
@@ -58,6 +61,8 @@ test("aniListProvider loads details by AniList ID", async () => {
             episodes: 37,
             duration: 23,
             countryOfOrigin: "JP",
+            coverImage: { extraLarge: "https://images.example/death-note-cover.jpg" },
+            bannerImage: "https://images.example/death-note-banner.jpg",
             startDate: { year: 2006, month: 10, day: 4 },
             endDate: { year: 2007, month: 6, day: 27 },
           },
@@ -71,6 +76,36 @@ test("aniListProvider loads details by AniList ID", async () => {
   assert.equal(result?.details.status, "ended");
   assert.equal(result?.details.episodesCount, 37);
   assert.equal(result?.details.runtimeMinutes, 23);
+  assert.equal(result?.details.backdrop?.type, "backdrop");
+  assert.equal(result?.details.backdrop?.url, "https://images.example/death-note-banner.jpg");
+  assert.deepEqual(
+    result?.details.images?.map((image) => image.type),
+    ["poster", "backdrop"],
+  );
+});
+
+test("aniListProvider omits missing banner artwork", async () => {
+  const provider = aniListProvider({
+    fetch: async () =>
+      Response.json({
+        data: {
+          Media: {
+            id: 52991,
+            title: { english: "Frieren: Beyond Journey's End" },
+            coverImage: { large: "https://images.example/frieren-cover.jpg" },
+            bannerImage: null,
+          },
+        },
+      }),
+  });
+
+  const result = await provider.getDetails?.({ type: "anime", ids: { aniList: "52991" } }, {});
+
+  assert.equal(result?.details.backdrop, undefined);
+  assert.deepEqual(
+    result?.details.images?.map((image) => image.type),
+    ["poster"],
+  );
 });
 
 test("aniListProvider repairs mojibake in titles, aliases, and descriptions", async () => {
