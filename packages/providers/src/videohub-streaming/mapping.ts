@@ -47,11 +47,19 @@ export function mapVideoHubAvailability(
   linkTtlMs: number,
   playbackUserAgent: string,
 ): MediaAvailability | null {
-  const expiresAt = new Date(now + linkTtlMs).toISOString();
+  const fallbackExpiresAt = new Date(now + linkTtlMs).toISOString();
   const options = uniqueOptions(
     items.flatMap((item) =>
       item.sources.map((source) =>
-        createOption(provider, kinopoiskId, item, source, query, expiresAt, playbackUserAgent),
+        createOption(
+          provider,
+          kinopoiskId,
+          item,
+          source,
+          query,
+          item.expiresAt ?? fallbackExpiresAt,
+          playbackUserAgent,
+        ),
       ),
     ),
   );

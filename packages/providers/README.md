@@ -70,6 +70,15 @@ const result = await media.getAvailability({
   seasonNumber: 1,
   episodeNumber: 1,
 });
+
+for await (const snapshot of media.getAvailabilityProgressively({
+  type: "series",
+  ids: { kinopoisk: "435" },
+  seasonNumber: 1,
+  episodeNumber: 1,
+})) {
+  updatePlayerSources(snapshot.availability?.options ?? []);
+}
 ```
 
 The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
@@ -88,6 +97,9 @@ pair and preserves both identities in its result. Its links are bound to the
 playback User-Agent and may also be bound to the requesting public IP. Pass the playback client's
 exact User-Agent as `MediaEngineOperationOptions.playbackUserAgent`; the required value is retained
 in each option's `access.headers` for non-browser clients.
+VideoHUB implements progressive availability, so every resolved translation can be displayed before
+slower lookups finish. Its bounded warm cache keeps playlists and signed video resolutions separate,
+never serves signed links stale, and preserves their original expiry.
 Rutube performs a bounded exact title/year movie search and returns only Rutube's documented public
 embed player. It does not expose or proxy Rutube media URLs and intentionally skips series.
 

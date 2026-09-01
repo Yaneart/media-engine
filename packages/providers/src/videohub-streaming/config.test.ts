@@ -38,6 +38,8 @@ test("videoHubStreamingProvider validates credential-free bounded configuration"
     { videoLookupTimeoutMs: 100 },
     { maxVideoResponseBytes: 100 },
     { linkTtlMs: 10_000 },
+    { playlistCacheTtlMs: -1 },
+    { cacheMaxEntries: 1 },
   ]) {
     assert.throws(
       () => videoHubStreamingProvider({ ...options, fetch }),

@@ -70,6 +70,15 @@ const result = await media.getAvailability({
   seasonNumber: 1,
   episodeNumber: 1,
 });
+
+for await (const snapshot of media.getAvailabilityProgressively({
+  type: "series",
+  ids: { kinopoisk: "435" },
+  seasonNumber: 1,
+  episodeNumber: 1,
+})) {
+  updatePlayerSources(snapshot.availability?.options ?? []);
+}
 ```
 
 Пакет также экспортирует `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
@@ -90,6 +99,10 @@ VideoHUB ищет по ID Кинопоиска и одним запросом pl
 клиента и могут быть привязаны к внешнему IP. Передавайте точный User-Agent клиента через
 `MediaEngineOperationOptions.playbackUserAgent`; для небраузерных клиентов нужное значение также
 сохраняется в `access.headers` каждого варианта.
+VideoHUB поддерживает прогрессивную доступность: каждый готовый перевод можно показать, не ожидая
+более медленных lookup. Ограниченный warm-cache раздельно хранит плейлисты и ещё действующие
+подписанные video resolutions, никогда не выдаёт подписанные ссылки stale и сохраняет их исходный
+срок действия.
 Rutube выполняет ограниченный точный поиск фильма по названию и году и возвращает только
 официальный публичный embed-плеер Rutube. Прямые media-URL не извлекаются и не проксируются;
 сериалы намеренно не поддерживаются.

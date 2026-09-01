@@ -14,6 +14,7 @@ import type {
 import type { SearchQuery, SearchResponse } from "../search/index.js";
 import type {
   MediaAvailability,
+  MediaAvailabilityProgressSnapshot,
   StreamQuery,
   StreamingProvider,
   StreamingProviderInfo,
@@ -34,9 +35,11 @@ import { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
 import {
   callTimedProviderAvailability,
+  callTimedProviderAvailabilityProgressively,
   callTimedProviderDetails,
   callTimedProviderSearch,
   retryFailedSearchProviders,
+  type ProviderAvailabilityCallOutcome,
 } from "./provider-calls.js";
 import {
   createAvailabilityCacheKey,
@@ -75,7 +78,7 @@ import {
 } from "./search-identity-snapshot.js";
 import { SearchOutcomeAccumulator } from "./search-outcomes.js";
 import { InFlightRequestCoalescer } from "./in-flight.js";
-import { throwIfAborted, waitForCaller } from "./operation.js";
+import { OperationCancelledError, throwIfAborted, waitForCaller } from "./operation.js";
 import {
   resolveProviderTimeoutMs,
   validateStreamingProviders,
@@ -767,6 +770,202 @@ export class MediaEngine {
     });
   }
 
+  // Publishes merged availability as providers and their individual sources resolve.
+  // Публикует объединённую доступность по мере готовности провайдеров и их источников.
+  async *getAvailabilityProgressively(
+    query: StreamQuery,
+    options: MediaEngineOperationOptions = {},
+  ): AsyncGenerator<MediaAvailabilityProgressSnapshot> {
+    throwIfAborted(options.signal);
+    const startedAt = Date.now();
+    const normalizedQuery = normalizeStreamQuery(query);
+    validateStreamQuery(normalizedQuery);
+    const playbackUserAgent = normalizePlaybackUserAgent(options.playbackUserAgent);
+    const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
+    const cachePlaybackUserAgent = providers.some(
+      (provider) => provider.availabilityDependsOnPlaybackUserAgent,
+    )
+      ? playbackUserAgent
+      : undefined;
+    const cacheKey = createAvailabilityCacheKey(normalizedQuery, cachePlaybackUserAgent);
+    const cached = await waitForCaller(
+      this.cache?.get<MediaAvailability>(cacheKey),
+      options.signal,
+    );
+
+    if (cached) {
+      const availability = structuredClone(cached);
+      availability.query = normalizedQuery;
+      if (availability.meta) {
+        availability.meta = {
+          ...availability.meta,
+          cached: true,
+          tookMs: elapsedSince(startedAt),
+        };
+      }
+      yield { availability, state: "complete", pendingProviders: [] };
+      return;
+    }
+
+    const controller = new AbortController();
+    const abort = () => controller.abort(options.signal?.reason);
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
+    const timeoutBudget = this.createProviderTimeoutBudget();
+    const requested = providers.map((provider) => provider.name);
+    const successful = new Set<string>();
+    const failed: ProviderFailure[] = [];
+    const providerTimings: ProviderTimingMeta[] = [];
+    const providerResults = new Map<string, MediaAvailability>();
+    const completedProviders = new Set<string>();
+    const events = new AvailabilityProgressEventQueue();
+    const tasks = providers.map(async (provider) => {
+      try {
+        const outcome = await callTimedProviderAvailabilityProgressively(
+          provider,
+          normalizedQuery,
+          {
+            debug: this.debug,
+            language: normalizedQuery.language,
+            playbackUserAgent,
+            signal: controller.signal,
+            timeoutMs: timeoutBudget.getRemainingMs(provider.name),
+            circuitBreaker: this.circuitBreaker,
+            concurrencyLimiter: this.concurrencyLimiter,
+          },
+          (snapshot) => events.push({ kind: "snapshot", provider: provider.name, snapshot }),
+        );
+        events.push({ kind: "complete", outcome });
+      } catch (error) {
+        events.push({ kind: "error", error });
+      }
+    });
+
+    try {
+      if (providers.length === 0) {
+        const availability = mergeAvailabilityResults(normalizedQuery, []);
+        availability.meta = createResponseMeta({
+          requested,
+          successful: [],
+          failed,
+          warnings: [],
+          cached: false,
+          tookMs: elapsedSince(startedAt),
+          debug: this.debug,
+          timings: providerTimings,
+        });
+        yield { availability, state: "complete", pendingProviders: [] };
+        return;
+      }
+
+      while (completedProviders.size < providers.length) {
+        const event = await events.next();
+        throwIfAborted(options.signal);
+
+        if (event.kind === "error") throw event.error;
+
+        if (event.kind === "snapshot") {
+          if (event.snapshot.availability) {
+            providerResults.set(event.provider, event.snapshot.availability);
+            successful.add(event.provider);
+          }
+
+          if (event.snapshot.state === "pending" && event.snapshot.availability) {
+            yield createEngineAvailabilityProgressSnapshot({
+              query: normalizedQuery,
+              providers,
+              providerResults,
+              requested,
+              successful,
+              failed,
+              providerTimings,
+              completedProviders,
+              startedAt,
+              debug: this.debug,
+              state: "pending",
+            });
+          }
+          continue;
+        }
+
+        const { outcome } = event;
+        completedProviders.add(outcome.provider);
+        providerTimings.push(outcome.timing);
+
+        if (outcome.failure) {
+          failed.push(outcome.failure);
+        } else {
+          successful.add(outcome.provider);
+          if (outcome.result) providerResults.set(outcome.provider, outcome.result);
+        }
+
+        if (completedProviders.size < providers.length) {
+          if (providerResults.size > 0) {
+            yield createEngineAvailabilityProgressSnapshot({
+              query: normalizedQuery,
+              providers,
+              providerResults,
+              requested,
+              successful,
+              failed,
+              providerTimings,
+              completedProviders,
+              startedAt,
+              debug: this.debug,
+              state: "pending",
+            });
+          }
+          continue;
+        }
+
+        if (failed.length === providers.length) {
+          const orderedFailures = requested.flatMap((provider) => {
+            const failure = failed.find((candidate) => candidate.provider === provider);
+            return failure ? [failure] : [];
+          });
+          throw new MediaEngineError({
+            code: "PROVIDER_ERROR",
+            message: "All streaming providers failed.",
+            cause: { failed: orderedFailures },
+          });
+        }
+
+        const finalSnapshot = createEngineAvailabilityProgressSnapshot({
+          query: normalizedQuery,
+          providers,
+          providerResults,
+          requested,
+          successful,
+          failed,
+          providerTimings,
+          completedProviders,
+          startedAt,
+          debug: this.debug,
+          state: "complete",
+        });
+        const finalAvailability = finalSnapshot.availability!;
+        const hasUnknownValidation = hasUnknownStreamValidation(finalAvailability);
+
+        throwIfAborted(controller.signal);
+        if (!hasRetryableProviderFailure(failed) && !hasUnknownValidation) {
+          await this.cache?.set(
+            cacheKey,
+            structuredClone(finalAvailability),
+            createAvailabilityCacheOptions(finalAvailability),
+          );
+        }
+
+        yield finalSnapshot;
+      }
+    } finally {
+      options.signal?.removeEventListener("abort", abort);
+      if (!controller.signal.aborted) {
+        controller.abort(new OperationCancelledError());
+      }
+      await Promise.allSettled(tasks);
+    }
+  }
+
   // Discovers normalized torrent handoff candidates through torrent providers.
   // Находит нормализованные torrent handoff кандидаты через torrent-провайдеры.
   async discoverTorrents(
@@ -919,6 +1118,98 @@ export class MediaEngine {
   protected get engineDebug(): boolean {
     return this.debug;
   }
+}
+
+type AvailabilityProgressEvent =
+  | {
+      kind: "snapshot";
+      provider: string;
+      snapshot: MediaAvailabilityProgressSnapshot;
+    }
+  | { kind: "complete"; outcome: ProviderAvailabilityCallOutcome }
+  | { kind: "error"; error: unknown };
+
+class AvailabilityProgressEventQueue {
+  private readonly events: AvailabilityProgressEvent[] = [];
+  private waiter?: (event: AvailabilityProgressEvent) => void;
+
+  push(event: AvailabilityProgressEvent): void {
+    if (this.waiter) {
+      const resolve = this.waiter;
+      this.waiter = undefined;
+      resolve(event);
+      return;
+    }
+
+    this.events.push(event);
+  }
+
+  next(): Promise<AvailabilityProgressEvent> {
+    const event = this.events.shift();
+    return event
+      ? Promise.resolve(event)
+      : new Promise((resolve) => {
+          this.waiter = resolve;
+        });
+  }
+}
+
+interface EngineAvailabilityProgressSnapshotContext {
+  query: StreamQuery;
+  providers: StreamingProvider[];
+  providerResults: ReadonlyMap<string, MediaAvailability>;
+  requested: string[];
+  successful: ReadonlySet<string>;
+  failed: ProviderFailure[];
+  providerTimings: ProviderTimingMeta[];
+  completedProviders: ReadonlySet<string>;
+  startedAt: number;
+  debug: boolean;
+  state: MediaAvailabilityProgressSnapshot["state"];
+}
+
+function createEngineAvailabilityProgressSnapshot(
+  context: EngineAvailabilityProgressSnapshotContext,
+): MediaAvailabilityProgressSnapshot {
+  const results = context.providers.flatMap((provider) => {
+    const result = context.providerResults.get(provider.name);
+    return result ? [result] : [];
+  });
+  const availability = mergeAvailabilityResults(context.query, results);
+  const hasUnknownValidation = hasUnknownStreamValidation(availability);
+  const failed = context.requested.flatMap((provider) => {
+    const failure = context.failed.find((candidate) => candidate.provider === provider);
+    return failure ? [failure] : [];
+  });
+  const timings = context.requested.flatMap((provider) => {
+    const timing = context.providerTimings.find((candidate) => candidate.provider === provider);
+    return timing ? [timing] : [];
+  });
+  availability.meta = createResponseMeta({
+    requested: context.requested,
+    successful: context.requested.filter((provider) => context.successful.has(provider)),
+    failed,
+    warnings: hasUnknownValidation
+      ? [
+          {
+            code: "STREAM_VALIDATION_DEGRADED",
+            message: "One or more discovered player options could not be validated reliably.",
+          },
+        ]
+      : [],
+    cached: false,
+    tookMs: elapsedSince(context.startedAt),
+    debug: context.debug,
+    timings,
+  });
+
+  return {
+    availability,
+    state: context.state,
+    pendingProviders: context.providers
+      .filter((provider) => !context.completedProviders.has(provider.name))
+      .map((provider) => provider.name),
+  };
 }
 
 function hasRetryableProviderFailure(failures: ProviderFailure[]): boolean {

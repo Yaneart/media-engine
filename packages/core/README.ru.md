@@ -47,6 +47,16 @@ await media.getAvailability({
   seasonNumber: 1,
   episodeNumber: 1,
 });
+
+for await (const snapshot of media.getAvailabilityProgressively({
+  type: "series",
+  title: "Игра престолов",
+  seasonNumber: 1,
+  episodeNumber: 1,
+})) {
+  renderSources(snapshot.availability?.options ?? []);
+  if (snapshot.state === "complete") stopLoading();
+}
 await media.discoverTorrents({
   type: "movie",
   title: "Интерстеллар",
@@ -59,6 +69,12 @@ await media.discoverTorrents({
 
 Поиск плееров и torrent-раздач заработает только после подключения подходящих streaming- и
 torrent-провайдеров.
+
+`getAvailabilityProgressively()` возвращает не привязанный к транспорту `AsyncIterable`. Пока
+`pendingProviders` не пуст, он публикует объединённые промежуточные снимки, а последний снимок всегда
+помечает как `complete`. Существующий Promise `getAvailability()` по-прежнему возвращает только
+финальный результат. HTTP-приложение само выбирает способ доставки; Core не привязан к SSE или
+WebSocket.
 
 ## Что core делает сам
 

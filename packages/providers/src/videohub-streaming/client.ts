@@ -43,6 +43,18 @@ export interface VideoHubMp4Source {
 export interface ResolvedVideoHubItem extends VideoHubPlaylistItem {
   sources: VideoHubMp4Source[];
   sourceUrl: string;
+  expiresAt?: string;
+}
+
+export interface VideoHubSourceResolution {
+  sources: VideoHubMp4Source[];
+  sourceUrl: string;
+  expiresAt: string;
+}
+
+export interface VideoHubItemResolutionSnapshot {
+  items: ResolvedVideoHubItem[];
+  complete: boolean;
 }
 
 export function resolveVideoHubKinopoiskId(query: MediaAvailability["query"]): string | undefined {
@@ -56,6 +68,10 @@ export async function loadVideoHubPlaylist(
   context: ProviderContext,
   playbackUserAgent: string,
 ): Promise<{ playlist: VideoHubPlaylist; sourceUrl: string }> {
+  throwIfContextAborted(context);
+  const cacheKey = `${kinopoiskId}\u0000${playbackUserAgent}`;
+  const cached = config.cache.getPlaylist(cacheKey);
+  if (cached) return cached;
   const url = createVideoHubPlaylistUrl(config.baseUrl, kinopoiskId);
   const payload = await fetchJson<unknown>({
     provider: config.name,
@@ -68,10 +84,12 @@ export async function loadVideoHubPlaylist(
     init: { headers: createHeaders(playbackUserAgent) },
   });
 
-  return {
+  const result = {
     playlist: parseVideoHubPlaylist(config.name, payload, config.playlistItemLimit),
     sourceUrl: url.href,
   };
+  config.cache.setPlaylist(cacheKey, result);
+  return result;
 }
 
 function createVideoLookupContext(
@@ -94,39 +112,96 @@ export async function resolveVideoHubItems(
   context: ProviderContext,
   playbackUserAgent: string,
 ): Promise<ResolvedVideoHubItem[]> {
+  let finalItems: ResolvedVideoHubItem[] = [];
+
+  for await (const snapshot of resolveVideoHubItemsProgressively(
+    config,
+    playlist,
+    query,
+    context,
+    playbackUserAgent,
+  )) {
+    finalItems = snapshot.items;
+  }
+
+  return finalItems;
+}
+
+// Resolves bounded video lookups concurrently and publishes every playable partial aggregate.
+// Параллельно выполняет ограниченные video lookup и публикует каждый доступный частичный агрегат.
+export async function* resolveVideoHubItemsProgressively(
+  config: VideoHubStreamingConfig,
+  playlist: VideoHubPlaylist,
+  query: MediaAvailability["query"],
+  context: ProviderContext,
+  playbackUserAgent: string,
+): AsyncGenerator<VideoHubItemResolutionSnapshot> {
   const selected = selectVideoHubPlaylistItems(playlist, query).slice(0, config.videoLookupLimit);
-  if (selected.length === 0) return [];
+  if (selected.length === 0) {
+    yield { items: [], complete: true };
+    return;
+  }
 
   const resolved: Array<ResolvedVideoHubItem | undefined> = new Array(selected.length);
+  const running = new Map<number, Promise<VideoHubItemResolutionOutcome>>();
   let nextIndex = 0;
   let firstError: unknown;
 
-  const worker = async () => {
-    while (nextIndex < selected.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      const item = selected[index]!;
-
-      try {
-        const result = await loadVideoHubSources(config, item.vkId, context, playbackUserAgent);
-        if (result.sources.length > 0) resolved[index] = { ...item, ...result };
-      } catch (error) {
+  const startNext = () => {
+    if (nextIndex >= selected.length) return;
+    const index = nextIndex;
+    nextIndex += 1;
+    const item = selected[index]!;
+    const pending = loadVideoHubSources(config, item.vkId, context, playbackUserAgent).then(
+      (result): VideoHubItemResolutionOutcome => ({ index, item, result }),
+      (error): VideoHubItemResolutionOutcome => {
         rethrowIfProviderAborted(context, error);
-        firstError ??= error;
-      }
-    }
+        return { index, error };
+      },
+    );
+    // A consumer may stop after the first snapshot; keep later abort rejections observed.
+    void pending.catch(() => undefined);
+    running.set(index, pending);
   };
 
-  await Promise.all(
-    Array.from({ length: Math.min(config.videoLookupConcurrency, selected.length) }, async () =>
-      worker(),
-    ),
-  );
+  for (
+    let index = 0;
+    index < Math.min(config.videoLookupConcurrency, selected.length);
+    index += 1
+  ) {
+    startNext();
+  }
+
+  while (running.size > 0) {
+    const outcome = await Promise.race(running.values());
+    running.delete(outcome.index);
+    startNext();
+
+    if ("error" in outcome) {
+      firstError ??= outcome.error;
+      continue;
+    }
+
+    if (outcome.result.sources.length === 0) continue;
+    resolved[outcome.index] = { ...outcome.item, ...outcome.result };
+    yield {
+      items: resolved.filter((item) => item !== undefined),
+      complete: false,
+    };
+  }
 
   const available = resolved.filter((item) => item !== undefined);
   if (available.length === 0 && firstError !== undefined) throw firstError;
-  return available;
+  yield { items: available, complete: true };
 }
+
+type VideoHubItemResolutionOutcome =
+  | {
+      index: number;
+      item: VideoHubPlaylistItem;
+      result: VideoHubSourceResolution;
+    }
+  | { index: number; error: unknown };
 
 export function createVideoHubPlaylistUrl(baseUrl: string, kinopoiskId: string): URL {
   const url = new URL("/api/v1/player/sv/playlist", `${baseUrl}/`);
@@ -245,7 +320,11 @@ async function loadVideoHubSources(
   vkId: string,
   context: ProviderContext,
   playbackUserAgent: string,
-): Promise<{ sources: VideoHubMp4Source[]; sourceUrl: string }> {
+): Promise<VideoHubSourceResolution> {
+  throwIfContextAborted(context);
+  const cacheKey = `${vkId}\u0000${playbackUserAgent}`;
+  const cached = config.cache.getVideo(cacheKey);
+  if (cached) return cached;
   const url = createVideoHubVideoUrl(config.baseUrl, vkId);
   const payload = await fetchJson<unknown>({
     provider: config.name,
@@ -258,10 +337,13 @@ async function loadVideoHubSources(
     init: { headers: createHeaders(playbackUserAgent) },
   });
 
-  return {
+  const result = {
     sources: parseVideoHubSources(config.name, payload),
     sourceUrl: url.href,
+    expiresAt: new Date(config.now() + config.linkTtlMs).toISOString(),
   };
+  config.cache.setVideo(cacheKey, result);
+  return result;
 }
 
 function parsePlaylistItem(value: unknown, isSerial: boolean): VideoHubPlaylistItem | undefined {
@@ -329,4 +411,10 @@ function invalidResponse(provider: string, stage: string): ProviderError {
     message: `Provider "${provider}" returned an invalid VideoHUB ${stage} response.`,
     retryable: false,
   });
+}
+
+function throwIfContextAborted(context: ProviderContext): void {
+  if (context.signal?.aborted) {
+    throw context.signal.reason ?? new Error("VideoHUB operation was aborted.");
+  }
 }

@@ -48,6 +48,16 @@ await media.getAvailability({
   seasonNumber: 1,
   episodeNumber: 1,
 });
+
+for await (const snapshot of media.getAvailabilityProgressively({
+  type: "series",
+  title: "Game of Thrones",
+  seasonNumber: 1,
+  episodeNumber: 1,
+})) {
+  renderSources(snapshot.availability?.options ?? []);
+  if (snapshot.state === "complete") stopLoading();
+}
 await media.discoverTorrents({
   type: "movie",
   title: "Interstellar",
@@ -60,6 +70,11 @@ await media.discoverTorrents({
 
 Availability and torrent discovery only do work when you give the engine matching streaming or
 torrent providers.
+
+`getAvailabilityProgressively()` is a transport-neutral `AsyncIterable`. It emits merged snapshots
+while `pendingProviders` is non-empty and always marks the final snapshot as `complete`. The existing
+`getAvailability()` Promise remains the final-result API. HTTP applications must choose their own
+streaming transport; Core does not couple this contract to SSE or WebSockets.
 
 ## What core handles for you
 

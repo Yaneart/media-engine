@@ -663,3 +663,152 @@ test("getAvailability bounds cache lifetime by the earliest stream expiration", 
   assert.ok(cacheOptions.ttlMs <= 9_000);
   assert.equal(cacheOptions.staleTtlMs, 0);
 });
+
+test("getAvailabilityProgressively emits first, second, and final deterministic snapshots", async () => {
+  const query: StreamQuery = { type: "anime", title: "Naruto", absoluteEpisodeNumber: 1 };
+  const first = createAvailability(query, "progressive-stream");
+  const second = structuredClone(first);
+  const extraOption = structuredClone(first.options[0]!);
+  extraOption.id = "progressive-stream:episode-1:second";
+  extraOption.translation = { title: "Second dub", type: "dub", language: "ru" };
+  second.options.push(extraOption);
+  second.episodes?.[0]?.options.push(extraOption);
+  const provider = createStreamingProvider({
+    name: "progressive-stream",
+    async getAvailability() {
+      return second;
+    },
+    async *getAvailabilityProgressively() {
+      yield {
+        availability: first,
+        state: "pending" as const,
+        pendingProviders: ["progressive-stream"],
+      };
+      yield {
+        availability: second,
+        state: "pending" as const,
+        pendingProviders: ["progressive-stream"],
+      };
+      yield { availability: second, state: "complete" as const, pendingProviders: [] };
+    },
+  });
+  const engine = new MediaEngine({ streamingProviders: [provider] });
+
+  const snapshots = [];
+  for await (const snapshot of engine.getAvailabilityProgressively(query)) {
+    snapshots.push(snapshot);
+  }
+
+  assert.deepEqual(
+    snapshots.map((snapshot) => [snapshot.state, snapshot.availability?.options.length]),
+    [
+      ["pending", 1],
+      ["pending", 2],
+      ["complete", 2],
+    ],
+  );
+  assert.deepEqual(snapshots[0]?.pendingProviders, ["progressive-stream"]);
+  assert.deepEqual(snapshots[2]?.pendingProviders, []);
+  assert.deepEqual(
+    snapshots[2]?.availability?.options.map((option) => option.id),
+    ["progressive-stream:episode-1:embed", "progressive-stream:episode-1:second"],
+  );
+});
+
+test("getAvailabilityProgressively keeps partial success when another provider fails", async () => {
+  const query: StreamQuery = { type: "anime", title: "Naruto" };
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        name: "progressive-stream",
+        async *getAvailabilityProgressively() {
+          const availability = createAvailability(query, "progressive-stream");
+          yield {
+            availability,
+            state: "pending" as const,
+            pendingProviders: ["progressive-stream"],
+          };
+          yield { availability, state: "complete" as const, pendingProviders: [] };
+        },
+      }),
+      createStreamingProvider({
+        name: "failing-stream",
+        async getAvailability(): Promise<MediaAvailability | null> {
+          await sleep(5);
+          throw new ProviderError({
+            provider: "failing-stream",
+            code: "PROVIDER_UNAVAILABLE",
+            retryable: true,
+            message: "Streaming provider is unavailable.",
+          });
+        },
+      }),
+    ],
+  });
+
+  const snapshots = [];
+  for await (const snapshot of engine.getAvailabilityProgressively(query)) {
+    snapshots.push(snapshot);
+  }
+
+  const final = snapshots.at(-1)!;
+  assert.equal(snapshots[0]?.state, "pending");
+  assert.equal(final.state, "complete");
+  assert.deepEqual(
+    final.availability?.options.map((option) => option.provider),
+    ["progressive-stream"],
+  );
+  assert.equal(final.availability?.meta?.providers.failed[0]?.provider, "failing-stream");
+});
+
+test("getAvailabilityProgressively rejects all-failed providers and aborts abandoned iteration", async () => {
+  let cleanedUp = false;
+  const waitingProvider = createStreamingProvider({
+    name: "waiting-stream",
+    async *getAvailabilityProgressively(query, context) {
+      try {
+        const availability = createAvailability(query, "waiting-stream");
+        yield {
+          availability,
+          state: "pending" as const,
+          pendingProviders: ["waiting-stream"],
+        };
+        await new Promise<void>((_resolve, reject) => {
+          const onAbort = () => reject(context.signal?.reason);
+          context.signal?.addEventListener("abort", onAbort, { once: true });
+        });
+      } finally {
+        cleanedUp = true;
+      }
+    },
+  });
+  const cancellableEngine = new MediaEngine({ streamingProviders: [waitingProvider] });
+  const iterator = cancellableEngine
+    .getAvailabilityProgressively({ type: "anime", title: "Naruto" })
+    [Symbol.asyncIterator]();
+
+  assert.equal((await iterator.next()).value?.state, "pending");
+  await iterator.return?.(undefined);
+  assert.equal(cleanedUp, true);
+
+  const failingEngine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        async getAvailability(): Promise<MediaAvailability | null> {
+          throw new Error("failed");
+        },
+      }),
+    ],
+  });
+  await assert.rejects(
+    async () => {
+      for await (const _snapshot of failingEngine.getAvailabilityProgressively({
+        type: "anime",
+        title: "Naruto",
+      })) {
+        // No snapshot is expected when every provider fails.
+      }
+    },
+    (error: unknown) => error instanceof MediaEngineError && error.code === "PROVIDER_ERROR",
+  );
+});

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ProviderError, type ProviderContext } from "@media-engine/core";
+import {
+  ProviderError,
+  type MediaAvailabilityProgressSnapshot,
+  type ProviderContext,
+} from "@media-engine/core";
 import type { ProviderFetch } from "../shared/index.js";
 import { videoHubStreamingProvider } from "./index.js";
 
@@ -254,6 +258,188 @@ test("videoHubStreamingProvider preserves cancellation and typed schema failures
   );
 });
 
+test("videoHubStreamingProvider publishes ready translations immediately in playlist order", async () => {
+  const videoResponses = new Map<string, (response: Response) => void>();
+  const provider = videoHubStreamingProvider({
+    baseUrl: "https://videohub.test",
+    videoLookupConcurrency: 2,
+    now: () => Date.parse("2026-09-01T12:00:00.000Z"),
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.includes("/playlist?")) {
+        return Response.json({
+          titleName: "Progressive Movie",
+          isSerial: false,
+          items: [
+            { voiceStudio: "First", vkId: "111" },
+            { voiceStudio: "Second", vkId: "222" },
+          ],
+        });
+      }
+
+      const vkId = new URL(url).pathname.split("/").at(-1)!;
+      return new Promise<Response>((resolve) => videoResponses.set(vkId, resolve));
+    },
+  });
+  const iterator = provider.getAvailabilityProgressively!(
+    { type: "movie", kinopoisk: "258687" },
+    context(),
+  )[Symbol.asyncIterator]();
+
+  const firstPending = iterator.next();
+  await waitFor(() => videoResponses.size === 2);
+  videoResponses.get("222")?.(
+    Response.json({ sources: { mpegHighUrl: "https://cdn.test/222/720.mp4" } }),
+  );
+  const first = (await firstPending).value as MediaAvailabilityProgressSnapshot;
+  assert.equal(first.state, "pending");
+  assert.deepEqual(
+    first.availability?.options.map((option) => option.translation?.title),
+    ["Second"],
+  );
+
+  const secondPending = iterator.next();
+  videoResponses.get("111")?.(
+    Response.json({ sources: { mpegFullHdUrl: "https://cdn.test/111/1080.mp4" } }),
+  );
+  const second = (await secondPending).value as MediaAvailabilityProgressSnapshot;
+  assert.deepEqual(
+    second.availability?.options.map((option) => option.translation?.title),
+    ["First", "Second"],
+  );
+
+  const complete = (await iterator.next()).value as MediaAvailabilityProgressSnapshot;
+  assert.equal(complete.state, "complete");
+  assert.deepEqual(
+    complete.availability?.options.map((option) => option.id),
+    second.availability?.options.map((option) => option.id),
+  );
+  assert.equal((await iterator.next()).done, true);
+});
+
+test("videoHubStreamingProvider completes partial success after a later lookup fails", async () => {
+  const provider = videoHubStreamingProvider({
+    baseUrl: "https://videohub.test",
+    videoLookupConcurrency: 1,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.includes("/playlist?")) {
+        return Response.json({
+          isSerial: false,
+          items: [
+            { voiceStudio: "Working", vkId: "111" },
+            { voiceStudio: "Broken", vkId: "222" },
+          ],
+        });
+      }
+      return url.endsWith("/111")
+        ? Response.json({ sources: { mpegHighUrl: "https://cdn.test/111/720.mp4" } })
+        : Response.json({ unexpected: true });
+    },
+  });
+
+  const snapshots = [];
+  for await (const snapshot of provider.getAvailabilityProgressively!(
+    { type: "movie", kinopoisk: "258687" },
+    context(),
+  )) {
+    snapshots.push(snapshot);
+  }
+
+  assert.deepEqual(
+    snapshots.map((snapshot) => [snapshot.state, snapshot.availability?.options.length]),
+    [
+      ["pending", 1],
+      ["complete", 1],
+    ],
+  );
+});
+
+test("videoHubStreamingProvider aborts remaining lookups when progress iteration stops", async () => {
+  let slowLookupAborted = false;
+  const provider = videoHubStreamingProvider({
+    baseUrl: "https://videohub.test",
+    videoLookupConcurrency: 2,
+    fetch: async (input, init) => {
+      const url = String(input);
+      if (url.includes("/playlist?")) {
+        return Response.json({
+          isSerial: false,
+          items: [{ vkId: "111" }, { vkId: "222" }],
+        });
+      }
+      if (url.endsWith("/111")) {
+        return Response.json({ sources: { mpegHighUrl: "https://cdn.test/111/720.mp4" } });
+      }
+
+      return new Promise<Response>((_resolve, reject) => {
+        const onAbort = () => {
+          slowLookupAborted = true;
+          reject(init?.signal?.reason);
+        };
+        init?.signal?.addEventListener("abort", onAbort, { once: true });
+      });
+    },
+  });
+  const iterator = provider.getAvailabilityProgressively!(
+    { type: "movie", kinopoisk: "258687" },
+    context(),
+  )[Symbol.asyncIterator]();
+
+  assert.equal((await iterator.next()).value?.state, "pending");
+  await iterator.return?.(undefined);
+  await waitFor(() => slowLookupAborted);
+  assert.equal(slowLookupAborted, true);
+});
+
+test("videoHubStreamingProvider reuses warm playlist and valid signed video resolutions", async () => {
+  let now = Date.parse("2026-09-01T12:00:00.000Z");
+  let playlistCalls = 0;
+  let videoCalls = 0;
+  const provider = videoHubStreamingProvider({
+    baseUrl: "https://videohub.test",
+    now: () => now,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.includes("/playlist?")) {
+        playlistCalls += 1;
+        return Response.json({ isSerial: false, items: [{ vkId: "111" }] });
+      }
+      videoCalls += 1;
+      return Response.json({
+        sources: { mpegHighUrl: `https://cdn.test/111/720.mp4?generation=${videoCalls}` },
+      });
+    },
+  });
+  const query = { type: "movie" as const, kinopoisk: "258687" };
+
+  const cold = await provider.getAvailability(query, context());
+  const warm = await provider.getAvailability(query, context());
+
+  assert.equal(playlistCalls, 1);
+  assert.equal(videoCalls, 1);
+  assert.equal(warm?.options[0]?.access.url, cold?.options[0]?.access.url);
+  assert.equal(warm?.options[0]?.expiresAt, cold?.options[0]?.expiresAt);
+
+  now += 299_000;
+  const refreshed = await provider.getAvailability(query, context());
+  assert.equal(playlistCalls, 1);
+  assert.equal(videoCalls, 2);
+  assert.notEqual(refreshed?.options[0]?.access.url, cold?.options[0]?.access.url);
+  assert.ok(
+    Date.parse(refreshed?.options[0]?.expiresAt ?? "") >
+      Date.parse(cold?.options[0]?.expiresAt ?? ""),
+  );
+});
+
 function context(signal?: AbortSignal, playbackUserAgent?: string): ProviderContext {
   return { signal, playbackUserAgent };
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.fail("Timed out waiting for progressive VideoHUB test state.");
 }

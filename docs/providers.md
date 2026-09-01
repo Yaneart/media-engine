@@ -149,6 +149,12 @@ remains disabled by default and is best suited to clients that share the API ser
 address. The repository API gives this opt-in source a
 separate 20-second timeout through `MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS`; individual
 video lookups use a bounded 15-second default within that ceiling.
+Exact VideoHUB playback implements the optional progressive availability contract: each playable
+translation becomes observable immediately, snapshots keep deterministic playlist ordering and
+stable option IDs, and later lookup failures do not discard earlier success. A bounded process-local
+cache separately retains playlists and still-valid signed video resolutions; signed links are never
+served stale or assigned a later expiry. `playlistCacheTtlMs` and `cacheMaxEntries` tune or disable
+playlist caching, while video cache lifetime remains bounded by each link's configured lifetime.
 
 Rutube streaming is opt-in through `rutubeStreamingProvider()` or
 `MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED=true`. It supports movies only and searches the public
@@ -256,7 +262,7 @@ A metadata provider declares:
 - optional `searchPosterMatchesDetails` when the provider guarantees that its normalized search and details poster fields are identical;
 - `search` and optional `getDetails` methods.
 
-A streaming provider declares supported media types, external IDs, player kinds, and whether it supports movies, series, episodes, subtitles, translations, and direct streams. It implements `getAvailability`.
+A streaming provider declares supported media types, external IDs, player kinds, and whether it supports movies, series, episodes, subtitles, translations, and direct streams. It implements `getAvailability` and may additionally implement the transport-neutral `getAvailabilityProgressively` async iterable. A progressive provider must finish with an explicit `complete` snapshot whose availability matches its normal Promise result.
 
 Provider methods receive request context with an abort signal, timeout, language, and debug flag. They should return normalized data and throw `ProviderError` for expected upstream failures.
 

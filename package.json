@@ -26,6 +26,7 @@
     "smoke:verify-builds": "node scripts/check-package-builds.mjs verify @media-engine/core @media-engine/providers",
     "smoke:availability": "pnpm smoke:verify-builds && node scripts/availability-smoke.mjs",
     "smoke:availability-latency": "pnpm smoke:verify-builds && node scripts/availability-latency-smoke.mjs",
+    "smoke:videohub-progressive": "pnpm smoke:verify-builds && node scripts/videohub-progressive-smoke.mjs",
     "smoke:details-latency": "pnpm smoke:verify-builds && node scripts/details-latency-smoke.mjs",
     "smoke:latency": "pnpm smoke:verify-builds && node scripts/search-latency-smoke.mjs",
     "smoke:merge-performance": "pnpm smoke:verify-builds && node scripts/merge-performance-smoke.mjs",

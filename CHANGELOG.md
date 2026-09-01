@@ -5,6 +5,18 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
+## Unreleased
+
+### Added
+
+- Core now exposes transport-neutral progressive availability snapshots through an optional
+  streaming-provider `AsyncIterable` contract and `MediaEngine.getAvailabilityProgressively()`.
+  Existing Promise-based `getAvailability()` behavior remains unchanged.
+- VideoHUB publishes each playable translation as soon as its bounded lookup resolves, while
+  retaining deterministic final ordering, partial success, cancellation, and explicit completion.
+- VideoHUB now keeps separate bounded warm caches for playlists and still-valid signed video
+  resolutions without stale delivery or extending link expiry.
+
 ## 1.3.0 - 2026-08-31
 
 ### Added

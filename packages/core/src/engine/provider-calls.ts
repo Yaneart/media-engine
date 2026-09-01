@@ -6,7 +6,12 @@ import type {
   ProviderSearchResult,
 } from "../providers/index.js";
 import type { ProviderFailure, ProviderTimingMeta } from "../response/index.js";
-import type { MediaAvailability, StreamQuery, StreamingProvider } from "../streaming/index.js";
+import type {
+  MediaAvailability,
+  MediaAvailabilityProgressSnapshot,
+  StreamQuery,
+  StreamingProvider,
+} from "../streaming/index.js";
 import type {
   TorrentDiscoveryQuery,
   TorrentDiscoveryResponse,
@@ -210,6 +215,26 @@ export async function callTimedProviderAvailability(
   query: StreamQuery,
   context: ProviderCallContext,
 ): Promise<ProviderAvailabilityCallOutcome> {
+  return callTimedProviderAvailabilityInternal(provider, query, context);
+}
+
+// Calls a provider's optional progressive contract while retaining timeout and health isolation.
+// Вызывает необязательный прогрессивный контракт с сохранением timeout и health isolation.
+export async function callTimedProviderAvailabilityProgressively(
+  provider: StreamingProvider,
+  query: StreamQuery,
+  context: ProviderCallContext,
+  onSnapshot: (snapshot: MediaAvailabilityProgressSnapshot) => void,
+): Promise<ProviderAvailabilityCallOutcome> {
+  return callTimedProviderAvailabilityInternal(provider, query, context, onSnapshot);
+}
+
+async function callTimedProviderAvailabilityInternal(
+  provider: StreamingProvider,
+  query: StreamQuery,
+  context: ProviderCallContext,
+  onSnapshot?: (snapshot: MediaAvailabilityProgressSnapshot) => void,
+): Promise<ProviderAvailabilityCallOutcome> {
   const startedAt = Date.now();
 
   try {
@@ -217,14 +242,19 @@ export async function callTimedProviderAvailability(
       context,
       `streaming:${provider.name}`,
       provider.name,
-      (signal) =>
-        provider.getAvailability(query, {
+      (signal) => {
+        const providerContext = {
           signal,
           timeoutMs: context.timeoutMs,
           debug: context.debug,
           language: context.language,
           playbackUserAgent: context.playbackUserAgent,
-        }),
+        };
+
+        return onSnapshot && provider.getAvailabilityProgressively
+          ? consumeProviderAvailabilityProgress(provider, query, providerContext, onSnapshot)
+          : provider.getAvailability(query, providerContext);
+      },
     );
 
     return {
@@ -252,6 +282,34 @@ export async function callTimedProviderAvailability(
       failure: toProviderFailure(provider.name, error),
     };
   }
+}
+
+async function consumeProviderAvailabilityProgress(
+  provider: StreamingProvider,
+  query: StreamQuery,
+  context: Parameters<StreamingProvider["getAvailability"]>[1],
+  onSnapshot: (snapshot: MediaAvailabilityProgressSnapshot) => void,
+): Promise<MediaAvailability | null> {
+  let finalAvailability: MediaAvailability | null = null;
+  let completed = false;
+
+  for await (const snapshot of provider.getAvailabilityProgressively!(query, context)) {
+    const isolated = structuredClone(snapshot);
+    finalAvailability = isolated.availability;
+    completed ||= isolated.state === "complete";
+    onSnapshot(isolated);
+  }
+
+  if (!completed) {
+    throw new ProviderError({
+      provider: provider.name,
+      code: "PROVIDER_INVALID_RESPONSE",
+      message: `Provider "${provider.name}" ended progressive availability without a complete snapshot.`,
+      retryable: false,
+    });
+  }
+
+  return finalAvailability;
 }
 
 // Calls one torrent provider and returns normalized timing/failure metadata.

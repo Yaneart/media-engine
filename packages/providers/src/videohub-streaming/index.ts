@@ -1,8 +1,13 @@
-import type { ProviderContext, StreamingProvider } from "@media-engine/core";
+import type {
+  MediaAvailability,
+  MediaAvailabilityProgressSnapshot,
+  ProviderContext,
+  StreamingProvider,
+} from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
 import {
   loadVideoHubPlaylist,
-  resolveVideoHubItems,
+  resolveVideoHubItemsProgressively,
   resolveVideoHubKinopoiskId,
 } from "./client.js";
 import {
@@ -18,6 +23,10 @@ export function videoHubStreamingProvider(
   options: VideoHubStreamingProviderOptions = {},
 ): StreamingProvider {
   const config = createVideoHubConfig(options);
+  const getAvailabilityProgressively = (
+    query: Parameters<StreamingProvider["getAvailability"]>[0],
+    context: ProviderContext,
+  ) => streamVideoHubAvailability(config, query, context);
 
   return {
     name: config.name,
@@ -26,56 +35,114 @@ export function videoHubStreamingProvider(
     capabilities: createVideoHubCapabilities(),
     availabilityDependsOnPlaybackUserAgent: true,
     async getAvailability(query, context) {
-      if (query.providers && !query.providers.includes(config.name)) return null;
-      if (!canResolveQuery(query)) return null;
+      let finalAvailability: MediaAvailability | null = null;
 
-      const kinopoiskId = resolveVideoHubKinopoiskId(query);
-      if (!kinopoiskId) return null;
-      const playbackUserAgent = resolvePlaybackUserAgent(context, config.userAgent);
+      for await (const snapshot of getAvailabilityProgressively(query, context)) {
+        finalAvailability = snapshot.availability;
+      }
 
-      try {
-        const { playlist, sourceUrl } = await loadVideoHubPlaylist(
-          config,
-          kinopoiskId,
-          context,
-          playbackUserAgent,
-        );
-        if ((query.type !== "movie") !== playlist.isSerial) return null;
-        if (isAnimeCatalogQuery(query)) {
-          return mapVideoHubEpisodeCatalog(
-            config.name,
-            kinopoiskId,
-            playlist,
-            query,
-            sourceUrl,
-            config.now(),
-          );
-        }
-        const items = await resolveVideoHubItems(
-          config,
-          playlist,
-          query,
-          context,
-          playbackUserAgent,
-        );
+      return finalAvailability;
+    },
+    getAvailabilityProgressively,
+  };
+}
 
-        return mapVideoHubAvailability(
+async function* streamVideoHubAvailability(
+  config: ReturnType<typeof createVideoHubConfig>,
+  query: Parameters<StreamingProvider["getAvailability"]>[0],
+  context: ProviderContext,
+): AsyncGenerator<MediaAvailabilityProgressSnapshot> {
+  const controller = new AbortController();
+  const abort = () => controller.abort(context.signal?.reason);
+  context.signal?.addEventListener("abort", abort, { once: true });
+  if (context.signal?.aborted) abort();
+  const progressiveContext = { ...context, signal: controller.signal };
+
+  try {
+    if (query.providers && !query.providers.includes(config.name)) {
+      yield completeSnapshot(null);
+      return;
+    }
+    if (!canResolveQuery(query)) {
+      yield completeSnapshot(null);
+      return;
+    }
+
+    const kinopoiskId = resolveVideoHubKinopoiskId(query);
+    if (!kinopoiskId) {
+      yield completeSnapshot(null);
+      return;
+    }
+    const playbackUserAgent = resolvePlaybackUserAgent(context, config.userAgent);
+
+    const { playlist, sourceUrl } = await loadVideoHubPlaylist(
+      config,
+      kinopoiskId,
+      progressiveContext,
+      playbackUserAgent,
+    );
+    if ((query.type !== "movie") !== playlist.isSerial) {
+      yield completeSnapshot(null);
+      return;
+    }
+    if (isAnimeCatalogQuery(query)) {
+      yield completeSnapshot(
+        mapVideoHubEpisodeCatalog(
           config.name,
           kinopoiskId,
-          playlist.title,
-          items,
+          playlist,
           query,
           sourceUrl,
           config.now(),
-          config.linkTtlMs,
-          playbackUserAgent,
-        );
-      } catch (error) {
-        rethrowIfProviderAborted(context, error);
-        throw error;
-      }
-    },
-  };
+        ),
+      );
+      return;
+    }
+
+    for await (const resolution of resolveVideoHubItemsProgressively(
+      config,
+      playlist,
+      query,
+      progressiveContext,
+      playbackUserAgent,
+    )) {
+      const availability = mapVideoHubAvailability(
+        config.name,
+        kinopoiskId,
+        playlist.title,
+        resolution.items,
+        query,
+        sourceUrl,
+        config.now(),
+        config.linkTtlMs,
+        playbackUserAgent,
+      );
+
+      yield resolution.complete
+        ? completeSnapshot(availability)
+        : {
+            availability,
+            state: "pending",
+            pendingProviders: [config.name],
+          };
+    }
+  } catch (error) {
+    rethrowIfProviderAborted(progressiveContext, error);
+    throw error;
+  } finally {
+    context.signal?.removeEventListener("abort", abort);
+    if (!controller.signal.aborted) {
+      const error = new Error("VideoHUB progressive availability consumer stopped.");
+      error.name = "AbortError";
+      controller.abort(error);
+    }
+  }
+}
+
+function completeSnapshot(
+  availability: MediaAvailability | null,
+): MediaAvailabilityProgressSnapshot {
+  return { availability, state: "complete", pendingProviders: [] };
 }
 
 function resolvePlaybackUserAgent(context: ProviderContext, fallback: string): string {

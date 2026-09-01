@@ -107,6 +107,25 @@ const availability = await streamingEngine.getAvailability({
 });
 ```
 
+For incremental source discovery, use the transport-neutral async iterable:
+
+```ts
+for await (const snapshot of streamingEngine.getAvailabilityProgressively({
+  type: "series",
+  imdb: "tt0944947",
+  seasonNumber: 1,
+  episodeNumber: 1,
+})) {
+  console.log(snapshot.state, snapshot.pendingProviders, snapshot.availability?.options);
+}
+```
+
+Progressive-capable providers can emit several `pending` aggregates before the engine emits one
+final `complete` snapshot. Legacy streaming providers still participate and appear when their normal
+Promise resolves. Breaking iteration or aborting the operation cancels remaining provider work. The
+contract is not SSE, WebSocket, or another HTTP format; a server application chooses how to forward
+these snapshots. `getAvailability()` remains unchanged and returns only the final aggregate.
+
 Availability responses contain normalized player/stream options, optional episode groups, and
 optional `seasons`. For anime providers with catalog support, omit episode coordinates to list
 seasons and their seasonal plus absolute episode identities before requesting exact playback.

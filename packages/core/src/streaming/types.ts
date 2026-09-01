@@ -160,6 +160,14 @@ export interface MediaAvailability {
   meta?: ResponseMeta;
 }
 
+// Incremental availability snapshot emitted while selected providers are still resolving.
+// Промежуточный снимок доступности, публикуемый пока выбранные провайдеры ещё выполняют поиск.
+export interface MediaAvailabilityProgressSnapshot {
+  availability: MediaAvailability | null;
+  state: "pending" | "complete";
+  pendingProviders: string[];
+}
+
 // Streaming provider features used by UI and engine selection.
 // Возможности streaming-провайдера для UI и выбора движком.
 export type StreamingProviderFeature =
@@ -206,4 +214,10 @@ export interface StreamingProvider {
   availabilityDependsOnPlaybackUserAgent?: boolean;
 
   getAvailability(query: StreamQuery, context: ProviderContext): Promise<MediaAvailability | null>;
+  // Optional progressive path; the final complete snapshot must match getAvailability().
+  // Необязательный прогрессивный путь; финальный complete-снимок должен совпадать с getAvailability().
+  getAvailabilityProgressively?(
+    query: StreamQuery,
+    context: ProviderContext,
+  ): AsyncIterable<MediaAvailabilityProgressSnapshot>;
 }

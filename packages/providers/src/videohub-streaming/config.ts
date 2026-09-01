@@ -3,6 +3,7 @@ import { MEDIA_ENGINE_DEFAULT_USER_AGENT } from "../package-version.js";
 import { ProviderRateLimitGate, type ProviderFetch } from "../shared/index.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
 import { createHardenedProviderFetch } from "../shared/safe-fetch.js";
+import { VideoHubStreamingCache } from "./cache.js";
 
 const DEFAULT_PROVIDER_NAME = "videohub-streaming";
 const DEFAULT_BASE_URL = "https://plapi.cdnvideohub.com";
@@ -13,6 +14,8 @@ const DEFAULT_VIDEO_LOOKUP_LIMIT = 8;
 const DEFAULT_VIDEO_LOOKUP_CONCURRENCY = 4;
 const DEFAULT_VIDEO_LOOKUP_TIMEOUT_MS = 15_000;
 const DEFAULT_LINK_TTL_MS = 5 * 60_000;
+const DEFAULT_PLAYLIST_CACHE_TTL_MS = 5 * 60_000;
+const DEFAULT_CACHE_MAX_ENTRIES = 256;
 const DEFAULT_ADDRESS_ATTEMPT_TIMEOUT_MS = 3_500;
 
 export interface VideoHubStreamingProviderOptions {
@@ -27,6 +30,8 @@ export interface VideoHubStreamingProviderOptions {
   videoLookupConcurrency?: number;
   videoLookupTimeoutMs?: number;
   linkTtlMs?: number;
+  playlistCacheTtlMs?: number;
+  cacheMaxEntries?: number;
   userAgent?: string;
   now?: () => number;
 }
@@ -43,6 +48,7 @@ export interface VideoHubStreamingConfig {
   videoLookupConcurrency: number;
   videoLookupTimeoutMs: number;
   linkTtlMs: number;
+  cache: VideoHubStreamingCache;
   userAgent: string;
   now: () => number;
 }
@@ -51,6 +57,21 @@ export function createVideoHubConfig(
   options: VideoHubStreamingProviderOptions,
 ): VideoHubStreamingConfig {
   const name = normalizeProviderName(options.name ?? DEFAULT_PROVIDER_NAME);
+  const now = options.now ?? Date.now;
+  const playlistCacheTtlMs = resolveBoundedIntegerOption(
+    options.playlistCacheTtlMs,
+    DEFAULT_PLAYLIST_CACHE_TTL_MS,
+    "VideoHUB streaming playlistCacheTtlMs",
+    0,
+    60 * 60_000,
+  );
+  const cacheMaxEntries = resolveBoundedIntegerOption(
+    options.cacheMaxEntries,
+    DEFAULT_CACHE_MAX_ENTRIES,
+    "VideoHUB streaming cacheMaxEntries",
+    2,
+    2_048,
+  );
 
   return {
     name,
@@ -112,8 +133,13 @@ export function createVideoHubConfig(
       30_000,
       60 * 60_000,
     ),
+    cache: new VideoHubStreamingCache({
+      maxEntries: cacheMaxEntries,
+      playlistTtlMs: playlistCacheTtlMs,
+      now,
+    }),
     userAgent: options.userAgent?.trim() || MEDIA_ENGINE_DEFAULT_USER_AGENT,
-    now: options.now ?? Date.now,
+    now,
   };
 }
 
