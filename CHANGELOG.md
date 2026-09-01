@@ -5,7 +5,7 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
-## Unreleased
+## 1.4.0 - 2026-09-01
 
 ### Added
 
