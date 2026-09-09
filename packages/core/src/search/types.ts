@@ -17,6 +17,7 @@ export interface SearchQuery {
   myAnimeList?: string;
   aniList?: string;
   limit?: number;
+  offset?: number;
   language?: string;
 }
 

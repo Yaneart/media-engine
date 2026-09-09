@@ -42,6 +42,7 @@ export class MediaController {
   @ApiQuery({ name: 'genre', required: false, type: String })
   @ApiQuery({ name: 'minimumRating', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiQuery({ name: 'language', required: false, type: String })
   @ApiExternalIdQueryParameters()
   @ApiOkResponse({ description: 'Merged search results.' })

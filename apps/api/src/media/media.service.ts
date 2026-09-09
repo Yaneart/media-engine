@@ -108,6 +108,7 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
   const genre = readString(query.genre);
   const minimumRating = readNumber(query.minimumRating, 'minimumRating');
   const limit = readInteger(query.limit, 'limit');
+  const offset = readInteger(query.offset, 'offset');
 
   if (title !== undefined) {
     searchQuery.title = title;
@@ -135,6 +136,10 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
 
   if (limit !== undefined) {
     searchQuery.limit = limit;
+  }
+
+  if (offset !== undefined) {
+    searchQuery.offset = offset;
   }
 
   copyExternalIds(query, searchQuery);

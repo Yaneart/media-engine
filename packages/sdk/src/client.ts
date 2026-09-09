@@ -234,6 +234,7 @@ function appendQuery(
   appendParam(url, "genre", "genre" in query ? query.genre : undefined);
   appendParam(url, "minimumRating", "minimumRating" in query ? query.minimumRating : undefined);
   appendParam(url, "limit", "limit" in query ? query.limit : undefined);
+  appendParam(url, "offset", "offset" in query ? query.offset : undefined);
   appendParam(url, "language", query.language);
   appendParam(url, "id", "id" in query ? query.id : undefined);
   appendParam(url, "seasonNumber", "seasonNumber" in query ? query.seasonNumber : undefined);

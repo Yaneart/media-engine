@@ -480,10 +480,11 @@ export class MediaEngine {
         visibleResultSet.has(posterEnrichedResults[index]!),
       );
       const visibleResults = finalizeSearchRankingEvidence(filteredResults);
+      const offset = normalizedQuery.offset ?? 0;
       const limitedResults =
         normalizedQuery.limit === undefined
           ? visibleResults
-          : visibleResults.slice(0, normalizedQuery.limit);
+          : visibleResults.slice(offset, offset + normalizedQuery.limit);
 
       const response: SearchResponse = {
         query: normalizedQuery,

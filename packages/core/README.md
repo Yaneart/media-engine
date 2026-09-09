@@ -41,7 +41,14 @@ Create one `MediaEngine` instance and reuse it while your application is running
 
 ```ts
 await media.search({ title: "Interstellar" });
-await media.search({ type: "movie", genre: "Horror", year: 2024, minimumRating: 7 });
+await media.search({
+  type: "movie",
+  genre: "Horror",
+  year: 2024,
+  minimumRating: 7,
+  limit: 48,
+  offset: 0,
+});
 await media.getDetails({ imdb: "tt0816692" });
 await media.getAvailability({
   type: "series",

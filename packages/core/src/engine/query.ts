@@ -37,9 +37,10 @@ const SEARCH_JOINED_FALLBACK_MIN_LENGTH = 6;
 const SEARCH_JOINED_FALLBACK_MAX_LENGTH = 8;
 const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
+const MAX_SEARCH_WINDOW = 250;
 const MAX_TORRENT_LIMIT = 100;
 const MAX_TORRENT_ALTERNATIVE_TITLES = 20;
-const MAX_PROVIDER_SEARCH_LIMIT = 100;
+const MAX_PROVIDER_SEARCH_LIMIT = MAX_SEARCH_WINDOW;
 const MAX_TITLE_LENGTH = 300;
 const MAX_GENRE_LENGTH = 100;
 const MAX_LANGUAGE_LENGTH = 35;
@@ -64,6 +65,7 @@ export function normalizeSearchQuery(query: SearchQuery): SearchQuery {
     ...(query.minimumRating !== undefined ? { minimumRating: query.minimumRating } : {}),
     ...(ids ? { ids } : {}),
     ...(query.limit !== undefined ? { limit: query.limit } : {}),
+    ...(query.offset !== undefined && query.offset !== 0 ? { offset: query.offset } : {}),
     ...(language ? { language } : {}),
   };
 }
@@ -154,6 +156,24 @@ export function validateSearchQuery(query: SearchQuery): void {
       code: "INVALID_QUERY",
       message: `Search query limit must be an integer between 0 and ${MAX_SEARCH_LIMIT}.`,
     });
+  }
+
+  if (
+    query.offset !== undefined &&
+    (!Number.isInteger(query.offset) || query.offset < 0 || query.offset > MAX_SEARCH_WINDOW)
+  ) {
+    throw new MediaEngineError({
+      code: "INVALID_QUERY",
+      message: `Search query offset must be an integer between 0 and ${MAX_SEARCH_WINDOW}.`,
+    });
+  }
+
+  if (query.offset !== undefined && query.limit === undefined) {
+    throwInvalidQuery("Search query offset requires an explicit limit.");
+  }
+
+  if ((query.offset ?? 0) + (query.limit ?? 0) > MAX_SEARCH_WINDOW) {
+    throwInvalidQuery(`Search query offset plus limit must not exceed ${MAX_SEARCH_WINDOW}.`);
   }
 
   if (query.year !== undefined && (!Number.isInteger(query.year) || query.year < 0)) {
@@ -317,12 +337,14 @@ export function validateTorrentQuery(query: TorrentDiscoveryQuery): void {
 // Gives providers enough candidates so the engine can rank before applying the public limit.
 // Дает провайдерам достаточно кандидатов, чтобы движок ранжировал до применения публичного limit.
 export function createProviderSearchQuery(query: SearchQuery): ProviderSearchQuery {
+  const { offset: _offset, ...providerQuery } = query;
+
   if (query.limit === undefined || query.limit === 0) {
-    return query;
+    return providerQuery;
   }
 
   return {
-    ...query,
+    ...providerQuery,
     limit: getProviderSearchLimit(query),
   };
 }
@@ -404,7 +426,7 @@ export function createSearchCacheKey(query: SearchQuery): string {
 // Shares confirmed identity ordering across equivalent searches with different public limits.
 // Разделяет подтвержденный порядок identity между эквивалентными поисками с разными limit.
 export function createSearchIdentitySnapshotCacheKey(query: SearchQuery): string {
-  const { limit: _limit, ...identityQuery } = query;
+  const { limit: _limit, offset: _offset, ...identityQuery } = query;
   return `search-identity:${JSON.stringify(sortObject(identityQuery))}`;
 }
 
@@ -580,11 +602,17 @@ export function sortObject(value: unknown): unknown {
 // Expands broad short queries more because final ranking needs enough cross-provider candidates.
 // Расширяет короткие широкие запросы сильнее, потому что финальному ranking нужны кандидаты разных провайдеров.
 function getProviderSearchLimit(query: SearchQuery): number {
-  if (isBroadShortTitleSearch(query)) {
-    return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(query.limit! * 10, 50));
+  const requestedWindow = (query.offset ?? 0) + query.limit!;
+
+  if (!query.title && !hasExternalIds(query.ids)) {
+    return Math.min(MAX_PROVIDER_SEARCH_LIMIT, requestedWindow);
   }
 
-  return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(query.limit! * 5, 10));
+  if (isBroadShortTitleSearch(query)) {
+    return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(requestedWindow * 10, 50));
+  }
+
+  return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(requestedWindow * 5, 10));
 }
 
 // Detects searches like "one" or "game" where popular canonical results may be deeper.

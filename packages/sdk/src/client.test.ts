@@ -57,6 +57,7 @@ test("search serializes query params and parses response", async () => {
     genre: "Sci-Fi",
     minimumRating: 8.5,
     limit: 10,
+    offset: 20,
   });
 
   assert.deepEqual(result, body);
@@ -69,6 +70,7 @@ test("search serializes query params and parses response", async () => {
   assert.equal(mock.calls[0]?.searchParams.get("ids.imdb"), "tt0816692");
   assert.equal(mock.calls[0]?.searchParams.get("ids.worldArt"), "12345");
   assert.equal(mock.calls[0]?.searchParams.get("limit"), "10");
+  assert.equal(mock.calls[0]?.searchParams.get("offset"), "20");
 });
 
 test("request options forward AbortSignal without changing query serialization", async () => {

@@ -178,6 +178,10 @@ test("search rejects malformed or oversized canonical fields before provider sel
     { genre: "Hor\nror" },
     { minimumRating: -0.1 },
     { minimumRating: 10.1 },
+    { title: "Interstellar", offset: -1, limit: 10 },
+    { title: "Interstellar", offset: 1.5, limit: 10 },
+    { title: "Interstellar", offset: 10 },
+    { title: "Interstellar", offset: 200, limit: 51 },
     { title: "Interstellar", type: "book" as SearchQuery["type"] },
   ];
 
@@ -249,12 +253,57 @@ test("search supports combined filter-only discovery and removes mismatched resu
     year: 2024,
     genre: "Horror",
     minimumRating: 7,
-    limit: 50,
+    limit: 10,
   });
   assert.deepEqual(
     response.results.map((result) => result.item.id),
     ["movie-1"],
   );
+});
+
+test("search returns a stable offset window after merged ranking", async () => {
+  let receivedLimit: number | undefined;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: { byTitle: true, byExternalIds: [], filterDiscovery: ["genre"] },
+          details: { byExternalIds: [] },
+        },
+        async search(query): Promise<ProviderSearchResult[]> {
+          receivedLimit = query.limit;
+
+          return Array.from({ length: query.limit ?? 0 }, (_, index) => ({
+            provider: "test-provider",
+            item: {
+              id: `movie-${index}`,
+              type: "movie" as const,
+              title: `Horror ${String(999 - index).padStart(3, "0")}`,
+              genres: [{ name: "Horror" }],
+              ids: { imdb: `tt${String(index + 1).padStart(7, "0")}` },
+            },
+          }));
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({
+    type: "movie",
+    genre: "Horror",
+    offset: 96,
+    limit: 49,
+  });
+
+  assert.equal(receivedLimit, 145);
+  assert.deepEqual(
+    response.results.slice(0, 3).map((result) => result.item.id),
+    ["movie-96", "movie-97", "movie-98"],
+  );
+  assert.equal(response.results.length, 49);
+  assert.equal(response.results.at(-1)?.item.id, "movie-144");
+  assert.equal(response.query.offset, 96);
 });
 
 test("search infers provider context language from the title script", async () => {

@@ -24,7 +24,7 @@ API запустится на <http://127.0.0.1:3000>. Swagger будет дос
 
 ```bash
 curl 'http://127.0.0.1:3000/media/search?title=Интерстеллар&language=ru'
-curl 'http://127.0.0.1:3000/media/search?type=movie&genre=Horror&year=2024&minimumRating=7'
+curl 'http://127.0.0.1:3000/media/search?type=movie&genre=Horror&year=2024&minimumRating=7&limit=48&offset=0'
 ```
 
 ## Основные маршруты

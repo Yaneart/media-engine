@@ -239,6 +239,7 @@ async function searchCatalogType(
   const itemsById = new Map<string, MediaItem>();
 
   for (let page = 0; page < MAX_CATALOG_PAGES; page += 1) {
+    const previousItemCount = itemsById.size;
     const pageExtras = [...extras, ...(page === 0 ? [] : [`skip=${page * CATALOG_PAGE_SIZE}`])];
     const suffix = pageExtras.length ? `/${pageExtras.join("&")}` : "";
     const url = new URL(
@@ -259,7 +260,12 @@ async function searchCatalogType(
       matchesSearchFilters(item, query),
     );
 
-    if (matchingItems.length >= targetLimit || metas.length < CATALOG_PAGE_SIZE) {
+    if (
+      matchingItems.length >= targetLimit ||
+      metas.length === 0 ||
+      itemsById.size === previousItemCount ||
+      (Boolean(query.title) && metas.length < CATALOG_PAGE_SIZE)
+    ) {
       break;
     }
   }

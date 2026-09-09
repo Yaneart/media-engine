@@ -30,6 +30,8 @@ const PROVIDER_NAME = "shikimori";
 const DEFAULT_BASE_URL = "https://shikimori.one";
 const DEFAULT_SEARCH_LIMIT = 20;
 const DEFAULT_PERSON_LIMIT = 20;
+const MAX_SEARCH_RESULTS = 250;
+const SEARCH_PAGE_SIZE = 50;
 
 // Options used to create a Shikimori metadata provider.
 // Опции для создания metadata-провайдера Shikimori.
@@ -139,6 +141,7 @@ interface ShikimoriGenreResponse {
   name?: string;
   russian?: string;
   kind?: string;
+  entry_type?: string;
 }
 
 interface ShikimoriRoleResponse {
@@ -213,27 +216,35 @@ async function searchShikimori(
     return [];
   }
 
-  const response = await requestShikimori<ShikimoriAnimeSearchResult[]>(
-    config,
-    "/api/animes",
-    {
-      search: query.title,
-      season: query.year === undefined ? undefined : String(query.year),
-      genre: genre?.id === undefined ? undefined : String(genre.id),
-      score: query.minimumRating === undefined ? undefined : String(query.minimumRating),
-      limit: String(Math.min(query.limit ?? config.searchLimit, 50)),
-      order: "popularity",
-      kind: "tv,movie,ova,ona,special,music",
-      censored: String(config.censored),
-    },
-    context,
-  );
+  const targetLimit = Math.min(query.limit ?? config.searchLimit, MAX_SEARCH_RESULTS);
 
-  return response
-    .map((item) =>
-      mapAnimeSearchResult(
+  if (targetLimit <= 0) return [];
+
+  const pageSize = Math.min(targetLimit, SEARCH_PAGE_SIZE);
+  const itemsById = new Map<string, MediaItem>();
+
+  for (let page = 1; page <= Math.ceil(targetLimit / pageSize); page += 1) {
+    const response = await requestShikimori<ShikimoriAnimeSearchResult[]>(
+      config,
+      "/api/animes",
+      {
+        search: query.title,
+        season: query.year === undefined ? undefined : String(query.year),
+        genre: genre?.id === undefined ? undefined : String(genre.id),
+        score: query.minimumRating === undefined ? undefined : String(query.minimumRating),
+        page: String(page),
+        limit: String(pageSize),
+        order: "popularity",
+        kind: "tv,movie,ova,ona,special,music",
+        censored: String(config.censored),
+      },
+      context,
+    );
+
+    for (const result of response) {
+      const item = mapAnimeSearchResult(
         config,
-        item,
+        result,
         {},
         query.genre && genre
           ? [
@@ -244,9 +255,18 @@ async function searchShikimori(
               },
             ]
           : undefined,
-      ),
-    )
-    .filter((item) => matchesSearchFilters(item, query))
+      );
+
+      if (matchesSearchFilters(item, query)) {
+        itemsById.set(item.id, item);
+      }
+    }
+
+    if (itemsById.size >= targetLimit || response.length < pageSize) break;
+  }
+
+  return [...itemsById.values()]
+    .slice(0, targetLimit)
     .map((item) => createSearchResult(config, item, context.debug));
 }
 
@@ -265,7 +285,9 @@ async function findShikimoriGenre(
 
   return genres.find(
     (genre) =>
-      genre.kind === "anime" &&
+      [genre.entry_type, genre.kind].some(
+        (value) => value && normalizeFilterValue(value) === "anime",
+      ) &&
       [genre.name, genre.russian].some(
         (name) => name && normalizeFilterValue(name) === normalizedGenre,
       ),

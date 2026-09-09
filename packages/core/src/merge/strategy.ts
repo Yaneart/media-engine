@@ -55,6 +55,11 @@ export class DefaultMergeStrategy implements MergeStrategy {
     context: MergeContext = {},
   ): MediaSearchResult[] {
     const groups = groupSearchResults(results);
+    const query = context.query as SearchQuery | undefined;
+    const hasTitleQuery = Boolean(query?.title?.trim());
+    const isFilterDiscovery =
+      !hasTitleQuery &&
+      (query?.year !== undefined || Boolean(query?.genre) || query?.minimumRating !== undefined);
 
     const ranked = groups
       .filter((group) => isSearchGroupRelevant(group, context))
@@ -90,6 +95,10 @@ export class DefaultMergeStrategy implements MergeStrategy {
           return providerDiff;
         }
 
+        if (isFilterDiscovery) {
+          return left.groupIndex - right.groupIndex;
+        }
+
         const titleDiff = left.result.item.title.localeCompare(right.result.item.title);
 
         if (titleDiff !== 0) {
@@ -98,7 +107,6 @@ export class DefaultMergeStrategy implements MergeStrategy {
 
         return left.groupIndex - right.groupIndex;
       });
-    const query = context.query as SearchQuery | undefined;
     const diversified = diversifySearchCandidates(
       ranked.map((candidate) => ({
         value: candidate.result,

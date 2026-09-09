@@ -28,6 +28,8 @@ import { parseAniListGraphQlData } from "./graphql.js";
 const PROVIDER_NAME = "anilist";
 const DEFAULT_BASE_URL = "https://graphql.anilist.co";
 const DEFAULT_SEARCH_LIMIT = 10;
+const MAX_SEARCH_RESULTS = 250;
+const SEARCH_PAGE_SIZE = 50;
 const MEDIA_FIELDS = `
   id idMal title { romaji english native } synonyms format status episodes duration
   startDate { year month day } endDate { year month day }
@@ -51,7 +53,10 @@ interface AniListConfig {
 }
 
 interface GraphQlResponse {
-  data: { Page?: { media?: AniListMedia[] }; Media?: AniListMedia | null };
+  data: {
+    Page?: { pageInfo?: { hasNextPage?: boolean }; media?: AniListMedia[] };
+    Media?: AniListMedia | null;
+  };
 }
 
 interface AniListMedia {
@@ -138,30 +143,53 @@ async function searchAniList(
   }
 
   const sort = query.title ? "[SEARCH_MATCH, POPULARITY_DESC]" : "[POPULARITY_DESC, SCORE_DESC]";
+  const targetLimit = Math.min(query.limit ?? config.searchLimit, MAX_SEARCH_RESULTS);
 
-  const response = await request(
-    config,
-    `query ($search: String, $perPage: Int!, $isAdult: Boolean, $year: Int, $genre: String, $minimumScore: Int) {
-      Page(page: 1, perPage: $perPage) {
-        media(search: $search, type: ANIME, seasonYear: $year, genre: $genre, averageScore_greater: $minimumScore, isAdult: $isAdult, sort: ${sort}) { ${MEDIA_FIELDS} }
+  if (targetLimit <= 0) return [];
+
+  const pageSize = Math.min(targetLimit, SEARCH_PAGE_SIZE);
+  const itemsById = new Map<string, MediaItem>();
+
+  for (let page = 1; page <= Math.ceil(targetLimit / pageSize); page += 1) {
+    const response = await request(
+      config,
+      `query ($page: Int!, $search: String, $perPage: Int!, $isAdult: Boolean, $year: Int, $genre: String, $minimumScore: Int) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { hasNextPage }
+          media(search: $search, type: ANIME, seasonYear: $year, genre: $genre, averageScore_greater: $minimumScore, isAdult: $isAdult, sort: ${sort}) { ${MEDIA_FIELDS} }
+        }
+      }`,
+      {
+        page,
+        search: query.title,
+        perPage: pageSize,
+        year: query.year,
+        genre: query.genre,
+        minimumScore:
+          query.minimumRating === undefined ? undefined : Math.ceil(query.minimumRating * 10) - 1,
+        isAdult: config.includeAdult ? undefined : false,
+      },
+      context,
+    );
+    const pageItems = response.data?.Page?.media ?? [];
+
+    for (const media of pageItems) {
+      const item = mapMediaItem(media);
+
+      if (item && matchesSearchFilters(item, query)) {
+        itemsById.set(item.id, item);
       }
-    }`,
-    {
-      search: query.title,
-      perPage: Math.min(query.limit ?? config.searchLimit, 50),
-      year: query.year,
-      genre: query.genre,
-      minimumScore:
-        query.minimumRating === undefined ? undefined : Math.ceil(query.minimumRating * 10) - 1,
-      isAdult: config.includeAdult ? undefined : false,
-    },
-    context,
-  );
+    }
 
-  return (response.data?.Page?.media ?? [])
-    .map(mapMediaItem)
-    .filter((item): item is MediaItem => item !== undefined)
-    .filter((item) => matchesSearchFilters(item, query))
+    if (itemsById.size >= targetLimit) break;
+
+    const hasNextPage = response.data?.Page?.pageInfo?.hasNextPage;
+
+    if (hasNextPage === false || (hasNextPage !== true && pageItems.length < pageSize)) break;
+  }
+
+  return [...itemsById.values()]
+    .slice(0, targetLimit)
     .map((item) => toSearchResult(item, context.debug));
 }
 

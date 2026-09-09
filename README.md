@@ -50,8 +50,14 @@ const horror = await media.search({
   genre: "Horror",
   year: 2024,
   minimumRating: 7,
+  limit: 48,
+  offset: 0,
 });
 ```
+
+Request the next page with `offset: 48`. Search windows are bounded to
+`offset + limit <= 250`; request one extra result when the application needs a `has more` signal
+without claiming an upstream total.
 
 The built-in providers do not require API keys, account cookies, or private tokens.
 

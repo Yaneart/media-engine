@@ -71,7 +71,9 @@ test("shikimoriProvider discovers anime by year, genre, and minimum rating", asy
   const requests: RequestRecord[] = [];
   const provider = createProvider({
     fetch: createMockFetch(requests, {
-      "/api/genres": [{ id: 1, name: "Action", russian: "Экшен", kind: "anime" }],
+      "/api/genres": [
+        { id: 1, name: "Action", russian: "Экшен", kind: "genre", entry_type: "Anime" },
+      ],
       "/api/animes": [
         {
           id: 21,
@@ -100,6 +102,49 @@ test("shikimoriProvider discovers anime by year, genre, and minimum rating", asy
     "genre",
     "minimumRating",
   ]);
+});
+
+test("shikimoriProvider loads enough pages for a bounded search window", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      requests.push({
+        path: url.pathname,
+        params: url.searchParams,
+        userAgent: new Headers(init?.headers).get("user-agent"),
+      });
+
+      if (url.pathname === "/api/genres") {
+        return Response.json([
+          { id: 1, name: "Action", russian: "Экшен", kind: "genre", entry_type: "Anime" },
+        ]);
+      }
+
+      const page = Number(url.searchParams.get("page") ?? 1);
+      const pageSize = Number(url.searchParams.get("limit") ?? 50);
+      const count = page === 1 ? pageSize : 3;
+      const start = (page - 1) * pageSize;
+
+      return Response.json(
+        Array.from({ length: count }, (_, index) => ({
+          id: start + index + 1,
+          name: `Anime ${start + index + 1}`,
+        })),
+      );
+    },
+  });
+
+  const results = await provider.search({ type: "anime", genre: "Action", limit: 52 }, {});
+  const animeRequests = requests.filter((request) => request.path === "/api/animes");
+
+  assert.equal(results.length, 52);
+  assert.deepEqual(
+    animeRequests.map((request) => request.params.get("page")),
+    ["1", "2"],
+  );
+  assert.ok(animeRequests.every((request) => request.params.get("limit") === "50"));
+  assert.equal(results.at(-1)?.item.title, "Anime 52");
 });
 
 test("shikimoriProvider ignores non-anime search queries", async () => {

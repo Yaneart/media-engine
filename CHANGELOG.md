@@ -5,6 +5,25 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
+## Unreleased
+
+### Added
+
+- Search now supports bounded `offset` pagination over a stable provider prefix. The public
+  `offset + limit` window is capped at 250 results and is available through Core, the HTTP API,
+  and the SDK.
+
+### Fixed
+
+- Cinemeta filter discovery continues past a short non-empty catalog page, while retaining the
+  five-page upstream bound and the existing one-page behavior for ordinary title search.
+- AniList and Shikimori filter discovery can fill multi-page search windows. Shikimori genre
+  resolution accepts the current `entry_type: "Anime"` response shape as well as the legacy shape.
+
+### Changed
+
+- The additive REST/OpenAPI contract version is now `0.15.0` for search pagination.
+
 ## 1.5.0 - 2026-09-09
 
 ### Added

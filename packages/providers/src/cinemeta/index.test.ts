@@ -119,7 +119,7 @@ test("cinemetaProvider uses the rating catalog for title-independent rating disc
 
 test("cinemetaProvider loads bounded catalog pages until filtered results fill the limit", async () => {
   const requests: RequestRecord[] = [];
-  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+  const firstPage = Array.from({ length: 48 }, (_, index) => ({
     id: `tt-drama-${index}`,
     type: "movie",
     name: `Drama ${index}`,

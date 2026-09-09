@@ -173,6 +173,7 @@ describe('MediaController', () => {
         minimumRating: '8.5',
         imdb: ' tt0816692 ',
         limit: '2',
+        offset: '1',
         language: 'ru',
       })
       .expect(200)
@@ -187,6 +188,7 @@ describe('MediaController', () => {
         minimumRating: 8.5,
         imdb: 'tt0816692',
         limit: 2,
+        offset: 1,
         language: 'ru',
       },
       { signal: expect.any(AbortSignal) },
@@ -238,6 +240,15 @@ describe('MediaController', () => {
         title: 'Interstellar',
         limit: 'many',
       })
+      .expect(400);
+
+    expect(mediaEngine.search).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an invalid offset', async () => {
+    await request(app.getHttpServer())
+      .get('/media/search')
+      .query({ title: 'Interstellar', limit: '10', offset: 'next' })
       .expect(400);
 
     expect(mediaEngine.search).not.toHaveBeenCalled();

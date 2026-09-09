@@ -88,6 +88,41 @@ test("aniListProvider discovers anime by year, genre, and minimum rating", async
   ]);
 });
 
+test("aniListProvider loads enough pages for a bounded search window", async () => {
+  const requestedPages: number[] = [];
+  const provider = aniListProvider({
+    fetch: async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as {
+        variables?: { page?: number; perPage?: number };
+      };
+      const page = body.variables?.page ?? 1;
+      const pageSize = body.variables?.perPage ?? 50;
+      requestedPages.push(page);
+      const count = page === 1 ? pageSize : 3;
+      const start = (page - 1) * pageSize;
+
+      return Response.json({
+        data: {
+          Page: {
+            pageInfo: { hasNextPage: page === 1 },
+            media: Array.from({ length: count }, (_, index) => ({
+              id: start + index + 1,
+              title: { english: `Anime ${start + index + 1}` },
+              genres: ["Action"],
+            })),
+          },
+        },
+      });
+    },
+  });
+
+  const results = await provider.search({ type: "anime", genre: "Action", limit: 52 }, {});
+
+  assert.equal(results.length, 52);
+  assert.deepEqual(requestedPages, [1, 2]);
+  assert.equal(results.at(-1)?.item.title, "Anime 52");
+});
+
 test("aniListProvider loads details by AniList ID", async () => {
   const provider = aniListProvider({
     fetch: async () =>
