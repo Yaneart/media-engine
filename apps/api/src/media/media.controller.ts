@@ -39,6 +39,8 @@ export class MediaController {
     enum: [...MEDIA_TYPES],
   })
   @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiQuery({ name: 'genre', required: false, type: String })
+  @ApiQuery({ name: 'minimumRating', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'language', required: false, type: String })
   @ApiExternalIdQueryParameters()

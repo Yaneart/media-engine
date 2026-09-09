@@ -41,6 +41,7 @@ const MAX_TORRENT_LIMIT = 100;
 const MAX_TORRENT_ALTERNATIVE_TITLES = 20;
 const MAX_PROVIDER_SEARCH_LIMIT = 100;
 const MAX_TITLE_LENGTH = 300;
+const MAX_GENRE_LENGTH = 100;
 const MAX_LANGUAGE_LENGTH = 35;
 const MAX_EXTERNAL_ID_LENGTH = 128;
 const MAX_DEPRECATED_DETAILS_ID_LENGTH = 128;
@@ -51,6 +52,7 @@ const MAX_PROVIDER_FILTERS = 100;
 // Нормализует верхнеуровневые сокращения внешних ID в объект ids.
 export function normalizeSearchQuery(query: SearchQuery): SearchQuery {
   const title = normalizeOptionalString(query.title);
+  const genre = normalizeOptionalString(query.genre);
   const ids = normalizeExternalIds(query.ids, query);
   const language = normalizeLanguage(query.language);
 
@@ -58,6 +60,8 @@ export function normalizeSearchQuery(query: SearchQuery): SearchQuery {
     ...(title ? { title } : {}),
     ...(query.type !== undefined ? { type: query.type } : {}),
     ...(query.year !== undefined ? { year: query.year } : {}),
+    ...(genre ? { genre } : {}),
+    ...(query.minimumRating !== undefined ? { minimumRating: query.minimumRating } : {}),
     ...(ids ? { ids } : {}),
     ...(query.limit !== undefined ? { limit: query.limit } : {}),
     ...(language ? { language } : {}),
@@ -156,13 +160,30 @@ export function validateSearchQuery(query: SearchQuery): void {
     throwInvalidQuery("Search query year must be a non-negative integer.");
   }
 
-  if (query.title || hasExternalIds(query.ids)) {
+  if (query.genre !== undefined) {
+    validateBoundedString("Search query genre", query.genre, MAX_GENRE_LENGTH);
+  }
+
+  if (
+    query.minimumRating !== undefined &&
+    (!Number.isFinite(query.minimumRating) || query.minimumRating < 0 || query.minimumRating > 10)
+  ) {
+    throwInvalidQuery("Search query minimumRating must be a number between 0 and 10.");
+  }
+
+  if (
+    query.title ||
+    hasExternalIds(query.ids) ||
+    query.year !== undefined ||
+    query.genre !== undefined ||
+    query.minimumRating !== undefined
+  ) {
     return;
   }
 
   throw new MediaEngineError({
     code: "INVALID_QUERY",
-    message: "Search query must include title or external ids.",
+    message: "Search query must include title, external ids, or a discovery filter.",
   });
 }
 

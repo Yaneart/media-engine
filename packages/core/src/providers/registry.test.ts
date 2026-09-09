@@ -162,6 +162,47 @@ test("selects search providers by external ids", () => {
   assert.deepEqual(registry.selectSearchProviders({ ids: { imdb: "tt0816692" } }), [imdbProvider]);
 });
 
+test("selects only providers that support every filter used for discovery", () => {
+  const filterProvider = createProvider({
+    name: "filter-provider",
+    capabilities: {
+      mediaTypes: ["movie"],
+      search: {
+        byTitle: true,
+        byExternalIds: [],
+        filterDiscovery: ["year", "genre", "minimumRating"],
+      },
+      details: { byExternalIds: [] },
+    },
+  });
+  const yearOnlyProvider = createProvider({
+    name: "year-only-provider",
+    capabilities: {
+      mediaTypes: ["movie"],
+      search: {
+        byTitle: true,
+        byExternalIds: [],
+        filterDiscovery: ["year"],
+      },
+      details: { byExternalIds: [] },
+    },
+  });
+  const registry = new ProviderRegistry([filterProvider, yearOnlyProvider]);
+
+  assert.deepEqual(registry.selectSearchProviders({ type: "movie", year: 2024 }), [
+    filterProvider,
+    yearOnlyProvider,
+  ]);
+  assert.deepEqual(registry.selectSearchProviders({ type: "movie", year: 2024, genre: "Horror" }), [
+    filterProvider,
+  ]);
+  assert.deepEqual(registry.getProviders()[0]?.capabilities.search.filterDiscovery, [
+    "year",
+    "genre",
+    "minimumRating",
+  ]);
+});
+
 test("respects media type capabilities during search selection", () => {
   const movieProvider = createProvider({
     name: "movie-provider",

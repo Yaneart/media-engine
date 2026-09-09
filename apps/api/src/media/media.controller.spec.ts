@@ -169,6 +169,8 @@ describe('MediaController', () => {
         title: ' Interstellar ',
         type: 'movie',
         year: '2014',
+        genre: ' Sci-Fi ',
+        minimumRating: '8.5',
         imdb: ' tt0816692 ',
         limit: '2',
         language: 'ru',
@@ -181,6 +183,8 @@ describe('MediaController', () => {
         title: 'Interstellar',
         type: 'movie',
         year: 2014,
+        genre: 'Sci-Fi',
+        minimumRating: 8.5,
         imdb: 'tt0816692',
         limit: 2,
         language: 'ru',
@@ -234,6 +238,15 @@ describe('MediaController', () => {
         title: 'Interstellar',
         limit: 'many',
       })
+      .expect(400);
+
+    expect(mediaEngine.search).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an invalid minimum rating', async () => {
+    await request(app.getHttpServer())
+      .get('/media/search')
+      .query({ minimumRating: 'high' })
       .expect(400);
 
     expect(mediaEngine.search).not.toHaveBeenCalled();

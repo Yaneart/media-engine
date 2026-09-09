@@ -105,6 +105,8 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
   const language = readString(query.language);
   const type = readMediaType(query.type);
   const year = readInteger(query.year, 'year');
+  const genre = readString(query.genre);
+  const minimumRating = readNumber(query.minimumRating, 'minimumRating');
   const limit = readInteger(query.limit, 'limit');
 
   if (title !== undefined) {
@@ -121,6 +123,14 @@ export function toSearchQuery(query: MediaSearchHttpQuery): SearchQuery {
 
   if (year !== undefined) {
     searchQuery.year = year;
+  }
+
+  if (genre !== undefined) {
+    searchQuery.genre = genre;
+  }
+
+  if (minimumRating !== undefined) {
+    searchQuery.minimumRating = minimumRating;
   }
 
   if (limit !== undefined) {
@@ -238,6 +248,27 @@ function readInteger(
 
   if (!Number.isInteger(parsed)) {
     throw new BadRequestException(`${field} must be an integer.`);
+  }
+
+  return parsed;
+}
+
+// EN: Parse finite numeric query parameters before they reach the core engine.
+// RU: Парсит конечные числовые query параметры до передачи в core engine.
+function readNumber(
+  value: string | string[] | undefined,
+  field: string,
+): number | undefined {
+  const raw = readString(value);
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number(raw);
+
+  if (!Number.isFinite(parsed)) {
+    throw new BadRequestException(`${field} must be a number.`);
   }
 
   return parsed;

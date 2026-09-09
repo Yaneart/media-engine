@@ -231,6 +231,8 @@ function appendQuery(
   );
   appendParam(url, "type", query.type);
   appendParam(url, "year", "year" in query ? query.year : undefined);
+  appendParam(url, "genre", "genre" in query ? query.genre : undefined);
+  appendParam(url, "minimumRating", "minimumRating" in query ? query.minimumRating : undefined);
   appendParam(url, "limit", "limit" in query ? query.limit : undefined);
   appendParam(url, "language", query.language);
   appendParam(url, "id", "id" in query ? query.id : undefined);

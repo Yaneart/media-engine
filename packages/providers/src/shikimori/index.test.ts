@@ -67,6 +67,41 @@ test("shikimoriProvider searches anime by title", async () => {
   assert.equal(requests[0]?.userAgent, "MediaEngineTest/0.0.0");
 });
 
+test("shikimoriProvider discovers anime by year, genre, and minimum rating", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/api/genres": [{ id: 1, name: "Action", russian: "Экшен", kind: "anime" }],
+      "/api/animes": [
+        {
+          id: 21,
+          name: "One Piece",
+          score: "8.72",
+          aired_on: "1999-10-20",
+        },
+      ],
+    }),
+  });
+
+  const results = await provider.search(
+    { type: "anime", year: 1999, genre: "Action", minimumRating: 8 },
+    {},
+  );
+
+  assert.equal(results[0]?.item.title, "One Piece");
+  assert.equal(results[0]?.item.genres?.[0]?.name, "Action");
+  assert.equal(requests[0]?.path, "/api/genres");
+  assert.equal(requests[1]?.params.get("season"), "1999");
+  assert.equal(requests[1]?.params.get("genre"), "1");
+  assert.equal(requests[1]?.params.get("score"), "8");
+  assert.equal(requests[1]?.params.has("search"), false);
+  assert.deepEqual(provider.capabilities.search.filterDiscovery, [
+    "year",
+    "genre",
+    "minimumRating",
+  ]);
+});
+
 test("shikimoriProvider ignores non-anime search queries", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({

@@ -6,7 +6,7 @@ Media Engine is a TypeScript library that gives you one clean API for movies, se
 It searches several public sources, recognizes when they describe the same title, merges their
 answers, and keeps useful results even when one of the sources is down.
 
-Version `1.4.0` is the current release.
+Version `1.5.0` is the current release.
 
 ## Quick start
 
@@ -40,6 +40,17 @@ You can also search and load details by a known external ID:
 ```ts
 const search = await media.search({ imdb: "tt0816692" });
 const details = await media.getDetails({ imdb: "tt0816692" });
+```
+
+Catalog discovery can omit the title and combine exact year, genre, and minimum rating filters:
+
+```ts
+const horror = await media.search({
+  type: "movie",
+  genre: "Horror",
+  year: 2024,
+  minimumRating: 7,
+});
 ```
 
 The built-in providers do not require API keys, account cookies, or private tokens.

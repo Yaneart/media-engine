@@ -16,6 +16,11 @@ Providers are adapters between an external data source and the normalized core c
 
 Default applications can combine several providers. The merge strategy uses strong IDs and compatible titles to avoid treating unrelated results as the same item.
 
+Cinemeta filter discovery uses its dedicated genre, year, and IMDb-rating catalog views. It follows
+at most five 50-item pages until the requested number of matching items is collected or the catalog
+ends. Results remain bounded by what Cinemeta exposes; they are not an exhaustive index of every
+released title.
+
 TVmaze title discovery is fallback-only and returns only records with an IMDb identity. If the best result uses a different script from the query, the provider performs one bounded AKA lookup before exposing the alias. TVmaze data is available under CC BY-SA; normalized source records retain a link to the TVmaze show page, and consuming applications should render that attribution link. See the [TVmaze API license](https://www.tvmaze.com/api#licensing).
 
 Wikidata is also fallback-only. Its title search filters clearly unrelated summaries before a selected-property lookup of at most three candidates, requests labels and descriptions only for the selected language plus English fallback, and caps JSON responses at 256 KiB. Entity and exact IMDb mappings use a process-local six-hour LRU cache with 256 combined entries by default. `entityLimit`, `cacheTtlMs`, and `cacheMaxEntries` can tune these values only within their documented safe bounds.
@@ -255,6 +260,7 @@ A metadata provider declares:
 - stable name and optional version;
 - supported media types;
 - title and external-ID search capabilities;
+- optional `filterDiscovery` capabilities for year, genre, and minimum-rating searches without a title;
 - optional title-discovery role: `primary` by default or `fallback` for slower identity sources;
 - optional `searchEnrichment: false` for providers that must stay out of best-effort search-card enrichment;
 - detail lookup capabilities;

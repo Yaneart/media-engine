@@ -7,6 +7,8 @@ export interface SearchQuery {
   title?: string;
   type?: MediaType;
   year?: number;
+  genre?: string;
+  minimumRating?: number;
   ids?: ExternalIds;
   imdb?: string;
   tmdb?: string;

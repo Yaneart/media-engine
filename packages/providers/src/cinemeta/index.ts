@@ -25,6 +25,7 @@ import {
 } from "../shared/index.js";
 import { createProviderImage, mapGenreNames } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
+import { matchesSearchFilters } from "../shared/search-filters.js";
 
 const PROVIDER_NAME = "cinemeta";
 const DEFAULT_BASE_URL = "https://v3-cinemeta.strem.io";
@@ -32,6 +33,8 @@ const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_ENRICH_SEARCH_LIMIT = 5;
 const DEFAULT_IMAGE_LIMIT = 10;
 const DEFAULT_PERSON_LIMIT = 30;
+const CATALOG_PAGE_SIZE = 50;
+const MAX_CATALOG_PAGES = 5;
 
 // Options used to create a Cinemeta metadata provider.
 // Опции для создания metadata-провайдера Cinemeta.
@@ -60,6 +63,7 @@ export function cinemetaProvider(options: CinemetaProviderOptions = {}): MediaPr
       search: {
         byTitle: true,
         byExternalIds: ["imdb"],
+        filterDiscovery: ["year", "genre", "minimumRating"],
       },
       details: {
         byExternalIds: ["imdb"],
@@ -181,7 +185,12 @@ async function searchCinemeta(
     return details ? [detailsToSearchResult(details, context.debug)] : [];
   }
 
-  if (!query.title?.trim()) {
+  if (
+    !query.title?.trim() &&
+    query.year === undefined &&
+    !query.genre &&
+    query.minimumRating === undefined
+  ) {
     return [];
   }
 
@@ -225,28 +234,98 @@ async function searchCatalogType(
   query: ProviderSearchQuery,
   context: ProviderContext,
 ): Promise<ProviderSearchResult[]> {
-  const url = new URL(
-    `${config.baseUrl}/catalog/${toCinemetaType(type)}/top/search=${encodeURIComponent(
-      query.title ?? "",
-    )}.json`,
-  );
-  const response = await requestJson<CinemetaCatalogResponse>(config, url, context);
-  const items = (response.metas ?? [])
-    .map((meta) => mapMetaToItem(meta, type))
-    .filter((item): item is MediaItem => item !== undefined)
-    .filter((item) => query.year === undefined || item.year === query.year)
-    .slice(0, query.limit ?? config.searchLimit);
+  const { catalogId, extras, appliedGenre } = createCatalogRequest(query);
+  const targetLimit = query.limit ?? config.searchLimit;
+  const itemsById = new Map<string, MediaItem>();
+
+  for (let page = 0; page < MAX_CATALOG_PAGES; page += 1) {
+    const pageExtras = [...extras, ...(page === 0 ? [] : [`skip=${page * CATALOG_PAGE_SIZE}`])];
+    const suffix = pageExtras.length ? `/${pageExtras.join("&")}` : "";
+    const url = new URL(
+      `${config.baseUrl}/catalog/${toCinemetaType(type)}/${catalogId}${suffix}.json`,
+    );
+    const response = await requestJson<CinemetaCatalogResponse>(config, url, context);
+    const metas = response.metas ?? [];
+
+    for (const meta of metas) {
+      const item = mapMetaToItem(meta, type);
+
+      if (item) {
+        itemsById.set(item.id, addRequestedGenre(item, appliedGenre));
+      }
+    }
+
+    const matchingItems = [...itemsById.values()].filter((item) =>
+      matchesSearchFilters(item, query),
+    );
+
+    if (matchingItems.length >= targetLimit || metas.length < CATALOG_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  const items = [...itemsById.values()];
   const enrichedItems = shouldEnrichSearchItems(query)
     ? await enrichSearchItems(config, type, items, context)
     : items;
 
-  return enrichedItems.map((item) => createSearchResult(item, context.debug));
+  return enrichedItems
+    .map((item) => addRequestedGenre(item, appliedGenre))
+    .filter((item) => matchesSearchFilters(item, query))
+    .slice(0, query.limit ?? config.searchLimit)
+    .map((item) => createSearchResult(item, context.debug));
+}
+
+function createCatalogRequest(query: ProviderSearchQuery): {
+  catalogId: "top" | "year" | "imdbRating";
+  extras: string[];
+  appliedGenre?: string;
+} {
+  if (query.title) {
+    return {
+      catalogId: "top",
+      extras: [
+        `search=${encodeURIComponent(query.title)}`,
+        ...(query.genre ? [`genre=${encodeURIComponent(query.genre)}`] : []),
+      ],
+      appliedGenre: query.genre,
+    };
+  }
+
+  if (query.year !== undefined) {
+    return {
+      catalogId: "year",
+      extras: [`genre=${query.year}`],
+    };
+  }
+
+  if (query.minimumRating !== undefined) {
+    return {
+      catalogId: "imdbRating",
+      extras: query.genre ? [`genre=${encodeURIComponent(query.genre)}`] : [],
+      appliedGenre: query.genre,
+    };
+  }
+
+  return {
+    catalogId: "top",
+    extras: query.genre ? [`genre=${encodeURIComponent(query.genre)}`] : [],
+    appliedGenre: query.genre,
+  };
 }
 
 // Keeps broad title-only search responsive by avoiding extra per-item meta requests.
 // Сохраняет быстрым широкий title-only поиск, избегая дополнительных meta-запросов на каждый item.
 function shouldEnrichSearchItems(query: ProviderSearchQuery): boolean {
-  return query.year !== undefined || Boolean(query.ids?.imdb);
+  return query.year !== undefined || query.minimumRating !== undefined || Boolean(query.ids?.imdb);
+}
+
+function addRequestedGenre(item: MediaItem, genre: string | undefined): MediaItem {
+  if (!genre || item.genres?.length) {
+    return item;
+  }
+
+  return { ...item, genres: [{ name: genre, source: PROVIDER_NAME }] };
 }
 
 // Enriches top search candidates with meta details when catalog search is sparse.

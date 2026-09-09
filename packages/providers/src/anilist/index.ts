@@ -22,6 +22,7 @@ import {
   type ProviderFetch,
 } from "../shared/index.js";
 import { createProviderImage } from "../shared/mapping.js";
+import { matchesSearchFilters } from "../shared/search-filters.js";
 import { parseAniListGraphQlData } from "./graphql.js";
 
 const PROVIDER_NAME = "anilist";
@@ -102,7 +103,11 @@ export function aniListProvider(options: AniListProviderOptions = {}): MediaProv
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["anime"],
-      search: { byTitle: true, byExternalIds: ["aniList", "myAnimeList"] },
+      search: {
+        byTitle: true,
+        byExternalIds: ["aniList", "myAnimeList"],
+        filterDiscovery: ["year", "genre", "minimumRating"],
+      },
       details: { byExternalIds: ["aniList", "myAnimeList"] },
       features: ["posters", "backdrops", "ratings", "genres"],
     },
@@ -123,18 +128,31 @@ async function searchAniList(
     return details ? [toSearchResult(details, context.debug)] : [];
   }
 
-  if (!query.title?.trim()) return [];
+  if (
+    !query.title?.trim() &&
+    query.year === undefined &&
+    !query.genre &&
+    query.minimumRating === undefined
+  ) {
+    return [];
+  }
+
+  const sort = query.title ? "[SEARCH_MATCH, POPULARITY_DESC]" : "[POPULARITY_DESC, SCORE_DESC]";
 
   const response = await request(
     config,
-    `query ($search: String!, $perPage: Int!, $isAdult: Boolean) {
+    `query ($search: String, $perPage: Int!, $isAdult: Boolean, $year: Int, $genre: String, $minimumScore: Int) {
       Page(page: 1, perPage: $perPage) {
-        media(search: $search, type: ANIME, isAdult: $isAdult, sort: [SEARCH_MATCH, POPULARITY_DESC]) { ${MEDIA_FIELDS} }
+        media(search: $search, type: ANIME, seasonYear: $year, genre: $genre, averageScore_greater: $minimumScore, isAdult: $isAdult, sort: ${sort}) { ${MEDIA_FIELDS} }
       }
     }`,
     {
       search: query.title,
       perPage: Math.min(query.limit ?? config.searchLimit, 50),
+      year: query.year,
+      genre: query.genre,
+      minimumScore:
+        query.minimumRating === undefined ? undefined : Math.ceil(query.minimumRating * 10) - 1,
       isAdult: config.includeAdult ? undefined : false,
     },
     context,
@@ -143,7 +161,7 @@ async function searchAniList(
   return (response.data?.Page?.media ?? [])
     .map(mapMediaItem)
     .filter((item): item is MediaItem => item !== undefined)
-    .filter((item) => query.year === undefined || item.year === query.year)
+    .filter((item) => matchesSearchFilters(item, query))
     .map((item) => toSearchResult(item, context.debug));
 }
 

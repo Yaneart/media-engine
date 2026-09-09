@@ -472,10 +472,9 @@ export class MediaEngine {
         detailsEnrichedResults,
         enrichment.posterEnrichments,
       );
-      const filteredResults =
-        this.mergeStrategy instanceof DefaultMergeStrategy
-          ? filterFrozenSearchResults(posterEnrichedResults, normalizedQuery)
-          : posterEnrichedResults;
+      const filteredResults = filterFrozenSearchResults(posterEnrichedResults, normalizedQuery, {
+        enforceTitleRelevance: this.mergeStrategy instanceof DefaultMergeStrategy,
+      });
       const visibleResultSet = new Set(filteredResults);
       const visibleDiscoveryResults = frozenDiscoveryResults.filter((_, index) =>
         visibleResultSet.has(posterEnrichedResults[index]!),

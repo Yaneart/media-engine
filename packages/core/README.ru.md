@@ -40,6 +40,7 @@ console.log(result.results[0]?.item);
 
 ```ts
 await media.search({ title: "Интерстеллар" });
+await media.search({ type: "movie", genre: "Horror", year: 2024, minimumRating: 7 });
 await media.getDetails({ imdb: "tt0816692" });
 await media.getAvailability({
   type: "series",

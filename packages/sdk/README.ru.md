@@ -23,6 +23,7 @@ const media = new MediaEngineClient({
 });
 
 const search = await media.search({ title: "Интерстеллар" });
+const filtered = await media.search({ type: "movie", genre: "Horror", minimumRating: 7 });
 const details = await media.getDetails({ imdb: "tt0816692" });
 ```
 

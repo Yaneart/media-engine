@@ -31,6 +31,10 @@ export type ProviderFeature =
 // Роль провайдера в поиске кандидатов по названию.
 export type TitleDiscoveryRole = "primary" | "fallback";
 
+// Search filters that can independently discover catalog items.
+// Поисковые фильтры, по которым провайдер умеет находить элементы каталога без названия.
+export type ProviderSearchFilter = "year" | "genre" | "minimumRating";
+
 // Capabilities used by the engine to select matching providers.
 // Возможности, по которым движок выбирает подходящих провайдеров.
 export interface ProviderCapabilities {
@@ -40,6 +44,7 @@ export interface ProviderCapabilities {
     byTitle: boolean;
     byExternalIds: ExternalIdSource[];
     titleDiscovery?: TitleDiscoveryRole;
+    filterDiscovery?: ProviderSearchFilter[];
   };
   details: {
     byExternalIds: ExternalIdSource[];
@@ -64,6 +69,8 @@ export interface ProviderSearchQuery {
   title?: string;
   type?: MediaType;
   year?: number;
+  genre?: string;
+  minimumRating?: number;
   ids?: ExternalIds;
   limit?: number;
   language?: string;

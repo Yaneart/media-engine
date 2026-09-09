@@ -24,6 +24,7 @@ Try a search:
 
 ```bash
 curl 'http://127.0.0.1:3000/media/search?title=Interstellar&language=en'
+curl 'http://127.0.0.1:3000/media/search?type=movie&genre=Horror&year=2024&minimumRating=7'
 ```
 
 ## Main routes

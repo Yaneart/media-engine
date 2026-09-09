@@ -132,14 +132,38 @@ export function createSearchEnrichmentCandidates(
 export function filterFrozenSearchResults(
   results: MediaSearchResult[],
   query: SearchQuery,
+  options: { enforceTitleRelevance?: boolean } = {},
 ): MediaSearchResult[] {
   const queryTitle = query.title?.trim();
-
-  if (!queryTitle) {
-    return results;
-  }
+  const enforceTitleRelevance = options.enforceTitleRelevance ?? true;
 
   return results.filter((result) => {
+    if (query.year !== undefined && result.item.year !== query.year) {
+      return false;
+    }
+
+    if (
+      query.genre &&
+      !result.item.genres?.some(
+        (genre) => normalizeFilterValue(genre.name) === normalizeFilterValue(query.genre!),
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      query.minimumRating !== undefined &&
+      !result.item.ratings?.some(
+        (rating) => rating.max > 0 && (rating.value / rating.max) * 10 >= query.minimumRating!,
+      )
+    ) {
+      return false;
+    }
+
+    if (!queryTitle || !enforceTitleRelevance) {
+      return true;
+    }
+
     const entry: SearchEntry = {
       result: {
         provider: result.sources[0]?.provider ?? "search-discovery",
@@ -150,6 +174,13 @@ export function filterFrozenSearchResults(
 
     return titleRelevanceScore([entry], queryTitle) > 0;
   });
+}
+
+function normalizeFilterValue(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll(/[\s_-]+/gu, " ");
 }
 
 function createPresentationEntries(

@@ -5,6 +5,21 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
+## 1.5.0 - 2026-09-09
+
+### Added
+
+- Search now supports title-independent catalog discovery by exact `year`, `genre`, and
+  `minimumRating` on a normalized 0–10 scale. Filters combine with AND and are available through
+  Core, the HTTP API, and the SDK.
+- Cinemeta now provides filtered movie and series discovery, following bounded catalog pages until
+  the requested matches are filled or its source catalog ends. AniList and Shikimori provide
+  filtered anime discovery. Provider capabilities expose supported discovery filters explicitly.
+
+### Changed
+
+- The additive REST/OpenAPI contract version is now `0.14.0` for catalog filter parameters.
+
 ## 1.4.0 - 2026-09-01
 
 ### Added

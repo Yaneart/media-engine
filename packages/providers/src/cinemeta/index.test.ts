@@ -45,6 +45,164 @@ test("cinemetaProvider searches movies by title", async () => {
   assert.equal(requests[0]?.path, "/catalog/movie/top/search=Interstellar.json");
 });
 
+test("cinemetaProvider discovers catalog items by combined filters", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/catalog/movie/year/genre=2024.json": {
+        metas: [
+          {
+            id: "tt-test-1",
+            type: "movie",
+            name: "Matching horror",
+            releaseInfo: "2024",
+            imdbRating: "8.2",
+            genre: ["Horror"],
+          },
+          {
+            id: "tt-test-2",
+            type: "movie",
+            name: "Low rated horror",
+            releaseInfo: "2024",
+            imdbRating: "6.5",
+            genre: ["Horror"],
+          },
+        ],
+      },
+    }),
+  });
+
+  const results = await provider.search(
+    { type: "movie", year: 2024, genre: "Horror", minimumRating: 7 },
+    {},
+  );
+
+  assert.deepEqual(
+    results.map((result) => result.item.title),
+    ["Matching horror"],
+  );
+  assert.equal(requests[0]?.path, "/catalog/movie/year/genre=2024.json");
+  assert.deepEqual(provider.capabilities.search.filterDiscovery, [
+    "year",
+    "genre",
+    "minimumRating",
+  ]);
+});
+
+test("cinemetaProvider uses the rating catalog for title-independent rating discovery", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/catalog/series/imdbRating/genre=Horror.json": {
+        metas: [
+          {
+            id: "tt-test-1",
+            type: "series",
+            name: "Matching horror",
+            releaseInfo: "2025",
+            imdbRating: "8.2",
+            genre: ["Horror"],
+          },
+        ],
+      },
+    }),
+  });
+
+  const results = await provider.search({ type: "series", genre: "Horror", minimumRating: 8 }, {});
+
+  assert.deepEqual(
+    results.map((result) => result.item.title),
+    ["Matching horror"],
+  );
+  assert.equal(requests[0]?.path, "/catalog/series/imdbRating/genre=Horror.json");
+});
+
+test("cinemetaProvider loads bounded catalog pages until filtered results fill the limit", async () => {
+  const requests: RequestRecord[] = [];
+  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+    id: `tt-drama-${index}`,
+    type: "movie",
+    name: `Drama ${index}`,
+    releaseInfo: "2024",
+    description: "A drama fixture.",
+    imdbRating: "8.0",
+    genre: ["Drama"],
+  }));
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/catalog/movie/year/genre=2024.json": { metas: firstPage },
+      "/catalog/movie/year/genre=2024&skip=50.json": {
+        metas: [
+          {
+            id: "tt-horror-1",
+            type: "movie",
+            name: "Horror One",
+            releaseInfo: "2024",
+            genre: ["Horror"],
+          },
+          {
+            id: "tt-horror-2",
+            type: "movie",
+            name: "Horror Two",
+            releaseInfo: "2024",
+            genre: ["Horror"],
+          },
+        ],
+      },
+    }),
+  });
+
+  const results = await provider.search(
+    { type: "movie", year: 2024, genre: "Horror", limit: 2 },
+    {},
+  );
+
+  assert.deepEqual(
+    results.map((result) => result.item.title),
+    ["Horror One", "Horror Two"],
+  );
+  assert.deepEqual(
+    requests.map((request) => request.path),
+    ["/catalog/movie/year/genre=2024.json", "/catalog/movie/year/genre=2024&skip=50.json"],
+  );
+});
+
+test("cinemetaProvider stops filtered pagination at the hard page bound", async () => {
+  const requests: RequestRecord[] = [];
+  const responses = Object.fromEntries(
+    Array.from({ length: 5 }, (_, page) => {
+      const suffix = page === 0 ? "" : `&skip=${page * 50}`;
+
+      return [
+        `/catalog/movie/year/genre=2024${suffix}.json`,
+        {
+          metas: Array.from({ length: 50 }, (_, index) => ({
+            id: `tt-drama-${page}-${index}`,
+            type: "movie",
+            name: `Drama ${page}-${index}`,
+            releaseInfo: "2024",
+            description: "A drama fixture.",
+            imdbRating: "8.0",
+            genre: ["Drama"],
+          })),
+        },
+      ];
+    }),
+  );
+  const provider = createProvider({
+    fetch: createMockFetch(requests, responses),
+  });
+
+  const results = await provider.search(
+    { type: "movie", year: 2024, genre: "Horror", limit: 1 },
+    {},
+  );
+
+  assert.deepEqual(results, []);
+  assert.equal(requests.length, 5);
+  assert.equal(requests.at(-1)?.path, "/catalog/movie/year/genre=2024&skip=200.json");
+});
+
 test("cinemetaProvider does not block typed title search on optional meta enrichment", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({

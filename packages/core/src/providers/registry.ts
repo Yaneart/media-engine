@@ -4,6 +4,7 @@ import type {
   MediaProvider,
   ProviderDetailsQuery,
   ProviderInfo,
+  ProviderSearchFilter,
   ProviderSearchQuery,
   TitleDiscoveryRole,
 } from "./types.js";
@@ -69,6 +70,9 @@ export class ProviderRegistry {
           ...(provider.capabilities.search.titleDiscovery
             ? { titleDiscovery: provider.capabilities.search.titleDiscovery }
             : {}),
+          ...(provider.capabilities.search.filterDiscovery
+            ? { filterDiscovery: [...provider.capabilities.search.filterDiscovery] }
+            : {}),
         },
         details: {
           byExternalIds: [...provider.capabilities.details.byExternalIds],
@@ -85,6 +89,7 @@ export class ProviderRegistry {
     options: { titleDiscovery?: TitleDiscoveryRole } = {},
   ): MediaProvider[] {
     const queryIdSources = getExternalIdSources(query.ids);
+    const queryFilters = getSearchFilters(query);
 
     return Array.from(this.providers.values()).filter((provider) => {
       if (query.type && !provider.capabilities.mediaTypes.includes(query.type)) {
@@ -101,7 +106,13 @@ export class ProviderRegistry {
         provider.capabilities.search.byExternalIds.includes(source),
       );
 
-      return supportsTitleSearch || supportsIdSearch;
+      const supportsFilterDiscovery =
+        queryFilters.length > 0 &&
+        queryFilters.every((filter) =>
+          provider.capabilities.search.filterDiscovery?.includes(filter),
+        );
+
+      return supportsTitleSearch || supportsIdSearch || supportsFilterDiscovery;
     });
   }
 
@@ -128,6 +139,14 @@ export class ProviderRegistry {
       );
     });
   }
+}
+
+function getSearchFilters(query: ProviderSearchQuery): ProviderSearchFilter[] {
+  return [
+    ...(query.year === undefined ? [] : (["year"] as const)),
+    ...(query.genre === undefined ? [] : (["genre"] as const)),
+    ...(query.minimumRating === undefined ? [] : (["minimumRating"] as const)),
+  ];
 }
 
 // Extracts present external ID sources from an ExternalIds object.

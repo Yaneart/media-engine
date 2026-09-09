@@ -14,7 +14,7 @@ test("search rejects empty queries predictably", async () => {
   await assert.rejects(() => engine.search({}), {
     name: "MediaEngineError",
     code: "INVALID_QUERY",
-    message: "Search query must include title or external ids.",
+    message: "Search query must include title, external ids, or a discovery filter.",
   });
 });
 
@@ -174,6 +174,10 @@ test("search rejects malformed or oversized canonical fields before provider sel
     { imdb: "0816692" },
     { tmdb: "movie-157336" },
     { title: "Interstellar", year: -1 },
+    { genre: "x".repeat(101) },
+    { genre: "Hor\nror" },
+    { minimumRating: -0.1 },
+    { minimumRating: 10.1 },
     { title: "Interstellar", type: "book" as SearchQuery["type"] },
   ];
 
@@ -185,6 +189,72 @@ test("search rejects malformed or oversized canonical fields before provider sel
   }
 
   assert.equal(calls, 0);
+});
+
+test("search supports combined filter-only discovery and removes mismatched results", async () => {
+  let receivedQuery: unknown;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        capabilities: {
+          mediaTypes: ["movie"],
+          search: {
+            byTitle: true,
+            byExternalIds: [],
+            filterDiscovery: ["year", "genre", "minimumRating"],
+          },
+          details: { byExternalIds: [] },
+        },
+        async search(query): Promise<ProviderSearchResult[]> {
+          receivedQuery = query;
+          return [
+            {
+              provider: "test-provider",
+              item: {
+                id: "movie-1",
+                type: "movie",
+                title: "Matching movie",
+                year: 2024,
+                genres: [{ name: "Horror" }],
+                ratings: [{ source: "imdb", value: 8.1, max: 10 }],
+              },
+            },
+            {
+              provider: "test-provider",
+              item: {
+                id: "movie-2",
+                type: "movie",
+                title: "Wrong rating",
+                year: 2024,
+                genres: [{ name: "Horror" }],
+                ratings: [{ source: "imdb", value: 6.9, max: 10 }],
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({
+    type: "movie",
+    year: 2024,
+    genre: " Horror ",
+    minimumRating: 7,
+    limit: 10,
+  });
+
+  assert.deepEqual(receivedQuery, {
+    type: "movie",
+    year: 2024,
+    genre: "Horror",
+    minimumRating: 7,
+    limit: 50,
+  });
+  assert.deepEqual(
+    response.results.map((result) => result.item.id),
+    ["movie-1"],
+  );
 });
 
 test("search infers provider context language from the title script", async () => {

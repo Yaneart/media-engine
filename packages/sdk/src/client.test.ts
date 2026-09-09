@@ -53,6 +53,9 @@ test("search serializes query params and parses response", async () => {
       imdb: "tt0816692",
       worldArt: "12345",
     },
+    year: 2014,
+    genre: "Sci-Fi",
+    minimumRating: 8.5,
     limit: 10,
   });
 
@@ -60,6 +63,9 @@ test("search serializes query params and parses response", async () => {
   assert.equal(mock.calls[0]?.pathname, "/media/search");
   assert.equal(mock.calls[0]?.searchParams.get("title"), "Interstellar");
   assert.equal(mock.calls[0]?.searchParams.get("type"), "movie");
+  assert.equal(mock.calls[0]?.searchParams.get("year"), "2014");
+  assert.equal(mock.calls[0]?.searchParams.get("genre"), "Sci-Fi");
+  assert.equal(mock.calls[0]?.searchParams.get("minimumRating"), "8.5");
   assert.equal(mock.calls[0]?.searchParams.get("ids.imdb"), "tt0816692");
   assert.equal(mock.calls[0]?.searchParams.get("ids.worldArt"), "12345");
   assert.equal(mock.calls[0]?.searchParams.get("limit"), "10");

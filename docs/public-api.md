@@ -43,14 +43,18 @@ Provider work is also limited to two concurrent calls per provider by default, w
 
 ```ts
 const response = await engine.search({
-  title: "Interstellar",
   type: "movie",
-  language: "en",
-  limit: 10,
+  year: 2024,
+  genre: "Horror",
+  minimumRating: 7,
+  limit: 20,
 });
 ```
 
-A search query may use a title, media type, year, external IDs, language, and limit. Common external IDs can be passed inside `ids` or through shortcut fields such as `imdb`, `kinopoisk`, and `shikimori`.
+A search query may use a title, media type, exact year, genre, minimum rating on a 0–10 scale,
+external IDs, language, and limit. A title, an external ID, or at least one discovery filter is
+required. Filters combine with AND. Common external IDs can be passed inside `ids` or through
+shortcut fields such as `imdb`, `kinopoisk`, and `shikimori`.
 
 Each result contains a normalized item, a score, and source attribution. Response metadata reports requested, successful, and failed providers, cache state, total elapsed time, and optional warnings/debug timings. Search failures and timings may identify their primary, retry, fallback, ID-enrichment, or poster-enrichment phase. Optional enrichment failures preserve base results and normal cache behavior while returning bounded warnings and debug counters; mandatory retryable degradation prevents a normal cache write. Retries and fallback queries share one timeout budget per provider within the operation. Optional enrichment is additionally bounded to the top discovery window, six calls globally, two calls per provider, and 1.5 seconds total; matching ID-search and cached/in-flight details outcomes are reused for canonical poster selection.
 

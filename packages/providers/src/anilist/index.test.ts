@@ -47,6 +47,47 @@ test("aniListProvider searches English anime titles with popularity", async () =
   assert.match(body.query ?? "", /bannerImage/);
 });
 
+test("aniListProvider discovers anime by year, genre, and minimum rating", async () => {
+  let body: { query?: string; variables?: Record<string, unknown> } = {};
+  const provider = aniListProvider({
+    fetch: async (_input, init) => {
+      body = JSON.parse(String(init?.body));
+      return Response.json({
+        data: {
+          Page: {
+            media: [
+              {
+                id: 21,
+                title: { english: "One Piece" },
+                startDate: { year: 1999 },
+                averageScore: 89,
+                genres: ["Action", "Adventure"],
+              },
+            ],
+          },
+        },
+      });
+    },
+  });
+
+  const results = await provider.search(
+    { type: "anime", year: 1999, genre: "Action", minimumRating: 8 },
+    {},
+  );
+
+  assert.equal(results[0]?.item.title, "One Piece");
+  assert.equal(body.variables?.search, undefined);
+  assert.equal(body.variables?.year, 1999);
+  assert.equal(body.variables?.genre, "Action");
+  assert.equal(body.variables?.minimumScore, 79);
+  assert.match(body.query ?? "", /POPULARITY_DESC, SCORE_DESC/);
+  assert.deepEqual(provider.capabilities.search.filterDiscovery, [
+    "year",
+    "genre",
+    "minimumRating",
+  ]);
+});
+
 test("aniListProvider loads details by AniList ID", async () => {
   const provider = aniListProvider({
     fetch: async () =>

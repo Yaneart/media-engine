@@ -24,6 +24,7 @@ import {
 } from "../shared/index.js";
 import { createProviderImage } from "../shared/mapping.js";
 import { resolveBoundedIntegerOption } from "../shared/options.js";
+import { matchesSearchFilters, normalizeFilterValue } from "../shared/search-filters.js";
 
 const PROVIDER_NAME = "shikimori";
 const DEFAULT_BASE_URL = "https://shikimori.one";
@@ -57,6 +58,7 @@ export function shikimoriProvider(options: ShikimoriProviderOptions = {}): Media
       search: {
         byTitle: true,
         byExternalIds: ["shikimori"],
+        filterDiscovery: ["year", "genre", "minimumRating"],
       },
       details: {
         byExternalIds: ["shikimori"],
@@ -196,7 +198,18 @@ async function searchShikimori(
     return details ? [detailsToSearchResult(config, details, context.debug)] : [];
   }
 
-  if (!query.title) {
+  if (
+    !query.title &&
+    query.year === undefined &&
+    !query.genre &&
+    query.minimumRating === undefined
+  ) {
+    return [];
+  }
+
+  const genre = query.genre ? await findShikimoriGenre(config, query.genre, context) : undefined;
+
+  if (query.genre && !genre) {
     return [];
   }
 
@@ -205,7 +218,10 @@ async function searchShikimori(
     "/api/animes",
     {
       search: query.title,
-      limit: String(query.limit ?? config.searchLimit),
+      season: query.year === undefined ? undefined : String(query.year),
+      genre: genre?.id === undefined ? undefined : String(genre.id),
+      score: query.minimumRating === undefined ? undefined : String(query.minimumRating),
+      limit: String(Math.min(query.limit ?? config.searchLimit, 50)),
       order: "popularity",
       kind: "tv,movie,ova,ona,special,music",
       censored: String(config.censored),
@@ -213,8 +229,46 @@ async function searchShikimori(
     context,
   );
 
-  return response.map((item) =>
-    createSearchResult(config, mapAnimeSearchResult(config, item), context.debug),
+  return response
+    .map((item) =>
+      mapAnimeSearchResult(
+        config,
+        item,
+        {},
+        query.genre && genre
+          ? [
+              {
+                id: genre.id ? String(genre.id) : undefined,
+                name: query.genre,
+                source: PROVIDER_NAME,
+              },
+            ]
+          : undefined,
+      ),
+    )
+    .filter((item) => matchesSearchFilters(item, query))
+    .map((item) => createSearchResult(config, item, context.debug));
+}
+
+async function findShikimoriGenre(
+  config: ShikimoriConfig,
+  requestedGenre: string,
+  context: ProviderContext,
+): Promise<ShikimoriGenreResponse | undefined> {
+  const genres = await requestShikimori<ShikimoriGenreResponse[]>(
+    config,
+    "/api/genres",
+    {},
+    context,
+  );
+  const normalizedGenre = normalizeFilterValue(requestedGenre);
+
+  return genres.find(
+    (genre) =>
+      genre.kind === "anime" &&
+      [genre.name, genre.russian].some(
+        (name) => name && normalizeFilterValue(name) === normalizedGenre,
+      ),
   );
 }
 
@@ -317,6 +371,7 @@ function mapAnimeSearchResult(
   config: ShikimoriConfig,
   item: ShikimoriAnimeSearchResult,
   extraIds: ExternalIds = {},
+  genres?: MediaItem["genres"],
 ): MediaItem {
   const title = item.russian || item.name || `Shikimori anime ${item.id}`;
   const alternativeTitles = collectUnique([item.russian, item.name]).filter(
@@ -333,6 +388,7 @@ function mapAnimeSearchResult(
     releaseDate: item.aired_on || undefined,
     description: undefined,
     poster: createImage(config, item.image, "poster"),
+    genres,
     ratings: createRatings(item.score),
     ids: {
       ...extraIds,
