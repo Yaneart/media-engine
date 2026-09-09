@@ -6,7 +6,7 @@ Media Engine is a TypeScript library that gives you one clean API for movies, se
 It searches several public sources, recognizes when they describe the same title, merges their
 answers, and keeps useful results even when one of the sources is down.
 
-Version `1.5.0` is the current release.
+Version `1.6.0` is the current release.
 
 ## Quick start
 
