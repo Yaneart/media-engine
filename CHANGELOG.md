@@ -5,6 +5,23 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
+## 1.7.0 - 2026-09-19
+
+### Added
+
+- Availability queries can now resolve external IDs required by an otherwise incompatible
+  streaming provider through the configured metadata providers. Resolution uses the existing
+  title, type, year, and IDs, accepts only one confirmed value per missing namespace, and refuses
+  conflicting identities. This lets anime-native AniList, Shikimori, or MyAnimeList references
+  reach Kinopoisk-keyed season catalogs without claiming that the streaming source directly
+  understands those identifiers.
+
+### Changed
+
+- Both final and progressive availability perform the same best-effort identity enrichment before
+  streaming-provider selection. Metadata failure leaves already compatible streaming providers
+  usable, and cancellation still stops the complete operation.
+
 ## 1.6.0 - 2026-09-09
 
 ### Added

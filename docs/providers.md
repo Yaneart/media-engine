@@ -143,7 +143,10 @@ an exact season and episode. An anime request without episode coordinates return
 catalog from the playlist without resolving every stream; exact playback accepts an absolute episode
 or a season/episode pair. Absolute anime numbering is derived deterministically from unique pairs
 sorted by season and episode, including season-zero specials, and returned options preserve both
-identities. The adapter uses the public playlist and video JSON contracts without an
+identities. When metadata providers are configured and the availability query also carries a title,
+Core can conservatively resolve a missing Kinopoisk ID from another external-ID namespace before
+selecting VideoHUB; conflicting or ambiguous identities are never guessed. The adapter itself still
+uses only the Kinopoisk-keyed public playlist and video JSON contracts without an
 account, cookie, or token, bounds catalog bytes/items, video lookups, concurrency, response bytes,
 and output lifetime, and accepts only fixed HTTPS MP4 source fields. VideoHUB HLS is intentionally not exposed because the observed
 master response does not allow browser cross-origin fetches. Returned MP4 URLs are short-lived,

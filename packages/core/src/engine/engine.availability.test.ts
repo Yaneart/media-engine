@@ -6,7 +6,12 @@ import { MemoryCache } from "../cache/index.js";
 import { MediaEngineError, ProviderError } from "../errors/index.js";
 import type { MediaAvailability, StreamQuery } from "../streaming/index.js";
 import { MediaEngine } from "./engine.js";
-import { createAvailability, createStreamingProvider, sleep } from "./test-helpers.js";
+import {
+  createAvailability,
+  createProvider,
+  createStreamingProvider,
+  sleep,
+} from "./test-helpers.js";
 
 test("getAvailability rejects empty identity predictably", async () => {
   const engine = new MediaEngine();
@@ -146,6 +151,184 @@ test("getAvailability groups episode catalogs into seasons including specials", 
       [1, 2],
     ],
   );
+});
+
+test("getAvailability resolves a missing streaming ID through confirmed metadata identity", async () => {
+  let receivedQuery: StreamQuery | undefined;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "anime-identity",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: true, byExternalIds: ["shikimori"] },
+          details: { byExternalIds: ["shikimori"] },
+        },
+        async search() {
+          return [
+            {
+              provider: "anime-identity",
+              item: {
+                id: "frieren",
+                type: "anime",
+                title: "Frieren: Beyond Journey's End",
+                year: 2023,
+                ids: { shikimori: "52991", kinopoisk: "5401195" },
+              },
+            },
+          ];
+        },
+      }),
+    ],
+    streamingProviders: [
+      createStreamingProvider({
+        name: "kinopoisk-only-stream",
+        capabilities: {
+          mediaTypes: ["anime"],
+          lookup: { byTitle: false, byExternalIds: ["kinopoisk"], byEpisode: true },
+          features: ["episode_catalog"],
+        },
+        async getAvailability(query): Promise<MediaAvailability> {
+          receivedQuery = query;
+          return {
+            query,
+            episodes: [
+              { seasonNumber: 1, episodeNumber: 1, absoluteEpisodeNumber: 1, options: [] },
+              { seasonNumber: 2, episodeNumber: 1, absoluteEpisodeNumber: 29, options: [] },
+            ],
+            options: [],
+            sourceProviders: [{ provider: "kinopoisk-only-stream", ids: query.ids }],
+            checkedAt: "2026-09-19T00:00:00.000Z",
+          };
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    title: "Frieren: Beyond Journey's End",
+    year: 2023,
+    ids: { shikimori: "52991" },
+  });
+
+  assert.deepEqual(receivedQuery?.ids, {
+    shikimori: "52991",
+    kinopoisk: "5401195",
+  });
+  assert.deepEqual(availability.query.ids, receivedQuery?.ids);
+  assert.deepEqual(
+    availability.seasons?.map((season) => season.seasonNumber),
+    [1, 2],
+  );
+});
+
+test("getAvailability does not guess a missing streaming ID after metadata conflicts", async () => {
+  let streamingCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "ambiguous-identity",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: true, byExternalIds: ["shikimori"] },
+          details: { byExternalIds: ["shikimori"] },
+        },
+        async search() {
+          return ["111", "222"].map((kinopoisk) => ({
+            provider: "ambiguous-identity",
+            item: {
+              id: `candidate-${kinopoisk}`,
+              type: "anime" as const,
+              title: "Shared Anime",
+              year: 2023,
+              ids: { shikimori: "100", kinopoisk },
+            },
+          }));
+        },
+      }),
+    ],
+    streamingProviders: [
+      createStreamingProvider({
+        name: "kinopoisk-only-stream",
+        capabilities: {
+          mediaTypes: ["anime"],
+          lookup: { byTitle: false, byExternalIds: ["kinopoisk"], byEpisode: true },
+        },
+        async getAvailability(query) {
+          streamingCalls += 1;
+          return createAvailability(query, "kinopoisk-only-stream");
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    title: "Shared Anime",
+    year: 2023,
+    ids: { shikimori: "100" },
+  });
+
+  assert.equal(streamingCalls, 0);
+  assert.deepEqual(availability.query.ids, { shikimori: "100" });
+  assert.deepEqual(availability.meta?.providers.requested, []);
+});
+
+test("getAvailabilityProgressively resolves missing streaming IDs before provider selection", async () => {
+  const receivedIds: Array<StreamQuery["ids"]> = [];
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "anime-identity",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: true, byExternalIds: ["aniList"] },
+          details: { byExternalIds: ["aniList"] },
+        },
+        async search() {
+          return [
+            {
+              provider: "anime-identity",
+              item: {
+                id: "frieren",
+                type: "anime",
+                title: "Frieren",
+                year: 2023,
+                ids: { aniList: "154587", kinopoisk: "5401195" },
+              },
+            },
+          ];
+        },
+      }),
+    ],
+    streamingProviders: [
+      createStreamingProvider({
+        name: "kinopoisk-only-stream",
+        capabilities: {
+          mediaTypes: ["anime"],
+          lookup: { byTitle: false, byExternalIds: ["kinopoisk"], byEpisode: true },
+        },
+        async getAvailability(query) {
+          receivedIds.push(query.ids);
+          return createAvailability(query, "kinopoisk-only-stream");
+        },
+      }),
+    ],
+  });
+
+  const snapshots = [];
+  for await (const snapshot of engine.getAvailabilityProgressively({
+    type: "anime",
+    title: "Frieren",
+    year: 2023,
+    ids: { aniList: "154587" },
+  })) {
+    snapshots.push(snapshot);
+  }
+
+  assert.deepEqual(receivedIds, [{ aniList: "154587", kinopoisk: "5401195" }]);
+  assert.equal(snapshots.at(-1)?.state, "complete");
 });
 
 test("getAvailability respects requested streaming provider filter", async () => {

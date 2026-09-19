@@ -1,5 +1,7 @@
 import type { CacheSetOptions } from "../cache/index.js";
-import type { ExternalIds } from "../media/index.js";
+import type { ExternalIds, MediaItem } from "../media/index.js";
+import type { ExternalIdSource } from "../providers/index.js";
+import type { SearchResponse } from "../search/index.js";
 import type {
   MediaAvailability,
   StreamEpisodeAvailability,
@@ -9,6 +11,7 @@ import type {
   StreamingProvider,
   StreamingProviderSource,
 } from "../streaming/index.js";
+import { normalizeTitle, titleCandidates } from "../merge/title.js";
 import { sortObject } from "./query.js";
 
 const EXPIRING_AVAILABILITY_CACHE_SAFETY_MS = 1_000;
@@ -37,6 +40,66 @@ export function selectStreamingProviders(
       hasSupportedExternalId(query.ids, provider.capabilities.lookup.byExternalIds)
     );
   });
+}
+
+// Finds external IDs needed by configured streaming providers that cannot use the current query.
+// Находит внешние ID для streaming-провайдеров, которые не умеют использовать текущий запрос.
+export function getMissingStreamingIdentitySources(
+  providers: StreamingProvider[],
+  query: StreamQuery,
+): ExternalIdSource[] {
+  const missing = new Set<ExternalIdSource>();
+
+  for (const provider of providers) {
+    if (query.providers && !query.providers.includes(provider.name)) continue;
+    if (!provider.capabilities.mediaTypes.includes(query.type)) continue;
+    if (hasEpisodeQuery(query) && !provider.capabilities.lookup.byEpisode) continue;
+    if (query.title && provider.capabilities.lookup.byTitle) continue;
+    if (hasSupportedExternalId(query.ids, provider.capabilities.lookup.byExternalIds)) continue;
+
+    for (const source of provider.capabilities.lookup.byExternalIds) {
+      if (!query.ids?.[source]) missing.add(source);
+    }
+  }
+
+  return [...missing];
+}
+
+// Adds only unambiguous IDs from metadata search candidates confirmed as the same media identity.
+// Добавляет только однозначные ID из metadata-кандидатов с подтвержденной идентичностью.
+export function enrichStreamQueryIdentity(
+  query: StreamQuery,
+  response: SearchResponse,
+  requestedSources: readonly ExternalIdSource[],
+): StreamQuery {
+  if (
+    requestedSources.length === 0 ||
+    response.meta.warnings?.some((warning) => warning.code === "EXTERNAL_ID_CONFLICT")
+  ) {
+    return query;
+  }
+
+  const candidates = response.results
+    .map((result) => result.item)
+    .filter((item) => matchesStreamIdentity(query, item));
+  const ids: ExternalIds = { ...query.ids };
+  let enriched = false;
+
+  for (const source of requestedSources) {
+    if (ids[source]) continue;
+    const values = new Set(
+      candidates
+        .map((candidate) => candidate.ids?.[source])
+        .filter((value): value is string => Boolean(value)),
+    );
+
+    if (values.size === 1) {
+      ids[source] = [...values][0];
+      enriched = true;
+    }
+  }
+
+  return enriched ? { ...query, ids } : query;
 }
 
 // Merges availability results without hiding provider attribution.
@@ -189,6 +252,33 @@ function hasSupportedExternalId(
   return Boolean(
     ids && supportedSources.some((source) => Boolean(ids[source as keyof ExternalIds])),
   );
+}
+
+function matchesStreamIdentity(query: StreamQuery, item: MediaItem): boolean {
+  if (item.type !== query.type || hasExternalIdConflict(query.ids, item.ids)) return false;
+  if (hasSharedExternalId(query.ids, item.ids)) return true;
+  if (!query.title || query.year === undefined || item.year !== query.year) return false;
+
+  const title = normalizeTitle(query.title);
+  return (
+    Boolean(title) && titleCandidates(item).some((candidate) => normalizeTitle(candidate) === title)
+  );
+}
+
+function hasSharedExternalId(left: ExternalIds | undefined, right: ExternalIds | undefined) {
+  if (!left || !right) return false;
+  return Object.keys(left).some((key) => {
+    const source = key as keyof ExternalIds;
+    return Boolean(left[source] && left[source] === right[source]);
+  });
+}
+
+function hasExternalIdConflict(left: ExternalIds | undefined, right: ExternalIds | undefined) {
+  if (!left || !right) return false;
+  return Object.keys(left).some((key) => {
+    const source = key as keyof ExternalIds;
+    return Boolean(left[source] && right[source] && left[source] !== right[source]);
+  });
 }
 
 // Checks whether query targets a concrete episode.

@@ -136,6 +136,15 @@ seasons and their seasonal plus absolute episode identities before requesting ex
 Options may describe an embed, HLS, MP4, or external target together with translation, quality,
 subtitle, audio, expiry, and provider metadata when available.
 
+When a streaming provider requires an external-ID namespace missing from the query, both
+availability operations can resolve it through the engine's configured metadata providers before
+streaming-provider selection. Supply a canonical title and, when no existing ID directly confirms
+the candidate, an exact year. The engine keeps only one unambiguous value per required namespace,
+rejects candidates with conflicting IDs, and leaves the original query usable by already compatible
+streaming providers if metadata resolution fails. The resolved IDs are visible in the normalized
+response query. This is identity bridging, not a claim that the downstream streaming source accepts
+every input namespace directly.
+
 Returned options are discovered from third-party sources. They are not a guarantee that playback works in every browser, country, or network.
 
 ## Torrent discovery

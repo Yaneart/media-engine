@@ -79,6 +79,11 @@ await media.discoverTorrents({
 Availability and torrent discovery only do work when you give the engine matching streaming or
 torrent providers.
 
+If a streaming provider requires an external ID missing from an availability query, Core can use
+the configured metadata providers to resolve one unambiguous matching ID before provider selection.
+Pass a canonical title, media type, and preferably the exact year alongside the IDs you already
+know. Conflicting identities are never guessed.
+
 `getAvailabilityProgressively()` is a transport-neutral `AsyncIterable`. It emits merged snapshots
 while `pendingProviders` is non-empty and always marks the final snapshot as `complete`. The existing
 `getAvailability()` Promise remains the final-result API. HTTP applications must choose their own

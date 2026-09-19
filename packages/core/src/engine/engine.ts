@@ -27,6 +27,8 @@ import type {
 } from "../torrent/index.js";
 import {
   createAvailabilityCacheOptions,
+  enrichStreamQueryIdentity,
+  getMissingStreamingIdentitySources,
   hasUnknownStreamValidation,
   mergeAvailabilityResults,
   selectStreamingProviders,
@@ -659,8 +661,9 @@ export class MediaEngine {
   ): Promise<MediaAvailability> {
     throwIfAborted(options.signal);
     const startedAt = Date.now();
-    const normalizedQuery = normalizeStreamQuery(query);
-    validateStreamQuery(normalizedQuery);
+    const initialQuery = normalizeStreamQuery(query);
+    validateStreamQuery(initialQuery);
+    const normalizedQuery = await this.resolveStreamQueryIdentity(initialQuery, options.signal);
     const playbackUserAgent = normalizePlaybackUserAgent(options.playbackUserAgent);
     const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
     const cachePlaybackUserAgent = providers.some(
@@ -778,8 +781,9 @@ export class MediaEngine {
   ): AsyncGenerator<MediaAvailabilityProgressSnapshot> {
     throwIfAborted(options.signal);
     const startedAt = Date.now();
-    const normalizedQuery = normalizeStreamQuery(query);
-    validateStreamQuery(normalizedQuery);
+    const initialQuery = normalizeStreamQuery(query);
+    validateStreamQuery(initialQuery);
+    const normalizedQuery = await this.resolveStreamQueryIdentity(initialQuery, options.signal);
     const playbackUserAgent = normalizePlaybackUserAgent(options.playbackUserAgent);
     const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
     const cachePlaybackUserAgent = providers.some(
@@ -963,6 +967,35 @@ export class MediaEngine {
         controller.abort(new OperationCancelledError());
       }
       await Promise.allSettled(tasks);
+    }
+  }
+
+  private async resolveStreamQueryIdentity(
+    query: StreamQuery,
+    signal: AbortSignal | undefined,
+  ): Promise<StreamQuery> {
+    const missingSources = getMissingStreamingIdentitySources(this.streamingProviders, query);
+
+    if (missingSources.length === 0 || !query.title) return query;
+
+    try {
+      const response = await this.search(
+        {
+          title: query.title,
+          type: query.type,
+          year: query.year,
+          ids: query.ids,
+          limit: 10,
+          language: query.language,
+        },
+        { signal },
+      );
+
+      return enrichStreamQueryIdentity(query, response, missingSources);
+    } catch (error) {
+      throwIfAborted(signal);
+      if (error instanceof MediaEngineError && error.code === "PROVIDER_ERROR") return query;
+      throw error;
     }
   }
 
