@@ -4,6 +4,7 @@ import type {
   MediaProvider,
   ProviderDetailsQuery,
   ProviderInfo,
+  ProviderRelatedMediaQuery,
   ProviderSearchFilter,
   ProviderSearchQuery,
   TitleDiscoveryRole,
@@ -77,6 +78,13 @@ export class ProviderRegistry {
         details: {
           byExternalIds: [...provider.capabilities.details.byExternalIds],
         },
+        ...(provider.capabilities.relatedMedia
+          ? {
+              relatedMedia: {
+                byExternalIds: [...provider.capabilities.relatedMedia.byExternalIds],
+              },
+            }
+          : {}),
         features: provider.capabilities.features ? [...provider.capabilities.features] : undefined,
       },
     }));
@@ -136,6 +144,30 @@ export class ProviderRegistry {
 
       return queryIdSources.some((source) =>
         provider.capabilities.details.byExternalIds.includes(source),
+      );
+    });
+  }
+
+  // Selects providers that can return direct relationships for the query identity.
+  // Выбирает провайдеров, способных вернуть прямые связи для identity запроса.
+  selectRelatedMediaProviders(query: ProviderRelatedMediaQuery): MediaProvider[] {
+    const queryIdSources = getExternalIdSources(query.ids);
+
+    return Array.from(this.providers.values()).filter((provider) => {
+      if (!provider.getRelatedMedia || !provider.capabilities.relatedMedia) {
+        return false;
+      }
+
+      if (
+        query.type &&
+        !provider.capabilities.mediaTypes.includes(query.type) &&
+        !(query.type === "anime" && provider.capabilities.mediaTypes.includes("series"))
+      ) {
+        return false;
+      }
+
+      return queryIdSources.some((source) =>
+        provider.capabilities.relatedMedia?.byExternalIds.includes(source),
       );
     });
   }

@@ -70,7 +70,7 @@ When a cache is configured, the first healthy mandatory discovery whose top cand
 
 Engine queries are canonicalized before provider selection and cache/coalescing key creation. Top-level external-ID shortcuts and nested `ids` share one normalized representation, string fields are trimmed and bounded, known IMDb/numeric ID formats are validated, language is lowercased, and availability provider filters are deduplicated and sorted. `limit: 0` is a valid search that returns immediately without provider or cache work.
 
-All four engine operations accept an optional second argument:
+All engine operations accept an optional second argument:
 
 ```ts
 const controller = new AbortController();
@@ -93,6 +93,29 @@ const response = await engine.getDetails({
 ```
 
 Details queries require at least one namespaced external ID, either inside `ids` or through a shortcut such as `imdb`, `kinopoisk`, or `shikimori`. The plain `DetailsQuery.id` field is deprecated because provider-native IDs do not share a global namespace; an id-only query throws `INVALID_QUERY`. A valid external-ID request can return `details: null` when selected providers have no matching item.
+
+## Related media
+
+```ts
+const response = await engine.getRelatedMedia({
+  shikimori: "52991",
+  type: "anime",
+  limit: 50,
+});
+```
+
+Related-media queries require a namespaced external ID and return direct, explicit provider
+relationships. Each relation has a normalized `kind`, a compact related item, and source
+attribution. Anime items may include `animeKind`, status, and episode count so applications can
+classify TV sequels without title or franchise heuristics.
+
+The normalized kinds include `prequel`, `sequel`, `side_story`, `spin_off`, `adaptation`,
+`alternative`, `alternative_setting`, `alternative_version`, `character`, `compilation`,
+`contains`, `full_story`, `parent_story`, `source`, `summary`, and `other`. Core preserves relation
+kinds rather than deciding which relationships form a season. Results are limited to 100,
+deduplicated only when the kind and a strong external ID match, and retain every contributing
+source. The operation shares metadata providers' timeout, concurrency, circuit-breaker,
+cancellation, partial-failure, cache, stale fallback, and in-flight coalescing behavior.
 
 ## Availability
 
@@ -195,6 +218,7 @@ GET /providers/streaming
 GET /providers/torrent
 GET /media/search
 GET /media/details
+GET /media/related
 GET /media/availability
 GET /media/torrents
 POST /media/torrent-sessions
@@ -205,7 +229,9 @@ GET /media/torrent-streams/:capability
 HEAD /media/torrent-streams/:capability
 ```
 
-Query parameters mirror the core query objects. `GET /media/details` documents only namespaced external IDs and returns HTTP 400 for an id-only lookup. The API also exposes generated OpenAPI documentation when running locally.
+Query parameters mirror the core query objects. `GET /media/details` and `GET /media/related`
+document namespaced external IDs; invalid identity or limit inputs return HTTP 400. The API also
+exposes generated OpenAPI documentation when running locally.
 
 The media endpoints connect request/response disconnect events to the engine operation signal and remove their lifecycle listeners when the operation settles. An HTTP client that closes early therefore stops waiting immediately and cancels shared provider work only when no other identical request is still subscribed.
 

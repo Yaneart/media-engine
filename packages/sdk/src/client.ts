@@ -3,6 +3,7 @@ import type { DetailsQuery } from "@media-engine/core";
 import type { MediaAvailability } from "@media-engine/core";
 import type { ProviderInfo } from "@media-engine/core";
 import type { ProviderHealthStatus } from "@media-engine/core";
+import type { RelatedMediaQuery, RelatedMediaResponse } from "@media-engine/core";
 import type { SearchResponse } from "@media-engine/core";
 import type { SearchQuery } from "@media-engine/core";
 import type { StreamQuery } from "@media-engine/core";
@@ -106,6 +107,15 @@ export class MediaEngineClient {
     return this.requestJson<DetailsResponse>("/media/details", query, options);
   }
 
+  // EN: Load direct provider-neutral media relationships through GET /media/related.
+  // RU: Загружает прямые provider-neutral связи медиа через GET /media/related.
+  getRelatedMedia(
+    query: RelatedMediaQuery,
+    options?: MediaEngineRequestOptions,
+  ): Promise<RelatedMediaResponse> {
+    return this.requestJson<RelatedMediaResponse>("/media/related", query, options);
+  }
+
   // EN: Load normalized player and stream availability through GET /media/availability.
   // RU: Загружает нормализованную доступность player и stream через GET /media/availability.
   getAvailability(
@@ -190,7 +200,7 @@ export class MediaEngineClient {
   // RU: Выполняет GET request и парсит JSON response как ожидаемый SDK type.
   private async requestJson<T>(
     path: string,
-    query?: SearchQuery | DetailsQuery | StreamQuery | TorrentDiscoveryQuery,
+    query?: SearchQuery | DetailsQuery | RelatedMediaQuery | StreamQuery | TorrentDiscoveryQuery,
     options?: MediaEngineRequestOptions,
   ): Promise<T> {
     const url = this.createUrl(path);
@@ -211,6 +221,7 @@ export class MediaEngineClient {
 
 export type MediaEngineSearchResponse = SearchResponse;
 export type MediaEngineDetailsResponse = DetailsResponse;
+export type MediaEngineRelatedMediaResponse = RelatedMediaResponse;
 export type MediaEngineAvailabilityResponse = MediaAvailability;
 export type MediaEngineTorrentDiscoveryResponse = TorrentDiscoveryResponse;
 export type MediaEngineProviderInfo = ProviderInfo;
@@ -221,7 +232,7 @@ export type MediaEngineTorrentProviderInfo = TorrentProviderInfo;
 // RU: Добавляет поля core search/details/streaming query в API URL search params.
 function appendQuery(
   url: URL,
-  query: SearchQuery | DetailsQuery | StreamQuery | TorrentDiscoveryQuery,
+  query: SearchQuery | DetailsQuery | RelatedMediaQuery | StreamQuery | TorrentDiscoveryQuery,
 ): void {
   appendParam(url, "title", "title" in query ? query.title : undefined);
   appendArrayParam(

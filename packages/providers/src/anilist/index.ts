@@ -10,6 +10,9 @@ import type {
   ProviderContext,
   ProviderDetailsQuery,
   ProviderDetailsResult,
+  ProviderMediaRelation,
+  ProviderRelatedMediaQuery,
+  ProviderRelatedMediaResult,
   ProviderSearchQuery,
   ProviderSearchResult,
   ProviderSource,
@@ -79,6 +82,13 @@ interface AniListMedia {
   bannerImage?: string | null;
   genres?: string[];
   siteUrl?: string | null;
+  type?: string | null;
+  relations?: {
+    edges?: Array<{
+      relationType?: string | null;
+      node?: AniListMedia | null;
+    }>;
+  };
 }
 
 interface AniListDate {
@@ -114,10 +124,12 @@ export function aniListProvider(options: AniListProviderOptions = {}): MediaProv
         filterDiscovery: ["year", "genre", "minimumRating"],
       },
       details: { byExternalIds: ["aniList", "myAnimeList"] },
-      features: ["posters", "backdrops", "ratings", "genres"],
+      relatedMedia: { byExternalIds: ["aniList", "myAnimeList"] },
+      features: ["posters", "backdrops", "ratings", "genres", "relations"],
     },
     search: (query, context) => searchAniList(config, query, context),
     getDetails: (query, context) => getAniListDetails(config, query, context),
+    getRelatedMedia: (query, context) => getAniListRelatedMedia(config, query, context),
   };
 }
 
@@ -209,6 +221,92 @@ async function getAniListDetails(
         raw: context.debug ? details : undefined,
       }
     : null;
+}
+
+async function getAniListRelatedMedia(
+  config: AniListConfig,
+  query: ProviderRelatedMediaQuery,
+  context: ProviderContext,
+): Promise<ProviderRelatedMediaResult | null> {
+  if (query.type && query.type !== "anime") return null;
+  const ids = query.ids ?? {};
+  if (!ids.aniList && !ids.myAnimeList) return null;
+
+  const response = await request(
+    config,
+    `query ($id: Int, $idMal: Int) {
+      Media(id: $id, idMal: $idMal, type: ANIME) {
+        relations { edges { relationType node { type ${MEDIA_FIELDS} } } }
+      }
+    }`,
+    {
+      id: ids.aniList ? Number(ids.aniList) : undefined,
+      idMal: !ids.aniList && ids.myAnimeList ? Number(ids.myAnimeList) : undefined,
+    },
+    context,
+  );
+  const edges = response.data?.Media?.relations?.edges ?? [];
+  const relations = edges
+    .slice(0, query.limit ?? 100)
+    .map(mapRelatedMedia)
+    .filter((relation): relation is ProviderMediaRelation => Boolean(relation));
+
+  return {
+    provider: PROVIDER_NAME,
+    relations,
+    raw: context.debug ? edges : undefined,
+  };
+}
+
+function mapRelatedMedia(
+  edge: NonNullable<NonNullable<AniListMedia["relations"]>["edges"]>[number],
+): ProviderMediaRelation | undefined {
+  const media = edge.node;
+  if (!media || media.type !== "ANIME") return undefined;
+  const item = mapMediaItem(media);
+  if (!item) return undefined;
+
+  return {
+    kind: mapRelationKind(edge.relationType),
+    item: {
+      ...item,
+      status: mapStatus(media.status),
+      animeKind: mapKind(media.format),
+      episodesCount: media.episodes ?? undefined,
+    },
+    source: createSource(item.ids),
+  };
+}
+
+function mapRelationKind(relation: string | null | undefined): ProviderMediaRelation["kind"] {
+  switch (relation) {
+    case "ADAPTATION":
+      return "adaptation";
+    case "ALTERNATIVE":
+      return "alternative";
+    case "CHARACTER":
+      return "character";
+    case "COMPILATION":
+      return "compilation";
+    case "CONTAINS":
+      return "contains";
+    case "PARENT":
+      return "parent_story";
+    case "PREQUEL":
+      return "prequel";
+    case "SEQUEL":
+      return "sequel";
+    case "SIDE_STORY":
+      return "side_story";
+    case "SOURCE":
+      return "source";
+    case "SPIN_OFF":
+      return "spin_off";
+    case "SUMMARY":
+      return "summary";
+    default:
+      return "other";
+  }
 }
 
 async function loadDetails(

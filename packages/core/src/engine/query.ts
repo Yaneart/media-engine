@@ -2,6 +2,7 @@ import type { DetailsQuery } from "../details/index.js";
 import { MediaEngineError } from "../errors/index.js";
 import type { ExternalIds } from "../media/index.js";
 import type { ProviderSearchQuery, ProviderSearchResult } from "../providers/index.js";
+import type { RelatedMediaQuery } from "../related/index.js";
 import type { SearchQuery } from "../search/index.js";
 import type { StreamQuery } from "../streaming/index.js";
 import type { TorrentDiscoveryQuery } from "../torrent/index.js";
@@ -39,6 +40,7 @@ const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_SEARCH_WINDOW = 250;
 const MAX_TORRENT_LIMIT = 100;
+const MAX_RELATED_MEDIA_LIMIT = 100;
 const MAX_TORRENT_ALTERNATIVE_TITLES = 20;
 const MAX_PROVIDER_SEARCH_LIMIT = MAX_SEARCH_WINDOW;
 const MAX_TITLE_LENGTH = 300;
@@ -91,6 +93,20 @@ export function normalizeDetailsQuery(query: DetailsQuery): DetailsQuery {
     ...(ids ? { ids } : {}),
     ...(query.type !== undefined ? { type: query.type } : {}),
     ...(language ? { language } : {}),
+  };
+}
+
+// Normalizes public related-media shortcuts into the ids object.
+// Нормализует публичные сокращения related-media в объект ids.
+export function normalizeRelatedMediaQuery(query: RelatedMediaQuery): RelatedMediaQuery {
+  const ids = normalizeExternalIds(query.ids, query);
+  const language = normalizeLanguage(query.language);
+
+  return {
+    ...(ids ? { ids } : {}),
+    ...(query.type !== undefined ? { type: query.type } : {}),
+    ...(language ? { language } : {}),
+    ...(query.limit !== undefined ? { limit: query.limit } : {}),
   };
 }
 
@@ -232,6 +248,25 @@ export function validateDetailsQuery(query: DetailsQuery): void {
     code: "INVALID_QUERY",
     message: "Details query must include external ids.",
   });
+}
+
+// Validates an exact, bounded related-media lookup.
+// Проверяет точный ограниченный related-media запрос.
+export function validateRelatedMediaQuery(query: RelatedMediaQuery): void {
+  validateCommonQueryFields(query);
+
+  if (
+    query.limit !== undefined &&
+    (!Number.isInteger(query.limit) || query.limit < 0 || query.limit > MAX_RELATED_MEDIA_LIMIT)
+  ) {
+    throwInvalidQuery(
+      `Related media query limit must be an integer between 0 and ${MAX_RELATED_MEDIA_LIMIT}.`,
+    );
+  }
+
+  if (!hasExternalIds(query.ids)) {
+    throwInvalidQuery("Related media query must include external ids.");
+  }
 }
 
 // Validates that a streaming query can identify a media item or episode.
@@ -434,6 +469,12 @@ export function createSearchIdentitySnapshotCacheKey(query: SearchQuery): string
 // Создает стабильный cache key для нормализованного details query.
 export function createDetailsCacheKey(query: DetailsQuery): string {
   return `details:${JSON.stringify(sortObject(query))}`;
+}
+
+// Creates a stable cache key for a normalized related-media query.
+// Создает стабильный cache key для нормализованного related-media запроса.
+export function createRelatedMediaCacheKey(query: RelatedMediaQuery): string {
+  return `related:${JSON.stringify(sortObject(query))}`;
 }
 
 // Creates a stable cache key for a normalized streaming query.

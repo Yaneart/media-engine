@@ -13,6 +13,7 @@ import { MediaService } from './media.service';
 import type {
   MediaAvailabilityHttpQuery,
   MediaDetailsHttpQuery,
+  MediaRelatedHttpQuery,
   MediaSearchHttpQuery,
 } from './media.service';
 import { ApiExternalIdQueryParameters } from '../media-query/media-query.openapi';
@@ -90,6 +91,33 @@ export class MediaController {
   ) {
     return runWithHttpRequestSignal(request, response, (signal) =>
       this.mediaService.getDetails(query, { signal }),
+    );
+  }
+
+  // EN: Expose direct provider-neutral relationships for one exact media identity.
+  // RU: Открываем прямые провайдер-независимые связи для одной точной media identity.
+  @ApiOperation({
+    summary: 'Get direct relationships for one media item.',
+    description:
+      'Returns normalized prequel, sequel, side-story, adaptation, and other explicit provider relations. Use namespaced external IDs.',
+  })
+  @ApiQuery({ name: 'type', required: false, enum: [...MEDIA_TYPES] })
+  @ApiQuery({ name: 'language', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiExternalIdQueryParameters()
+  @ApiOkResponse({ description: 'Normalized direct media relations.' })
+  @ApiBadRequestResponse({ description: 'Invalid related-media query.' })
+  @ApiServiceUnavailableResponse({
+    description: 'All selected related-media providers failed.',
+  })
+  @Get('related')
+  getRelatedMedia(
+    @Query() query: MediaRelatedHttpQuery,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return runWithHttpRequestSignal(request, response, (signal) =>
+      this.mediaService.getRelatedMedia(query, { signal }),
     );
   }
 

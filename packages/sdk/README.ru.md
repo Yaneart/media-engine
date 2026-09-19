@@ -31,12 +31,14 @@ const filtered = await media.search({
   offset: 0,
 });
 const details = await media.getDetails({ imdb: "tt0816692" });
+const relations = await media.getRelatedMedia({ shikimori: "52991", type: "anime" });
 ```
 
 У клиента есть методы для всего публичного API:
 
 - `search()`;
 - `getDetails()`;
+- `getRelatedMedia()`;
 - `getAvailability()`;
 - `discoverTorrents()`;
 - `getProviders()`, `getStreamingProviders()` и `getTorrentProviders()`;

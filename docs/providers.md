@@ -8,13 +8,17 @@ Providers are adapters between an external data source and the normalized core c
 | ------------ | ---------------------------------------------------------- | ------------------- |
 | KinoBD       | Russian/localized movie and series metadata                | None                |
 | Cinemeta     | IMDb-linked movie and series metadata                      | None                |
-| Shikimori    | Anime search and details                                   | None                |
-| AniList      | International anime aliases, IDs, popularity, and artwork  | None                |
+| Shikimori    | Anime search, details, and explicit relationships          | None                |
+| AniList      | International anime metadata and explicit relationships    | None                |
 | TVmaze       | Fallback IMDb-backed series identity and localized aliases | None                |
 | Wikidata     | Fallback structured identity and metadata enrichment       | None                |
 | IMDb dataset | Optional local TSV-backed search and details               | Local dataset files |
 
 Default applications can combine several providers. The merge strategy uses strong IDs and compatible titles to avoid treating unrelated results as the same item.
+
+Shikimori and AniList expose their official direct anime relationships through the provider-neutral
+`getRelatedMedia` contract. The adapters preserve all normalized relation kinds and ignore
+manga-only links. Core does not interpret a franchise or title similarity as a relationship.
 
 Cinemeta filter discovery uses its dedicated genre, year, and IMDb-rating catalog views. It follows
 at most five 50-item pages until the requested number of matching items is collected or the catalog
@@ -269,7 +273,7 @@ A metadata provider declares:
 - detail lookup capabilities;
 - optional features such as posters, ratings, people, seasons, or episodes;
 - optional `searchPosterMatchesDetails` when the provider guarantees that its normalized search and details poster fields are identical;
-- `search` and optional `getDetails` methods.
+- `search`, optional `getDetails`, and optional `getRelatedMedia` methods.
 
 A streaming provider declares supported media types, external IDs, player kinds, and whether it supports movies, series, episodes, subtitles, translations, and direct streams. It implements `getAvailability` and may additionally implement the transport-neutral `getAvailabilityProgressively` async iterable. A progressive provider must finish with an explicit `complete` snapshot whose availability matches its normal Promise result.
 

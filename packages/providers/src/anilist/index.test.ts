@@ -4,7 +4,10 @@ import { test } from "node:test";
 import { aniListProvider } from "./index.js";
 
 test("aniListProvider guarantees stable search and details posters", () => {
-  assert.equal(aniListProvider().searchPosterMatchesDetails, true);
+  const provider = aniListProvider();
+  assert.equal(provider.searchPosterMatchesDetails, true);
+  assert.deepEqual(provider.capabilities.relatedMedia?.byExternalIds, ["aniList", "myAnimeList"]);
+  assert.equal(provider.capabilities.features?.includes("relations"), true);
 });
 
 test("aniListProvider searches English anime titles with popularity", async () => {
@@ -182,6 +185,132 @@ test("aniListProvider omits missing banner artwork", async () => {
     result?.details.images?.map((image) => image.type),
     ["poster"],
   );
+});
+
+test("aniListProvider maps bounded anime relationships and preserves relation kinds", async () => {
+  let body: { query?: string; variables?: Record<string, unknown> } = {};
+  const relationTypes = [
+    "ADAPTATION",
+    "ALTERNATIVE",
+    "CHARACTER",
+    "COMPILATION",
+    "CONTAINS",
+    "OTHER",
+    "PARENT",
+    "PREQUEL",
+    "SEQUEL",
+    "SIDE_STORY",
+    "SOURCE",
+    "SPIN_OFF",
+    "SUMMARY",
+    "FUTURE_VALUE",
+  ];
+  const provider = aniListProvider({
+    fetch: async (_input, init) => {
+      body = JSON.parse(String(init?.body));
+      return Response.json({
+        data: {
+          Media: {
+            relations: {
+              edges: [
+                ...relationTypes.map((relationType, index) => ({
+                  relationType,
+                  node: {
+                    id: 170_000 + index,
+                    idMal: 60_000 + index,
+                    type: "ANIME",
+                    title: { english: `Related ${index}`, romaji: `Relation ${index}` },
+                    format: index === 8 ? "TV" : "SPECIAL",
+                    status: index === 8 ? "RELEASING" : "FINISHED",
+                    episodes: index === 8 ? 10 : 1,
+                    startDate: { year: 2026, month: 1, day: 1 },
+                  },
+                })),
+                {
+                  relationType: "ADAPTATION",
+                  node: { id: 1, type: "MANGA", title: { english: "Manga" } },
+                },
+              ],
+            },
+          },
+        },
+      });
+    },
+  });
+
+  const result = await provider.getRelatedMedia?.(
+    { ids: { aniList: "154587" }, type: "anime" },
+    { debug: true },
+  );
+
+  assert.equal(body.variables?.id, 154587);
+  assert.match(body.query ?? "", /relations/);
+  assert.deepEqual(
+    result?.relations.map((relation) => relation.kind),
+    [
+      "adaptation",
+      "alternative",
+      "character",
+      "compilation",
+      "contains",
+      "other",
+      "parent_story",
+      "prequel",
+      "sequel",
+      "side_story",
+      "source",
+      "spin_off",
+      "summary",
+      "other",
+    ],
+  );
+  const sequel = result?.relations[8];
+  assert.equal(sequel?.item.ids?.aniList, "170008");
+  assert.equal(sequel?.item.ids?.myAnimeList, "60008");
+  assert.equal(sequel?.item.animeKind, "tv");
+  assert.equal(sequel?.item.status, "ongoing");
+  assert.equal(sequel?.item.episodesCount, 10);
+  assert.equal(sequel?.source?.url, "https://anilist.co/anime/170008");
+  assert.equal(Array.isArray(result?.raw), true);
+});
+
+test("aniListProvider supports MyAnimeList relation lookup and ignores unsupported queries", async () => {
+  const requests: Array<Record<string, unknown>> = [];
+  const provider = aniListProvider({
+    fetch: async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as { variables: Record<string, unknown> };
+      requests.push(body.variables);
+      return Response.json({
+        data: {
+          Media: {
+            relations: {
+              edges: [
+                {
+                  relationType: "SEQUEL",
+                  node: { id: 2, type: "ANIME", title: { english: "Two" } },
+                },
+                {
+                  relationType: "SEQUEL",
+                  node: { id: 3, type: "ANIME", title: { english: "Three" } },
+                },
+              ],
+            },
+          },
+        },
+      });
+    },
+  });
+
+  const limited = await provider.getRelatedMedia?.({ ids: { myAnimeList: "52991" }, limit: 1 }, {});
+  assert.equal(limited?.relations.length, 1);
+  assert.deepEqual(requests[0], { idMal: 52991 });
+  assert.equal(limited?.raw, undefined);
+  assert.equal(
+    await provider.getRelatedMedia?.({ ids: { aniList: "1" }, type: "movie" }, {}),
+    null,
+  );
+  assert.equal(await provider.getRelatedMedia?.({ ids: { shikimori: "1" } }, {}), null);
+  assert.equal(requests.length, 1);
 });
 
 test("aniListProvider repairs mojibake in titles, aliases, and descriptions", async () => {

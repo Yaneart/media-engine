@@ -3,6 +3,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 const RATE_LIMITED_PATHS = new Set([
   '/media/search',
   '/media/details',
+  '/media/related',
   '/media/availability',
   '/media/torrents',
 ]);

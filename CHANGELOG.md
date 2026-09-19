@@ -5,6 +5,20 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
+## 1.8.0 - 2026-09-19
+
+### Added
+
+- Core now exposes bounded, cached, cancellable direct media relationships through
+  `MediaEngine.getRelatedMedia()`. The provider-neutral contract preserves explicit prequel,
+  sequel, side-story, spin-off, adaptation, and other relation kinds, lifecycle fields needed by
+  consumers, provider attribution, deterministic strong-ID deduplication, and partial failures.
+- Shikimori and AniList implement direct anime relationships through their official APIs.
+  Manga-only entries are ignored, unknown relation labels remain conservatively classified as
+  `other`, and linked anime retain kind, status, episode count, artwork, dates, and strong IDs.
+- The repository API exposes `GET /media/related`, and the typed SDK exposes
+  `getRelatedMedia()`. The additive REST/OpenAPI contract version is now `0.16.0`.
+
 ## 1.7.0 - 2026-09-19
 
 ### Added

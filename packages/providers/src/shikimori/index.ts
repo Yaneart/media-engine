@@ -9,6 +9,9 @@ import type {
   ProviderContext,
   ProviderDetailsQuery,
   ProviderDetailsResult,
+  ProviderMediaRelation,
+  ProviderRelatedMediaQuery,
+  ProviderRelatedMediaResult,
   ProviderSearchQuery,
   ProviderSearchResult,
   ProviderSource,
@@ -65,13 +68,27 @@ export function shikimoriProvider(options: ShikimoriProviderOptions = {}): Media
       details: {
         byExternalIds: ["shikimori"],
       },
-      features: ["posters", "ratings", "genres", "persons", "episodes", "alternative_titles"],
+      relatedMedia: {
+        byExternalIds: ["shikimori"],
+      },
+      features: [
+        "posters",
+        "ratings",
+        "genres",
+        "persons",
+        "episodes",
+        "alternative_titles",
+        "relations",
+      ],
     },
     async search(query, context) {
       return searchShikimori(config, query, context);
     },
     async getDetails(query, context) {
       return getShikimoriDetails(config, query, context);
+    },
+    async getRelatedMedia(query, context) {
+      return getShikimoriRelatedMedia(config, query, context);
     },
   };
 }
@@ -149,6 +166,13 @@ interface ShikimoriRoleResponse {
   roles_russian?: string[];
   character?: ShikimoriPersonResponse | null;
   person?: ShikimoriPersonResponse | null;
+}
+
+interface ShikimoriRelatedResponse {
+  relation?: string;
+  relation_russian?: string;
+  anime?: ShikimoriAnimeSearchResult | null;
+  manga?: unknown;
 }
 
 interface ShikimoriPersonResponse {
@@ -319,6 +343,82 @@ async function getShikimoriDetails(
     source: createProviderSource(config, details.ids),
     raw: context.debug ? details : undefined,
   };
+}
+
+// Loads and normalizes direct anime relationships from Shikimori.
+// Загружает и нормализует прямые связи аниме из Shikimori.
+async function getShikimoriRelatedMedia(
+  config: ShikimoriConfig,
+  query: ProviderRelatedMediaQuery,
+  context: ProviderContext,
+): Promise<ProviderRelatedMediaResult | null> {
+  if (query.type && query.type !== "anime") return null;
+
+  const shikimoriId = query.ids?.shikimori;
+  if (!shikimoriId) return null;
+
+  const response = await requestShikimori<ShikimoriRelatedResponse[]>(
+    config,
+    `/api/animes/${encodeURIComponent(shikimoriId)}/related`,
+    {},
+    context,
+  );
+  const relations = response
+    .slice(0, query.limit ?? 100)
+    .map((entry) => mapRelatedAnime(config, entry))
+    .filter(isDefined);
+
+  return {
+    provider: PROVIDER_NAME,
+    relations,
+    raw: context.debug ? response : undefined,
+  };
+}
+
+function mapRelatedAnime(
+  config: ShikimoriConfig,
+  entry: ShikimoriRelatedResponse,
+): ProviderMediaRelation | undefined {
+  const anime = entry.anime;
+  if (!anime || !Number.isInteger(anime.id) || anime.id <= 0) return undefined;
+
+  const kind = mapRelationKind(entry.relation);
+  const item = mapAnimeSearchResult(config, anime);
+
+  return {
+    kind,
+    item: {
+      ...item,
+      status: mapStatus(anime.status),
+      animeKind: mapAnimeKind(anime.kind),
+      episodesCount: anime.episodes && anime.episodes > 0 ? anime.episodes : undefined,
+    },
+    source: createProviderSource(config, item.ids),
+  };
+}
+
+function mapRelationKind(relation: string | undefined): ProviderMediaRelation["kind"] {
+  const normalized = relation
+    ?.trim()
+    .toLowerCase()
+    .replace(/[\s-]+/gu, "_");
+
+  switch (normalized) {
+    case "adaptation":
+    case "alternative_setting":
+    case "alternative_version":
+    case "character":
+    case "full_story":
+    case "parent_story":
+    case "prequel":
+    case "sequel":
+    case "side_story":
+    case "spin_off":
+    case "summary":
+      return normalized;
+    default:
+      return "other";
+  }
 }
 
 // Fetches and maps Shikimori anime details.

@@ -50,6 +50,7 @@ await media.search({
   offset: 0,
 });
 await media.getDetails({ imdb: "tt0816692" });
+await media.getRelatedMedia({ shikimori: "52991", type: "anime" });
 await media.getAvailability({
   type: "series",
   title: "Game of Thrones",
@@ -75,6 +76,9 @@ await media.discoverTorrents({
 
 `getDetails()` needs an external ID with its namespace, such as `imdb`, `kinopoisk`, or
 `ids.shikimori`. A plain provider-native `id` is not globally unique.
+
+`getRelatedMedia()` uses the same namespaced identity rule and returns explicit normalized
+relationships with source attribution. It does not infer franchises or seasons from titles.
 
 Availability and torrent discovery only do work when you give the engine matching streaming or
 torrent providers.

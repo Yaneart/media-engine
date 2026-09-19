@@ -4,7 +4,11 @@ import { MediaEngineError } from "../errors/index.js";
 import type { MediaDetails } from "../media/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type ProviderInfo } from "../providers/index.js";
-import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
+import type {
+  ProviderDetailsResult,
+  ProviderRelatedMediaResult,
+  ProviderSearchResult,
+} from "../providers/index.js";
 import type {
   EngineWarning,
   ProviderFailure,
@@ -12,6 +16,7 @@ import type {
   SearchIdentitySnapshotDebugMeta,
 } from "../response/index.js";
 import type { SearchQuery, SearchResponse } from "../search/index.js";
+import type { RelatedMediaQuery, RelatedMediaResponse } from "../related/index.js";
 import type {
   MediaAvailability,
   MediaAvailabilityProgressSnapshot,
@@ -39,6 +44,7 @@ import {
   callTimedProviderAvailability,
   callTimedProviderAvailabilityProgressively,
   callTimedProviderDetails,
+  callTimedProviderRelatedMedia,
   callTimedProviderSearch,
   retryFailedSearchProviders,
   type ProviderAvailabilityCallOutcome,
@@ -46,16 +52,19 @@ import {
 import {
   createAvailabilityCacheKey,
   createDetailsCacheKey,
+  createRelatedMediaCacheKey,
   createProviderSearchQuery,
   createSearchCacheKey,
   createSearchFallbackQuery,
   createSearchIdentitySnapshotCacheKey,
   inferTitleLanguage,
   normalizeDetailsQuery,
+  normalizeRelatedMediaQuery,
   normalizeSearchQuery,
   normalizeStreamQuery,
   normalizeTorrentQuery,
   validateDetailsQuery,
+  validateRelatedMediaQuery,
   validateSearchQuery,
   validateStreamQuery,
   validateTorrentQuery,
@@ -87,6 +96,7 @@ import {
   validateTorrentProviders,
 } from "./runtime.js";
 import { executeTorrentDiscovery } from "./torrents.js";
+import { mergeRelatedMediaResults } from "./related-media.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
 import { ProviderTimeoutBudget } from "./timeout-budget.js";
 import type {
@@ -639,6 +649,108 @@ export class MediaEngine {
 
       throwIfAborted(operationSignal);
 
+      if (!hasRetryableProviderFailure(failed)) {
+        await this.cache?.set(cacheKey, structuredClone(response));
+      }
+
+      return response;
+    });
+
+    return loadWithStaleFallback({
+      stale,
+      pending,
+      tookMs: () => elapsedSince(startedAt),
+    });
+  }
+
+  // Loads direct provider-neutral relationships for one exact media identity.
+  // Загружает прямые провайдер-независимые связи для одной точной media identity.
+  async getRelatedMedia(
+    query: RelatedMediaQuery,
+    options: MediaEngineOperationOptions = {},
+  ): Promise<RelatedMediaResponse> {
+    throwIfAborted(options.signal);
+    const startedAt = Date.now();
+    const normalizedQuery = normalizeRelatedMediaQuery(query);
+    validateRelatedMediaQuery(normalizedQuery);
+
+    const cacheKey = createRelatedMediaCacheKey(normalizedQuery);
+    const cached = await waitForCaller(
+      this.cache?.get<RelatedMediaResponse>(cacheKey),
+      options.signal,
+    );
+
+    if (cached) {
+      const response = structuredClone(cached);
+      return {
+        ...response,
+        query: normalizedQuery,
+        meta: { ...response.meta, cached: true, tookMs: elapsedSince(startedAt) },
+      };
+    }
+
+    const stale = await waitForCaller(
+      this.cache?.getStale?.<RelatedMediaResponse>(cacheKey),
+      options.signal,
+    );
+    const inFlight = this.inFlightRequests.forCaller(options);
+    const pending = inFlight.run(`related:${cacheKey}`, async (operationSignal) => {
+      const timeoutBudget = this.createProviderTimeoutBudget();
+      const providers = this.registry.selectRelatedMediaProviders(normalizedQuery);
+      const requested = providers.map((provider) => provider.name);
+      const successful: string[] = [];
+      const failed: ProviderFailure[] = [];
+      const warnings: EngineWarning[] = [];
+      const providerTimings: ProviderTimingMeta[] = [];
+      const providerResults: ProviderRelatedMediaResult[] = [];
+
+      const outcomes = await Promise.all(
+        providers.map((provider) =>
+          callTimedProviderRelatedMedia(provider, normalizedQuery, {
+            debug: this.debug,
+            language: normalizedQuery.language,
+            signal: operationSignal,
+            timeoutMs: timeoutBudget.getRemainingMs(provider.name),
+            circuitBreaker: this.circuitBreaker,
+            concurrencyLimiter: this.concurrencyLimiter,
+          }),
+        ),
+      );
+
+      for (const outcome of outcomes) {
+        providerTimings.push(outcome.timing);
+        if (outcome.failure) {
+          failed.push(outcome.failure);
+        } else {
+          successful.push(outcome.provider);
+          if (outcome.result) providerResults.push(outcome.result);
+        }
+      }
+
+      if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
+        throw new MediaEngineError({
+          code: "PROVIDER_ERROR",
+          message: "All related media providers failed.",
+          cause: { failed },
+        });
+      }
+
+      const response: RelatedMediaResponse = {
+        query: normalizedQuery,
+        relations: mergeRelatedMediaResults(providerResults, normalizedQuery),
+        meta: createResponseMeta({
+          requested,
+          successful,
+          failed,
+          warnings,
+          cached: false,
+          tookMs: elapsedSince(startedAt),
+          debug: this.debug,
+          timings: providerTimings,
+        }),
+      };
+
+      throwIfAborted(operationSignal);
       if (!hasRetryableProviderFailure(failed)) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }

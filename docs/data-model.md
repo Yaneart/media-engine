@@ -25,6 +25,14 @@ Shared detail fields include status, countries, languages, images, people, and p
 
 Titles and descriptions can be localized. `originalTitle` remains separate from the display title, and `alternativeTitles` preserves useful aliases.
 
+## Related media
+
+`RelatedMediaResponse` contains explicit direct relationships for one namespaced media identity.
+Each `MediaRelation` keeps a normalized `kind`, a compact `RelatedMediaItem`, and all provider
+sources that reported the same kind and strong external ID. Related anime can additionally carry
+`animeKind`, lifecycle status, and episode count. The model does not infer seasons from titles or
+franchise labels; consumers decide how prequels, sequels, side stories, and other branches are used.
+
 ## Images, ratings, and sources
 
 Images carry a URL plus optional type, dimensions, language, and source. Ratings preserve their source, scale, and optional vote count instead of converting every value to one opaque score.
@@ -67,6 +75,7 @@ Refer to the exported declarations in `@media-engine/core` for exact fields and 
 - `media/types`;
 - `search/types`;
 - `details/types`;
+- `related/types`;
 - `response/types`;
 - `streaming/types`.
 - `torrent/types`.

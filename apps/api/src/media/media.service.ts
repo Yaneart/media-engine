@@ -8,6 +8,8 @@ import {
   type MediaEngineOperationOptions,
   type MediaType,
   type ProviderInfo,
+  type RelatedMediaQuery,
+  type RelatedMediaResponse,
   type SearchQuery,
   type SearchResponse,
   type StreamQuery,
@@ -31,6 +33,13 @@ export type MediaSearchHttpQuery = Record<
 // EN: Raw details query shape received from HTTP before API-level normalization.
 // RU: Сырая форма details query из HTTP до нормализации на уровне API.
 export type MediaDetailsHttpQuery = Record<
+  string,
+  string | string[] | undefined
+>;
+
+// EN: Raw related-media query shape received from HTTP before normalization.
+// RU: Сырая форма related-media query из HTTP до нормализации.
+export type MediaRelatedHttpQuery = Record<
   string,
   string | string[] | undefined
 >;
@@ -70,6 +79,17 @@ export class MediaService {
   ): Promise<DetailsResponse> {
     return runEngineRequest(() =>
       this.mediaEngine.getDetails(toDetailsQuery(query), options),
+    );
+  }
+
+  // EN: Convert HTTP query parameters into a core RelatedMediaQuery and load direct relations.
+  // RU: Преобразует HTTP query параметры в core RelatedMediaQuery и загружает прямые связи.
+  async getRelatedMedia(
+    query: MediaRelatedHttpQuery,
+    options?: MediaEngineOperationOptions,
+  ): Promise<RelatedMediaResponse> {
+    return runEngineRequest(() =>
+      this.mediaEngine.getRelatedMedia(toRelatedMediaQuery(query), options),
     );
   }
 
@@ -172,6 +192,24 @@ export function toDetailsQuery(query: MediaDetailsHttpQuery): DetailsQuery {
   copyExternalIds(query, detailsQuery);
 
   return detailsQuery;
+}
+
+// EN: Build the public core related-media query from GET /media/related parameters.
+// RU: Собирает публичный core related-media query из параметров GET /media/related.
+export function toRelatedMediaQuery(
+  query: MediaRelatedHttpQuery,
+): RelatedMediaQuery {
+  const relatedQuery: RelatedMediaQuery = {};
+  const language = readString(query.language);
+  const type = readMediaType(query.type);
+  const limit = readInteger(query.limit, 'limit');
+
+  if (language !== undefined) relatedQuery.language = language;
+  if (type !== undefined) relatedQuery.type = type;
+  if (limit !== undefined) relatedQuery.limit = limit;
+  copyExternalIds(query, relatedQuery);
+
+  return relatedQuery;
 }
 
 // EN: Build the public core streaming query from GET /media/availability parameters.

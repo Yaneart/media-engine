@@ -39,6 +39,18 @@ const result = await media.search({ title: "One Piece" });
 Connect only the sources your application needs. The engine calls suitable providers and merges
 matching results for you.
 
+Shikimori and AniList also support explicit anime relationships:
+
+```ts
+const relations = await media.getRelatedMedia({
+  shikimori: "52991",
+  type: "anime",
+});
+```
+
+The response preserves prequel, sequel, side-story, and other official relation kinds without
+grouping titles by franchise-name heuristics.
+
 Available metadata providers:
 
 - `kinobdProvider()` and `cinemetaProvider()` for movies and series;

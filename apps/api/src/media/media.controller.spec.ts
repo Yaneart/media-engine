@@ -9,6 +9,7 @@ import {
   sampleMovie,
   type MediaEngine,
   type ProviderInfo,
+  type RelatedMediaResponse,
   type SearchResponse,
   type StreamingProviderInfo,
 } from '@media-engine/core';
@@ -22,6 +23,7 @@ describe('MediaController', () => {
       MediaEngine,
       | 'search'
       | 'getDetails'
+      | 'getRelatedMedia'
       | 'getAvailability'
       | 'getProviders'
       | 'getStreamingProviders'
@@ -92,6 +94,34 @@ describe('MediaController', () => {
     },
   ];
 
+  const relatedResponse: RelatedMediaResponse = {
+    query: { shikimori: '52991', type: 'anime', language: 'ru', limit: 20 },
+    relations: [
+      {
+        kind: 'sequel',
+        item: {
+          id: 'shikimori:anime:59978',
+          type: 'anime',
+          title: 'Frieren Season 2',
+          ids: { shikimori: '59978' },
+          animeKind: 'tv',
+          status: 'ongoing',
+          episodesCount: 10,
+        },
+        sources: [{ provider: 'shikimori', ids: { shikimori: '59978' } }],
+      },
+    ],
+    meta: {
+      providers: {
+        requested: ['shikimori'],
+        successful: ['shikimori'],
+        failed: [],
+      },
+      cached: false,
+      tookMs: 1,
+    },
+  };
+
   const availabilityResponse: MediaAvailability = {
     query: {
       type: 'anime',
@@ -140,6 +170,7 @@ describe('MediaController', () => {
     mediaEngine = {
       search: jest.fn().mockResolvedValue(searchResponse),
       getDetails: jest.fn().mockResolvedValue(detailsResponse),
+      getRelatedMedia: jest.fn().mockResolvedValue(relatedResponse),
       getAvailability: jest.fn().mockResolvedValue(availabilityResponse),
       getProviders: jest.fn().mockReturnValue(providersResponse),
       getStreamingProviders: jest
@@ -394,6 +425,43 @@ describe('MediaController', () => {
     await request(app.getHttpServer())
       .get('/media/details')
       .query({ imdb: 'tt0816692' })
+      .expect(503);
+  });
+
+  it('maps GET /media/related query parameters to MediaEngine.getRelatedMedia', async () => {
+    await request(app.getHttpServer())
+      .get('/media/related')
+      .query({
+        shikimori: ' 52991 ',
+        type: 'anime',
+        language: 'ru',
+        limit: '20',
+      })
+      .expect(200)
+      .expect(relatedResponse);
+
+    expect(mediaEngine.getRelatedMedia).toHaveBeenCalledWith(
+      { shikimori: '52991', type: 'anime', language: 'ru', limit: 20 },
+      { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  it('returns HTTP errors for invalid and failed related-media lookups', async () => {
+    await request(app.getHttpServer())
+      .get('/media/related')
+      .query({ shikimori: '52991', limit: 'not-a-number' })
+      .expect(400);
+    expect(mediaEngine.getRelatedMedia).not.toHaveBeenCalled();
+
+    mediaEngine.getRelatedMedia.mockRejectedValueOnce(
+      new MediaEngineError({
+        code: 'PROVIDER_ERROR',
+        message: 'All related media providers failed.',
+      }),
+    );
+    await request(app.getHttpServer())
+      .get('/media/related')
+      .query({ shikimori: '52991' })
       .expect(503);
   });
 

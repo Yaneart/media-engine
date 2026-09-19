@@ -20,6 +20,8 @@ test("shikimoriProvider exposes safe anime metadata capabilities", () => {
   assert.deepEqual(provider.capabilities.mediaTypes, ["anime"]);
   assert.deepEqual(provider.capabilities.search.byExternalIds, ["shikimori"]);
   assert.deepEqual(provider.capabilities.details.byExternalIds, ["shikimori"]);
+  assert.deepEqual(provider.capabilities.relatedMedia?.byExternalIds, ["shikimori"]);
+  assert.equal(provider.capabilities.features?.includes("relations"), true);
   assert.equal("userAgent" in provider, false);
 });
 
@@ -307,6 +309,99 @@ test("shikimoriProvider keeps core details when optional roles and screenshots f
   assert.equal(result?.details.title, "Ковбой Бибоп");
   assert.equal(result?.details.persons, undefined);
   assert.equal(result?.details.images, undefined);
+});
+
+test("shikimoriProvider maps all direct anime relation kinds and lifecycle fields", async () => {
+  const requests: RequestRecord[] = [];
+  const labels = [
+    "Adaptation",
+    "Alternative setting",
+    "Alternative version",
+    "Character",
+    "Full story",
+    "Other",
+    "Parent story",
+    "Prequel",
+    "Sequel",
+    "Side story",
+    "Spin-off",
+    "Summary",
+    "Unknown upstream label",
+  ];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/api/animes/52991/related": [
+        ...labels.map((relation, index) => ({
+          relation,
+          anime: {
+            id: 60_000 + index,
+            name: `Related ${index}`,
+            russian: `Связанное ${index}`,
+            kind: index === 8 ? "tv" : "special",
+            status: index === 8 ? "ongoing" : "released",
+            episodes: index === 8 ? 10 : 1,
+            aired_on: "2026-01-01",
+          },
+        })),
+        { relation: "Adaptation", manga: { id: 1 } },
+      ],
+    }),
+  });
+
+  const result = await provider.getRelatedMedia?.(
+    { ids: { shikimori: "52991" }, type: "anime" },
+    { debug: true },
+  );
+
+  assert.equal(requests[0]?.path, "/api/animes/52991/related");
+  assert.deepEqual(
+    result?.relations.map((relation) => relation.kind),
+    [
+      "adaptation",
+      "alternative_setting",
+      "alternative_version",
+      "character",
+      "full_story",
+      "other",
+      "parent_story",
+      "prequel",
+      "sequel",
+      "side_story",
+      "spin_off",
+      "summary",
+      "other",
+    ],
+  );
+  const sequel = result?.relations[8];
+  assert.equal(sequel?.item.title, "Связанное 8");
+  assert.equal(sequel?.item.ids?.shikimori, "60008");
+  assert.equal(sequel?.item.animeKind, "tv");
+  assert.equal(sequel?.item.status, "ongoing");
+  assert.equal(sequel?.item.episodesCount, 10);
+  assert.equal(sequel?.source?.url, "https://shikimori.one/animes/60008");
+  assert.equal(Array.isArray(result?.raw), true);
+});
+
+test("shikimoriProvider bounds related results and ignores unsupported lookups", async () => {
+  const requests: RequestRecord[] = [];
+  const provider = createProvider({
+    fetch: createMockFetch(requests, {
+      "/api/animes/1/related": [
+        { relation: "Sequel", anime: { id: 2, name: "Two" } },
+        { relation: "Sequel", anime: { id: 3, name: "Three" } },
+      ],
+    }),
+  });
+
+  const limited = await provider.getRelatedMedia?.({ ids: { shikimori: "1" }, limit: 1 }, {});
+  assert.equal(limited?.relations.length, 1);
+  assert.equal(limited?.raw, undefined);
+  assert.equal(
+    await provider.getRelatedMedia?.({ ids: { shikimori: "1" }, type: "movie" }, {}),
+    null,
+  );
+  assert.equal(await provider.getRelatedMedia?.({ ids: { imdb: "tt0388629" } }, {}), null);
+  assert.equal(requests.length, 1);
 });
 
 test("shikimoriProvider maps HTTP failures through provider errors", async () => {

@@ -168,6 +168,37 @@ test("getDetails exposes id-only migration errors returned by the API", async ()
   assert.equal(mock.calls[0]?.searchParams.get("id"), "movie-1");
 });
 
+test("getRelatedMedia serializes exact identity and bounds", async () => {
+  const body = {
+    query: { shikimori: "52991", type: "anime", limit: 20, language: "ru" },
+    relations: [],
+    meta: {
+      cached: false,
+      tookMs: 1,
+      providers: { requested: [], successful: [], failed: [] },
+    },
+  };
+  const mock = createMockFetch(Response.json(body));
+  const client = new MediaEngineClient({
+    baseUrl: "http://127.0.0.1:3000",
+    fetch: mock.fetch,
+  });
+
+  const response = await client.getRelatedMedia({
+    shikimori: "52991",
+    type: "anime",
+    limit: 20,
+    language: "ru",
+  });
+
+  assert.deepEqual(response, body);
+  assert.equal(mock.calls[0]?.pathname, "/media/related");
+  assert.equal(mock.calls[0]?.searchParams.get("shikimori"), "52991");
+  assert.equal(mock.calls[0]?.searchParams.get("type"), "anime");
+  assert.equal(mock.calls[0]?.searchParams.get("limit"), "20");
+  assert.equal(mock.calls[0]?.searchParams.get("language"), "ru");
+});
+
 test("getAvailability serializes streaming query params", async () => {
   const body = {
     query: {

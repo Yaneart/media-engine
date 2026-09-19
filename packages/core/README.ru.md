@@ -49,6 +49,7 @@ await media.search({
   offset: 0,
 });
 await media.getDetails({ imdb: "tt0816692" });
+await media.getRelatedMedia({ shikimori: "52991", type: "anime" });
 await media.getAvailability({
   type: "series",
   title: "Игра престолов",
@@ -74,6 +75,9 @@ await media.discoverTorrents({
 
 Для `getDetails()` нужен внешний ID с указанием его типа: например, `imdb`, `kinopoisk` или
 `ids.shikimori`. Обычный внутренний `id` провайдера не уникален между разными источниками.
+
+`getRelatedMedia()` использует то же правило namespaced identity и возвращает явные
+нормализованные связи с атрибуцией источников. Связи по названию или франшизе не угадываются.
 
 Поиск плееров и torrent-раздач заработает только после подключения подходящих streaming- и
 torrent-провайдеров.

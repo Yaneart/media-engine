@@ -5,6 +5,7 @@ import type {
   MediaType,
   ProviderSource,
 } from "../media/index.js";
+import type { MediaRelationKind, RelatedMediaItem, RelatedMediaQuery } from "../related/index.js";
 
 // Provider category supported by the core metadata contract.
 // Категория провайдера, поддерживаемая core-контрактом метаданных.
@@ -25,7 +26,8 @@ export type ProviderFeature =
   | "persons"
   | "seasons"
   | "episodes"
-  | "alternative_titles";
+  | "alternative_titles"
+  | "relations";
 
 // Role of a provider in title-based candidate discovery.
 // Роль провайдера в поиске кандидатов по названию.
@@ -47,6 +49,9 @@ export interface ProviderCapabilities {
     filterDiscovery?: ProviderSearchFilter[];
   };
   details: {
+    byExternalIds: ExternalIdSource[];
+  };
+  relatedMedia?: {
     byExternalIds: ExternalIdSource[];
   };
   features?: ProviderFeature[];
@@ -85,6 +90,10 @@ export interface ProviderDetailsQuery {
   language?: string;
 }
 
+// Normalized provider-facing query for direct media relationships.
+// Нормализованный запрос прямых связей на стороне провайдера.
+export type ProviderRelatedMediaQuery = RelatedMediaQuery;
+
 // Raw search result returned by a single provider before merging.
 // Сырой результат поиска от одного провайдера до объединения.
 export interface ProviderSearchResult {
@@ -102,6 +111,22 @@ export interface ProviderDetailsResult {
   details: MediaDetails;
   confidence?: number;
   source?: ProviderSource;
+  raw?: unknown;
+}
+
+// One raw provider relation before cross-provider deduplication.
+// Одна сырая связь провайдера до межпровайдерной дедупликации.
+export interface ProviderMediaRelation {
+  kind: MediaRelationKind;
+  item: RelatedMediaItem;
+  source?: ProviderSource;
+}
+
+// Raw related-media result returned by one provider.
+// Сырой результат связанных медиа от одного провайдера.
+export interface ProviderRelatedMediaResult {
+  provider: string;
+  relations: ProviderMediaRelation[];
   raw?: unknown;
 }
 
@@ -131,4 +156,9 @@ export interface MediaProvider {
     query: ProviderDetailsQuery,
     context: ProviderContext,
   ): Promise<ProviderDetailsResult | null>;
+
+  getRelatedMedia?(
+    query: ProviderRelatedMediaQuery,
+    context: ProviderContext,
+  ): Promise<ProviderRelatedMediaResult | null>;
 }

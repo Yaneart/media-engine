@@ -72,6 +72,35 @@ test("returns safe provider info", () => {
   ]);
 });
 
+test("returns and selects safe related-media capabilities", () => {
+  const provider = createProvider({
+    name: "relations-provider",
+    capabilities: {
+      mediaTypes: ["anime"],
+      search: { byTitle: false, byExternalIds: ["shikimori"] },
+      details: { byExternalIds: ["shikimori"] },
+      relatedMedia: { byExternalIds: ["shikimori"] },
+      features: ["relations"],
+    },
+    async getRelatedMedia() {
+      return { provider: "relations-provider", relations: [] };
+    },
+  });
+  const registry = new ProviderRegistry([provider]);
+
+  assert.deepEqual(registry.getProviders()[0]?.capabilities.relatedMedia, {
+    byExternalIds: ["shikimori"],
+  });
+  assert.deepEqual(
+    registry.selectRelatedMediaProviders({ ids: { shikimori: "1" }, type: "anime" }),
+    [provider],
+  );
+  assert.deepEqual(
+    registry.selectRelatedMediaProviders({ ids: { imdb: "tt0388629" }, type: "anime" }),
+    [],
+  );
+});
+
 test("selects search providers by title support", () => {
   const titleProvider = createProvider({ name: "title-provider" });
   const idOnlyProvider = createProvider({

@@ -2,6 +2,8 @@ import { ProviderError, toProviderFailure } from "../errors/index.js";
 import type { MediaProvider, ProviderDetailsQuery } from "../providers/index.js";
 import type {
   ProviderDetailsResult,
+  ProviderRelatedMediaQuery,
+  ProviderRelatedMediaResult,
   ProviderSearchQuery,
   ProviderSearchResult,
 } from "../providers/index.js";
@@ -59,6 +61,15 @@ export interface ProviderDetailsCallOutcome {
   provider: string;
   timing: ProviderTimingMeta;
   result: ProviderDetailsResult | null;
+  failure?: ProviderFailure;
+}
+
+// Result of one related-media call after timing and failure normalization.
+// Результат одного related-media вызова после нормализации timing и failure.
+export interface ProviderRelatedMediaCallOutcome {
+  provider: string;
+  timing: ProviderTimingMeta;
+  result: ProviderRelatedMediaResult | null;
   failure?: ProviderFailure;
 }
 
@@ -173,6 +184,58 @@ export async function callTimedProviderDetails(
       (signal) =>
         provider.getDetails
           ? provider.getDetails(query, {
+              signal,
+              timeoutMs: context.timeoutMs,
+              debug: context.debug,
+              language: context.language,
+            })
+          : Promise.resolve(null),
+    );
+
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "success",
+        tookMs: elapsedSince(startedAt),
+      },
+      result,
+    };
+  } catch (error) {
+    if (isOperationCancelledError(error)) {
+      throw error;
+    }
+
+    return {
+      provider: provider.name,
+      timing: {
+        provider: provider.name,
+        status: "failed",
+        tookMs: elapsedSince(startedAt),
+      },
+      result: null,
+      failure: toProviderFailure(provider.name, error),
+    };
+  }
+}
+
+// Calls one related-media provider under shared timeout, health, and concurrency isolation.
+// Вызывает related-media провайдер под общей изоляцией timeout, health и concurrency.
+export async function callTimedProviderRelatedMedia(
+  provider: MediaProvider,
+  query: ProviderRelatedMediaQuery,
+  context: ProviderCallContext,
+): Promise<ProviderRelatedMediaCallOutcome> {
+  const startedAt = Date.now();
+
+  try {
+    const result = await runProviderOperation(
+      context,
+      `metadata:${provider.name}`,
+      provider.name,
+      (signal) =>
+        provider.getRelatedMedia
+          ? provider.getRelatedMedia(query, {
               signal,
               timeoutMs: context.timeoutMs,
               debug: context.debug,
