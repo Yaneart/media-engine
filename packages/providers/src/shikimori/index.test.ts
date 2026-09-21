@@ -21,6 +21,7 @@ test("shikimoriProvider exposes safe anime metadata capabilities", () => {
   assert.deepEqual(provider.capabilities.search.byExternalIds, ["shikimori"]);
   assert.deepEqual(provider.capabilities.details.byExternalIds, ["shikimori"]);
   assert.deepEqual(provider.capabilities.relatedMedia?.byExternalIds, ["shikimori"]);
+  assert.equal(provider.capabilities.features?.includes("backdrops"), true);
   assert.equal(provider.capabilities.features?.includes("relations"), true);
   assert.equal("userAgent" in provider, false);
 });
@@ -174,7 +175,7 @@ test("shikimoriProvider searches by Shikimori ID through details endpoint", asyn
         myanimelist_id: 1,
       },
       "/api/animes/1/roles": [],
-      "/api/animes/1/screenshots": [],
+      "/api/animes/1/screenshots": [{ original: "/system/screenshots/original/search-1.jpg" }],
     }),
   });
 
@@ -183,6 +184,10 @@ test("shikimoriProvider searches by Shikimori ID through details endpoint", asyn
   assert.equal(results.length, 1);
   assert.equal(results[0]?.item.ids?.shikimori, "1");
   assert.equal(results[0]?.item.ids?.myAnimeList, "1");
+  assert.equal(
+    results[0]?.item.backdrop?.url,
+    "https://shikimori.one/system/screenshots/original/search-1.jpg",
+  );
   assert.equal(results[0]?.confidence, 1);
   assert.equal(requests[0]?.path, "/api/animes/1");
 });
@@ -243,9 +248,14 @@ test("shikimoriProvider maps anime details", async () => {
         },
       ],
       "/api/animes/1/screenshots": [
+        {},
         {
           original: "/system/screenshots/original/1.jpg",
           preview: "/system/screenshots/x332/1.jpg",
+        },
+        {
+          original: "/system/screenshots/original/2.jpg",
+          preview: "/system/screenshots/x332/2.jpg",
         },
       ],
     }),
@@ -267,7 +277,16 @@ test("shikimoriProvider maps anime details", async () => {
   assert.equal(result?.details.episodes?.[25]?.episodeNumber, 26);
   assert.equal(result?.details.genres?.[0]?.name, "Экшен");
   assert.equal(result?.details.ratings?.[0]?.votes, 2000);
-  assert.equal(result?.details.images?.length, 2);
+  assert.equal(
+    result?.details.backdrop?.url,
+    "https://shikimori.one/system/screenshots/original/1.jpg",
+  );
+  assert.equal(result?.details.backdrop?.type, "backdrop");
+  assert.equal(result?.details.images?.length, 3);
+  assert.deepEqual(
+    result?.details.images?.map((image) => image.type),
+    ["poster", "backdrop", "still"],
+  );
   assert.equal(result?.details.persons?.[0]?.roles[0], "voice_actor");
   assert.equal(result?.details.persons?.[1]?.roles[0], "director");
   assert.equal(result?.details.sourceProviders?.[0]?.url, "https://shikimori.one/animes/1");

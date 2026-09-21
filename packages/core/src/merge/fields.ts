@@ -221,7 +221,11 @@ export function selectBestImage(
   entries: SearchEntry[],
   field: "poster" | "backdrop",
 ): Image | undefined {
-  return selectBestEntryImage(entries, (entry) => entry.result.item[field]);
+  return selectBestEntryImage(
+    entries,
+    (entry) => entry.result.item[field],
+    (entry) => animeArtworkProviderRank(entry.result.provider, entry.result.item.type, field),
+  );
 }
 
 // Selects the best valid details poster or backdrop image.
@@ -230,7 +234,11 @@ export function selectBestDetailsImage(
   entries: DetailsEntry[],
   field: "poster" | "backdrop",
 ): Image | undefined {
-  return selectBestEntryImage(entries, (entry) => entry.result.details[field]);
+  return selectBestEntryImage(
+    entries,
+    (entry) => entry.result.details[field],
+    (entry) => animeArtworkProviderRank(entry.result.provider, entry.result.details.type, field),
+  );
 }
 
 // Merges unique genres by normalized genre name.
@@ -415,10 +423,11 @@ export function firstMeaningfulDetailsStatus(entries: DetailsEntry[]): MediaDeta
 function selectBestEntryImage<Entry>(
   entries: Entry[],
   pick: (entry: Entry) => Image | undefined,
+  providerRank: (entry: Entry) => number,
 ): Image | undefined {
   const images = entries
-    .map((entry, index) => ({ image: pick(entry), index }))
-    .filter((candidate): candidate is { image: Image; index: number } =>
+    .map((entry, index) => ({ image: pick(entry), index, providerRank: providerRank(entry) }))
+    .filter((candidate): candidate is { image: Image; index: number; providerRank: number } =>
       isValidImageUrl(candidate.image),
     );
 
@@ -429,8 +438,20 @@ function selectBestEntryImage<Entry>(
       return areaDiff;
     }
 
-    return left.index - right.index;
+    return left.providerRank - right.providerRank || left.index - right.index;
   })[0]?.image;
+}
+
+function animeArtworkProviderRank(
+  provider: string,
+  mediaType: string,
+  field: "poster" | "backdrop",
+): number {
+  if (mediaType !== "anime") return 0;
+
+  const priority = field === "poster" ? ["anilist", "shikimori"] : ["shikimori", "anilist"];
+  const index = priority.indexOf(provider);
+  return index === -1 ? priority.length : index;
 }
 
 function selectExactQueryTitle(values: string[], queryTitle: string): string | undefined {

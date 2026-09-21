@@ -41,6 +41,12 @@ const result = await media.search({ title: "Ван-Пис" });
 
 Shikimori и AniList также поддерживают явные связи между аниме:
 
+В деталях Shikimori первый доступный полноразмерный кадр нормализуется как горизонтальный
+`backdrop`, а остальные кадры сохраняются как `still`. Более широкий баннер AniList остаётся
+резервным вариантом.
+Для объединённых постеров аниме Core предпочитает более качественный `coverImage.extraLarge` из
+AniList, если провайдеры не передали размеры изображений.
+
 ```ts
 const relations = await media.getRelatedMedia({
   shikimori: "52991",

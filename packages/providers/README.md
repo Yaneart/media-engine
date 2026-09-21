@@ -41,6 +41,11 @@ matching results for you.
 
 Shikimori and AniList also support explicit anime relationships:
 
+Shikimori details normalize the first usable full-size screenshot as a landscape `backdrop` and
+preserve the remaining screenshots as `still` images. AniList's wider banner remains a fallback.
+For merged anime posters, Core prefers AniList's higher-resolution `coverImage.extraLarge` when
+providers do not expose dimensions.
+
 ```ts
 const relations = await media.getRelatedMedia({
   shikimori: "52991",

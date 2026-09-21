@@ -73,6 +73,7 @@ export function shikimoriProvider(options: ShikimoriProviderOptions = {}): Media
       },
       features: [
         "posters",
+        "backdrops",
         "ratings",
         "genres",
         "persons",
@@ -528,6 +529,7 @@ function mapAnimeDetails(
   screenshots: ShikimoriImageResponse[],
 ): AnimeDetails {
   const ids = createIds(item.id, item.myanimelist_id);
+  const images = mapImages(config, item, screenshots);
   const details: AnimeDetails = {
     ...mapAnimeSearchResult(config, item, ids),
     type: "anime",
@@ -540,7 +542,8 @@ function mapAnimeDetails(
     runtimeMinutes: item.duration,
     countries: ["JP"],
     languages: ["ja"],
-    images: mapImages(config, item, screenshots),
+    backdrop: images?.find((image) => image.type === "backdrop"),
+    images,
     persons: mapPersons(config, roles, config.personLimit),
     sourceProviders: [createProviderSource(config, ids)],
     animeKind: mapAnimeKind(item.kind),
@@ -584,6 +587,7 @@ function detailsToSearchResult(
       releaseDate: details.releaseDate,
       description: details.description,
       poster: details.poster,
+      backdrop: details.backdrop,
       genres: details.genres,
       ratings: details.ratings,
       ids: details.ids,
@@ -655,11 +659,14 @@ function mapImages(
   item: ShikimoriAnimeDetailsResponse,
   screenshots: ShikimoriImageResponse[],
 ): Image[] | undefined {
+  const availableScreenshots = screenshots.length ? screenshots : (item.screenshots ?? []);
+  const [backdrop, ...stills] = availableScreenshots
+    .map((image) => createImage(config, image, "still"))
+    .filter(isDefined);
   const images = [
     createImage(config, item.image, "poster"),
-    ...(screenshots.length ? screenshots : (item.screenshots ?? [])).map((image) =>
-      createImage(config, image, "still"),
-    ),
+    backdrop ? { ...backdrop, type: "backdrop" as const } : undefined,
+    ...stills,
   ].filter(isDefined);
 
   return images.length ? images : undefined;

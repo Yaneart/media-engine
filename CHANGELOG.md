@@ -5,6 +5,18 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
+## 1.8.1 - 2026-09-21
+
+### Fixed
+
+- Shikimori anime details now expose the first usable full-size screenshot as the normalized
+  backdrop and preserve later screenshots as stills. The default anime merge priority therefore
+  prefers a landscape episode frame over AniList's unusually wide banner artwork while retaining
+  the AniList banner as a fallback when Shikimori has no screenshot.
+- Anime artwork merging now prefers AniList's higher-resolution `coverImage.extraLarge` for posters
+  and Shikimori screenshots for backdrops when candidates do not provide dimensions. Explicit
+  image dimensions still win, and movie or series artwork selection is unchanged.
+
 ## 1.8.0 - 2026-09-19
 
 ### Added

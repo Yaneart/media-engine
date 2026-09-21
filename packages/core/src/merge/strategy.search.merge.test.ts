@@ -49,6 +49,51 @@ test("merges exact external ID matches into one search result", () => {
   assert.deepEqual(warnings, []);
 });
 
+test("uses AniList posters and Shikimori screenshot backdrops for anime", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("shikimori", {
+        id: "shikimori-frieren",
+        type: "anime",
+        title: "Frieren: Beyond Journey's End",
+        ids: { shikimori: "52991", myAnimeList: "52991" },
+        poster: {
+          url: "https://shikimori.one/system/animes/original/52991.jpg",
+          type: "poster",
+        },
+        backdrop: {
+          url: "https://shikimori.one/system/screenshots/original/frieren.jpg",
+          type: "backdrop",
+        },
+      }),
+      providerResult("anilist", {
+        id: "anilist-frieren",
+        type: "anime",
+        title: "Frieren: Beyond Journey's End",
+        ids: { aniList: "154587", myAnimeList: "52991" },
+        poster: {
+          url: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/frieren.jpg",
+          type: "poster",
+        },
+        backdrop: {
+          url: "https://s4.anilist.co/file/anilistcdn/media/anime/banner/154587.jpg",
+          type: "backdrop",
+        },
+      }),
+    ],
+    {},
+  );
+
+  assert.equal(
+    results[0]?.item.poster?.url,
+    "https://s4.anilist.co/file/anilistcdn/media/anime/cover/frieren.jpg",
+  );
+  assert.equal(
+    results[0]?.item.backdrop?.url,
+    "https://shikimori.one/system/screenshots/original/frieren.jpg",
+  );
+});
+
 test("selects localized search titles and descriptions when language is explicit", () => {
   const search = strategy.mergeSearchResults(
     [

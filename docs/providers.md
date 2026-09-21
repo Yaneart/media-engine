@@ -20,6 +20,13 @@ Shikimori and AniList expose their official direct anime relationships through t
 `getRelatedMedia` contract. The adapters preserve all normalized relation kinds and ignore
 manga-only links. Core does not interpret a franchise or title similarity as a relationship.
 
+For anime details, Shikimori exposes its first usable full-size screenshot as `backdrop` and keeps
+the remaining screenshots as `still` images. With the default anime provider priority this gives
+consumers a landscape frame before AniList's much wider `bannerImage`; the AniList artwork remains
+available as a fallback when Shikimori has no screenshot.
+For posters without explicit dimensions, anime merging instead prefers AniList's higher-resolution
+`coverImage.extraLarge` over Shikimori's smaller catalog cover.
+
 Cinemeta filter discovery uses its dedicated genre, year, and IMDb-rating catalog views. It follows
 at most five 50-item pages until the requested number of matching items is collected or the catalog
 ends. Results remain bounded by what Cinemeta exposes; they are not an exhaustive index of every
