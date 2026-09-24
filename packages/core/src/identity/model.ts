@@ -20,7 +20,11 @@ export type IdentityDiagnosticCode =
   | "UNPROVEN_LINK"
   | "TYPE_CONFLICT"
   | "EXTERNAL_ID_CONFLICT"
-  | "AMBIGUOUS_ID";
+  | "AMBIGUOUS_ID"
+  | "SOURCE_ERROR"
+  | "SOURCE_TIMEOUT"
+  | "CANCELLED"
+  | "BUDGET_EXHAUSTED";
 
 export interface IdentityDiagnostic {
   code: IdentityDiagnosticCode;
@@ -105,6 +109,7 @@ export function resolveIdentityClaims(
   type: MediaType,
   initial: Record<string, unknown>,
   claims: readonly IdentityClaim[],
+  anchors?: Readonly<IdentityIds>,
 ): IdentityResolution {
   const diagnostics: IdentityDiagnostic[] = [];
   const ids = normalizeIds(initial, diagnostics, "initial");
@@ -119,7 +124,7 @@ export function resolveIdentityClaims(
       continue;
     }
     const anchor = normalizeIdentityId(claim.matched.namespace, claim.matched.value);
-    if (!anchor || ids[claim.matched.namespace] !== anchor) {
+    if (!anchor || (anchors ?? ids)[claim.matched.namespace] !== anchor) {
       diagnostics.push({ code: "UNPROVEN_LINK", source: claim.source });
       continue;
     }

@@ -9,6 +9,8 @@ documented breaking changes.
 
 ### Added
 
+- Added a bounded internal Identity Resolver orchestrator with multi-pass source lookup, strict
+  claim reconciliation, partial failure and cancellation handling, and positive/negative caching.
 - Defined the internal Identity Resolver contract with closed ID namespaces, normalization,
   source-linked provenance, and conservative conflict and ambiguity handling.
 - Captured a reproducible local identity baseline for movie, series, and anime search, details,

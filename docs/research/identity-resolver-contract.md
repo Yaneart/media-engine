@@ -37,3 +37,21 @@ this contract; ID-04 will supply actual mappings.
 `resolveIdentityClaims` returns normalized IDs, source and anchor provenance, and diagnostics.
 It performs no network requests or persistence. These diagnostics are internal until the
 orchestrator maps them to the public response warning format.
+
+## Bounded orchestration (ID-03)
+
+`IdentityResolver` accepts independent sources that declare when they can resolve a typed set of
+known IDs and return source-record claims. It runs applicable sources in parallel, then applies
+`resolveIdentityClaims` to their combined claims. Newly confirmed IDs can anchor the next pass.
+All accumulated claims are reconsidered against the original IDs on each pass, so a later
+conflicting claim cannot make an earlier derived value authoritative. Ambiguous derived namespaces
+stay withheld for the rest of the resolution.
+
+Defaults are three passes, twelve source calls, a five-second overall deadline, and two seconds
+per source call. A source failure or timeout produces a diagnostic and does not stop other sources.
+Caller cancellation returns the IDs confirmed so far; shared in-flight source work may finish for
+other callers. The optional existing `Cache` stores successful source claims for one hour and empty
+results for five minutes, keyed by source, media type, and the normalized input ID set. Concurrent
+calls for the same source and input share one request. Cache entries are temporary acceleration,
+not durable canonical identity storage. No concrete mapping source or public API integration is
+part of ID-03; those follow in ID-04 and later tasks.
