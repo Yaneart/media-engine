@@ -396,6 +396,94 @@ test("excludes details whose strong IDs conflict with the primary identity", () 
   ]);
 });
 
+test("keeps Shogun details separate from a conflicting movie with the same IMDb ID", () => {
+  const warnings: EngineWarning[] = [];
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-movie-tt2788316",
+        type: "movie",
+        title: "Who Killed Cock Robin?",
+        year: 2005,
+        description: "Description of the wrong movie.",
+        ids: { imdb: "tt2788316", tmdb: "wrong" },
+      }),
+      providerDetailsResult("tvmaze", {
+        id: "tvmaze-shogun",
+        type: "series",
+        title: "Shogun",
+        year: 2024,
+        ids: { imdb: "tt2788316" },
+      }),
+    ],
+    { query: { type: "series", ids: { imdb: "tt2788316" } }, warnings },
+  );
+
+  assert.equal(details?.type, "series");
+  assert.equal(details?.title, "Shogun");
+  assert.equal(details?.year, 2024);
+  assert.equal(details?.description, undefined);
+  assert.deepEqual(details?.ids, { imdb: "tt2788316" });
+  assert.deepEqual(
+    details?.sourceProviders?.map((source) => source.provider),
+    ["tvmaze"],
+  );
+  assert.equal(warnings[0]?.code, "MEDIA_TYPE_CONFLICT");
+});
+
+test("does not combine different media types for an untyped details query", () => {
+  const details = strategy.mergeDetails([
+    providerDetailsResult("cinemeta", {
+      id: "cinemeta-wrong-movie",
+      type: "movie",
+      title: "Who Killed Cock Robin?",
+      year: 2005,
+      ids: { imdb: "tt2788316" },
+    }),
+    providerDetailsResult("tvmaze", {
+      id: "tvmaze-shogun",
+      type: "series",
+      title: "Shogun",
+      year: 2024,
+      episodesCount: 10,
+      ids: { imdb: "tt2788316" },
+    }),
+  ]);
+
+  assert.equal(details?.type, "movie");
+  assert.deepEqual(
+    details?.sourceProviders?.map((source) => source.provider),
+    ["cinemeta"],
+  );
+});
+
+test("excludes a conflicting release year despite a shared strong ID", () => {
+  const details = strategy.mergeDetails([
+    providerDetailsResult("tmdb", {
+      id: "tmdb-primary",
+      type: "movie",
+      title: "Primary Movie",
+      year: 2024,
+      ids: { imdb: "tt-shared" },
+    }),
+    providerDetailsResult("cinemeta", {
+      id: "cinemeta-wrong",
+      type: "movie",
+      title: "Different Movie",
+      year: 2005,
+      description: "Wrong description.",
+      ids: { imdb: "tt-shared" },
+    }),
+  ]);
+
+  assert.equal(details?.year, 2024);
+  assert.equal(details?.description, undefined);
+  assert.deepEqual(
+    details?.sourceProviders?.map((source) => source.provider),
+    ["tmdb"],
+  );
+});
+
 test("uses query strong IDs before provider priority when filtering details", () => {
   const warnings: EngineWarning[] = [];
   const details = strategy.mergeDetails(

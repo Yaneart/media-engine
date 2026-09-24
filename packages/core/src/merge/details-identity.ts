@@ -12,9 +12,34 @@ export function filterDetailsEntriesByIdentity(
 ): DetailsEntry[] {
   const selectedIds: ExternalIds = { ...readQueryExternalIds(context) };
   const accepted: DetailsEntry[] = [];
+  const requestedType = context.query?.type;
 
   for (const entry of entries) {
-    const ids = entry.result.details.ids;
+    const details = entry.result.details;
+    const ids = details.ids;
+    const primary = accepted[0]?.result.details;
+    const selectedYear = accepted.find((candidate) => candidate.result.details.year)?.result.details
+      .year;
+    const selectedType = requestedType ?? primary?.type;
+    const compatibleAnimeSeries = selectedType === "anime" && details.type === "series";
+
+    if (selectedType && details.type !== selectedType && !compatibleAnimeSeries) {
+      context.warnings?.push({
+        code: "MEDIA_TYPE_CONFLICT",
+        message: `Conflicting media types while merging details; excluded ${details.type}.`,
+        provider: entry.result.provider,
+      });
+      continue;
+    }
+
+    if (selectedYear && details.year && Math.abs(selectedYear - details.year) > 1) {
+      context.warnings?.push({
+        code: "MEDIA_IDENTITY_CONFLICT",
+        message: `Conflicting release years while merging details; excluded ${details.year}.`,
+        provider: entry.result.provider,
+      });
+      continue;
+    }
     const conflicts = strongIdConflicts(selectedIds, ids);
 
     if (conflicts.length > 0 && !hasSharedStrongId(selectedIds, ids)) {

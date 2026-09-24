@@ -391,6 +391,53 @@ test("cinemetaProvider resolves an untyped IMDb ID across movie and series in pa
   );
 });
 
+test("cinemetaProvider rejects conflicting movie and series metadata for Shogun", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/meta/movie/tt2788316.json": {
+        meta: {
+          id: "tt2788316",
+          imdb_id: "tt2788316",
+          type: "movie",
+          name: "Who Killed Cock Robin?",
+          releaseInfo: "2005",
+        },
+      },
+      "/meta/series/tt2788316.json": {
+        meta: {
+          id: "tt2788316",
+          imdb_id: "tt2788316",
+          type: "series",
+          name: "Shogun",
+          releaseInfo: "2024–2026",
+        },
+      },
+    }),
+  });
+
+  assert.equal(await provider.getDetails?.({ ids: { imdb: "tt2788316" } }, {}), null);
+  assert.equal(
+    (await provider.getDetails?.({ ids: { imdb: "tt2788316" }, type: "series" }, {}))?.details
+      .title,
+    "Shogun",
+  );
+});
+
+test("cinemetaProvider rejects a detail document with a different IMDb identity", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/meta/movie/tt2788316.json": {
+        meta: { id: "tt-other", imdb_id: "tt-other", type: "movie", name: "Wrong movie" },
+      },
+    }),
+  });
+
+  assert.equal(
+    await provider.getDetails?.({ ids: { imdb: "tt2788316" }, type: "movie" }, {}),
+    null,
+  );
+});
+
 test("cinemetaProvider exposes generic series details for an anime IMDb id", async () => {
   const provider = createProvider({
     fetch: createMockFetch([], {

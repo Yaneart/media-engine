@@ -413,7 +413,14 @@ async function loadDetailsType(
 
   try {
     const response = await requestJson<CinemetaMetaResponse>(config, url, context);
-    const details = response.meta ? metaToDetails(config, response.meta, type) : null;
+    const meta = response.meta;
+    const details =
+      meta &&
+      (!meta.type || meta.type === type) &&
+      (!meta.id || meta.id === imdbId) &&
+      (!meta.imdb_id || meta.imdb_id === imdbId)
+        ? metaToDetails(config, meta, type)
+        : null;
 
     return details ? { status: "found", details } : { status: "not_found" };
   } catch (error) {
@@ -425,16 +432,20 @@ async function loadDetailsType(
   }
 }
 
-// Returns any available details and propagates degradation only when nothing was found.
-// Возвращает найденные details и пробрасывает деградацию, только если результата нет.
+// Rejects ambiguous untyped identities instead of choosing the first endpoint result.
+// Отклоняет неоднозначную идентичность вместо выбора первого ответа endpoint.
 function resolveDetailsOutcomes(outcomes: CinemetaDetailsOutcome[]): MediaDetails | null {
-  const found = outcomes.find(
+  const found = outcomes.filter(
     (outcome): outcome is Extract<CinemetaDetailsOutcome, { status: "found" }> =>
       outcome.status === "found",
   );
 
-  if (found) {
-    return found.details;
+  if (found.length > 1) {
+    return null;
+  }
+
+  if (found[0]) {
+    return found[0].details;
   }
 
   const failures = outcomes.filter(

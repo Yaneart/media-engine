@@ -5,6 +5,15 @@ All notable project changes are recorded here.
 This project follows semantic versioning from `1.0.0` onward. Earlier `0.x` releases could include
 documented breaking changes.
 
+## Unreleased
+
+### Fixed
+
+- Cinemeta rejects ambiguous movie/series details for an untyped IMDb lookup and ignores detail
+  documents whose type or IMDb ID contradicts the requested endpoint.
+- Core excludes details with incompatible media types or clearly conflicting release years before
+  merging fields, while retaining the supported anime and generic-series combination.
+
 ## 1.8.1 - 2026-09-21
 
 ### Fixed
