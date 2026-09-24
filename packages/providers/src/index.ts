@@ -16,6 +16,8 @@ export * from "./filmix-streaming/index.js";
 export * from "./veoveo-streaming/index.js";
 export * from "./videohub-streaming/index.js";
 export * from "./rutube-streaming/index.js";
+export * from "./aderom-streaming/index.js";
+export * from "./initem-streaming/index.js";
 export * from "./yts-torrent/index.js";
 export * from "./jacred-torrent/index.js";
 export * from "./bitsearch-torrent/index.js";

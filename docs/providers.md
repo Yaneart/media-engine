@@ -89,17 +89,19 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 
 ## Streaming providers
 
-| Provider               | Main role                                                                          | Credentials               |
-| ---------------------- | ---------------------------------------------------------------------------------- | ------------------------- |
-| KinoBD streaming       | Discovers normalized player options for movies, series, and anime                  | None                      |
-| FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available | None                      |
-| DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds        | None                      |
-| AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities              | None                      |
-| Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                        | None                      |
-| VeoVeo streaming       | Opt-in Kinopoisk/IMDb movie and series-episode direct signed HLS                   | None                      |
-| VideoHUB streaming     | Opt-in Kinopoisk movie, series, and anime exact-episode signed MP4 qualities       | None                      |
-| Rutube streaming       | Opt-in exact title/year movie lookup to the official public embed player           | None                      |
-| Experimental streaming | Deterministic configured options for development and tests                         | Application configuration |
+| Provider               | Main role                                                                             | Credentials               |
+| ---------------------- | ------------------------------------------------------------------------------------- | ------------------------- |
+| KinoBD streaming       | Discovers normalized player options for movies, series, and anime                     | None                      |
+| FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available    | None                      |
+| DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds           | None                      |
+| AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities                 | None                      |
+| Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                           | None                      |
+| VeoVeo streaming       | Opt-in Kinopoisk/IMDb movie and series-episode direct signed HLS                      | None                      |
+| VideoHUB streaming     | Opt-in Kinopoisk movie, series, and anime exact-episode signed MP4 qualities          | None                      |
+| Rutube streaming       | Opt-in exact title/year movie lookup to the official public embed player              | None                      |
+| Aderom streaming       | Opt-in dubbed series/anime iframe by Kinopoisk or resolved IMDb ID                    | None                      |
+| Initem streaming       | Kinopoisk/IMDb movie, series, and anime iframe with player-managed audio and episodes | None                      |
+| Experimental streaming | Deterministic configured options for development and tests                            | Application configuration |
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
 
@@ -181,6 +183,22 @@ Rutube catalog with a bounded result and response size. A candidate must be a fu
 unlocked, unpaid, non-adult movie whose normalized title and explicit year exactly match the query.
 The adapter returns the documented `https://rutube.ru/play/embed/{id}` player and source-page
 attribution; it deliberately does not extract HLS, proxy media, or bypass Rutube's player behavior.
+
+Aderom streaming is opt-in through `aderomStreamingProvider()` or
+`MEDIA_ENGINE_ADEROM_STREAMING_ENABLED=true`. It accepts a Kinopoisk ID for series or anime. When
+only an IMDb ID is present, it resolves one unambiguous Kinopoisk ID through Wikidata's public
+IMDb/Kinopoisk mapping. It checks the returned identity and category, and verifies the published
+iframe responds before returning one generic embed. Voice and episode selection stay inside that
+player; exact episode queries are not claimed. Live checks found Russian dubbed Game of Thrones,
+Van Helsing, Naruto, One Piece, and Frieren, while seven sampled movies were absent. The iframe
+currently redirects to another public host, so upstream domain changes may require revalidation.
+
+Initem streaming is enabled by default through `initemStreamingProvider()`. It accepts a Kinopoisk
+or IMDb ID for movies, series, and anime; checks that the returned HTML contains a player and HLS source,
+then returns the public `https://api.initem.ws/embed/kp/{id}` or `/embed/imdb/{id}` iframe. The player manages audio and
+episode selection. Live checks from the Docker API network found Russian dubbing on Interstellar,
+Russian voice tracks on Game of Thrones, and Anilibria voice tracks on Frieren. Their HLS manifests
+all returned HTTP 200. Exact episode queries are not claimed.
 
 ## Torrent discovery providers
 

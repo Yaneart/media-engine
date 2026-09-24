@@ -17,6 +17,7 @@ export interface MediaEngineEnv {
   MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED?: string;
+  MEDIA_ENGINE_ADEROM_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_TORRENT_PROVIDERS?: string;
   MEDIA_ENGINE_TORRENT_PROVIDER_TIMEOUT_MS?: string;
 }
@@ -72,15 +73,18 @@ export async function createConfiguredStreamingProviders(
 ): Promise<StreamingProvider[]> {
   const {
     aniLibertyStreamingProvider,
+    aderomStreamingProvider,
     ddbbStreamingProvider,
     filmixStreamingProvider,
     flixHqStreamingProvider,
+    initemStreamingProvider,
     kinobdStreamingProvider,
     rutubeStreamingProvider,
     veoVeoStreamingProvider,
     videoHubStreamingProvider,
   } = await import('@media-engine/providers');
   const providers: StreamingProvider[] = [
+    initemStreamingProvider(),
     kinobdStreamingProvider(),
     flixHqStreamingProvider(),
     ddbbStreamingProvider(),
@@ -113,6 +117,15 @@ export async function createConfiguredStreamingProviders(
 
   if (readRutubeStreamingEnabled(env)) {
     providers.unshift(rutubeStreamingProvider());
+  }
+
+  if (
+    readBooleanEnv(
+      env.MEDIA_ENGINE_ADEROM_STREAMING_ENABLED,
+      'MEDIA_ENGINE_ADEROM_STREAMING_ENABLED',
+    )
+  ) {
+    providers.unshift(aderomStreamingProvider());
   }
 
   return providers;
@@ -191,6 +204,8 @@ export async function createMediaEngine(
       'veoveo-streaming': streamingTimeoutMs,
       'videohub-streaming': videoHubTimeoutMs,
       'rutube-streaming': streamingTimeoutMs,
+      'aderom-streaming': streamingTimeoutMs,
+      'initem-streaming': streamingTimeoutMs,
       'yts-torrent': torrentTimeoutMs,
       'jacred-torrent': torrentTimeoutMs,
       'bitsearch-torrent': torrentTimeoutMs,
