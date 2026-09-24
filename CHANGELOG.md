@@ -9,6 +9,9 @@ documented breaking changes.
 
 ### Added
 
+- Captured a reproducible local identity baseline for movie, series, and anime search, details,
+  and availability, including provider-specific ID and timing diagnostics and the current `id`
+  compatibility contract.
 - A no-token TMDB Stremio addon provider supplies Russian movie and series catalog/search cards
   and details. It keeps type and external-ID checks, bounds catalog paging, and leaves Cinemeta
   available when the addon fails. Russian anime discovery loads Shikimori descriptions and
