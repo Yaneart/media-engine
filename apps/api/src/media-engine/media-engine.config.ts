@@ -163,7 +163,14 @@ export async function createConfiguredTorrentProviders(
 export async function createMediaEngine(
   env: MediaEngineEnv = process.env,
 ): Promise<MediaEngine> {
-  const { MediaEngine, MemoryCache } = await import('@media-engine/core');
+  const { MediaEngine, MemoryCache, IdentityResolver } =
+    await import('@media-engine/core');
+  const {
+    wikidataIdentitySource,
+    aniListIdentitySource,
+    shikimoriIdentitySource,
+    aderomIdentitySource,
+  } = await import('@media-engine/providers');
   const metadataTimeoutMs = readProviderTimeoutMs(env);
   const streamingTimeoutMs = readStreamingProviderTimeoutMs(env);
   const flixHqTimeoutMs = readFlixHqStreamingProviderTimeoutMs(env);
@@ -179,15 +186,26 @@ export async function createMediaEngine(
     operationTimeouts.push(videoHubTimeoutMs);
   if (torrentProviders.length > 0) operationTimeouts.push(torrentTimeoutMs);
 
+  const cache = new MemoryCache({
+    defaultTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
+    defaultStaleTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS,
+    maxEntries: DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES,
+  });
+
   return new MediaEngine({
     providers: await createConfiguredProviders(),
     streamingProviders: await createConfiguredStreamingProviders(env),
     torrentProviders,
-    cache: new MemoryCache({
-      defaultTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
-      defaultStaleTtlMs: DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS,
-      maxEntries: DEFAULT_MEDIA_ENGINE_CACHE_MAX_ENTRIES,
-    }),
+    cache,
+    identityResolver: new IdentityResolver(
+      [
+        wikidataIdentitySource(),
+        aniListIdentitySource(),
+        shikimoriIdentitySource(),
+        aderomIdentitySource(),
+      ],
+      { cache, timeoutMs: 4_500, sourceTimeoutMs: 3_500 },
+    ),
     timeoutMs: Math.max(...operationTimeouts),
     providerTimeouts: {
       kinobd: metadataTimeoutMs,

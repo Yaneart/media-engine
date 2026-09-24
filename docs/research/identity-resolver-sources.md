@@ -1,8 +1,8 @@
 # Identity Resolver sources (ID-04)
 
 The five source factories in `@media-engine/providers` implement the internal
-`IdentityResolverSource` contract. ID-05 will decide where to instantiate them and how to pass
-their results through search, details, and availability. Neither changes public `media.id` yet.
+`IdentityResolverSource` contract. The API now instantiates the four live-verified sources for
+search, details, and availability; KinoBD remains optional. Public `media.id` is unchanged.
 
 | Source                      | Exact lookup anchors                                                           | Confirmed record IDs                     | Status                                                                            |
 | --------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------- |
@@ -51,7 +51,7 @@ anchor but no usable new ID. Both adapter calls succeeded locally.
 The six Wikidata adapter calls took 1.1–2.9 seconds in one local run. KinoBD's IMDb endpoint
 timed out after 10 seconds in the same environment; its availability and limits remain unverified.
 The ID-03 resolver's default two-second per-source timeout can cut off some cold Wikidata calls;
-ID-05 must choose a suitable configured source timeout within its overall latency budget.
+the API configures 3.5 seconds per source within a 4.5-second overall deadline.
 These live observations are time dependent and do not verify the stage environment.
 
 Official property definitions: [IMDb P345](https://www.wikidata.org/wiki/Property:P345),

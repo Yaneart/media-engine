@@ -61,3 +61,28 @@ part of ID-03; those follow in ID-04 and later tasks.
 The concrete no-token sources and their verified coverage are recorded in
 [`identity-resolver-sources.md`](identity-resolver-sources.md). They are not yet wired into the
 public search, details, or availability paths; that is ID-05.
+
+## Engine integration (ID-05)
+
+`MediaEngine` accepts an optional `identityResolver`. The API configures Wikidata, AniList,
+Shikimori, and Aderom sources against the shared memory cache; KinoBD remains optional until
+its live endpoint is verified. API resolution has a 4.5-second overall deadline and 3.5-second
+per-source deadline, allowing the observed cold Wikidata calls while bounding added latency.
+
+Search resolves at most five results after filtering and pagination, independently of missing
+poster or description fields. Newly linked cards are merged only for the same media type and a
+shared strong ID with no conflicting strong IDs. Existing public `media.id` remains the first
+card's provider-native ID. Details add confirmed IDs after metadata merge. Streaming and torrent
+queries resolve known IDs only when a selected provider needs a missing supported ID; streaming
+retains its existing title-based fallback when the mapping is unavailable. Source errors and
+timeouts are non-fatal. Search and details report these diagnostics as warnings and avoid caching
+the incomplete response after a source failure. There is no standalone subtitle lookup contract
+to update; subtitle tracks are supplied by streaming providers.
+
+Local Compose API checks on 2026-09-24 returned Interstellar's IMDb, TMDB, Kinopoisk, and
+Wikidata IDs in both search and details. An ID-only availability query using TMDB `157336`
+resolved Kinopoisk `258687` and returned one Initem option. The sampled cold search and details
+requests each took about 8.6 seconds including metadata work and resolution, versus roughly
+5 seconds in the earlier baseline; the availability query took 2.5 seconds. These are single
+local samples, not stage latency guarantees. No stage URL was available to verify the original
+missing-Kinopoisk report there.

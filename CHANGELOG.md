@@ -9,6 +9,10 @@ documented breaking changes.
 
 ### Added
 
+- Integrated the bounded Identity Resolver into visible search cards, merged details, streaming
+  availability, and ID-dependent torrent discovery. The API enables verified no-token mapping
+  sources with a 4.5-second overall and 3.5-second per-source budget; optional source failures
+  leave the original identity usable.
 - Added exact, typed Wikidata, AniList, Shikimori, and Aderom Identity Resolver sources for
   confirmed movie, series, and anime ID mappings. KinoBD is available as an optional adapter
   pending live upstream verification.

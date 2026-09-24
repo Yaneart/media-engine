@@ -2,6 +2,7 @@ import type { Cache } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError } from "../errors/index.js";
 import type { MediaDetails } from "../media/index.js";
+import type { IdentityResolver } from "../identity/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type ProviderInfo } from "../providers/index.js";
 import type {
@@ -98,6 +99,12 @@ import {
 import { executeTorrentDiscovery } from "./torrents.js";
 import { mergeRelatedMediaResults } from "./related-media.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
+import {
+  hasIdentitySourceFailure,
+  resolveItemIdentity,
+  resolveSearchIdentities,
+  resolveQueryIdentity,
+} from "./identity-integration.js";
 import { ProviderTimeoutBudget } from "./timeout-budget.js";
 import type {
   MediaEngineOperationOptions,
@@ -112,6 +119,7 @@ export class MediaEngine {
   private readonly streamingProviders: StreamingProvider[];
   private readonly torrentProviders: TorrentProvider[];
   private readonly cache?: Cache;
+  private readonly identityResolver?: IdentityResolver;
   private readonly mergeStrategy: MergeStrategy;
   private readonly timeoutMs?: number;
   private readonly providerTimeouts: Readonly<Record<string, number>>;
@@ -125,6 +133,7 @@ export class MediaEngine {
     this.streamingProviders = validateStreamingProviders(options.streamingProviders ?? []);
     this.torrentProviders = validateTorrentProviders(options.torrentProviders ?? []);
     this.cache = options.cache;
+    this.identityResolver = options.identityResolver;
     this.mergeStrategy = options.mergeStrategy ?? new DefaultMergeStrategy();
     this.timeoutMs = options.timeoutMs;
     this.providerTimeouts = { ...options.providerTimeouts };
@@ -497,10 +506,18 @@ export class MediaEngine {
         normalizedQuery.limit === undefined
           ? visibleResults
           : visibleResults.slice(offset, offset + normalizedQuery.limit);
+      const resolvedResults = await resolveSearchIdentities(
+        limitedResults,
+        this.identityResolver,
+        operationSignal,
+        warnings,
+        this.mergeStrategy,
+        searchLanguage,
+      );
 
       const response: SearchResponse = {
         query: normalizedQuery,
-        results: limitedResults,
+        results: resolvedResults,
         meta: createResponseMeta({
           requested,
           successful,
@@ -533,7 +550,7 @@ export class MediaEngine {
 
       // Keep the complete response most recent when a bounded cache can retain only one entry.
       // Сохраняем полный ответ последним, если bounded cache вмещает только одну запись.
-      if (!hasRetryableMandatoryFailure) {
+      if (!hasRetryableMandatoryFailure && !hasIdentitySourceFailure(warnings)) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
 
@@ -669,10 +686,13 @@ export class MediaEngine {
         debug: this.debug,
         warnings,
       });
+      const resolvedDetails = details
+        ? await resolveItemIdentity(details, this.identityResolver, operationSignal, warnings)
+        : null;
 
       const response: DetailsResponse = {
         query: normalizedQuery,
-        details,
+        details: resolvedDetails,
         meta: createResponseMeta({
           requested,
           successful,
@@ -687,7 +707,7 @@ export class MediaEngine {
 
       throwIfAborted(operationSignal);
 
-      if (!hasRetryableProviderFailure(failed)) {
+      if (!hasRetryableProviderFailure(failed) && !hasIdentitySourceFailure(warnings)) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
 
@@ -1124,27 +1144,31 @@ export class MediaEngine {
     query: StreamQuery,
     signal: AbortSignal | undefined,
   ): Promise<StreamQuery> {
-    const missingSources = getMissingStreamingIdentitySources(this.streamingProviders, query);
+    const initialMissing = getMissingStreamingIdentitySources(this.streamingProviders, query);
+    const resolved = initialMissing.length
+      ? await resolveQueryIdentity(query, this.identityResolver, signal)
+      : query;
+    const missingSources = getMissingStreamingIdentitySources(this.streamingProviders, resolved);
 
-    if (missingSources.length === 0 || !query.title) return query;
+    if (missingSources.length === 0 || !resolved.title) return resolved;
 
     try {
       const response = await this.search(
         {
-          title: query.title,
-          type: query.type,
-          year: query.year,
-          ids: query.ids,
+          title: resolved.title,
+          type: resolved.type,
+          year: resolved.year,
+          ids: resolved.ids,
           limit: 10,
-          language: query.language,
+          language: resolved.language,
         },
         { signal },
       );
 
-      return enrichStreamQueryIdentity(query, response, missingSources);
+      return enrichStreamQueryIdentity(resolved, response, missingSources);
     } catch (error) {
       throwIfAborted(signal);
-      if (error instanceof MediaEngineError && error.code === "PROVIDER_ERROR") return query;
+      if (error instanceof MediaEngineError && error.code === "PROVIDER_ERROR") return resolved;
       throw error;
     }
   }
@@ -1159,9 +1183,19 @@ export class MediaEngine {
     const startedAt = Date.now();
     const normalizedQuery = normalizeTorrentQuery(query);
     validateTorrentQuery(normalizedQuery);
+    const needsIdentity = this.torrentProviders.some(
+      (provider) =>
+        (!normalizedQuery.providers || normalizedQuery.providers.includes(provider.name)) &&
+        provider.capabilities.mediaTypes.includes(normalizedQuery.type) &&
+        !(normalizedQuery.title && provider.capabilities.lookup.byTitle) &&
+        !provider.capabilities.lookup.byExternalIds.some((source) => normalizedQuery.ids?.[source]),
+    );
+    const resolvedQuery = needsIdentity
+      ? await resolveQueryIdentity(normalizedQuery, this.identityResolver, options.signal)
+      : normalizedQuery;
 
     return executeTorrentDiscovery({
-      query: normalizedQuery,
+      query: resolvedQuery,
       options,
       startedAt,
       providers: this.torrentProviders,
