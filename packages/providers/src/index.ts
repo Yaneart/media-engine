@@ -1,6 +1,7 @@
 export * from "./shared/index.js";
 export * from "./kinobd/index.js";
 export * from "./cinemeta/index.js";
+export * from "./tmdb/index.js";
 export * from "./shikimori/index.js";
 export * from "./anilist/index.js";
 export * from "./wikidata/index.js";

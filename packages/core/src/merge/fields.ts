@@ -3,6 +3,7 @@ import type { SearchQuery } from "../search/index.js";
 import type { DetailsEntry, SearchEntry } from "./internal.js";
 import { normalizeTitle, titleCandidates } from "./title.js";
 import type { MergeContext } from "./types.js";
+import { selectLocalizedGenres } from "./genre-locale.js";
 
 // Selects a display title, preferring the queried title when it matches.
 // Выбирает отображаемый title, предпочитая title из запроса при совпадении.
@@ -243,7 +244,7 @@ export function selectBestDetailsImage(
 
 // Merges unique genres by normalized genre name.
 // Объединяет уникальные жанры по нормализованному названию.
-export function mergeGenres(entries: SearchEntry[]): Genre[] | undefined {
+export function mergeGenres(entries: SearchEntry[], language?: string): Genre[] | undefined {
   const genres = new Map<string, Genre>();
 
   for (const entry of entries) {
@@ -256,12 +257,15 @@ export function mergeGenres(entries: SearchEntry[]): Genre[] | undefined {
     }
   }
 
-  return genres.size > 0 ? [...genres.values()] : undefined;
+  return genres.size > 0 ? selectLocalizedGenres([...genres.values()], language) : undefined;
 }
 
 // Merges unique details genres by normalized genre name.
 // Объединяет уникальные жанры деталей по нормализованному названию.
-export function mergeDetailsGenres(entries: DetailsEntry[]): Genre[] | undefined {
+export function mergeDetailsGenres(
+  entries: DetailsEntry[],
+  language?: string,
+): Genre[] | undefined {
   const genres = new Map<string, Genre>();
 
   for (const entry of entries) {
@@ -274,7 +278,7 @@ export function mergeDetailsGenres(entries: DetailsEntry[]): Genre[] | undefined
     }
   }
 
-  return genres.size > 0 ? [...genres.values()] : undefined;
+  return genres.size > 0 ? selectLocalizedGenres([...genres.values()], language) : undefined;
 }
 
 // Merges ratings while keeping one rating per source.

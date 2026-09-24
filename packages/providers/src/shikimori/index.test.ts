@@ -18,8 +18,8 @@ test("shikimoriProvider exposes safe anime metadata capabilities", () => {
   assert.equal(provider.kind, "metadata");
   assert.equal(provider.searchPosterMatchesDetails, true);
   assert.deepEqual(provider.capabilities.mediaTypes, ["anime"]);
-  assert.deepEqual(provider.capabilities.search.byExternalIds, ["shikimori"]);
-  assert.deepEqual(provider.capabilities.details.byExternalIds, ["shikimori"]);
+  assert.deepEqual(provider.capabilities.search.byExternalIds, ["shikimori", "myAnimeList"]);
+  assert.deepEqual(provider.capabilities.details.byExternalIds, ["shikimori", "myAnimeList"]);
   assert.deepEqual(provider.capabilities.relatedMedia?.byExternalIds, ["shikimori"]);
   assert.equal(provider.capabilities.features?.includes("backdrops"), true);
   assert.equal(provider.capabilities.features?.includes("relations"), true);
@@ -68,6 +68,43 @@ test("shikimoriProvider searches anime by title", async () => {
   assert.equal(requests[0]?.params.get("kind"), "tv,movie,ova,ona,special,music");
   assert.equal(requests[0]?.params.get("censored"), "false");
   assert.equal(requests[0]?.userAgent, "MediaEngineTest/0.0.0");
+});
+
+test("Russian anime discovery enriches descriptions and genres in one batch", async () => {
+  const paths: string[] = [];
+  const provider = shikimoriProvider({
+    fetch: async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      paths.push(path);
+      if (path === "/api/animes") {
+        return Response.json([
+          { id: 1, name: "Original", russian: "Русское название", score: "8.5" },
+        ]);
+      }
+      assert.equal(init?.method, "POST");
+      return Response.json({
+        data: {
+          animes: [
+            {
+              id: "1",
+              description: "Русское описание",
+              genres: [{ id: 2, name: "Adventure", russian: "Приключения" }],
+            },
+          ],
+        },
+      });
+    },
+  });
+  const results = await provider.search(
+    { title: "Original", type: "anime", language: "ru" },
+    { language: "ru" },
+  );
+  assert.equal(results[0]?.item.description, "Русское описание");
+  assert.deepEqual(
+    results[0]?.item.genres?.map((genre) => genre.name),
+    ["Приключения"],
+  );
+  assert.deepEqual(paths, ["/api/animes", "/api/graphql"]);
 });
 
 test("shikimoriProvider discovers anime by year, genre, and minimum rating", async () => {

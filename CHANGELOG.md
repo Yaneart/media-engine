@@ -7,7 +7,19 @@ documented breaking changes.
 
 ## Unreleased
 
+### Added
+
+- A no-token TMDB Stremio addon provider supplies Russian movie and series catalog/search cards
+  and details. It keeps type and external-ID checks, bounds catalog paging, and leaves Cinemeta
+  available when the addon fails. Russian anime discovery loads Shikimori descriptions and
+  genres in bounded GraphQL batches rather than one request per title.
+
 ### Fixed
+
+- Russian filtered discovery ranks localized cards first, matches English filter labels such as
+  `War` to Russian genres, and translates known original-language genre labels when a localized
+  provider omits them. Anime details can use an AniList-discovered MyAnimeList ID to load matching
+  Russian Shikimori fields without changing the requested identity.
 
 - Cinemeta rejects ambiguous movie/series details for an untyped IMDb lookup and ignores detail
   documents whose type or IMDb ID contradicts the requested endpoint.

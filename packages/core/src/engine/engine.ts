@@ -617,6 +617,44 @@ export class MediaEngine {
         }
       }
 
+      // AniList can reveal a MAL ID that lets a Russian anime provider supply localized details.
+      if (normalizedQuery.type === "anime" && normalizedQuery.language?.startsWith("ru")) {
+        const myAnimeList = providerResults.find((result) => result.details.type === "anime")
+          ?.details.ids?.myAnimeList;
+        if (myAnimeList && !normalizedQuery.ids?.myAnimeList) {
+          const linkedQuery = {
+            ...normalizedQuery,
+            ids: { ...normalizedQuery.ids, myAnimeList },
+          };
+          const linkedProviders = this.registry
+            .selectDetailsProviders(linkedQuery)
+            .filter((provider) => !requested.includes(provider.name));
+          requested.push(...linkedProviders.map((provider) => provider.name));
+          const linkedOutcomes = await Promise.all(
+            linkedProviders.map((provider) =>
+              callTimedProviderDetails(provider, linkedQuery, {
+                debug: this.debug,
+                language: normalizedQuery.language,
+                signal: operationSignal,
+                timeoutMs: timeoutBudget.getRemainingMs(provider.name),
+                circuitBreaker: this.circuitBreaker,
+                concurrencyLimiter: this.concurrencyLimiter,
+              }),
+            ),
+          );
+          for (const outcome of linkedOutcomes) {
+            providerTimings.push(outcome.timing);
+            if (outcome.failure) failed.push(outcome.failure);
+            else {
+              successful.push(outcome.provider);
+              if (outcome.result?.details.ids?.myAnimeList === myAnimeList) {
+                providerResults.push(outcome.result);
+              }
+            }
+          }
+        }
+      }
+
       if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
         throw new MediaEngineError({
           code: "PROVIDER_ERROR",

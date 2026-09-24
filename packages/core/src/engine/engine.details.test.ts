@@ -7,6 +7,65 @@ import type { ProviderDetailsResult } from "../providers/index.js";
 import { MediaEngine } from "./engine.js";
 import { createProvider } from "./test-helpers.js";
 
+test("Russian anime details use a verified MAL identity learned from AniList", async () => {
+  let linkedCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "anilist",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: false, byExternalIds: ["aniList"] },
+          details: { byExternalIds: ["aniList"] },
+        },
+        async getDetails() {
+          return {
+            provider: "anilist",
+            details: {
+              id: "anilist:1",
+              type: "anime",
+              title: "Original",
+              description: "English description",
+              ids: { aniList: "1", myAnimeList: "2" },
+            },
+          };
+        },
+      }),
+      createProvider({
+        name: "shikimori",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: false, byExternalIds: ["myAnimeList"] },
+          details: { byExternalIds: ["myAnimeList"] },
+        },
+        async getDetails(query) {
+          linkedCalls += 1;
+          assert.equal(query.ids?.myAnimeList, "2");
+          return {
+            provider: "shikimori",
+            details: {
+              id: "shikimori:2",
+              type: "anime",
+              title: "Русское название",
+              description: "Русское описание",
+              ids: { shikimori: "2", myAnimeList: "2" },
+            },
+          };
+        },
+      }),
+    ],
+  });
+  const response = await engine.getDetails({
+    type: "anime",
+    ids: { aniList: "1" },
+    language: "ru",
+  });
+  assert.equal(response.details?.title, "Русское название");
+  assert.equal(response.details?.description, "Русское описание");
+  assert.equal(linkedCalls, 1);
+  assert.deepEqual(response.meta.providers.requested, ["anilist", "shikimori"]);
+});
+
 test("getDetails rejects empty queries predictably", async () => {
   const engine = new MediaEngine();
 

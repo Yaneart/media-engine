@@ -73,6 +73,12 @@ export class DefaultMergeStrategy implements MergeStrategy {
         };
       })
       .sort((left, right) => {
+        if (isFilterDiscovery && context.language?.split("-")[0] === "ru") {
+          const localizationDiff =
+            russianPresentationScore(right.result.item) -
+            russianPresentationScore(left.result.item);
+          if (localizationDiff !== 0) return localizationDiff;
+        }
         // The engine's preliminary broad merge feeds a bounded enrichment window. Keep exact
         // canonical candidates in that window even when their initial provider card is sparse.
         if (
@@ -163,6 +169,14 @@ export class DefaultMergeStrategy implements MergeStrategy {
   }
 }
 
+function russianPresentationScore(item: MediaItem): number {
+  return (
+    Number(/[а-яё]/iu.test(item.title)) +
+    Number(/[а-яё]/iu.test(item.description ?? "")) +
+    Number(item.genres?.some((genre) => /[а-яё]/iu.test(genre.name)) ?? false)
+  );
+}
+
 const ANIME_ID_KEYS = ["shikimori", "myAnimeList", "aniList"] as const;
 
 // Keeps explicit anime identity when only compatible generic catalogs survive an upstream outage.
@@ -242,7 +256,7 @@ function mergeSearchGroup(
     shortDescription: selectShortDescription(sortedEntries),
     poster: selectBestImage(sortedEntries, "poster"),
     backdrop: selectBestImage(sortedEntries, "backdrop"),
-    genres: mergeGenres(sortedEntries),
+    genres: mergeGenres(sortedEntries, context.language),
     ratings: mergeRatings(sortedEntries),
     ids,
   };
@@ -290,7 +304,7 @@ function mergeDetailsEntries(
     shortDescription: firstDefined(entries, (entry) => entry.result.details.shortDescription),
     poster: selectBestDetailsImage(entries, "poster"),
     backdrop: selectBestDetailsImage(entries, "backdrop"),
-    genres: mergeDetailsGenres(entries),
+    genres: mergeDetailsGenres(entries, context.language),
     ratings: mergeDetailsRatings(entries),
     ids,
     images: mergeDetailsImages(entries),

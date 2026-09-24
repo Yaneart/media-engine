@@ -9,6 +9,7 @@ import {
   selectShortDescription,
 } from "../merge/fields.js";
 import { hasSharedStrongId } from "../merge/identity.js";
+import { genreIdentity } from "../merge/genre-locale.js";
 import { EXTERNAL_ID_KEYS, type SearchEntry } from "../merge/internal.js";
 import { titleRelevanceScore } from "../merge/scoring.js";
 import type { ProviderSearchResult } from "../providers/index.js";
@@ -60,7 +61,7 @@ export function applySearchIdEnrichments(
         shortDescription: selectShortDescription(entries),
         poster: selectBestImage(imageEntries, "poster"),
         backdrop: selectBestImage(imageEntries, "backdrop"),
-        genres: mergeGenres(entries),
+        genres: mergeGenres(entries, language),
         ratings: mergeRatings(entries),
         ids: mergeFrozenExternalIds(result.item.ids, candidates, warnings),
       },
@@ -144,9 +145,7 @@ export function filterFrozenSearchResults(
 
     if (
       query.genre &&
-      !result.item.genres?.some(
-        (genre) => normalizeFilterValue(genre.name) === normalizeFilterValue(query.genre!),
-      )
+      !result.item.genres?.some((genre) => genreIdentity(genre) === genreIdentity(query.genre!))
     ) {
       return false;
     }
@@ -174,13 +173,6 @@ export function filterFrozenSearchResults(
 
     return titleRelevanceScore([entry], queryTitle) > 0;
   });
-}
-
-function normalizeFilterValue(value: string): string {
-  return value
-    .trim()
-    .toLocaleLowerCase()
-    .replaceAll(/[\s_-]+/gu, " ");
 }
 
 function createPresentationEntries(

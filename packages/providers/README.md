@@ -21,12 +21,14 @@ import {
   aniListProvider,
   cinemetaProvider,
   kinobdProvider,
+  tmdbProvider,
   shikimoriProvider,
 } from "@media-engine/providers";
 
 const media = new MediaEngine({
   providers: [
     kinobdProvider(),
+    tmdbProvider(),
     cinemetaProvider(),
     shikimoriProvider(),
     aniListProvider(),
@@ -58,13 +60,19 @@ grouping titles by franchise-name heuristics.
 
 Available metadata providers:
 
-- `kinobdProvider()` and `cinemetaProvider()` for movies and series;
+- `tmdbProvider()` for localized movie and series metadata through a public Stremio addon;
+- `kinobdProvider()` and `cinemetaProvider()` as independent movie and series sources;
 - `shikimoriProvider()` and `aniListProvider()` for anime;
 - `tvMazeProvider()` and `wikidataProvider()` as additional identity sources;
 - `imdbDatasetProvider()` for an IMDb dataset managed by your application.
 
 TVmaze data requires attribution. Keep and display the TVmaze source link included in a result. See
 the [TVmaze API license](https://www.tvmaze.com/api#licensing).
+
+`tmdbProvider()` uses the public [TMDB Stremio addon](https://github.com/mrcanelas/tmdb-addon)
+and needs no user token. Its host can be changed with `baseUrl`; Cinemeta continues to work if
+the addon is unavailable. Applications displaying TMDB data should follow
+[TMDB's attribution requirements](https://developer.themoviedb.org/docs/faq).
 
 The optional SQLite-backed IMDb dataset tools need Node.js 22.13 or newer. Everything else in the
 package keeps the normal Node.js 20 baseline.

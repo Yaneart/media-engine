@@ -62,11 +62,11 @@ export function shikimoriProvider(options: ShikimoriProviderOptions = {}): Media
       mediaTypes: ["anime"],
       search: {
         byTitle: true,
-        byExternalIds: ["shikimori"],
+        byExternalIds: ["shikimori", "myAnimeList"],
         filterDiscovery: ["year", "genre", "minimumRating"],
       },
       details: {
-        byExternalIds: ["shikimori"],
+        byExternalIds: ["shikimori", "myAnimeList"],
       },
       relatedMedia: {
         byExternalIds: ["shikimori"],
@@ -221,8 +221,13 @@ async function searchShikimori(
     return [];
   }
 
-  if (query.ids?.shikimori) {
-    const details = await getAnimeById(config, query.ids.shikimori, context);
+  if (query.ids?.shikimori || query.ids?.myAnimeList) {
+    const details = await getAnimeById(
+      config,
+      query.ids.shikimori ?? query.ids.myAnimeList!,
+      context,
+    );
+    if (query.ids.myAnimeList && details.ids?.myAnimeList !== query.ids.myAnimeList) return [];
     return details ? [detailsToSearchResult(config, details, context.debug)] : [];
   }
 
@@ -290,9 +295,55 @@ async function searchShikimori(
     if (itemsById.size >= targetLimit || response.length < pageSize) break;
   }
 
-  return [...itemsById.values()]
-    .slice(0, targetLimit)
-    .map((item) => createSearchResult(config, item, context.debug));
+  const items = [...itemsById.values()].slice(0, targetLimit);
+  if ((context.language ?? query.language)?.toLowerCase().startsWith("ru")) {
+    await enrichRussianSearchItems(config, items, context);
+  }
+  return items.map((item) => createSearchResult(config, item, context.debug));
+}
+
+// Fetches localized descriptions and genres in bounded groups, without one request per anime.
+async function enrichRussianSearchItems(
+  config: ShikimoriConfig,
+  items: MediaItem[],
+  context: ProviderContext,
+): Promise<void> {
+  const query = `query ($ids: String!) { animes(ids: $ids, limit: 50) { id description genres { id name russian } } }`;
+  for (let offset = 0; offset < items.length; offset += 50) {
+    const batch = items.slice(offset, offset + 50);
+    const ids = batch
+      .map((item) => item.ids?.shikimori)
+      .filter(Boolean)
+      .join(",");
+    if (!ids) continue;
+    try {
+      const response = await fetchJson<{
+        data?: {
+          animes?: Array<{ id: string; description?: string; genres?: ShikimoriGenreResponse[] }>;
+        };
+      }>({
+        provider: PROVIDER_NAME,
+        url: new URL(`${config.baseUrl}/api/graphql`),
+        context,
+        fetch: config.fetch,
+        rateLimitGate: config.rateLimitGate,
+        init: {
+          method: "POST",
+          headers: { ...createHeaders(config), "Content-Type": "application/json" },
+          body: JSON.stringify({ query, variables: { ids } }),
+        },
+      });
+      const enriched = new Map(response.data?.animes?.map((anime) => [anime.id, anime]));
+      for (const item of batch) {
+        const anime = enriched.get(item.ids?.shikimori ?? "");
+        if (!anime) continue;
+        item.description = normalizeDescription(anime.description);
+        item.genres = mapGenres(anime.genres) ?? item.genres;
+      }
+    } catch (error) {
+      rethrowIfProviderAborted(context, error);
+    }
+  }
 }
 
 async function findShikimoriGenre(
@@ -330,11 +381,12 @@ async function getShikimoriDetails(
     return null;
   }
 
-  const details = query.ids?.shikimori
-    ? await getAnimeById(config, query.ids.shikimori, context)
-    : null;
+  const details =
+    query.ids?.shikimori || query.ids?.myAnimeList
+      ? await getAnimeById(config, query.ids.shikimori ?? query.ids.myAnimeList!, context)
+      : null;
 
-  if (!details) {
+  if (!details || (query.ids?.myAnimeList && details.ids?.myAnimeList !== query.ids.myAnimeList)) {
     return null;
   }
 

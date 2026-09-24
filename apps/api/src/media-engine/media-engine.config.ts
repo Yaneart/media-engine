@@ -51,8 +51,10 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
     shikimoriProvider,
     tvMazeProvider,
     wikidataProvider,
+    tmdbProvider,
   } = await import('@media-engine/providers');
   const providers: MediaProvider[] = [
+    tmdbProvider(),
     kinobdProvider(),
     cinemetaProvider(),
     shikimoriProvider(),

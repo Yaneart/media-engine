@@ -62,7 +62,6 @@
     "!dist/**/*test-helpers.js",
     "!dist/**/*test-helpers.js.map",
     "!dist/kodik",
-    "!dist/tmdb",
     "README.md",
     "README.ru.md"
   ],

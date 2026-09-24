@@ -21,12 +21,14 @@ import {
   aniListProvider,
   cinemetaProvider,
   kinobdProvider,
+  tmdbProvider,
   shikimoriProvider,
 } from "@media-engine/providers";
 
 const media = new MediaEngine({
   providers: [
     kinobdProvider(),
+    tmdbProvider(),
     cinemetaProvider(),
     shikimoriProvider(),
     aniListProvider(),
@@ -59,13 +61,19 @@ const relations = await media.getRelatedMedia({
 
 Готовые провайдеры метаданных:
 
-- `kinobdProvider()` и `cinemetaProvider()` для фильмов и сериалов;
+- `tmdbProvider()` для локализованных данных фильмов и сериалов через публичный Stremio addon;
+- `kinobdProvider()` и `cinemetaProvider()` как независимые источники фильмов и сериалов;
 - `shikimoriProvider()` и `aniListProvider()` для аниме;
 - `tvMazeProvider()` и `wikidataProvider()` как дополнительные источники идентичности;
 - `imdbDatasetProvider()` для IMDb-датасета, которым управляет ваше приложение.
 
 Данные TVmaze требуют указания источника. Сохраняйте и показывайте ссылку TVmaze, которая приходит
 в результате. Подробности есть в [лицензии API TVmaze](https://www.tvmaze.com/api#licensing).
+
+`tmdbProvider()` использует публичный [TMDB Stremio addon](https://github.com/mrcanelas/tmdb-addon)
+и не требует пользовательского токена. Адрес сервиса можно заменить через `baseUrl`; при его сбое
+Cinemeta продолжает работать. Приложению, показывающему данные TMDB, нужно соблюдать
+[требования к указанию источника](https://developer.themoviedb.org/docs/faq).
 
 Опциональные инструменты для SQLite-индекса IMDb требуют Node.js 22.13 или новее. Для остального
 пакета достаточно Node.js 20.

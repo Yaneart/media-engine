@@ -7,6 +7,73 @@ import { providerResult } from "./strategy.test-helpers.js";
 
 const strategy = new DefaultMergeStrategy();
 
+test("merges English and Russian genre labels into the requested language", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "a",
+        type: "movie",
+        title: "Original",
+        ids: { tmdb: "7" },
+        genres: [{ name: "War" }],
+      }),
+      providerResult("tmdb", {
+        id: "b",
+        type: "movie",
+        title: "Русский фильм",
+        originalTitle: "Original",
+        ids: { tmdb: "7" },
+        genres: [{ id: "10752", name: "Военные" }],
+      }),
+    ],
+    { language: "ru", query: { genre: "War", language: "ru" } },
+  );
+  assert.equal(results[0]?.item.title, "Русский фильм");
+  assert.deepEqual(
+    results[0]?.item.genres?.map((genre) => genre.name),
+    ["Военные"],
+  );
+});
+
+test("filtered Russian discovery ranks localized cards before untranslated cards", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "english",
+        type: "movie",
+        title: "English Film",
+        genres: [{ name: "War" }],
+      }),
+      providerResult("tmdb", {
+        id: "russian",
+        type: "movie",
+        title: "Русский фильм",
+        genres: [{ name: "Военные" }],
+      }),
+    ],
+    { language: "ru", query: { genre: "War", language: "ru" } },
+  );
+  assert.equal(results[0]?.item.title, "Русский фильм");
+});
+
+test("known original-language genres are translated when no localized provider has them", () => {
+  const results = strategy.mergeSearchResults(
+    [
+      providerResult("cinemeta", {
+        id: "a",
+        type: "movie",
+        title: "Original",
+        genres: [{ name: "War" }, { name: "Drama" }],
+      }),
+    ],
+    { language: "ru", query: { genre: "War", language: "ru" } },
+  );
+  assert.deepEqual(
+    results[0]?.item.genres?.map((genre) => genre.name),
+    ["Военные", "Драма"],
+  );
+});
+
 test("merges exact external ID matches into one search result", () => {
   const warnings: EngineWarning[] = [];
   const results = strategy.mergeSearchResults(
