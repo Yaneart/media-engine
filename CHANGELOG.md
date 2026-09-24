@@ -9,6 +9,8 @@ documented breaking changes.
 
 ### Added
 
+- Defined the internal Identity Resolver contract with closed ID namespaces, normalization,
+  source-linked provenance, and conservative conflict and ambiguity handling.
 - Captured a reproducible local identity baseline for movie, series, and anime search, details,
   and availability, including provider-specific ID and timing diagnostics and the current `id`
   compatibility contract.
