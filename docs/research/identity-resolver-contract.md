@@ -55,3 +55,9 @@ results for five minutes, keyed by source, media type, and the normalized input 
 calls for the same source and input share one request. Cache entries are temporary acceleration,
 not durable canonical identity storage. No concrete mapping source or public API integration is
 part of ID-03; those follow in ID-04 and later tasks.
+
+## Mapping sources (ID-04)
+
+The concrete no-token sources and their verified coverage are recorded in
+[`identity-resolver-sources.md`](identity-resolver-sources.md). They are not yet wired into the
+public search, details, or availability paths; that is ID-05.

@@ -9,6 +9,9 @@ documented breaking changes.
 
 ### Added
 
+- Added exact, typed Wikidata, AniList, Shikimori, and Aderom Identity Resolver sources for
+  confirmed movie, series, and anime ID mappings. KinoBD is available as an optional adapter
+  pending live upstream verification.
 - Added a bounded internal Identity Resolver orchestrator with multi-pass source lookup, strict
   claim reconciliation, partial failure and cancellation handling, and positive/negative caching.
 - Defined the internal Identity Resolver contract with closed ID namespaces, normalization,
