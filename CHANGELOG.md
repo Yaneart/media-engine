@@ -7,8 +7,26 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.9.0 - 2026-09-25
+
 ### Added
 
+- Added no-token Initem movie, series, and anime embeds using a confirmed Kinopoisk ID or IMDb
+  fallback, plus an opt-in Aderom series/anime embed source with verified IMDb-to-Kinopoisk mapping.
+- Integrated the bounded Identity Resolver into visible search cards, merged details, streaming
+  availability, and ID-dependent torrent discovery. The API enables verified no-token mapping
+  sources with a 4.5-second overall and 3.5-second per-source budget; optional source failures
+  leave the original identity usable.
+- Added exact, typed Wikidata, AniList, Shikimori, and Aderom Identity Resolver sources for
+  confirmed movie, series, and anime ID mappings. KinoBD is available as an optional adapter
+  pending live upstream verification.
+- Added a bounded internal Identity Resolver orchestrator with multi-pass source lookup, strict
+  claim reconciliation, partial failure and cancellation handling, and positive/negative caching.
+- Defined the internal Identity Resolver contract with closed ID namespaces, normalization,
+  source-linked provenance, and conservative conflict and ambiguity handling.
+- Captured a reproducible local identity baseline for movie, series, and anime search, details,
+  and availability, including provider-specific ID and timing diagnostics and the current `id`
+  compatibility contract.
 - A no-token TMDB Stremio addon provider supplies Russian movie and series catalog/search cards
   and details. It keeps type and external-ID checks, bounds catalog paging, and leaves Cinemeta
   available when the addon fails. Russian anime discovery loads Shikimori descriptions and

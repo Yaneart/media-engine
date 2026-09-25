@@ -47,7 +47,7 @@ for (const packageInfo of publicPackages) {
     (file) =>
       /\.(?:test|spec)\.(?:d\.ts|js|js\.map)$/.test(file) ||
       /test-helpers\.(?:d\.ts|js|js\.map)$/.test(file) ||
-      /^(?:dist\/)?(?:kodik|tmdb)(?:\/|$)/.test(file),
+      /^(?:dist\/)?kodik(?:\/|$)/.test(file),
   );
   if (forbiddenFiles.length > 0) {
     throw new Error(

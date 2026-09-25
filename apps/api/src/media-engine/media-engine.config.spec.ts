@@ -29,6 +29,7 @@ describe('MediaEngine configuration', () => {
     const engine = await createMediaEngine({});
 
     expect(engine.getProviders().map((provider) => provider.name)).toEqual([
+      'tmdb',
       'kinobd',
       'cinemeta',
       'shikimori',
@@ -39,6 +40,7 @@ describe('MediaEngine configuration', () => {
     expect(
       engine.getStreamingProviders().map((provider) => provider.name),
     ).toEqual([
+      'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
       'ddbb-streaming',
@@ -50,6 +52,7 @@ describe('MediaEngine configuration', () => {
     const providers = await createConfiguredStreamingProviders({});
 
     expect(providers.map((provider) => provider.name)).toEqual([
+      'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
       'ddbb-streaming',
@@ -75,6 +78,7 @@ describe('MediaEngine configuration', () => {
       ).map((provider) => provider.name),
     ).toEqual([
       'filmix-streaming',
+      'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
       'ddbb-streaming',
@@ -100,7 +104,7 @@ describe('MediaEngine configuration', () => {
           'https://filmix-api.test/api/v2',
         MEDIA_ENGINE_FILMIX_STREAMING_TOKEN: 'owned-token',
       }),
-    ).resolves.toHaveLength(5);
+    ).resolves.toHaveLength(6);
 
     await expect(
       createConfiguredStreamingProviders({
@@ -109,7 +113,7 @@ describe('MediaEngine configuration', () => {
         MEDIA_ENGINE_FILMIX_STREAMING_TOKEN: 'owned-token',
         MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH: 'true',
       }),
-    ).resolves.toHaveLength(5);
+    ).resolves.toHaveLength(6);
     await expect(
       createConfiguredStreamingProviders({
         MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
@@ -133,6 +137,7 @@ describe('MediaEngine configuration', () => {
       ).map((provider) => provider.name),
     ).toEqual([
       'veoveo-streaming',
+      'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
       'ddbb-streaming',
@@ -160,6 +165,7 @@ describe('MediaEngine configuration', () => {
       ).map((provider) => provider.name),
     ).toEqual([
       'videohub-streaming',
+      'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
       'ddbb-streaming',
@@ -187,6 +193,7 @@ describe('MediaEngine configuration', () => {
       ).map((provider) => provider.name),
     ).toEqual([
       'rutube-streaming',
+      'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
       'ddbb-streaming',

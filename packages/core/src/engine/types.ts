@@ -1,4 +1,5 @@
 import type { Cache } from "../cache/index.js";
+import type { IdentityResolver } from "../identity/index.js";
 import type { MergeStrategy } from "../merge/index.js";
 import type { MediaProvider } from "../providers/index.js";
 import type { StreamingProvider } from "../streaming/index.js";
@@ -54,6 +55,7 @@ export interface MediaEngineOptions {
   streamingProviders?: StreamingProvider[];
   torrentProviders?: TorrentProvider[];
   cache?: Cache;
+  identityResolver?: IdentityResolver;
   mergeStrategy?: MergeStrategy;
   timeoutMs?: number;
   providerTimeouts?: Readonly<Record<string, number>>;
