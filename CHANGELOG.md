@@ -7,8 +7,12 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.9.0 - 2026-09-25
+
 ### Added
 
+- Added no-token Initem movie, series, and anime embeds using a confirmed Kinopoisk ID or IMDb
+  fallback, plus an opt-in Aderom series/anime embed source with verified IMDb-to-Kinopoisk mapping.
 - Integrated the bounded Identity Resolver into visible search cards, merged details, streaming
   availability, and ID-dependent torrent discovery. The API enables verified no-token mapping
   sources with a 4.5-second overall and 3.5-second per-source budget; optional source failures

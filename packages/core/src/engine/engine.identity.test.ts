@@ -4,7 +4,12 @@ import { test } from "node:test";
 import { IdentityResolver, type IdentityResolverSource } from "../identity/index.js";
 import { MemoryCache } from "../cache/index.js";
 import { DefaultMergeStrategy } from "../merge/index.js";
-import { resolveSearchIdentities } from "./identity-integration.js";
+import {
+  resolveItemIdentity,
+  resolveQueryIdentity,
+  resolveSearchIdentities,
+} from "./identity-integration.js";
+import type { EngineWarning } from "../response/index.js";
 import type { MediaAvailability } from "../streaming/index.js";
 import { MediaEngine } from "./engine.js";
 import {
@@ -225,4 +230,54 @@ test("a mapping timeout warns without hiding results or caching the incomplete s
   );
   assert.equal(second.meta.cached, false);
   assert.equal(calls, 2);
+});
+
+test("optional identity resolution preserves input and deduplicates source warnings", async () => {
+  const item = { id: "card", type: "movie" as const, title: "Film", ids: { imdb: "tt0816692" } };
+  const query = { type: "movie" as const, ids: { imdb: "tt0816692" } };
+  assert.equal(await resolveItemIdentity(item, undefined), item);
+  assert.equal(await resolveQueryIdentity(query, undefined), query);
+  const itemWithoutIds = { id: "empty", type: "movie" as const, title: "Unknown" };
+  const queryWithoutIds = { type: "movie" as const };
+  assert.equal(
+    await resolveItemIdentity(itemWithoutIds, new IdentityResolver([mapping])),
+    itemWithoutIds,
+  );
+  assert.equal(
+    await resolveQueryIdentity(queryWithoutIds, new IdentityResolver([mapping])),
+    queryWithoutIds,
+  );
+  assert.deepEqual((await resolveQueryIdentity(query, new IdentityResolver([mapping]))).ids, {
+    imdb: "tt0816692",
+    kinopoisk: "258687",
+    tmdb: "157336",
+  });
+  const searchResults = [{ item, score: 1, sources: [{ provider: "test-provider" }] }];
+  assert.equal(
+    await resolveSearchIdentities(
+      searchResults,
+      undefined,
+      undefined,
+      [],
+      new DefaultMergeStrategy(),
+    ),
+    searchResults,
+  );
+
+  const failing: IdentityResolverSource = {
+    name: "failing-map",
+    canResolve: () => true,
+    async resolve() {
+      throw new Error("Mapping unavailable");
+    },
+  };
+  const resolver = new IdentityResolver([failing]);
+  assert.deepEqual((await resolveItemIdentity(item, resolver)).ids, item.ids);
+  const warnings: EngineWarning[] = [];
+  assert.deepEqual((await resolveItemIdentity(item, resolver, undefined, warnings)).ids, item.ids);
+  await resolveItemIdentity(item, resolver, undefined, warnings);
+  assert.deepEqual(
+    warnings.map(({ code, provider }) => [code, provider]),
+    [["SOURCE_ERROR", "failing-map"]],
+  );
 });
