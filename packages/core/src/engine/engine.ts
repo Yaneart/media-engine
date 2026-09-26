@@ -574,32 +574,45 @@ export class MediaEngine {
     const startedAt = Date.now();
     const normalizedQuery = normalizeDetailsQuery(query);
     validateDetailsQuery(normalizedQuery);
+    const identityWarnings: EngineWarning[] = [];
+    const resolvedQuery = await resolveQueryIdentity(
+      normalizedQuery,
+      this.identityResolver,
+      options.signal,
+      identityWarnings,
+    );
+    throwIfAborted(options.signal);
 
-    const cacheKey = createDetailsCacheKey(normalizedQuery);
-    const cached = await waitForCaller(this.cache?.get<DetailsResponse>(cacheKey), options.signal);
+    const cacheKey = createDetailsCacheKey(resolvedQuery);
+    const identityResolutionFailed = hasIdentitySourceFailure(identityWarnings);
+    const cached = identityResolutionFailed
+      ? undefined
+      : await waitForCaller(this.cache?.get<DetailsResponse>(cacheKey), options.signal);
 
     if (cached) {
       const response = structuredClone(cached);
 
-      return {
-        ...response,
-        query: normalizedQuery,
-        meta: {
-          ...response.meta,
-          cached: true,
-          tookMs: elapsedSince(startedAt),
+      return appendDetailsWarnings(
+        {
+          ...response,
+          query: resolvedQuery,
+          meta: {
+            ...response.meta,
+            cached: true,
+            tookMs: elapsedSince(startedAt),
+          },
         },
-      };
+        identityWarnings,
+      );
     }
 
-    const stale = await waitForCaller(
-      this.cache?.getStale?.<DetailsResponse>(cacheKey),
-      options.signal,
-    );
+    const stale = identityResolutionFailed
+      ? undefined
+      : await waitForCaller(this.cache?.getStale?.<DetailsResponse>(cacheKey), options.signal);
     const inFlight = this.inFlightRequests.forCaller(options);
     const pending = inFlight.run(`details:${cacheKey}`, async (operationSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
-      const providers = this.registry.selectDetailsProviders(normalizedQuery);
+      const providers = this.registry.selectDetailsProviders(resolvedQuery);
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
       const failed: ProviderFailure[] = [];
@@ -609,9 +622,9 @@ export class MediaEngine {
 
       const outcomes = await Promise.all(
         providers.map((provider) =>
-          callTimedProviderDetails(provider, normalizedQuery, {
+          callTimedProviderDetails(provider, resolvedQuery, {
             debug: this.debug,
-            language: normalizedQuery.language,
+            language: resolvedQuery.language,
             signal: operationSignal,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
@@ -635,13 +648,13 @@ export class MediaEngine {
       }
 
       // AniList can reveal a MAL ID that lets a Russian anime provider supply localized details.
-      if (normalizedQuery.type === "anime" && normalizedQuery.language?.startsWith("ru")) {
+      if (resolvedQuery.type === "anime" && resolvedQuery.language?.startsWith("ru")) {
         const myAnimeList = providerResults.find((result) => result.details.type === "anime")
           ?.details.ids?.myAnimeList;
-        if (myAnimeList && !normalizedQuery.ids?.myAnimeList) {
+        if (myAnimeList && !resolvedQuery.ids?.myAnimeList) {
           const linkedQuery = {
-            ...normalizedQuery,
-            ids: { ...normalizedQuery.ids, myAnimeList },
+            ...resolvedQuery,
+            ids: { ...resolvedQuery.ids, myAnimeList },
           };
           const linkedProviders = this.registry
             .selectDetailsProviders(linkedQuery)
@@ -651,7 +664,7 @@ export class MediaEngine {
             linkedProviders.map((provider) =>
               callTimedProviderDetails(provider, linkedQuery, {
                 debug: this.debug,
-                language: normalizedQuery.language,
+                language: resolvedQuery.language,
                 signal: operationSignal,
                 timeoutMs: timeoutBudget.getRemainingMs(provider.name),
                 circuitBreaker: this.circuitBreaker,
@@ -681,8 +694,8 @@ export class MediaEngine {
       }
 
       const details = this.mergeStrategy.mergeDetails(providerResults, {
-        query: normalizedQuery,
-        language: normalizedQuery.language,
+        query: resolvedQuery,
+        language: resolvedQuery.language,
         debug: this.debug,
         warnings,
       });
@@ -691,7 +704,7 @@ export class MediaEngine {
         : null;
 
       const response: DetailsResponse = {
-        query: normalizedQuery,
+        query: resolvedQuery,
         details: resolvedDetails,
         meta: createResponseMeta({
           requested,
@@ -707,18 +720,23 @@ export class MediaEngine {
 
       throwIfAborted(operationSignal);
 
-      if (!hasRetryableProviderFailure(failed) && !hasIdentitySourceFailure(warnings)) {
+      if (
+        !identityResolutionFailed &&
+        !hasRetryableProviderFailure(failed) &&
+        !hasIdentitySourceFailure(warnings)
+      ) {
         await this.cache?.set(cacheKey, structuredClone(response));
       }
 
       return response;
     });
 
-    return loadWithStaleFallback({
+    const response = await loadWithStaleFallback({
       stale,
       pending,
       tookMs: () => elapsedSince(startedAt),
     });
+    return appendDetailsWarnings(response, identityWarnings);
   }
 
   // Loads direct provider-neutral relationships for one exact media identity.
@@ -1431,6 +1449,27 @@ function createEngineAvailabilityProgressSnapshot(
 
 function hasRetryableProviderFailure(failures: ProviderFailure[]): boolean {
   return failures.some((failure) => failure.retryable);
+}
+
+function appendDetailsWarnings(
+  response: DetailsResponse,
+  additions: readonly EngineWarning[],
+): DetailsResponse {
+  if (additions.length === 0) return response;
+  const warnings = [...(response.meta.warnings ?? [])];
+  for (const warning of additions) {
+    if (
+      warnings.some(
+        (known) =>
+          known.code === warning.code &&
+          known.provider === warning.provider &&
+          known.message === warning.message,
+      )
+    )
+      continue;
+    warnings.push(warning);
+  }
+  return { ...response, meta: { ...response.meta, warnings } };
 }
 
 function normalizePlaybackUserAgent(value: unknown): string | undefined {

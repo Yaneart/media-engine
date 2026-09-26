@@ -6,6 +6,7 @@ import type { EngineWarning } from "../response/index.js";
 import type { MediaSearchResult } from "../search/index.js";
 
 const MAX_SEARCH_RESOLUTIONS = 5;
+const MEDIA_TYPES: readonly MediaType[] = ["movie", "series", "anime"];
 
 export function hasIdentitySourceFailure(warnings: readonly EngineWarning[]): boolean {
   return warnings.some(({ code }) => code === "SOURCE_TIMEOUT" || code === "SOURCE_ERROR");
@@ -28,14 +29,34 @@ function reportDiagnostics(
   }
 }
 
-export async function resolveQueryIdentity<T extends { type: MediaType; ids?: ExternalIds }>(
+export async function resolveQueryIdentity<T extends { type?: MediaType; ids?: ExternalIds }>(
   query: T,
   resolver: IdentityResolver | undefined,
   signal?: AbortSignal,
+  warnings?: EngineWarning[],
 ): Promise<T> {
   if (!resolver || !Object.values(query.ids ?? {}).some(Boolean)) return query;
-  const result = await resolver.resolve(query.type, { ...query.ids }, signal);
-  return { ...query, ids: { ...query.ids, ...result.ids } };
+  if (query.type) {
+    const result = await resolver.resolve(query.type, { ...query.ids }, signal);
+    reportDiagnostics(result.diagnostics, warnings);
+    return { ...query, ids: { ...query.ids, ...result.ids } };
+  }
+
+  const candidateTypes = hasAnimeIdentity(query.ids) ? (["anime"] as const) : MEDIA_TYPES;
+  const candidates = await Promise.all(
+    candidateTypes.map((type) => resolver.resolve(type, { ...query.ids }, signal)),
+  );
+  for (const candidate of candidates) reportDiagnostics(candidate.diagnostics, warnings);
+  const confirmed = candidates.filter((candidate) =>
+    candidate.provenance.some(({ source }) => source !== "initial"),
+  );
+  if (confirmed.length !== 1) return query;
+  const [identity] = confirmed;
+  return { ...query, type: identity!.type, ids: { ...query.ids, ...identity!.ids } };
+}
+
+function hasAnimeIdentity(ids: ExternalIds | undefined): boolean {
+  return Boolean(ids?.aniList || ids?.myAnimeList || ids?.shikimori);
 }
 
 export async function resolveItemIdentity<T extends MediaItem>(

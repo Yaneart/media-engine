@@ -36,6 +36,40 @@ const mapping: IdentityResolverSource = {
   },
 };
 
+const animeIds = {
+  imdb: "tt0877057",
+  shikimori: "1535",
+  myAnimeList: "1535",
+  aniList: "1535",
+} as const;
+
+const animeAliasMapping: IdentityResolverSource = {
+  name: "verified-anime-map",
+  canResolve: (ids, type) =>
+    type === "anime" &&
+    Object.entries(animeIds).some(
+      ([source, value]) => ids[source as keyof typeof animeIds] === value,
+    ),
+  async resolve(ids) {
+    const matched = ids.aniList
+      ? { namespace: "aniList" as const, value: ids.aniList }
+      : ids.shikimori
+        ? { namespace: "shikimori" as const, value: ids.shikimori }
+        : ids.myAnimeList
+          ? { namespace: "myAnimeList" as const, value: ids.myAnimeList }
+          : { namespace: "imdb" as const, value: ids.imdb! };
+
+    return [
+      {
+        source: "verified-anime-map",
+        type: "anime",
+        matched,
+        ids: animeIds,
+      },
+    ];
+  },
+};
+
 test("search resolves visible cards and reunites a verified split identity", async () => {
   const engine = new MediaEngine({
     identityResolver: new IdentityResolver([mapping]),
@@ -105,11 +139,169 @@ test("details and ID-only availability receive the same verified identity", asyn
       }),
     ],
   });
-  const details = await engine.getDetails({ type: "movie", ids: { imdb: "tt0816692" } });
+  const details = await engine.getDetails({ ids: { imdb: "tt0816692" } });
+  const detailsBeforeAvailability = structuredClone(details.details);
   const availability = await engine.getAvailability({ type: "movie", ids: { imdb: "tt0816692" } });
+  assert.equal(details.query.type, "movie");
   assert.equal(details.details?.ids?.kinopoisk, "258687");
   assert.equal(availability.query.ids?.kinopoisk, "258687");
+  assert.deepEqual(details.details, detailsBeforeAvailability);
   assert.deepEqual(received, ["258687"]);
+});
+
+test("details resolve aliases before provider selection and share one canonical cache entry", async () => {
+  const calls = new Map<string, number>();
+  const localizedDetails = {
+    id: "death-note",
+    type: "anime" as const,
+    title: "Тетрадь смерти",
+    originalTitle: "Death Note",
+    description: "Лайт Ягами находит тетрадь, способную убивать людей.",
+    genres: [{ name: "аниме" }, { name: "триллер" }],
+    ids: animeIds,
+  };
+  const { genres: _localizedGenres, ...sharedDetails } = localizedDetails;
+  const englishDetails = {
+    ...sharedDetails,
+    title: "Death Note",
+    description: "Light Yagami finds a notebook with a deadly power.",
+  };
+  const provider = (
+    name: string,
+    source: "imdb" | "shikimori" | "aniList",
+    details = englishDetails,
+  ) =>
+    createProvider({
+      name,
+      capabilities: {
+        mediaTypes: ["anime"],
+        search: { byTitle: false, byExternalIds: [source] },
+        details: { byExternalIds: [source] },
+      },
+      async getDetails(query) {
+        calls.set(name, (calls.get(name) ?? 0) + 1);
+        assert.deepEqual(query.ids, animeIds);
+        return { provider: name, details };
+      },
+    });
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    identityResolver: new IdentityResolver([animeAliasMapping]),
+    providers: [
+      provider("localized-anime", "shikimori", localizedDetails),
+      provider("anime-catalog", "aniList"),
+      provider("cinema-catalog", "imdb"),
+    ],
+  });
+
+  const first = await engine.getDetails({
+    language: "ru",
+    ids: { aniList: animeIds.aniList },
+  });
+  const second = await engine.getDetails({
+    language: "ru",
+    ids: { shikimori: animeIds.shikimori },
+  });
+  const third = await engine.getDetails({
+    language: "ru",
+    ids: { imdb: animeIds.imdb },
+  });
+
+  assert.deepEqual(first.meta.providers.requested, [
+    "localized-anime",
+    "anime-catalog",
+    "cinema-catalog",
+  ]);
+  assert.equal(first.query.type, "anime");
+  assert.deepEqual(first.query.ids, animeIds);
+  assert.deepEqual(second.query, first.query);
+  assert.deepEqual(third.query, first.query);
+  assert.deepEqual(second.details, first.details);
+  assert.deepEqual(third.details, first.details);
+  assert.equal(first.details?.title, "Тетрадь смерти");
+  assert.equal(first.details?.description, "Лайт Ягами находит тетрадь, способную убивать людей.");
+  assert.deepEqual(first.details?.genres, [{ name: "аниме" }, { name: "триллер" }]);
+  assert.equal(first.meta.cached, false);
+  assert.equal(second.meta.cached, true);
+  assert.equal(third.meta.cached, true);
+  assert.deepEqual(Object.fromEntries(calls), {
+    "localized-anime": 1,
+    "anime-catalog": 1,
+    "cinema-catalog": 1,
+  });
+});
+
+test("details report identity source failures and do not cache the incomplete identity", async () => {
+  let detailsCalls = 0;
+  let mappingAvailable = true;
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    identityResolver: new IdentityResolver([
+      {
+        name: "unavailable-map",
+        canResolve: (_ids, type) => type === "movie",
+        async resolve() {
+          if (!mappingAvailable) throw new Error("Mapping unavailable");
+          return [
+            {
+              source: "unavailable-map",
+              type: "movie",
+              matched: { namespace: "imdb", value: "tt0816692" },
+              ids: { imdb: "tt0816692" },
+            },
+          ];
+        },
+      },
+    ]),
+    providers: [
+      createProvider({
+        async getDetails() {
+          detailsCalls += 1;
+          return {
+            provider: "test-provider",
+            details: {
+              id: "imdb-card",
+              type: "movie",
+              title: "Interstellar",
+              ids: { imdb: "tt0816692" },
+            },
+          };
+        },
+      }),
+    ],
+  });
+
+  const first = await engine.getDetails({ type: "movie", ids: { imdb: "tt0816692" } });
+  mappingAvailable = false;
+  const second = await engine.getDetails({ type: "movie", ids: { imdb: "tt0816692" } });
+
+  assert.equal(first.meta.cached, false);
+  assert.equal(
+    second.meta.warnings?.some(({ code }) => code === "SOURCE_ERROR"),
+    true,
+  );
+  assert.equal(second.meta.cached, false);
+  assert.equal(detailsCalls, 2);
+});
+
+test("untyped details do not guess when more than one media type is confirmed", async () => {
+  const source: IdentityResolverSource = {
+    name: "ambiguous-type-map",
+    canResolve: (ids, type) => type !== "anime" && ids.imdb === "tt0816692",
+    async resolve(ids, type) {
+      return [
+        {
+          source: "ambiguous-type-map",
+          type,
+          matched: { namespace: "imdb", value: ids.imdb! },
+          ids,
+        },
+      ];
+    },
+  };
+  const query = { ids: { imdb: "tt0816692" } };
+
+  assert.equal(await resolveQueryIdentity(query, new IdentityResolver([source])), query);
 });
 
 test("search identity work is bounded and conflicting IDs stay separate", async () => {
