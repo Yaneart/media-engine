@@ -1,5 +1,24 @@
 # Identity Resolver contract (ID-02)
 
+## Canonical work identity (MP-001)
+
+Core exposes a provider-independent canonical identity contract in `identity/canonical`. A
+`workKey` is an opaque UUID-based registry key. It is deliberately not a provider-native ID, a
+namespaced external ID, or a title slug; applications must persist it if they need durable identity
+across processes. Normalized external IDs are aliases of that key.
+
+`CanonicalIdentityIndex` is the process-local reference implementation. It keeps an existing key
+when providers return aliases in a different order or when later resolution adds IDs. A normalized
+legacy alias such as `imdb:tt0816692` resolves to that same identity. If incoming aliases already
+belong to different keys, use another media type, or contradict a known namespace value, the index
+returns `CANONICAL_IDENTITY_CONFLICT` and changes nothing. It never guesses or automatically merges
+two established works. A durable application registry can implement the same
+`workKey`/`type`/`ids`/`aliases` model; database ownership and public URL slugs remain application
+concerns.
+
+This contract does not yet change `MediaItem.id` or engine orchestration. Resolving identity before
+details provider selection and before search pagination belongs to subsequent media-platform tasks.
+
 The internal identity model lives in `packages/core/src/identity`. This step does not change
 the public `media.id` or the current merge and query flow. ID-03 will orchestrate sources using
 this contract; ID-04 will supply actual mappings.

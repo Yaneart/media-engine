@@ -77,6 +77,11 @@ await media.discoverTorrents({
 `getDetails()` needs an external ID with its namespace, such as `imdb`, `kinopoisk`, or
 `ids.shikimori`. A plain provider-native `id` is not globally unique.
 
+Core also exports the canonical identity contract. `CanonicalIdentityIndex` assigns an opaque
+provider-independent `workKey`, keeps it while verified external-ID aliases are added, resolves
+legacy aliases such as `imdb:tt0816692`, and refuses conflicting mappings. The included index is
+process-local; persist the same work-key and alias model in applications that need durable identity.
+
 `getRelatedMedia()` uses the same namespaced identity rule and returns explicit normalized
 relationships with source attribution. It does not infer franchises or seasons from titles.
 
