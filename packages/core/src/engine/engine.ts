@@ -33,6 +33,7 @@ import type {
 } from "../torrent/index.js";
 import {
   createAvailabilityCacheOptions,
+  createMediaAvailabilityState,
   enrichStreamQueryIdentity,
   getMissingStreamingIdentitySources,
   hasUnknownStreamValidation,
@@ -877,7 +878,8 @@ export class MediaEngine {
     const startedAt = Date.now();
     const initialQuery = normalizeStreamQuery(query);
     validateStreamQuery(initialQuery);
-    const normalizedQuery = await this.resolveStreamQueryIdentity(initialQuery, options.signal);
+    const identity = await this.resolveStreamQueryIdentity(initialQuery, options.signal);
+    const normalizedQuery = identity.query;
     const playbackUserAgent = normalizePlaybackUserAgent(options.playbackUserAgent);
     const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
     const cachePlaybackUserAgent = providers.some(
@@ -955,18 +957,15 @@ export class MediaEngine {
 
       const availability = mergeAvailabilityResults(normalizedQuery, providerResults);
       const hasUnknownValidation = hasUnknownStreamValidation(availability);
+      availability.state = createMediaAvailabilityState(availability, {
+        identityDegraded: identity.degraded,
+        providerDegraded: failed.length > 0,
+      });
       availability.meta = createResponseMeta({
         requested,
         successful,
         failed,
-        warnings: hasUnknownValidation
-          ? [
-              {
-                code: "STREAM_VALIDATION_DEGRADED",
-                message: "One or more discovered player options could not be validated reliably.",
-              },
-            ]
-          : [],
+        warnings: createAvailabilityWarnings(identity.degraded, hasUnknownValidation),
         cached: false,
         tookMs: elapsedSince(startedAt),
         debug: this.debug,
@@ -975,7 +974,7 @@ export class MediaEngine {
 
       throwIfAborted(operationSignal);
 
-      if (!hasRetryableProviderFailure(failed) && !hasUnknownValidation) {
+      if (availability.state.status !== "degraded") {
         await this.cache?.set(
           cacheKey,
           structuredClone(availability),
@@ -997,7 +996,8 @@ export class MediaEngine {
     const startedAt = Date.now();
     const initialQuery = normalizeStreamQuery(query);
     validateStreamQuery(initialQuery);
-    const normalizedQuery = await this.resolveStreamQueryIdentity(initialQuery, options.signal);
+    const identity = await this.resolveStreamQueryIdentity(initialQuery, options.signal);
+    const normalizedQuery = identity.query;
     const playbackUserAgent = normalizePlaybackUserAgent(options.playbackUserAgent);
     const providers = selectStreamingProviders(this.streamingProviders, normalizedQuery);
     const cachePlaybackUserAgent = providers.some(
@@ -1062,11 +1062,15 @@ export class MediaEngine {
     try {
       if (providers.length === 0) {
         const availability = mergeAvailabilityResults(normalizedQuery, []);
+        availability.state = createMediaAvailabilityState(availability, {
+          identityDegraded: identity.degraded,
+          providerDegraded: false,
+        });
         availability.meta = createResponseMeta({
           requested,
           successful: [],
           failed,
-          warnings: [],
+          warnings: createAvailabilityWarnings(identity.degraded, false),
           cached: false,
           tookMs: elapsedSince(startedAt),
           debug: this.debug,
@@ -1100,6 +1104,7 @@ export class MediaEngine {
               completedProviders,
               startedAt,
               debug: this.debug,
+              identityDegraded: identity.degraded,
               state: "pending",
             });
           }
@@ -1130,6 +1135,7 @@ export class MediaEngine {
               completedProviders,
               startedAt,
               debug: this.debug,
+              identityDegraded: identity.degraded,
               state: "pending",
             });
           }
@@ -1159,13 +1165,13 @@ export class MediaEngine {
           completedProviders,
           startedAt,
           debug: this.debug,
+          identityDegraded: identity.degraded,
           state: "complete",
         });
         const finalAvailability = finalSnapshot.availability!;
-        const hasUnknownValidation = hasUnknownStreamValidation(finalAvailability);
 
         throwIfAborted(controller.signal);
-        if (!hasRetryableProviderFailure(failed) && !hasUnknownValidation) {
+        if (finalAvailability.state?.status !== "degraded") {
           await this.cache?.set(
             cacheKey,
             structuredClone(finalAvailability),
@@ -1187,14 +1193,15 @@ export class MediaEngine {
   private async resolveStreamQueryIdentity(
     query: StreamQuery,
     signal: AbortSignal | undefined,
-  ): Promise<StreamQuery> {
+  ): Promise<{ query: StreamQuery; degraded: boolean }> {
     const initialMissing = getMissingStreamingIdentitySources(this.streamingProviders, query);
     const resolved = initialMissing.length
       ? await resolveQueryIdentity(query, this.identityResolver, signal)
       : query;
     const missingSources = getMissingStreamingIdentitySources(this.streamingProviders, resolved);
 
-    if (missingSources.length === 0 || !resolved.title) return resolved;
+    if (missingSources.length === 0) return { query: resolved, degraded: false };
+    if (!resolved.title) return { query: resolved, degraded: true };
 
     try {
       const response = await this.search(
@@ -1209,10 +1216,16 @@ export class MediaEngine {
         { signal },
       );
 
-      return enrichStreamQueryIdentity(resolved, response, missingSources);
+      const enriched = enrichStreamQueryIdentity(resolved, response, missingSources);
+      return {
+        query: enriched,
+        degraded: getMissingStreamingIdentitySources(this.streamingProviders, enriched).length > 0,
+      };
     } catch (error) {
       throwIfAborted(signal);
-      if (error instanceof MediaEngineError && error.code === "PROVIDER_ERROR") return resolved;
+      if (error instanceof MediaEngineError && error.code === "PROVIDER_ERROR") {
+        return { query: resolved, degraded: true };
+      }
       throw error;
     }
   }
@@ -1426,6 +1439,7 @@ interface EngineAvailabilityProgressSnapshotContext {
   completedProviders: ReadonlySet<string>;
   startedAt: number;
   debug: boolean;
+  identityDegraded: boolean;
   state: MediaAvailabilityProgressSnapshot["state"];
 }
 
@@ -1446,18 +1460,17 @@ function createEngineAvailabilityProgressSnapshot(
     const timing = context.providerTimings.find((candidate) => candidate.provider === provider);
     return timing ? [timing] : [];
   });
+  if (context.state === "complete") {
+    availability.state = createMediaAvailabilityState(availability, {
+      identityDegraded: context.identityDegraded,
+      providerDegraded: failed.length > 0,
+    });
+  }
   availability.meta = createResponseMeta({
     requested: context.requested,
     successful: context.requested.filter((provider) => context.successful.has(provider)),
     failed,
-    warnings: hasUnknownValidation
-      ? [
-          {
-            code: "STREAM_VALIDATION_DEGRADED",
-            message: "One or more discovered player options could not be validated reliably.",
-          },
-        ]
-      : [],
+    warnings: createAvailabilityWarnings(context.identityDegraded, hasUnknownValidation),
     cached: false,
     tookMs: elapsedSince(context.startedAt),
     debug: context.debug,
@@ -1471,6 +1484,27 @@ function createEngineAvailabilityProgressSnapshot(
       .filter((provider) => !context.completedProviders.has(provider.name))
       .map((provider) => provider.name),
   };
+}
+
+function createAvailabilityWarnings(
+  identityDegraded: boolean,
+  validationDegraded: boolean,
+): EngineWarning[] {
+  const warnings: EngineWarning[] = [];
+  if (identityDegraded) {
+    warnings.push({
+      code: "STREAM_IDENTITY_DEGRADED",
+      message:
+        "One or more compatible streaming providers could not be queried without a confirmed identity mapping.",
+    });
+  }
+  if (validationDegraded) {
+    warnings.push({
+      code: "STREAM_VALIDATION_DEGRADED",
+      message: "One or more discovered player options could not be validated reliably.",
+    });
+  }
+  return warnings;
 }
 
 function hasRetryableProviderFailure(failures: ProviderFailure[]): boolean {

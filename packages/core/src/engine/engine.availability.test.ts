@@ -54,6 +54,7 @@ test("getAvailability returns empty availability when no streaming providers are
   assert.deepEqual(availability.query, { type: "anime", title: "Naruto" });
   assert.deepEqual(availability.options, []);
   assert.deepEqual(availability.sourceProviders, []);
+  assert.deepEqual(availability.state, { status: "empty" });
   assert.deepEqual(availability.meta?.providers, {
     requested: [],
     successful: [],
@@ -91,6 +92,7 @@ test("getAvailability merges multiple streaming provider results", async () => {
   assert.deepEqual(availability.meta?.providers.requested, ["kodik", "mirror"]);
   assert.deepEqual(availability.meta?.providers.successful, ["kodik", "mirror"]);
   assert.deepEqual(availability.meta?.providers.failed, []);
+  assert.deepEqual(availability.state, { status: "complete" });
 });
 
 test("getAvailability routes movie-only direct providers by confirmed anime kind", async () => {
@@ -531,6 +533,10 @@ test("getAvailability tolerates one provider failure when another provider succe
       message: "Streaming provider is unavailable.",
     },
   ]);
+  assert.deepEqual(availability.state, {
+    status: "degraded",
+    degradedBy: ["provider"],
+  });
 });
 
 test("getAvailability starts independent streaming providers concurrently", async () => {
@@ -735,6 +741,7 @@ test("getAvailability cache integration keeps response shape", async () => {
     "options",
     "query",
     "sourceProviders",
+    "state",
   ]);
   assert.deepEqual(Object.keys(second).sort(), [
     "checkedAt",
@@ -744,6 +751,7 @@ test("getAvailability cache integration keeps response shape", async () => {
     "options",
     "query",
     "sourceProviders",
+    "state",
   ]);
   assert.deepEqual(second.options, first.options);
   assert.equal(first.meta?.cached, false);
@@ -956,7 +964,9 @@ test("getAvailabilityProgressively emits first, second, and final deterministic 
     ],
   );
   assert.deepEqual(snapshots[0]?.pendingProviders, ["progressive-stream"]);
+  assert.equal(snapshots[0]?.availability?.state, undefined);
   assert.deepEqual(snapshots[2]?.pendingProviders, []);
+  assert.deepEqual(snapshots[2]?.availability?.state, { status: "complete" });
   assert.deepEqual(
     snapshots[2]?.availability?.options.map((option) => option.id),
     ["progressive-stream:episode-1:embed", "progressive-stream:episode-1:second"],
@@ -1007,6 +1017,10 @@ test("getAvailabilityProgressively keeps partial success when another provider f
     ["progressive-stream"],
   );
   assert.equal(final.availability?.meta?.providers.failed[0]?.provider, "failing-stream");
+  assert.deepEqual(final.availability?.state, {
+    status: "degraded",
+    degradedBy: ["provider"],
+  });
 });
 
 test("getAvailabilityProgressively rejects all-failed providers and aborts abandoned iteration", async () => {

@@ -4,8 +4,10 @@ import type { ExternalIdSource } from "../providers/index.js";
 import type { SearchResponse } from "../search/index.js";
 import type {
   MediaAvailability,
+  MediaAvailabilityState,
   StreamEpisodeAvailability,
   StreamOption,
+  StreamOptionAttribution,
   StreamQuery,
   StreamSeasonAvailability,
   StreamingProvider,
@@ -132,16 +134,31 @@ export function mergeAvailabilityResults(
     item: results.find((result) => result.item)?.item,
     ...(seasons ? { seasons } : {}),
     episodes,
-    options: uniqueBy(
-      results.flatMap((result) => result.options),
-      (option) => `${option.provider}:${option.id}`,
-    ),
+    options: mergeStreamOptions(results.flatMap((result) => result.options)),
     sourceProviders: uniqueBy(
       results.flatMap((result) => result.sourceProviders),
       (source) => createStreamingSourceKey(source),
     ),
     checkedAt: new Date().toISOString(),
   };
+}
+
+// Summarizes whether an empty or partial result is authoritative enough for consumers.
+export function createMediaAvailabilityState(
+  availability: MediaAvailability,
+  context: { identityDegraded: boolean; providerDegraded: boolean },
+): MediaAvailabilityState {
+  const degradedBy: MediaAvailabilityState["degradedBy"] = [];
+  if (context.identityDegraded) degradedBy.push("identity");
+  if (context.providerDegraded) degradedBy.push("provider");
+  if (hasUnknownStreamValidation(availability)) degradedBy.push("validation");
+
+  if (degradedBy.length > 0) return { status: "degraded", degradedBy };
+
+  const hasOptions =
+    availability.options.length > 0 ||
+    Boolean(availability.episodes?.some((episode) => episode.options.length > 0));
+  return { status: hasOptions ? "complete" : "empty" };
 }
 
 // Groups a normalized flat episode catalog into selectable seasons.
@@ -229,15 +246,12 @@ function mergeEpisodeAvailability(
         episodeNumber: episode.episodeNumber,
         absoluteEpisodeNumber: episode.absoluteEpisodeNumber,
         title: episode.title,
-        options: uniqueBy(episode.options, (option) => `${option.provider}:${option.id}`),
+        options: mergeStreamOptions(episode.options),
       });
       continue;
     }
 
-    existing.options = uniqueBy(
-      [...existing.options, ...episode.options],
-      (option) => `${option.provider}:${option.id}`,
-    );
+    existing.options = mergeStreamOptions([...existing.options, ...episode.options]);
     existing.title ??= episode.title;
   }
 
@@ -321,6 +335,61 @@ function createEpisodeKey(episode: StreamEpisodeAvailability): string {
 // Создает стабильную идентичность для атрибуции источника провайдера.
 function createStreamingSourceKey(source: StreamingProviderSource): string {
   return `${source.provider}:${source.url ?? ""}:${JSON.stringify(sortObject(source.ids ?? {}))}`;
+}
+
+// Deduplicates equivalent targets while retaining every provider observation.
+function mergeStreamOptions(options: StreamOption[]): StreamOption[] {
+  const merged = new Map<string, StreamOption>();
+
+  for (const option of options) {
+    const key = createStreamOptionKey(option);
+    const existing = merged.get(key);
+    const attributions = getStreamOptionAttributions(option);
+
+    if (!existing) {
+      merged.set(key, { ...option, attributions });
+      continue;
+    }
+
+    existing.attributions = uniqueBy(
+      [...(existing.attributions ?? []), ...attributions],
+      createStreamOptionAttributionKey,
+    );
+  }
+
+  return [...merged.values()];
+}
+
+function createStreamOptionKey(option: StreamOption): string {
+  return JSON.stringify(
+    sortObject({
+      playerKind: option.player.kind,
+      access: option.access,
+      episode: option.episode,
+      translation: option.translation,
+      quality: option.quality,
+      subtitles: option.subtitles,
+      audio: option.audio,
+    }),
+  );
+}
+
+function getStreamOptionAttributions(option: StreamOption): StreamOptionAttribution[] {
+  return uniqueBy(
+    [
+      ...(option.attributions ?? []),
+      {
+        provider: option.provider,
+        optionId: option.id,
+        ...(option.sourceUrl ? { sourceUrl: option.sourceUrl } : {}),
+      },
+    ],
+    createStreamOptionAttributionKey,
+  );
+}
+
+function createStreamOptionAttributionKey(attribution: StreamOptionAttribution): string {
+  return `${attribution.provider}:${attribution.optionId}:${attribution.sourceUrl ?? ""}`;
 }
 
 // Keeps the first value for each derived key.

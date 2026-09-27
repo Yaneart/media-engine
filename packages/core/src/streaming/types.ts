@@ -128,6 +128,7 @@ export type StreamAvailabilityStatus =
 export interface StreamOption {
   id: string;
   provider: string;
+  attributions?: StreamOptionAttribution[];
   player: PlayerSource;
   translation?: TranslationInfo;
   quality?: QualityInfo;
@@ -140,6 +141,13 @@ export interface StreamOption {
   sourceUrl?: string;
 }
 
+// Provider observations retained when equivalent playback options are deduplicated.
+export interface StreamOptionAttribution {
+  provider: string;
+  optionId: string;
+  sourceUrl?: string;
+}
+
 // Source attribution for streaming availability data.
 // Атрибуция источника для данных streaming-доступности.
 export interface StreamingProviderSource {
@@ -148,10 +156,22 @@ export interface StreamingProviderSource {
   ids?: ExternalIds;
 }
 
+export type MediaAvailabilityStatus = "complete" | "empty" | "degraded";
+
+export type MediaAvailabilityDegradation = "identity" | "provider" | "validation";
+
+// Completeness summary added by Core after identity resolution and provider execution.
+export interface MediaAvailabilityState {
+  status: MediaAvailabilityStatus;
+  degradedBy?: MediaAvailabilityDegradation[];
+}
+
 // Top-level normalized availability result for one streaming lookup.
 // Верхнеуровневый нормализованный результат доступности для streaming-запроса.
 export interface MediaAvailability {
   query: StreamQuery;
+  // Provider results may omit this; Core responses always include it on complete snapshots.
+  state?: MediaAvailabilityState;
   item?: StreamMediaItem;
   seasons?: StreamSeasonAvailability[];
   episodes?: StreamEpisodeAvailability[];

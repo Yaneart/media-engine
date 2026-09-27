@@ -45,6 +45,8 @@ Streaming data is deliberately separate from metadata.
 
 `MediaAvailability` identifies the requested media and contains:
 
+- an engine completeness state: `complete`, confirmed `empty`, or `degraded` by identity,
+  provider execution, or stream validation;
 - top-level player or stream options;
 - optional episode-level option groups;
 - provider execution metadata.
@@ -59,6 +61,10 @@ A `StreamOption` can describe:
 - episode reference;
 - expiry time;
 - provider source and availability status.
+
+Equivalent playback targets are deduplicated without combining `embed` with HLS/MP4. Each merged
+option retains every provider observation in `attributions`, while `provider` remains the primary
+backward-compatible attribution.
 
 Optional fields are omitted when an upstream source does not provide trustworthy data. The model avoids inventing language, quality, or availability guarantees.
 

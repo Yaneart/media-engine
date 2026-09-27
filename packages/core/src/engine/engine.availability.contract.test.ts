@@ -27,6 +27,7 @@ test("getAvailability counts a null provider result as a successful no-result", 
     successful: ["empty-stream"],
     failed: [],
   });
+  assert.deepEqual(availability.state, { status: "empty" });
 });
 
 test("getAvailability keeps a null success when another provider fails retryably", async () => {
@@ -58,6 +59,10 @@ test("getAvailability keeps a null success when another provider fails retryably
   assert.deepEqual(availability.meta?.providers.successful, ["empty-stream"]);
   assert.equal(availability.meta?.providers.failed[0]?.provider, "failing-stream");
   assert.equal(availability.meta?.providers.failed[0]?.retryable, true);
+  assert.deepEqual(availability.state, {
+    status: "degraded",
+    degradedBy: ["provider"],
+  });
 });
 
 test("getAvailability retries a null plus transient failure before caching recovery", async () => {
@@ -100,6 +105,10 @@ test("getAvailability retries a null plus transient failure before caching recov
 
   assert.deepEqual(first.options, []);
   assert.equal(first.meta?.cached, false);
+  assert.deepEqual(first.state, {
+    status: "degraded",
+    degradedBy: ["provider"],
+  });
   assert.equal(second.options.length, 1);
   assert.equal(second.meta?.cached, false);
   assert.equal(third.meta?.cached, true);
@@ -139,9 +148,88 @@ test("getAvailability warns and retries options with unknown validation state", 
       message: "One or more discovered player options could not be validated reliably.",
     },
   ]);
+  assert.deepEqual(first.state, {
+    status: "degraded",
+    degradedBy: ["validation"],
+  });
   assert.equal(first.meta?.cached, false);
   assert.equal(second.options[0]?.availability, "available");
   assert.equal(second.meta?.cached, false);
   assert.equal(third.meta?.cached, true);
   assert.equal(calls, 2);
+});
+
+test("getAvailability exposes unresolved provider identity as degraded instead of empty", async () => {
+  let calls = 0;
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({
+        name: "kinopoisk-only",
+        capabilities: {
+          mediaTypes: ["anime"],
+          lookup: {
+            byTitle: false,
+            byExternalIds: ["kinopoisk"],
+            byEpisode: true,
+          },
+        },
+        async getAvailability(query) {
+          calls += 1;
+          return createAvailability(query, "kinopoisk-only");
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    title: "Unknown mapping",
+    ids: { aniList: "1" },
+  });
+
+  assert.equal(calls, 0);
+  assert.deepEqual(availability.options, []);
+  assert.deepEqual(availability.state, {
+    status: "degraded",
+    degradedBy: ["identity"],
+  });
+  assert.equal(availability.meta?.warnings?.[0]?.code, "STREAM_IDENTITY_DEGRADED");
+});
+
+test("getAvailability deduplicates equivalent targets with complete attribution", async () => {
+  const provider = (name: string, kind: "embed" | "hls" | "mp4") =>
+    createStreamingProvider({
+      name,
+      async getAvailability(query) {
+        const availability = createAvailability(query, name);
+        availability.episodes = undefined;
+        availability.options[0]!.player.kind = kind;
+        availability.options[0]!.access.url = "https://shared.test/play";
+        return availability;
+      },
+    });
+  const engine = new MediaEngine({
+    streamingProviders: [
+      provider("embed-a", "embed"),
+      provider("embed-b", "embed"),
+      provider("direct-hls", "hls"),
+      provider("direct-mp4", "mp4"),
+    ],
+  });
+
+  const availability = await engine.getAvailability({ type: "anime", title: "Shared" });
+
+  assert.equal(availability.options.length, 3);
+  assert.deepEqual(
+    availability.options.map((option) => option.player.kind),
+    ["embed", "hls", "mp4"],
+  );
+  assert.deepEqual(availability.options[0]?.attributions, [
+    { provider: "embed-a", optionId: "embed-a:episode-1:embed" },
+    { provider: "embed-b", optionId: "embed-b:episode-1:embed" },
+  ]);
+  assert.deepEqual(
+    availability.sourceProviders.map((source) => source.provider),
+    ["embed-a", "embed-b", "direct-hls", "direct-mp4"],
+  );
 });
