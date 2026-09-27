@@ -7,12 +7,22 @@ x-node-dev-service: &node-dev-service
   volumes:
     - .:/workspace
     # Keep the dependency tree on the Linux filesystem. Reading thousands of package files from a
-    # Windows bind mount makes every cold Nest/Vite start take minutes.
+    # Windows bind mount makes every cold Nest/Vite start take minutes. The bootstrap uses pnpm's
+    # hoisted linker so no package-level node_modules links leak back into the host bind mount.
     - workspace-node-modules:/workspace/node_modules
+    # Empty Linux volumes mask host package-level node_modules. This prevents pnpm's container
+    # cleanup from deleting Windows workspace links while the hoisted root provides all modules.
+    - workspace-providers-node-modules:/workspace/packages/providers/node_modules
+    - workspace-sdk-node-modules:/workspace/packages/sdk/node_modules
+    - workspace-api-node-modules:/workspace/apps/api/node_modules
+    - workspace-example-node-modules:/workspace/apps/example/node_modules
 
 services:
   workspace-bootstrap:
     <<: *node-dev-service
+    # Named dependency volumes are created as root-owned by Docker. Only the one-shot installer
+    # needs write access; the long-running API and example remain on the unprivileged UID/GID.
+    user: "0:0"
     restart: "no"
     command:
       - /bin/sh
@@ -23,12 +33,20 @@ services:
         corepack enable --install-directory /tmp/corepack-bin
         export PATH="/tmp/corepack-bin:$$PATH"
 
-        dependency_hash="$$(sha256sum pnpm-lock.yaml package.json pnpm-workspace.yaml packages/*/package.json apps/*/package.json | sha256sum | cut -d ' ' -f 1)"
+        dependency_hash="$$( { printf '%s\n' 'hoisted-v1'; sha256sum pnpm-lock.yaml package.json pnpm-workspace.yaml packages/*/package.json apps/*/package.json; } | sha256sum | cut -d ' ' -f 1)"
         dependency_marker="node_modules/.media-engine-dependency-hash"
-        if [ ! -f "$$dependency_marker" ] || [ "$$(cat "$$dependency_marker")" != "$$dependency_hash" ]; then
-          pnpm install --frozen-lockfile --force
+        if [ ! -f "$$dependency_marker" ] || \
+          [ "$$(cat "$$dependency_marker")" != "$$dependency_hash" ] || \
+          [ ! -e node_modules/.bin/nest ] || \
+          [ ! -e node_modules/.bin/vite ]; then
+          pnpm install --frozen-lockfile --force --config.node-linker=hoisted
           printf '%s\n' "$$dependency_hash" > "$$dependency_marker"
         fi
+
+        mkdir -p node_modules/@media-engine
+        ln -sfn ../../packages/core node_modules/@media-engine/core
+        ln -sfn ../../packages/providers node_modules/@media-engine/providers
+        ln -sfn ../../packages/sdk node_modules/@media-engine/sdk
 
         if [ ! -f packages/core/dist/index.js ] || [ ! -f packages/providers/dist/index.js ] || [ ! -f packages/sdk/dist/index.js ]; then
           pnpm --filter @media-engine/core build
@@ -87,7 +105,7 @@ services:
     networks:
       - default
       - original-torrent-runtime
-    command: npm --prefix apps/api run start:dev
+    command: /bin/sh -lc "cd apps/api && ../../node_modules/.bin/nest start --watch"
     healthcheck:
       test:
         - CMD
@@ -158,7 +176,7 @@ services:
       VITE_MEDIA_ENGINE_API_URL: http://127.0.0.1:3000
       MEDIA_ENGINE_ORIGINAL_TORRENT_API_URL: http://api:3000
       MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN: ${MEDIA_ENGINE_ORIGINAL_TORRENT_TOKEN:-}
-    command: npm --prefix apps/example run dev -- --host 0.0.0.0
+    command: /bin/sh -lc "cd apps/example && ../../node_modules/.bin/vite --host 0.0.0.0"
     healthcheck:
       test:
         - CMD
@@ -179,3 +197,7 @@ networks:
 volumes:
   torrserver-state:
   workspace-node-modules:
+  workspace-providers-node-modules:
+  workspace-sdk-node-modules:
+  workspace-api-node-modules:
+  workspace-example-node-modules:
