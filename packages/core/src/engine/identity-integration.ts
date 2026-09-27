@@ -1,11 +1,11 @@
 import type { IdentityResolver } from "../identity/index.js";
 import type { ExternalIds, MediaItem, MediaType } from "../media/index.js";
 import { hasSharedStrongId, hasStrongIdConflict } from "../merge/identity.js";
-import type { MergeStrategy } from "../merge/index.js";
+import type { ProviderSearchResult } from "../providers/index.js";
 import type { EngineWarning } from "../response/index.js";
 import type { MediaSearchResult } from "../search/index.js";
+import { SEARCH_CANONICALIZATION_WINDOW } from "./query.js";
 
-const MAX_SEARCH_RESOLUTIONS = 5;
 const MEDIA_TYPES: readonly MediaType[] = ["movie", "series", "anime"];
 
 export function hasIdentitySourceFailure(warnings: readonly EngineWarning[]): boolean {
@@ -71,58 +71,56 @@ export async function resolveItemIdentity<T extends MediaItem>(
   return { ...item, ids: { ...item.ids, ...result.ids } };
 }
 
-export async function resolveSearchIdentities(
-  results: MediaSearchResult[],
+export async function canonicalizeSearchCandidateWindow(
+  providerResults: ProviderSearchResult[],
+  candidates: MediaSearchResult[],
   resolver: IdentityResolver | undefined,
   signal: AbortSignal | undefined,
   warnings: EngineWarning[],
-  mergeStrategy: MergeStrategy,
-  language?: string,
-): Promise<MediaSearchResult[]> {
-  if (!resolver) return results;
-  const enriched = await Promise.all(
-    results.map(async (result, index) =>
-      index < MAX_SEARCH_RESOLUTIONS
-        ? { ...result, item: await resolveItemIdentity(result.item, resolver, signal, warnings) }
-        : result,
-    ),
+): Promise<ProviderSearchResult[]> {
+  if (!resolver) return providerResults;
+  const resolvedCandidates = await Promise.all(
+    candidates.slice(0, SEARCH_CANONICALIZATION_WINDOW).map(async (candidate) => ({
+      candidate,
+      resolved: await resolveItemIdentity(candidate.item, resolver, signal, warnings),
+    })),
   );
-  const merged: MediaSearchResult[] = [];
-  for (const result of enriched) {
-    const existing = merged.find(
-      (candidate) =>
-        candidate.item.type === result.item.type &&
-        hasSharedStrongId(candidate.item.ids, result.item.ids) &&
-        !hasStrongIdConflict(candidate.item.ids, result.item.ids),
-    );
-    if (!existing) {
-      merged.push(result);
-      continue;
-    }
-    const combined = mergeStrategy.mergeSearchResults(
-      [existing, result].map((entry) => ({
-        provider: entry.sources[0]?.provider ?? "identity",
-        item: entry.item,
-      })),
-      { language },
-    );
-    if (combined.length !== 1) {
-      merged.push(result);
-      continue;
-    }
-    existing.item = { ...combined[0]!.item, id: existing.item.id };
-    existing.sources = [
-      ...existing.sources,
-      ...result.sources.filter(
+  let changed = false;
+
+  const canonical = providerResults.map((result) => {
+    const match = resolvedCandidates.find(({ candidate }) =>
+      candidate.sources.some(
         (source) =>
-          !existing.sources.some(
-            (known) =>
-              known.provider === source.provider &&
-              known.url === source.url &&
-              JSON.stringify(known.ids ?? {}) === JSON.stringify(source.ids ?? {}),
-          ),
+          source.provider === (result.source?.provider ?? result.provider) &&
+          (hasSharedStrongId(source.ids, result.item.ids) ||
+            (candidate.item.id === result.item.id &&
+              candidate.item.type === result.item.type &&
+              candidate.sources[0]?.provider === result.provider)),
       ),
-    ];
-  }
-  return merged;
+    );
+
+    if (!match || hasStrongIdConflict(result.item.ids, match.resolved.ids)) {
+      return result;
+    }
+
+    const identityChanged = Object.entries(match.resolved.ids ?? {}).some(
+      ([namespace, value]) => result.item.ids?.[namespace as keyof ExternalIds] !== value,
+    );
+
+    if (!identityChanged) {
+      return result;
+    }
+
+    changed = true;
+
+    return {
+      ...result,
+      item: {
+        ...result.item,
+        ids: { ...result.item.ids, ...match.resolved.ids },
+      },
+    };
+  });
+
+  return changed ? canonical : providerResults;
 }

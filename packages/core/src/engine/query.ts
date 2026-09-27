@@ -39,6 +39,9 @@ const SEARCH_JOINED_FALLBACK_MAX_LENGTH = 8;
 const SEARCH_JOINED_FALLBACK_MIN_PART_LENGTH = 3;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_SEARCH_WINDOW = 250;
+// Keeps identity work stable across public page sizes without making it unbounded.
+// Стабилизирует identity work между размерами публичной страницы, не делая его безграничным.
+export const SEARCH_CANONICALIZATION_WINDOW = 12;
 const MAX_TORRENT_LIMIT = 100;
 const MAX_RELATED_MEDIA_LIMIT = 100;
 const MAX_TORRENT_ALTERNATIVE_TITLES = 20;
@@ -653,7 +656,10 @@ function getProviderSearchLimit(query: SearchQuery): number {
     return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(requestedWindow * 10, 50));
   }
 
-  return Math.min(MAX_PROVIDER_SEARCH_LIMIT, Math.max(requestedWindow * 5, 10));
+  return Math.min(
+    MAX_PROVIDER_SEARCH_LIMIT,
+    Math.max(requestedWindow * 5, SEARCH_CANONICALIZATION_WINDOW),
+  );
 }
 
 // Detects searches like "one" or "game" where popular canonical results may be deeper.

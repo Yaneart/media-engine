@@ -98,7 +98,7 @@ test("search canonicalizes equivalent shortcut and nested ID queries into one ca
   assert.deepEqual(receivedQuery, {
     title: "Interstellar",
     ids: { imdb: "tt0816692", tmdb: "157336" },
-    limit: 10,
+    limit: 12,
     language: "en-us",
   });
   assert.deepEqual(first.query, {
@@ -360,7 +360,7 @@ test("search widens provider limit before applying public response limit", async
 
   const response = await engine.search({ title: "Interstellar", limit: 1 });
 
-  assert.equal(receivedLimit, 10);
+  assert.equal(receivedLimit, 12);
   assert.equal(response.results.length, 1);
   assert.equal(response.results[0]?.item.title, "Interstellar");
 });

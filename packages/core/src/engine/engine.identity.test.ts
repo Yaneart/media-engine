@@ -3,11 +3,10 @@ import { test } from "node:test";
 
 import { IdentityResolver, type IdentityResolverSource } from "../identity/index.js";
 import { MemoryCache } from "../cache/index.js";
-import { DefaultMergeStrategy } from "../merge/index.js";
 import {
+  canonicalizeSearchCandidateWindow,
   resolveItemIdentity,
   resolveQueryIdentity,
-  resolveSearchIdentities,
 } from "./identity-integration.js";
 import type { EngineWarning } from "../response/index.js";
 import type { MediaAvailability } from "../streaming/index.js";
@@ -304,7 +303,7 @@ test("untyped details do not guess when more than one media type is confirmed", 
   assert.equal(await resolveQueryIdentity(query, new IdentityResolver([source])), query);
 });
 
-test("search identity work is bounded and conflicting IDs stay separate", async () => {
+test("search identity work uses a fixed candidate window and preserves conflicts", async () => {
   let calls = 0;
   const source: IdentityResolverSource = {
     name: "bounded-map",
@@ -314,7 +313,7 @@ test("search identity work is bounded and conflicting IDs stay separate", async 
       return [];
     },
   };
-  const results = Array.from({ length: 8 }, (_, index) => ({
+  const results = Array.from({ length: 15 }, (_, index) => ({
     item: {
       id: `card-${index}`,
       type: "movie" as const,
@@ -327,36 +326,46 @@ test("search identity work is bounded and conflicting IDs stay separate", async 
     score: 1,
     sources: [{ provider: `provider-${index}` }],
   }));
-  const merged = await resolveSearchIdentities(
+  const providerResults = results.map((result, index) => ({
+    provider: `provider-${index}`,
+    item: result.item,
+  }));
+  const canonical = await canonicalizeSearchCandidateWindow(
+    providerResults,
     results,
     new IdentityResolver([source]),
     undefined,
     [],
-    new DefaultMergeStrategy(),
   );
-  assert.equal(calls, 5);
+  assert.equal(calls, 12);
   assert.equal(
-    merged.some((result) => result.item.ids?.kinopoisk === "999"),
+    canonical.some((result) => result.item.ids?.kinopoisk === "999"),
     true,
   );
-  assert.equal(merged.length, 8);
-  const conflicting = await resolveSearchIdentities(
-    [
-      {
-        ...results[0]!,
-        item: { ...results[0]!.item, ids: { imdb: "tt0816692", kinopoisk: "258687" } },
-      },
-      {
-        ...results[1]!,
-        item: { ...results[1]!.item, ids: { imdb: "tt0816692", kinopoisk: "999" } },
-      },
-    ],
+  assert.equal(canonical.length, 15);
+  const conflictingProviders = [
+    {
+      provider: "provider-0",
+      item: { ...results[0]!.item, ids: { imdb: "tt0816692", kinopoisk: "258687" } },
+    },
+    {
+      provider: "provider-1",
+      item: { ...results[1]!.item, ids: { imdb: "tt0816692", kinopoisk: "999" } },
+    },
+  ];
+  const conflicting = await canonicalizeSearchCandidateWindow(
+    conflictingProviders,
+    conflictingProviders.map(({ provider, item }) => ({
+      item,
+      score: 1,
+      sources: [{ provider, ids: item.ids }],
+    })),
     new IdentityResolver([mapping]),
     undefined,
     [],
-    new DefaultMergeStrategy(),
   );
   assert.equal(conflicting.length, 2);
+  assert.equal(conflicting[1]?.item.ids?.kinopoisk, "999");
 });
 
 test("torrent discovery uses a verified ID when a provider needs it", async () => {
@@ -445,15 +454,15 @@ test("optional identity resolution preserves input and deduplicates source warni
     tmdb: "157336",
   });
   const searchResults = [{ item, score: 1, sources: [{ provider: "test-provider" }] }];
-  assert.equal(
-    await resolveSearchIdentities(
+  assert.deepEqual(
+    await canonicalizeSearchCandidateWindow(
+      [{ provider: "test-provider", item }],
       searchResults,
       undefined,
       undefined,
       [],
-      new DefaultMergeStrategy(),
     ),
-    searchResults,
+    [{ provider: "test-provider", item }],
   );
 
   const failing: IdentityResolverSource = {

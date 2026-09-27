@@ -100,9 +100,9 @@ import { executeTorrentDiscovery } from "./torrents.js";
 import { mergeRelatedMediaResults } from "./related-media.js";
 import { loadWithStaleFallback } from "./stale-fallback.js";
 import {
+  canonicalizeSearchCandidateWindow,
   hasIdentitySourceFailure,
   resolveItemIdentity,
-  resolveSearchIdentities,
   resolveQueryIdentity,
 } from "./identity-integration.js";
 import { ProviderTimeoutBudget } from "./timeout-budget.js";
@@ -414,14 +414,46 @@ export class MediaEngine {
         });
       }
 
-      const preliminaryDiscoveryResults = results;
+      let rankedDiscoveryResults =
+        this.mergeStrategy instanceof DefaultMergeStrategy
+          ? this.mergeStrategy.mergeSearchResults(providerResults, {
+              query: normalizedQuery,
+              language: searchLanguage,
+              debug: this.debug,
+            })
+          : results;
+      const identityCandidates =
+        this.mergeStrategy instanceof DefaultMergeStrategy
+          ? createFrozenDiscoveryResults(rankedDiscoveryResults, results)
+          : results;
+      const canonicalProviderResults = await canonicalizeSearchCandidateWindow(
+        providerResults,
+        identityCandidates,
+        this.identityResolver,
+        operationSignal,
+        warnings,
+      );
 
-      if (this.mergeStrategy instanceof DefaultMergeStrategy) {
-        const rankedDiscoveryResults = this.mergeStrategy.mergeSearchResults(providerResults, {
+      if (canonicalProviderResults !== providerResults) {
+        results = this.mergeStrategy.mergeSearchResults(canonicalProviderResults, {
           query: normalizedQuery,
           language: searchLanguage,
           debug: this.debug,
+          includeIrrelevantSearchResults: true,
         });
+        rankedDiscoveryResults =
+          this.mergeStrategy instanceof DefaultMergeStrategy
+            ? this.mergeStrategy.mergeSearchResults(canonicalProviderResults, {
+                query: normalizedQuery,
+                language: searchLanguage,
+                debug: this.debug,
+              })
+            : results;
+      }
+
+      const preliminaryDiscoveryResults = results;
+
+      if (this.mergeStrategy instanceof DefaultMergeStrategy) {
         results = createFrozenDiscoveryResults(rankedDiscoveryResults, results);
       }
 
@@ -506,18 +538,9 @@ export class MediaEngine {
         normalizedQuery.limit === undefined
           ? visibleResults
           : visibleResults.slice(offset, offset + normalizedQuery.limit);
-      const resolvedResults = await resolveSearchIdentities(
-        limitedResults,
-        this.identityResolver,
-        operationSignal,
-        warnings,
-        this.mergeStrategy,
-        searchLanguage,
-      );
-
       const response: SearchResponse = {
         query: normalizedQuery,
-        results: resolvedResults,
+        results: limitedResults,
         meta: createResponseMeta({
           requested,
           successful,
