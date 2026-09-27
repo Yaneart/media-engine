@@ -241,7 +241,9 @@ function isRequestedCatalogItem(
   item: VeoVeoCatalogItem,
   query: MediaAvailability["query"],
 ): boolean {
-  if (query.type === "movie") return item.seasonNumber === 0;
+  if (query.type === "movie" || (query.type === "anime" && query.animeKind === "movie")) {
+    return item.seasonNumber === 0;
+  }
   return item.seasonNumber === query.seasonNumber && item.episodeNumber === query.episodeNumber;
 }
 

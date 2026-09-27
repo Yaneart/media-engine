@@ -33,6 +33,23 @@ test("mapVeoVeoAvailability maps direct HTTPS HLS movie variants only", () => {
   assert.equal(result?.options[0]?.expiresAt, expiresAt);
 });
 
+test("mapVeoVeoAvailability preserves anime movie identity for direct HLS", () => {
+  const result = mapVeoVeoAvailability(
+    "veoveo-streaming",
+    "31869",
+    [createItem(0, 0, [{ title: "1080p", url: "https://cdn.test/anime/master.m3u8" }])],
+    { type: "anime", animeKind: "movie", ids: { kinopoisk: "370" } },
+    { source: "kinopoisk", id: "370" },
+    sourceUrl,
+    expiresAt,
+    checkedAt,
+  );
+
+  assert.equal(result?.item?.type, "anime");
+  assert.equal(result?.options[0]?.player.kind, "hls");
+  assert.equal(result?.episodes, undefined);
+});
+
 test("mapVeoVeoAvailability selects an exact series episode and merges duplicate rows", () => {
   const result = mapVeoVeoAvailability(
     "veoveo-streaming",

@@ -221,6 +221,7 @@ test("getAvailability serializes streaming query params", async () => {
 
   const result = await client.getAvailability({
     type: "anime",
+    animeKind: "tv",
     title: " Naruto ",
     shikimori: "20",
     absoluteEpisodeNumber: 1,
@@ -232,6 +233,7 @@ test("getAvailability serializes streaming query params", async () => {
   assert.equal(mock.calls[0]?.pathname, "/media/availability");
   assert.equal(mock.calls[0]?.searchParams.get("title"), "Naruto");
   assert.equal(mock.calls[0]?.searchParams.get("type"), "anime");
+  assert.equal(mock.calls[0]?.searchParams.get("animeKind"), "tv");
   assert.equal(mock.calls[0]?.searchParams.get("shikimori"), "20");
   assert.equal(mock.calls[0]?.searchParams.get("absoluteEpisodeNumber"), "1");
   assert.deepEqual(mock.calls[0]?.searchParams.getAll("providers"), [

@@ -58,9 +58,10 @@ export function veoVeoStreamingProvider(
 }
 
 function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>[0]): boolean {
-  if (query.type !== "movie" && query.type !== "series") return false;
+  const isMovie = query.type === "movie" || (query.type === "anime" && query.animeKind === "movie");
+  if (!isMovie && query.type !== "series") return false;
   if (query.absoluteEpisodeNumber !== undefined) return false;
-  if (query.type === "movie") {
+  if (isMovie) {
     return query.seasonNumber === undefined && query.episodeNumber === undefined;
   }
   return query.episodeNumber === undefined || query.seasonNumber !== undefined;

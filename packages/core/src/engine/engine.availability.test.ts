@@ -93,6 +93,71 @@ test("getAvailability merges multiple streaming provider results", async () => {
   assert.deepEqual(availability.meta?.providers.failed, []);
 });
 
+test("getAvailability routes movie-only direct providers by confirmed anime kind", async () => {
+  let identityLookups = 0;
+  const directCapabilities = {
+    mediaTypes: ["anime" as const],
+    animeKinds: ["movie" as const],
+    lookup: { byTitle: false, byExternalIds: ["kinopoisk" as const], byEpisode: false },
+    features: ["hls" as const],
+  };
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        async search() {
+          identityLookups += 1;
+          return [];
+        },
+      }),
+    ],
+    streamingProviders: [
+      createStreamingProvider({ name: "anime-embed" }),
+      createStreamingProvider({ name: "movie-hls", capabilities: directCapabilities }),
+      createStreamingProvider({
+        name: "movie-mp4",
+        capabilities: { ...directCapabilities, features: ["mp4"] },
+      }),
+    ],
+  });
+  const identity = { title: "Anime", ids: { kinopoisk: "1" } };
+
+  for (const animeKind of [undefined, "tv" as const]) {
+    const availability = await engine.getAvailability({
+      type: "anime",
+      ...(animeKind ? { animeKind } : {}),
+      ...identity,
+    });
+    assert.deepEqual(availability.meta?.providers.requested, ["anime-embed"]);
+  }
+
+  const episodicWithoutCinemaIds = await engine.getAvailability({
+    type: "anime",
+    animeKind: "tv",
+    title: "Frieren",
+  });
+  assert.deepEqual(episodicWithoutCinemaIds.meta?.providers.requested, ["anime-embed"]);
+  assert.equal(identityLookups, 0);
+
+  const movie = await engine.getAvailability({ type: "anime", animeKind: "movie", ...identity });
+  assert.deepEqual(movie.meta?.providers.requested, ["anime-embed", "movie-hls", "movie-mp4"]);
+  assert.equal(movie.query.animeKind, "movie");
+});
+
+test("getAvailability rejects anime kind on non-anime queries", async () => {
+  await assert.rejects(
+    () =>
+      new MediaEngine().getAvailability({
+        type: "movie",
+        animeKind: "movie",
+        title: "Movie",
+      }),
+    {
+      code: "INVALID_QUERY",
+      message: "Stream query animeKind is only valid for anime.",
+    },
+  );
+});
+
 test("getAvailability derives episode groups from top-level episode options", async () => {
   const engine = new MediaEngine({
     streamingProviders: [

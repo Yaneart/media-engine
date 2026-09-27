@@ -9,12 +9,13 @@ test("videoHubStreamingProvider exposes direct Kinopoisk MP4 capabilities", () =
   assert.equal(provider.name, "videohub-streaming");
   assert.deepEqual(provider.capabilities, {
     mediaTypes: ["movie", "series", "anime"],
+    animeKinds: ["movie"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk"],
       byEpisode: true,
     },
-    features: ["mp4", "translations", "qualities", "episode_mapping", "episode_catalog", "headers"],
+    features: ["mp4", "translations", "qualities", "episode_mapping", "headers"],
   });
 });
 

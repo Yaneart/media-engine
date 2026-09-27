@@ -31,6 +31,10 @@ export function selectStreamingProviders(
       return false;
     }
 
+    if (!supportsStreamRelease(provider, query)) {
+      return false;
+    }
+
     if (hasEpisodeQuery(query) && !provider.capabilities.lookup.byEpisode) {
       return false;
     }
@@ -53,6 +57,7 @@ export function getMissingStreamingIdentitySources(
   for (const provider of providers) {
     if (query.providers && !query.providers.includes(provider.name)) continue;
     if (!provider.capabilities.mediaTypes.includes(query.type)) continue;
+    if (!supportsStreamRelease(provider, query)) continue;
     if (hasEpisodeQuery(query) && !provider.capabilities.lookup.byEpisode) continue;
     if (query.title && provider.capabilities.lookup.byTitle) continue;
     if (hasSupportedExternalId(query.ids, provider.capabilities.lookup.byExternalIds)) continue;
@@ -63,6 +68,17 @@ export function getMissingStreamingIdentitySources(
   }
 
   return [...missing];
+}
+
+// Requires an explicit, confirmed anime release kind for shape-restricted providers.
+function supportsStreamRelease(provider: StreamingProvider, query: StreamQuery): boolean {
+  const animeKinds = provider.capabilities.animeKinds;
+
+  return (
+    query.type !== "anime" ||
+    animeKinds === undefined ||
+    (query.animeKind !== undefined && animeKinds.includes(query.animeKind))
+  );
 }
 
 // Adds only unambiguous IDs from metadata search candidates confirmed as the same media identity.

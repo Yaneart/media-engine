@@ -123,6 +123,7 @@ export function normalizeStreamQuery(query: StreamQuery): StreamQuery {
 
   return {
     type: query.type,
+    ...(query.animeKind ? { animeKind: query.animeKind } : {}),
     ...(ids ? { ids } : {}),
     ...(title ? { title } : {}),
     ...(query.year !== undefined ? { year: query.year } : {}),
@@ -282,6 +283,10 @@ export function validateStreamQuery(query: StreamQuery): void {
       code: "INVALID_QUERY",
       message: "Stream query type is required.",
     });
+  }
+
+  if (query.animeKind !== undefined && query.type !== "anime") {
+    throwInvalidQuery("Stream query animeKind is only valid for anime.");
   }
 
   if (query.providers && query.providers.length > MAX_PROVIDER_FILTERS) {

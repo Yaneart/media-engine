@@ -132,6 +132,12 @@ test("returns safe streaming provider info", () => {
         name: "streaming-secret-provider",
         version: "1.0.0",
         secret: "hidden",
+        capabilities: {
+          mediaTypes: ["anime"],
+          animeKinds: ["movie"],
+          lookup: { byTitle: true, byExternalIds: ["shikimori"], byEpisode: true },
+          features: ["embed", "translations", "qualities", "episode_mapping"],
+        },
       }),
     ],
   });
@@ -143,6 +149,7 @@ test("returns safe streaming provider info", () => {
       kind: "streaming",
       capabilities: {
         mediaTypes: ["anime"],
+        animeKinds: ["movie"],
         lookup: {
           byTitle: true,
           byExternalIds: ["shikimori"],
@@ -156,11 +163,13 @@ test("returns safe streaming provider info", () => {
 
   const providerInfo = engine.getStreamingProviders()[0]!;
   providerInfo.capabilities.mediaTypes.push("movie");
+  providerInfo.capabilities.animeKinds?.push("tv");
   providerInfo.capabilities.lookup.byExternalIds.push("imdb");
   providerInfo.capabilities.features?.push("hls");
 
   assert.deepEqual(engine.getStreamingProviders()[0]?.capabilities, {
     mediaTypes: ["anime"],
+    animeKinds: ["movie"],
     lookup: {
       byTitle: true,
       byExternalIds: ["shikimori"],

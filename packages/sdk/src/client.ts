@@ -241,6 +241,7 @@ function appendQuery(
     "alternativeTitles" in query ? query.alternativeTitles : undefined,
   );
   appendParam(url, "type", query.type);
+  appendParam(url, "animeKind", "animeKind" in query ? query.animeKind : undefined);
   appendParam(url, "year", "year" in query ? query.year : undefined);
   appendParam(url, "genre", "genre" in query ? query.genre : undefined);
   appendParam(url, "minimumRating", "minimumRating" in query ? query.minimumRating : undefined);

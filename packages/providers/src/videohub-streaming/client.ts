@@ -264,12 +264,12 @@ export function selectVideoHubPlaylistItems(
   playlist: VideoHubPlaylist,
   query: MediaAvailability["query"],
 ): VideoHubPlaylistItem[] {
-  if (query.type === "movie") return playlist.isSerial ? [] : playlist.items;
-  if (!playlist.isSerial) return [];
+  if (query.type === "movie" || (query.type === "anime" && query.animeKind === "movie")) {
+    return playlist.isSerial ? [] : playlist.items;
+  }
+  if (query.type === "anime" || !playlist.isSerial) return [];
 
-  const items = query.type === "anime" ? addAbsoluteEpisodeNumbers(playlist.items) : playlist.items;
-
-  return items.filter((item) => {
+  return playlist.items.filter((item) => {
     if (query.seasonNumber !== undefined && item.seasonNumber !== query.seasonNumber) {
       return false;
     }
@@ -281,38 +281,6 @@ export function selectVideoHubPlaylistItems(
       item.absoluteEpisodeNumber === query.absoluteEpisodeNumber
     );
   });
-}
-
-function addAbsoluteEpisodeNumbers(items: VideoHubPlaylistItem[]): VideoHubPlaylistItem[] {
-  const episodeKeys = [
-    ...new Set(
-      items.flatMap((item) => {
-        if (
-          item.seasonNumber === undefined ||
-          item.seasonNumber === 0 ||
-          item.episodeNumber === undefined
-        )
-          return [];
-        return [`${item.seasonNumber}:${item.episodeNumber}`];
-      }),
-    ),
-  ].sort(compareEpisodeKeys);
-  const absoluteByEpisode = new Map(episodeKeys.map((key, index) => [key, index + 1] as const));
-
-  return items.flatMap((item) => {
-    if (item.seasonNumber === undefined || item.episodeNumber === undefined) return [];
-    if (item.seasonNumber === 0) return [item];
-    const absoluteEpisodeNumber = absoluteByEpisode.get(
-      `${item.seasonNumber}:${item.episodeNumber}`,
-    );
-    return absoluteEpisodeNumber === undefined ? [] : [{ ...item, absoluteEpisodeNumber }];
-  });
-}
-
-function compareEpisodeKeys(left: string, right: string): number {
-  const [leftSeason = 0, leftEpisode = 0] = left.split(":").map(Number);
-  const [rightSeason = 0, rightEpisode = 0] = right.split(":").map(Number);
-  return leftSeason - rightSeason || leftEpisode - rightEpisode;
 }
 
 async function loadVideoHubSources(

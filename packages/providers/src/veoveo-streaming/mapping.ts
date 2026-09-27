@@ -17,7 +17,7 @@ export function mapVeoVeoAvailability(
   expiresAt: string,
   checkedAt: string,
 ): MediaAvailability | null {
-  if (query.type === "movie") {
+  if (query.type === "movie" || (query.type === "anime" && query.animeKind === "movie")) {
     const options = selectItems(catalog, 0).flatMap((item) =>
       mapItemOptions(provider, contentId, item, sourceUrl, expiresAt),
     );

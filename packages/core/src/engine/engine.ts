@@ -163,6 +163,9 @@ export class MediaEngine {
       kind: provider.kind,
       capabilities: {
         mediaTypes: [...provider.capabilities.mediaTypes],
+        ...(provider.capabilities.animeKinds
+          ? { animeKinds: [...provider.capabilities.animeKinds] }
+          : {}),
         lookup: {
           byTitle: provider.capabilities.lookup.byTitle,
           byExternalIds: [...provider.capabilities.lookup.byExternalIds],

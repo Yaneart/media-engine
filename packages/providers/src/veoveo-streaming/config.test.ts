@@ -8,7 +8,8 @@ test("veoVeoStreamingProvider exposes direct external-ID HLS capabilities", () =
 
   assert.equal(provider.name, "veoveo-streaming");
   assert.deepEqual(provider.capabilities, {
-    mediaTypes: ["movie", "series"],
+    mediaTypes: ["movie", "series", "anime"],
+    animeKinds: ["movie"],
     lookup: { byTitle: false, byExternalIds: ["kinopoisk", "imdb"], byEpisode: true },
     features: ["hls", "translations", "qualities", "episode_mapping"],
   });

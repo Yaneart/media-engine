@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
+  type AnimeKind,
   type DetailsQuery,
   type DetailsResponse,
   type ExternalIds,
@@ -218,6 +219,7 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
   const title = readString(query.title);
   const language = readString(query.language);
   const type = readMediaType(query.type);
+  const animeKind = readAnimeKind(query.animeKind);
   const year = readInteger(query.year, 'year');
   const seasonNumber = readInteger(query.seasonNumber, 'seasonNumber');
   const episodeNumber = readInteger(query.episodeNumber, 'episodeNumber');
@@ -232,6 +234,10 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
   }
 
   const streamQuery: StreamQuery = { type };
+
+  if (animeKind !== undefined) {
+    streamQuery.animeKind = animeKind;
+  }
 
   if (title !== undefined) {
     streamQuery.title = title;
@@ -264,6 +270,25 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
   copyExternalIds(query, streamQuery);
 
   return streamQuery;
+}
+
+function readAnimeKind(
+  value: string | string[] | undefined,
+): AnimeKind | undefined {
+  const animeKind = readString(value);
+
+  if (
+    animeKind === undefined ||
+    ['tv', 'movie', 'ova', 'ona', 'special', 'music', 'unknown'].includes(
+      animeKind,
+    )
+  ) {
+    return animeKind as AnimeKind | undefined;
+  }
+
+  throw new BadRequestException(
+    'animeKind must be a supported anime release kind.',
+  );
 }
 
 // EN: Read the first string query value and treat blanks as absent.

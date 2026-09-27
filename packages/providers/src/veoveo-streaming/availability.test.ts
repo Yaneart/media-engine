@@ -71,6 +71,42 @@ test("veoVeoStreamingProvider resolves DDBB identity into one exact direct HLS e
   assert.equal(result?.options[0]?.expiresAt, "2026-08-22T12:05:00.000Z");
 });
 
+test("veoVeoStreamingProvider resolves a confirmed anime movie as direct HLS", async () => {
+  const provider = veoVeoStreamingProvider({
+    lookupBaseUrl: "https://lookup.test",
+    streamBaseUrl: "https://veo.test",
+    fetch: async (input) => {
+      const url = new URL(input.toString());
+      if (url.hostname === "lookup.test") {
+        return Response.json({
+          data: [{ type: "VeoVeo", iframeUrl: "https://iframe.test/player?movie_id=370" }],
+        });
+      }
+      if (url.hostname === "cdn.test") {
+        return new Response("#EXTM3U\n#EXT-X-ENDLIST", {
+          headers: { "content-type": "application/vnd.apple.mpegurl" },
+        });
+      }
+      return Response.json([
+        {
+          order: 0,
+          season: { order: 0 },
+          episodeVariants: [{ title: "1080p", filepath: "https://cdn.test/movie.m3u8" }],
+        },
+      ]);
+    },
+  });
+
+  const result = await provider.getAvailability(
+    { type: "anime", animeKind: "movie", ids: { kinopoisk: "370" } },
+    {},
+  );
+
+  assert.equal(result?.item?.type, "anime");
+  assert.equal(result?.options[0]?.player.kind, "hls");
+  assert.equal(result?.episodes, undefined);
+});
+
 test("veoVeoStreamingProvider avoids unsupported and underidentified queries", async () => {
   let calls = 0;
   const provider = veoVeoStreamingProvider({

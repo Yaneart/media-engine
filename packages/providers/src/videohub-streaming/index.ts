@@ -15,7 +15,7 @@ import {
   createVideoHubConfig,
   type VideoHubStreamingProviderOptions,
 } from "./config.js";
-import { mapVideoHubAvailability, mapVideoHubEpisodeCatalog } from "./mapping.js";
+import { mapVideoHubAvailability } from "./mapping.js";
 
 export type { VideoHubStreamingProviderOptions } from "./config.js";
 
@@ -81,24 +81,10 @@ async function* streamVideoHubAvailability(
       progressiveContext,
       playbackUserAgent,
     );
-    if ((query.type !== "movie") !== playlist.isSerial) {
+    if (!isMovieQuery(query) !== playlist.isSerial) {
       yield completeSnapshot(null);
       return;
     }
-    if (isAnimeCatalogQuery(query)) {
-      yield completeSnapshot(
-        mapVideoHubEpisodeCatalog(
-          config.name,
-          kinopoiskId,
-          playlist,
-          query,
-          sourceUrl,
-          config.now(),
-        ),
-      );
-      return;
-    }
-
     for await (const resolution of resolveVideoHubItemsProgressively(
       config,
       playlist,
@@ -151,7 +137,7 @@ function resolvePlaybackUserAgent(context: ProviderContext, fallback: string): s
 }
 
 function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>[0]): boolean {
-  if (query.type === "movie") {
+  if (isMovieQuery(query)) {
     return (
       query.seasonNumber === undefined &&
       query.episodeNumber === undefined &&
@@ -161,20 +147,12 @@ function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>
 
   const hasSeason = isNonNegativeInteger(query.seasonNumber);
   const hasEpisode = isPositiveInteger(query.episodeNumber);
-  const hasAbsoluteEpisode = isPositiveInteger(query.absoluteEpisodeNumber);
 
   if (query.type === "series") {
     return hasSeason && hasEpisode && query.absoluteEpisodeNumber === undefined;
   }
 
-  if (query.type !== "anime" || hasSeason !== hasEpisode) return false;
-  return (
-    (query.seasonNumber === undefined &&
-      query.episodeNumber === undefined &&
-      query.absoluteEpisodeNumber === undefined) ||
-    hasAbsoluteEpisode ||
-    (hasSeason && hasEpisode)
-  );
+  return false;
 }
 
 function isPositiveInteger(value: number | undefined): boolean {
@@ -185,11 +163,6 @@ function isNonNegativeInteger(value: number | undefined): boolean {
   return Number.isInteger(value) && (value ?? -1) >= 0;
 }
 
-function isAnimeCatalogQuery(query: Parameters<StreamingProvider["getAvailability"]>[0]): boolean {
-  return (
-    query.type === "anime" &&
-    query.seasonNumber === undefined &&
-    query.episodeNumber === undefined &&
-    query.absoluteEpisodeNumber === undefined
-  );
+function isMovieQuery(query: Parameters<StreamingProvider["getAvailability"]>[0]): boolean {
+  return query.type === "movie" || (query.type === "anime" && query.animeKind === "movie");
 }

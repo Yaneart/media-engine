@@ -100,7 +100,8 @@ export function createVeoVeoConfig(options: VeoVeoStreamingProviderOptions): Veo
 
 export function createVeoVeoCapabilities(): StreamingProviderCapabilities {
   return {
-    mediaTypes: ["movie", "series"],
+    mediaTypes: ["movie", "series", "anime"],
+    animeKinds: ["movie"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk", "imdb"],

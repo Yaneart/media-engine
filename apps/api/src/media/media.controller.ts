@@ -132,6 +132,11 @@ export class MediaController {
     enum: [...MEDIA_TYPES],
   })
   @ApiQuery({ name: 'title', required: false, type: String })
+  @ApiQuery({
+    name: 'animeKind',
+    required: false,
+    enum: ['tv', 'movie', 'ova', 'ona', 'special', 'music', 'unknown'],
+  })
   @ApiQuery({ name: 'year', required: false, type: Number })
   @ApiQuery({ name: 'seasonNumber', required: false, type: Number })
   @ApiQuery({ name: 'episodeNumber', required: false, type: Number })

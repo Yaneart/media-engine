@@ -472,6 +472,7 @@ describe('MediaController', () => {
       .query({
         title: ' Naruto ',
         type: 'anime',
+        animeKind: 'tv',
         shikimori: ' 20 ',
         absoluteEpisodeNumber: '1',
         providers: 'experimental-streaming,mirror',
@@ -484,6 +485,7 @@ describe('MediaController', () => {
       {
         title: 'Naruto',
         type: 'anime',
+        animeKind: 'tv',
         shikimori: '20',
         absoluteEpisodeNumber: 1,
         providers: ['experimental-streaming', 'mirror'],
@@ -531,6 +533,15 @@ describe('MediaController', () => {
         type: 'anime',
         absoluteEpisodeNumber: 'first',
       })
+      .expect(400);
+
+    expect(mediaEngine.getAvailability).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an unsupported availability anime kind', async () => {
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({ title: 'Naruto', type: 'anime', animeKind: 'seasonal' })
       .expect(400);
 
     expect(mediaEngine.getAvailability).not.toHaveBeenCalled();

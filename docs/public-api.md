@@ -159,6 +159,12 @@ seasons and their seasonal plus absolute episode identities before requesting ex
 Options may describe an embed, HLS, MP4, or external target together with translation, quality,
 subtitle, audio, expiry, and provider metadata when available.
 
+Anime availability queries may carry the confirmed details value as `animeKind`. Providers whose
+`animeKinds` capability is restricted are selected only when that value is present and supported;
+an omitted or `unknown` kind never guesses that episodic anime is a movie. In particular, direct
+movie adapters can serve `{ type: "anime", animeKind: "movie" }` while episodic anime continues
+through anime-compatible providers without movie-only direct lookups.
+
 When a streaming provider requires an external-ID namespace missing from the query, both
 availability operations can resolve it through the engine's configured metadata providers before
 streaming-provider selection. Supply a canonical title and, when no existing ID directly confirms

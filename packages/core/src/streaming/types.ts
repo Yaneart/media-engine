@@ -1,4 +1,4 @@
-import type { ExternalIds, MediaType } from "../media/index.js";
+import type { AnimeKind, ExternalIds, MediaType } from "../media/index.js";
 import type { ExternalIdSource, ProviderContext } from "../providers/index.js";
 import type { ResponseMeta } from "../response/index.js";
 
@@ -6,6 +6,7 @@ import type { ResponseMeta } from "../response/index.js";
 // Запрос, который определяет медиа или эпизод для поиска streaming-вариантов.
 export interface StreamQuery {
   type: MediaType;
+  animeKind?: AnimeKind;
   ids?: ExternalIds;
   imdb?: string;
   tmdb?: string;
@@ -186,6 +187,8 @@ export type StreamingProviderFeature =
 // Возможности, по которым выбираются streaming-провайдеры для stream-запроса.
 export interface StreamingProviderCapabilities {
   mediaTypes: MediaType[];
+  // When present, anime routing requires an explicit matching release kind.
+  animeKinds?: AnimeKind[];
   lookup: {
     byTitle: boolean;
     byExternalIds: ExternalIdSource[];

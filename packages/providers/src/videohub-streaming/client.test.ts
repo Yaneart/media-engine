@@ -110,18 +110,12 @@ test("parseVideoHubSources rejects missing current source containers", () => {
   );
 });
 
-test("selectVideoHubPlaylistItems maps anime absolute episodes across sorted seasons", () => {
+test("selectVideoHubPlaylistItems keeps episodic anime out of the movie adapter", () => {
   const playlist = parseVideoHubPlaylist(
     "videohub-streaming",
     {
       isSerial: true,
-      items: [
-        { season: 0, episode: 1, voiceStudio: "Special", vkId: "401" },
-        { season: 2, episode: 1, voiceStudio: "Dub", vkId: "301" },
-        { season: 1, episode: 2, voiceStudio: "Dub", vkId: "201" },
-        { season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" },
-        { season: 1, episode: 1, voiceStudio: "Sub", vkId: "102" },
-      ],
+      items: [{ season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" }],
     },
     10,
   );
@@ -129,42 +123,9 @@ test("selectVideoHubPlaylistItems maps anime absolute episodes across sorted sea
   assert.deepEqual(
     selectVideoHubPlaylistItems(playlist, {
       type: "anime",
+      animeKind: "tv",
       kinopoisk: "5401195",
       absoluteEpisodeNumber: 1,
-    }),
-    [
-      {
-        seasonNumber: 1,
-        episodeNumber: 1,
-        absoluteEpisodeNumber: 1,
-        voiceStudio: "Dub",
-        vkId: "101",
-      },
-      {
-        seasonNumber: 1,
-        episodeNumber: 1,
-        absoluteEpisodeNumber: 1,
-        voiceStudio: "Sub",
-        vkId: "102",
-      },
-    ],
-  );
-  assert.deepEqual(
-    selectVideoHubPlaylistItems(playlist, {
-      type: "anime",
-      kinopoisk: "5401195",
-      seasonNumber: 2,
-      episodeNumber: 1,
-    }).map((item) => [item.vkId, item.absoluteEpisodeNumber]),
-    [["301", 3]],
-  );
-  assert.deepEqual(
-    selectVideoHubPlaylistItems(playlist, {
-      type: "anime",
-      kinopoisk: "5401195",
-      seasonNumber: 1,
-      episodeNumber: 1,
-      absoluteEpisodeNumber: 2,
     }),
     [],
   );

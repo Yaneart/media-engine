@@ -94,6 +94,14 @@ test("videoHubStreamingProvider resolves a movie and ignores unsupported queries
   assert.equal(result?.options[0]?.quality?.height, 480);
   assert.equal(calls, 2);
 
+  const animeMovie = await provider.getAvailability(
+    { type: "anime", animeKind: "movie", kinopoisk: "258687" },
+    context(),
+  );
+  assert.equal(animeMovie?.item?.type, "anime");
+  assert.equal(animeMovie?.options[0]?.quality?.height, 480);
+  assert.equal(calls, 2);
+
   for (const query of [
     { type: "movie" as const, title: "Interstellar" },
     { type: "series" as const, kinopoisk: "404900" },
@@ -106,7 +114,7 @@ test("videoHubStreamingProvider resolves a movie and ignores unsupported queries
   assert.equal(calls, 2);
 });
 
-test("videoHubStreamingProvider lists anime seasons without resolving episode streams", async () => {
+test("videoHubStreamingProvider skips episodic anime catalogs", async () => {
   const requests: string[] = [];
   const provider = videoHubStreamingProvider({
     baseUrl: "https://videohub.test",
@@ -128,36 +136,19 @@ test("videoHubStreamingProvider lists anime seasons without resolving episode st
   });
 
   const result = await provider.getAvailability(
-    { type: "anime", ids: { kinopoisk: "5401195", aniList: "154587" } },
+    {
+      type: "anime",
+      animeKind: "tv",
+      ids: { kinopoisk: "5401195", aniList: "154587" },
+    },
     context(),
   );
 
-  assert.equal(requests.length, 1);
-  assert.deepEqual(result?.options, []);
-  assert.deepEqual(
-    result?.seasons?.map((season) => [season.seasonNumber, season.episodesCount]),
-    [
-      [0, 1],
-      [1, 2],
-      [2, 1],
-    ],
-  );
-  assert.deepEqual(
-    result?.episodes?.map((episode) => [
-      episode.seasonNumber,
-      episode.episodeNumber,
-      episode.absoluteEpisodeNumber,
-    ]),
-    [
-      [0, 1, undefined],
-      [1, 1, 1],
-      [1, 2, 2],
-      [2, 1, 3],
-    ],
-  );
+  assert.equal(requests.length, 0);
+  assert.equal(result, null);
 });
 
-test("videoHubStreamingProvider resolves an anime absolute episode as a serial playlist", async () => {
+test("videoHubStreamingProvider skips episodic anime playback", async () => {
   const requestedVideos: string[] = [];
   const provider = videoHubStreamingProvider({
     baseUrl: "https://videohub.test",
@@ -187,6 +178,7 @@ test("videoHubStreamingProvider resolves an anime absolute episode as a serial p
   const result = await provider.getAvailability(
     {
       type: "anime",
+      animeKind: "tv",
       title: "Frieren: Beyond Journey's End",
       ids: { aniList: "154587", kinopoisk: "5401195" },
       absoluteEpisodeNumber: 1,
@@ -194,23 +186,8 @@ test("videoHubStreamingProvider resolves an anime absolute episode as a serial p
     context(undefined, "Playback Browser/1.0"),
   );
 
-  assert.deepEqual(requestedVideos, ["101", "102"]);
-  assert.equal(result?.item?.type, "anime");
-  assert.deepEqual(result?.item?.ids, { aniList: "154587", kinopoisk: "5401195" });
-  assert.deepEqual(result?.episodes?.[0], {
-    seasonNumber: 1,
-    episodeNumber: 1,
-    absoluteEpisodeNumber: 1,
-    options: result?.options,
-  });
-  assert.ok(
-    result?.options.every(
-      (option) =>
-        option.episode?.seasonNumber === 1 &&
-        option.episode.episodeNumber === 1 &&
-        option.episode.absoluteEpisodeNumber === 1,
-    ),
-  );
+  assert.deepEqual(requestedVideos, []);
+  assert.equal(result, null);
 });
 
 test("videoHubStreamingProvider rejects type mismatches without resolving video URLs", async () => {
