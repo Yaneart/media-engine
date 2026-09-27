@@ -169,6 +169,7 @@ export async function createMediaEngine(
     wikidataIdentitySource,
     aniListIdentitySource,
     shikimoriIdentitySource,
+    shikimoriCinemaIdentitySource,
     aderomIdentitySource,
   } = await import('@media-engine/providers');
   const metadataTimeoutMs = readProviderTimeoutMs(env);
@@ -202,6 +203,7 @@ export async function createMediaEngine(
         wikidataIdentitySource(),
         aniListIdentitySource(),
         shikimoriIdentitySource(),
+        shikimoriCinemaIdentitySource(),
         aderomIdentitySource(),
       ],
       { cache, timeoutMs: 4_500, sourceTimeoutMs: 3_500 },

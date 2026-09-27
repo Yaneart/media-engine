@@ -9,10 +9,17 @@ import {
 import { fetchJson, type ProviderFetch } from "../shared/index.js";
 import { MEDIA_ENGINE_DEFAULT_USER_AGENT } from "../package-version.js";
 
-const PROPERTIES = { imdb: "P345", kinopoisk: "P2603", wikidata: "", tmdb: "" } as const;
+const PROPERTIES = {
+  imdb: "P345",
+  kinopoisk: "P2603",
+  wikidata: "",
+  tmdb: "",
+  myAnimeList: "P4086",
+  aniList: "P8729",
+} as const;
 const MOVIE_INSTANCES = new Set(["Q11424", "Q506240"]);
 const SERIES_INSTANCES = new Set(["Q5398426", "Q1259759", "Q15416"]);
-type Anchor = "imdb" | "tmdb" | "kinopoisk" | "wikidata";
+type Anchor = keyof typeof PROPERTIES;
 
 interface Statement {
   rank?: string;
@@ -62,7 +69,11 @@ function exactType(entity: Entity, type: MediaType): boolean {
 
 function readIds(entity: Entity, type: MediaType): Record<string, unknown> {
   const ids: Record<string, unknown> = { wikidata: entity.id };
-  for (const namespace of ["imdb", "tmdb", "kinopoisk"] as const) {
+  const namespaces =
+    type === "anime"
+      ? (["imdb", "kinopoisk", "myAnimeList", "aniList"] as const)
+      : (["imdb", "tmdb", "kinopoisk"] as const);
+  for (const namespace of namespaces) {
     const found = values(entity, propertyFor(namespace, type), namespace);
     if (found.length === 1) ids[namespace] = found[0];
   }
@@ -97,16 +108,19 @@ export function wikidataIdentitySource(
   return {
     name: "wikidata-identity",
     canResolve: (ids, type) =>
-      type !== "anime" && !!(ids.imdb || ids.tmdb || ids.kinopoisk || ids.wikidata),
+      type === "anime"
+        ? !!(ids.aniList || ids.myAnimeList)
+        : !!(ids.imdb || ids.tmdb || ids.kinopoisk || ids.wikidata),
     async resolve(
       ids: Readonly<IdentityIds>,
       type: MediaType,
       signal: AbortSignal,
     ): Promise<IdentityClaim[]> {
-      if (type === "anime") return [];
-      const anchor = (["imdb", "tmdb", "kinopoisk", "wikidata"] as const).find(
-        (namespace) => ids[namespace],
-      );
+      const anchors =
+        type === "anime"
+          ? (["aniList", "myAnimeList"] as const)
+          : (["imdb", "tmdb", "kinopoisk", "wikidata"] as const);
+      const anchor = anchors.find((namespace) => ids[namespace]);
       if (!anchor) return [];
       const value = ids[anchor]!;
       let entityId = ids.wikidata;
@@ -139,7 +153,8 @@ export function wikidataIdentitySource(
         entities?: Record<string, Entity>;
       };
       const entity = response?.entities?.[entityId];
-      if (!entity || entity.id !== entityId || !exactType(entity, type)) return [];
+      if (!entity || entity.id !== entityId || (type !== "anime" && !exactType(entity, type)))
+        return [];
       const found = readIds(entity, type);
       if (found[anchor] !== value) return [];
       return [

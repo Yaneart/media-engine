@@ -84,9 +84,12 @@ public search, details, or availability paths; that is ID-05.
 ## Engine integration (ID-05)
 
 `MediaEngine` accepts an optional `identityResolver`. The API configures Wikidata, AniList,
-Shikimori, and Aderom sources against the shared memory cache; KinoBD remains optional until
-its live endpoint is verified. API resolution has a 4.5-second overall deadline and 3.5-second
-per-source deadline, allowing the observed cold Wikidata calls while bounding added latency.
+Shikimori alias and cinema-link, and Aderom sources against the shared memory cache; KinoBD remains
+optional until its live endpoint is verified. API resolution has a 4.5-second overall deadline and
+3.5-second per-source deadline, allowing the observed cold Wikidata calls while bounding added
+latency. Anime cinema IDs are accepted only from an exact AniList/MyAnimeList Wikidata statement or
+an exact typed Shikimori external-links record; the confirmed Kinopoisk ID may anchor Aderom on a
+later bounded pass. No title-only anime-to-cinema mapping is used.
 
 Search resolves at most five results after filtering and pagination, independently of missing
 poster or description fields. Newly linked cards are merged only for the same media type and a

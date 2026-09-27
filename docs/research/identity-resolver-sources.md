@@ -1,30 +1,35 @@
 # Identity Resolver sources (ID-04)
 
-The five source factories in `@media-engine/providers` implement the internal
-`IdentityResolverSource` contract. The API now instantiates the four live-verified sources for
+The six source factories in `@media-engine/providers` implement the internal
+`IdentityResolverSource` contract. The API now instantiates the five live-verified sources for
 search, details, and availability; KinoBD remains optional. Public `media.id` is unchanged.
 
-| Source                      | Exact lookup anchors                                                           | Confirmed record IDs                     | Status                                                                            |
-| --------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------- |
-| `wikidataIdentitySource()`  | IMDb P345, movie TMDB P4947, series TMDB P4983, Kinopoisk P2603, or known Q ID | IMDb, typed TMDB, Kinopoisk, Wikidata    | Fixture and live checked; no token                                                |
-| `kinobdIdentitySource()`    | IMDb or Kinopoisk                                                              | IMDb, TMDB, Kinopoisk                    | Fixture checked; live endpoint timed out, so do not rely on it as the only source |
-| `aniListIdentitySource()`   | AniList or MyAnimeList                                                         | AniList, MyAnimeList                     | Fixture and live checked for anime; no token                                      |
-| `shikimoriIdentitySource()` | Shikimori or MyAnimeList                                                       | Shikimori, MyAnimeList                   | Fixture and live checked for anime; no token                                      |
-| `aderomIdentitySource()`    | Kinopoisk                                                                      | IMDb, MyAnimeList, WorldArt when present | Fixture and live checked for anime and series; no token                           |
+| Source                            | Exact lookup anchors                                                                                                  | Confirmed record IDs                                             | Status                                                                            |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `wikidataIdentitySource()`        | IMDb P345, movie TMDB P4947, series TMDB P4983, Kinopoisk P2603, anime AniList P8729/MyAnimeList P4086, or known Q ID | IMDb, typed TMDB, Kinopoisk, anime AniList/MyAnimeList, Wikidata | Fixture and live checked; no token                                                |
+| `kinobdIdentitySource()`          | IMDb or Kinopoisk                                                                                                     | IMDb, TMDB, Kinopoisk                                            | Fixture checked; live endpoint timed out, so do not rely on it as the only source |
+| `aniListIdentitySource()`         | AniList or MyAnimeList                                                                                                | AniList, MyAnimeList                                             | Fixture and live checked for anime; no token                                      |
+| `shikimoriIdentitySource()`       | Shikimori or MyAnimeList                                                                                              | Shikimori, MyAnimeList                                           | Fixture and live checked for anime; no token                                      |
+| `shikimoriCinemaIdentitySource()` | Shikimori entry or exact MyAnimeList external link                                                                    | Kinopoisk                                                        | Fixture and live checked for anime; no token                                      |
+| `aderomIdentitySource()`          | Kinopoisk                                                                                                             | IMDb, MyAnimeList, WorldArt when present                         | Fixture and live checked for anime and series; no token                           |
 
 Wikidata searches for one exact property value through the MediaWiki API, loads that entity's
-claims, and checks that the original anchor occurs in that same entity. It requires an unambiguous
-entity and an explicit movie or series `P31` instance. It ignores deprecated claims and withholds
-any namespace with multiple values. TMDB's movie and TV properties are kept separate. The source
-does not resolve anime: a TV or film entity cannot by itself establish the project's anime type.
-KinoBD likewise requires exactly one record with the requested type and anchor value; title matches
-are never accepted as mapping evidence.
+claims, and checks that the original anchor occurs in that same entity. Movie and series lookups
+still require an unambiguous entity and an explicit matching `P31` instance. Anime lookups are
+anchored only by the anime-specific AniList `P8729` or MyAnimeList `P4086` properties; a cinema ID,
+generic Wikidata ID, title, or year cannot initiate an anime claim. The adapter ignores deprecated
+claims and withholds any namespace with multiple values. TMDB's movie and TV properties remain
+separate. KinoBD likewise requires exactly one record with the requested type and anchor value;
+title matches are never accepted as mapping evidence.
 
 AniList queries an `ANIME` record by its AniList or MyAnimeList ID and requires the input ID in
 the returned record. Shikimori loads an anime record by its Shikimori or MyAnimeList ID and checks
 the returned ID field before linking it. A shared MyAnimeList ID can therefore bridge AniList and
-Shikimori across resolver passes. Neither source infers a movie, series, or Kinopoisk ID from anime
-titles.
+Shikimori across resolver passes. The independent Shikimori cinema source accepts Kinopoisk only
+from the same typed external-links record: a Shikimori anchor must equal its `entry_id`, while a
+MyAnimeList anchor must be repeated in an exact MyAnimeList URL. Multiple record IDs, multiple
+Kinopoisk values, unexpected hosts, or malformed URLs produce no mapping. None of these sources
+infers an ID from a title or year.
 
 Aderom uses a Kinopoisk-keyed JSON record and checks the returned Kinopoisk ID and category.
 It can add anime's MyAnimeList, WorldArt, and IMDb IDs when valid. Its sampled Game of Thrones
@@ -48,6 +53,20 @@ For Frieren, Aderom's Kinopoisk `5401195` record returned IMDb `tt22248376`, MyA
 `52991`, and WorldArt `11466`. Its Game of Thrones `464963` record returned the same Kinopoisk
 anchor but no usable new ID. Both adapter calls succeeded locally.
 
+The MP-003 live matrix on 2026-09-27 started from AniList only and resolved exact IDs within the
+API's 4.5-second identity budget:
+
+| Anime         | AniList | MyAnimeList | IMDb         | Kinopoisk | Wikidata     |
+| ------------- | ------: | ----------: | ------------ | --------: | ------------ |
+| Death Note    |    1535 |        1535 | `tt0877057`  |  `406148` | `Q718624`    |
+| Frieren       |  154587 |       52991 | `tt22248376` | `5401195` | `Q130377145` |
+| Spirited Away |     199 |         199 | `tt0245429`  |     `370` | `Q155653`    |
+
+Death Note and Spirited Away receive cinema IDs from a unique Wikidata entity containing the exact
+anime anchor. Frieren receives Kinopoisk from its exact Shikimori external-links record; the next
+bounded pass uses that confirmed Kinopoisk anchor in Aderom to obtain IMDb. A source failure remains
+isolated, and conflicting values stay absent through the resolver's existing ambiguity rules.
+
 The six Wikidata adapter calls took 1.1–2.9 seconds in one local run. KinoBD's IMDb endpoint
 timed out after 10 seconds in the same environment; its availability and limits remain unverified.
 The ID-03 resolver's default two-second per-source timeout can cut off some cold Wikidata calls;
@@ -56,8 +75,10 @@ These live observations are time dependent and do not verify the stage environme
 
 Official property definitions: [IMDb P345](https://www.wikidata.org/wiki/Property:P345),
 [TMDB movie P4947](https://www.wikidata.org/wiki/Property:P4947),
-[TMDB TV series P4983](https://www.wikidata.org/wiki/Property:P4983), and
-[Kinopoisk P2603](https://www.wikidata.org/wiki/Property:P2603).
+[TMDB TV series P4983](https://www.wikidata.org/wiki/Property:P4983),
+[Kinopoisk P2603](https://www.wikidata.org/wiki/Property:P2603),
+[MyAnimeList anime P4086](https://www.wikidata.org/wiki/Property:P4086), and
+[AniList anime P8729](https://www.wikidata.org/wiki/Property:P8729).
 The [MediaWiki Wikibase search syntax](https://www.mediawiki.org/wiki/Help:Extension:WikibaseCirrusSearch)
 documents `haswbstatement`. [AniList's Media query](https://docs.anilist.co/guide/graphql/queries/media)
 and [Media fields](https://docs.anilist.co/reference/object/media) document its typed anime lookup

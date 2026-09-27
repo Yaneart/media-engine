@@ -3,7 +3,11 @@ import { test } from "node:test";
 
 import { IdentityResolver } from "@media-engine/core";
 import type { ProviderFetch } from "../shared/index.js";
-import { aniListIdentitySource, shikimoriIdentitySource } from "./anime.js";
+import {
+  aniListIdentitySource,
+  shikimoriCinemaIdentitySource,
+  shikimoriIdentitySource,
+} from "./anime.js";
 import { aderomIdentitySource } from "./aderom.js";
 import { kinobdIdentitySource } from "./kinobd.js";
 import { wikidataIdentitySource } from "./wikidata.js";
@@ -103,6 +107,55 @@ test("Wikidata refuses duplicate entities and wrong types; ambiguous claims stay
   assert.equal(ambiguous.ids.tmdb, movie.tmdb);
 });
 
+test("Wikidata confirms cinema IDs from exact AniList and MyAnimeList statements", async () => {
+  const anime = {
+    q: "Q718624",
+    aniList: "1535",
+    myAnimeList: "1535",
+    imdb: "tt0877057",
+    kinopoisk: "406148",
+  };
+  const statement = (value: unknown) => [{ mainsnak: { datavalue: { value } } }];
+  const fetch: ProviderFetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.searchParams.get("action") === "query") {
+      assert.ok(
+        [
+          `haswbstatement:P8729=${anime.aniList}`,
+          `haswbstatement:P4086=${anime.myAnimeList}`,
+        ].includes(url.searchParams.get("srsearch") ?? ""),
+      );
+      return Response.json({
+        query: { searchinfo: { totalhits: 1 }, search: [{ title: anime.q }] },
+      });
+    }
+    return Response.json({
+      entities: {
+        [anime.q]: {
+          id: anime.q,
+          claims: {
+            P8729: statement(anime.aniList),
+            P4086: statement(anime.myAnimeList),
+            P345: statement(anime.imdb),
+            P2603: statement(anime.kinopoisk),
+          },
+        },
+      },
+    });
+  };
+  const resolver = new IdentityResolver([wikidataIdentitySource({ fetch })]);
+  for (const initial of [{ aniList: anime.aniList }, { myAnimeList: anime.myAnimeList }]) {
+    assert.deepEqual((await resolver.resolve("anime", initial)).ids, {
+      ...initial,
+      imdb: anime.imdb,
+      kinopoisk: anime.kinopoisk,
+      myAnimeList: anime.myAnimeList,
+      aniList: anime.aniList,
+      wikidata: anime.q,
+    });
+  }
+});
+
 test("KinoBD confirms a unique matching record and rejects type or anchor mismatches", async () => {
   const fetch: ProviderFetch = async () =>
     Response.json({
@@ -175,6 +228,90 @@ test("anime sources refuse upstream records that do not repeat the input ID", as
   );
 });
 
+test("Shikimori cinema links bridge an exact anime record to Kinopoisk", async () => {
+  const links = [
+    {
+      kind: "myanimelist",
+      url: "http://myanimelist.net/anime/52991",
+      entry_id: 52991,
+      entry_type: "Anime",
+    },
+    {
+      kind: "kinopoisk",
+      url: "https://www.kinopoisk.ru/series/5401195/",
+      entry_id: 52991,
+      entry_type: "Anime",
+    },
+  ];
+  const source = shikimoriCinemaIdentitySource({ fetch: async () => Response.json(links) });
+  for (const initial of [{ shikimori: "52991" }, { myAnimeList: "52991" }]) {
+    assert.deepEqual((await new IdentityResolver([source]).resolve("anime", initial)).ids, {
+      ...initial,
+      shikimori: "52991",
+      myAnimeList: "52991",
+      kinopoisk: "5401195",
+    });
+  }
+});
+
+test("Shikimori cinema links reject mismatched anchors and ambiguous Kinopoisk IDs", async () => {
+  const resolve = async (links: ShikimoriExternalLinkFixture[]) =>
+    new IdentityResolver([
+      shikimoriCinemaIdentitySource({ fetch: async () => Response.json(links) }),
+    ]).resolve("anime", { myAnimeList: "52991" });
+  const base = {
+    entry_id: 52991,
+    entry_type: "Anime",
+  };
+  assert.deepEqual(
+    (
+      await resolve([
+        { ...base, kind: "myanimelist", url: "https://myanimelist.net/anime/999" },
+        { ...base, kind: "kinopoisk", url: "https://www.kinopoisk.ru/series/5401195/" },
+      ])
+    ).ids,
+    { myAnimeList: "52991" },
+  );
+  assert.deepEqual(
+    (
+      await resolve([
+        { ...base, kind: "myanimelist", url: "https://myanimelist.net/anime/52991" },
+        { ...base, kind: "kinopoisk", url: "https://www.kinopoisk.ru/series/5401195/" },
+        { ...base, kind: "kinopoisk", url: "https://www.kinopoisk.ru/series/999999/" },
+      ])
+    ).ids,
+    { myAnimeList: "52991" },
+  );
+});
+
+test("a cinema-link failure does not suppress the independent anime alias source", async () => {
+  const resolver = new IdentityResolver([
+    shikimoriIdentitySource({
+      fetch: async () => Response.json({ id: 52991, myanimelist_id: 52991 }),
+    }),
+    shikimoriCinemaIdentitySource({
+      fetch: async () => {
+        throw new Error("cinema links unavailable");
+      },
+    }),
+  ]);
+  const result = await resolver.resolve("anime", { myAnimeList: "52991" });
+  assert.deepEqual(result.ids, { myAnimeList: "52991", shikimori: "52991" });
+  assert.equal(
+    result.diagnostics.some(
+      ({ code, source }) => code === "SOURCE_ERROR" && source === "shikimori-cinema-identity",
+    ),
+    true,
+  );
+});
+
+interface ShikimoriExternalLinkFixture {
+  kind: string;
+  url: string;
+  entry_id: number;
+  entry_type: string;
+}
+
 test("Aderom confirms Kinopoisk-linked anime IDs and skips malformed or mismatched records", async () => {
   const anime = aderomIdentitySource({
     fetch: async () =>
@@ -207,4 +344,53 @@ test("Aderom confirms Kinopoisk-linked anime IDs and skips malformed or mismatch
     (await new IdentityResolver([anime]).resolve("series", { kinopoisk: "5401195" })).ids,
     { kinopoisk: "5401195" },
   );
+});
+
+test("AniList, MAL and Shikimori aliases reach the same verified cinema identity", async () => {
+  const resolver = new IdentityResolver([
+    aniListIdentitySource({
+      fetch: async () => Response.json({ data: { Media: { id: 154587, idMal: 52991 } } }),
+    }),
+    shikimoriIdentitySource({
+      fetch: async () => Response.json({ id: 52991, myanimelist_id: 52991 }),
+    }),
+    shikimoriCinemaIdentitySource({
+      fetch: async () =>
+        Response.json([
+          {
+            kind: "myanimelist",
+            url: "http://myanimelist.net/anime/52991",
+            entry_id: 52991,
+            entry_type: "Anime",
+          },
+          {
+            kind: "kinopoisk",
+            url: "https://www.kinopoisk.ru/series/5401195/",
+            entry_id: 52991,
+            entry_type: "Anime",
+          },
+        ]),
+    }),
+    aderomIdentitySource({
+      fetch: async () =>
+        Response.json({
+          kinopoisk_id: 5401195,
+          imdb_id: "tt22248376",
+          myanimelist_id: 52991,
+          worldart_id: 11466,
+          category: "Аниме",
+        }),
+    }),
+  ]);
+  for (const initial of [{ aniList: "154587" }, { myAnimeList: "52991" }, { shikimori: "52991" }]) {
+    assert.deepEqual((await resolver.resolve("anime", initial)).ids, {
+      ...initial,
+      aniList: "154587",
+      myAnimeList: "52991",
+      shikimori: "52991",
+      kinopoisk: "5401195",
+      imdb: "tt22248376",
+      worldArt: "11466",
+    });
+  }
 });
