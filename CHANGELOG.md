@@ -7,6 +7,39 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.10.0 - 2026-09-28
+
+### Added
+
+- Added a provider-independent canonical work identity with normalized external-ID aliases and
+  conflict-safe process-local lookup, giving equivalent references one stable work key without
+  treating a provider-native ID as canonical.
+- Availability responses now distinguish `complete`, confirmed `empty`, and `degraded` results,
+  identify identity, provider, and validation degradation, and retain every provider attribution
+  when equivalent playback targets are deduplicated.
+- Streaming queries and provider capabilities now carry anime release kind. VeoVeo and VideoHub
+  accept anime films while rejecting episodic or unknown anime shapes from movie-only routing.
+
+### Changed
+
+- Details resolve verified identities before cache lookup and provider selection, so equivalent
+  AniList, Shikimori, IMDb, and Kinopoisk references share the same resolved query and cache entry.
+- Search resolves and merges a bounded candidate window before pagination, preserving ranked
+  confidence and attribution while collapsing verified aliases at every requested page size.
+- Verified AniList, MyAnimeList, and Shikimori statements can bridge anime to cinema IDs through
+  typed Wikidata or Shikimori records without title/year guessing.
+- The additive REST/OpenAPI contract version is now `0.17.0` for anime-kind routing and availability
+  completeness and attribution fields.
+
+### Fixed
+
+- Missing required identity mappings no longer look like confirmed no-video results, retryable
+  degraded availability is not cached, and one streaming-provider failure preserves independent
+  successful sources.
+- Docker Compose now isolates Linux workspace dependencies from Windows host package links while
+  retaining lockfile-aware dependency bootstrapping.
+- The private repository API production-start script now targets the actual Nest build output.
+
 ## 1.9.0 - 2026-09-25
 
 ### Added
