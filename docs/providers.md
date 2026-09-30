@@ -96,8 +96,8 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds           | None                      |
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities                 | None                      |
 | Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                           | None                      |
-| VeoVeo streaming       | Opt-in movie, series-episode, and confirmed anime-film direct signed HLS              | None                      |
-| VideoHUB streaming     | Opt-in Kinopoisk movie, series-episode, and confirmed anime-film signed MP4 qualities | None                      |
+| VeoVeo streaming       | Opt-in movie, series-episode, and verified anime direct signed HLS                    | None                      |
+| VideoHUB streaming     | Opt-in Kinopoisk movie, series-episode, and verified anime signed MP4 qualities       | None                      |
 | Rutube streaming       | Opt-in exact title/year movie lookup to the official public embed player              | None                      |
 | Aderom streaming       | Opt-in dubbed series/anime iframe by Kinopoisk or resolved IMDb ID                    | None                      |
 | Initem streaming       | Kinopoisk/IMDb movie, series, and anime iframe with player-managed audio and episodes | None                      |
@@ -150,21 +150,22 @@ Series queries support a bounded generic episode map or an exact season/episode.
 treated as short-lived and the provider stays disabled by default because availability depends on
 both upstream contracts. Anime films use the provider's movie path and preserve `type: "anime"`.
 TV anime requires a verified anime-native/cinema identity plus explicit seasonal and absolute
-episode coordinates. Only the exact season/episode catalog row is resolved, and the canonical
-absolute episode is retained in every normalized option. Absolute-only, underidentified,
-conflicting, missing, and non-TV episodic queries are rejected.
+episode coordinates. The adapter derives the absolute number from a complete, gap-free seasonal
+catalog prefix and resolves only the exact row when that derived number matches the request.
+Absolute-only, underidentified, conflicting, incomplete, missing, and non-TV episodic queries are
+rejected.
 
 VideoHUB streaming is opt-in through `videoHubStreamingProvider()` or
 `MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk ID. Series require
 an exact season and episode. Anime films use the non-serial playlist path and preserve
 `type: "anime"`. TV anime requires a verified anime-native/Kinopoisk identity and explicit
-`seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`; only playlist rows matching the exact
-seasonal pair are resolved, while the absolute number is preserved for canonical anime progress.
-Absolute-only, underidentified, conflicting, missing, and non-TV episodic queries are rejected.
-Returned options preserve the query's external identities. When metadata providers are configured and the
-availability query also carries a title, Core can conservatively resolve a missing Kinopoisk ID
-from another external-ID namespace before selecting VideoHUB; conflicting or ambiguous identities
-are never guessed. The adapter itself still uses only the Kinopoisk-keyed public playlist and video
+`seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`. The adapter derives the absolute number
+from a complete, gap-free seasonal playlist prefix and resolves only the exact row when it matches
+the request. Absolute-only, underidentified, conflicting, incomplete, missing, and non-TV episodic
+queries are rejected. Returned options preserve the query's external identities. Core selects these
+TV-anime direct providers only when its configured Identity Resolver proves the cinema ID; generic
+metadata-search enrichment cannot authorize the call. The adapter itself still uses only the
+Kinopoisk-keyed public playlist and video
 JSON contracts without an account, cookie, or token, bounds catalog bytes/items, video lookups,
 concurrency, response bytes, and output lifetime, and accepts only fixed HTTPS MP4 source fields.
 VideoHUB HLS is intentionally not exposed because the observed master response does not allow

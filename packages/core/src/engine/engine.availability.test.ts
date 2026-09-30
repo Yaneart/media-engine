@@ -444,6 +444,70 @@ test("getAvailability degrades unverified episodic anime without hiding title pr
   assert.deepEqual(availability.state, { status: "degraded", degradedBy: ["identity"] });
 });
 
+test("getAvailability never re-enriches episodic anime cinema IDs without provenance", async () => {
+  let metadataCalls = 0;
+  let directCalls = 0;
+  const engine = new MediaEngine({
+    providers: [
+      createProvider({
+        name: "unverified-anime-search",
+        capabilities: {
+          mediaTypes: ["anime"],
+          search: { byTitle: true, byExternalIds: ["aniList"] },
+          details: { byExternalIds: ["aniList"] },
+        },
+        async search() {
+          metadataCalls += 1;
+          return [
+            {
+              provider: "unverified-anime-search",
+              item: {
+                id: "frieren",
+                type: "anime",
+                title: "Frieren",
+                year: 2023,
+                ids: { aniList: "154587", kinopoisk: "9999999" },
+              },
+            },
+          ];
+        },
+      }),
+    ],
+    streamingProviders: [
+      createStreamingProvider({ name: "anime-embed" }),
+      createStreamingProvider({
+        name: "anime-direct",
+        capabilities: {
+          mediaTypes: ["anime"],
+          animeKinds: ["tv"],
+          lookup: { byTitle: false, byExternalIds: ["kinopoisk"], byEpisode: true },
+        },
+        async getAvailability(query) {
+          directCalls += 1;
+          return createAvailability(query, "anime-direct");
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    animeKind: "tv",
+    title: "Frieren",
+    year: 2023,
+    ids: { aniList: "154587" },
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+  });
+
+  assert.equal(metadataCalls, 0);
+  assert.equal(directCalls, 0);
+  assert.deepEqual(availability.query.ids, { aniList: "154587" });
+  assert.deepEqual(availability.meta?.providers.requested, ["anime-embed"]);
+  assert.deepEqual(availability.state, { status: "degraded", degradedBy: ["identity"] });
+});
+
 test("getAvailabilityProgressively resolves missing streaming IDs before provider selection", async () => {
   const receivedIds: Array<StreamQuery["ids"]> = [];
   const engine = new MediaEngine({

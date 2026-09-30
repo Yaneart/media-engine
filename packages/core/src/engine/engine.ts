@@ -1202,10 +1202,18 @@ export class MediaEngine {
     const validation = validateAnimeEpisode
       ? await verifyAnimeEpisodeIdentity(query, this.identityResolver, signal)
       : { query, degraded: false };
+    if (validateAnimeEpisode) {
+      return {
+        query: validation.query,
+        degraded:
+          validation.degraded ||
+          getMissingStreamingIdentitySources(this.streamingProviders, validation.query).length > 0,
+      };
+    }
     const safeQuery =
-      initialMissing.length > 0 && !validateAnimeEpisode
+      initialMissing.length > 0
         ? await resolveQueryIdentity(query, this.identityResolver, signal)
-        : validation.query;
+        : query;
     const missingSources = getMissingStreamingIdentitySources(this.streamingProviders, safeQuery);
     const identityDegraded = validation.degraded || missingSources.length > 0;
 

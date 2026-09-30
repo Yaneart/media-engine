@@ -252,6 +252,20 @@ test("videoHubStreamingProvider rejects ambiguous, underidentified, and missing 
     ),
     null,
   );
+  assert.equal(
+    await provider.getAvailability(
+      {
+        type: "anime",
+        animeKind: "tv",
+        ids: { aniList: "154587", kinopoisk: "5401195" },
+        seasonNumber: 2,
+        episodeNumber: 1,
+        absoluteEpisodeNumber: 1,
+      },
+      context(),
+    ),
+    null,
+  );
   assert.equal(playlistCalls, 1);
   assert.equal(videoCalls, 0);
 });

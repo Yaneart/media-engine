@@ -7,6 +7,16 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.11.1 - 2026-09-30
+
+### Fixed
+
+- Episodic-anime direct providers can no longer receive cinema IDs restored by generic metadata
+  search without Identity Resolver provenance.
+- VideoHUB and VeoVeo now prove the requested absolute anime episode against a complete, gap-free
+  seasonal catalog prefix before resolving playback. Conflicting or incomplete mappings return no
+  direct result without hiding independent providers.
+
 ## 1.11.0 - 2026-09-30
 
 ### Added

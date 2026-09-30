@@ -139,8 +139,19 @@ test("selectVideoHubPlaylistItems requires and applies explicit anime episode co
       ids: { aniList: "154587", kinopoisk: "5401195" },
       seasonNumber: 2,
       episodeNumber: 1,
-      absoluteEpisodeNumber: 1,
+      absoluteEpisodeNumber: 2,
     }),
     [{ seasonNumber: 2, episodeNumber: 1, voiceStudio: "Dub", vkId: "201" }],
+  );
+  assert.deepEqual(
+    selectVideoHubPlaylistItems(playlist, {
+      type: "anime",
+      animeKind: "tv",
+      ids: { aniList: "154587", kinopoisk: "5401195" },
+      seasonNumber: 2,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 1,
+    }),
+    [],
   );
 });

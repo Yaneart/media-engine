@@ -90,14 +90,17 @@ test("mapVeoVeoAvailability keeps anime type and canonical absolute episode", ()
   const result = mapVeoVeoAvailability(
     "veoveo-streaming",
     "96592",
-    [createItem(2, 1, [{ url: "https://cdn.test/s02e01/master.m3u8" }])],
+    [
+      createItem(1, 1, [{ url: "https://cdn.test/s01e01/master.m3u8" }]),
+      createItem(2, 1, [{ url: "https://cdn.test/s02e01/master.m3u8" }]),
+    ],
     {
       type: "anime",
       animeKind: "tv",
       ids: { aniList: "170000", kinopoisk: "5401195" },
       seasonNumber: 2,
       episodeNumber: 1,
-      absoluteEpisodeNumber: 1,
+      absoluteEpisodeNumber: 2,
     },
     { source: "kinopoisk", id: "5401195" },
     sourceUrl,
@@ -109,7 +112,7 @@ test("mapVeoVeoAvailability keeps anime type and canonical absolute episode", ()
   assert.deepEqual(result?.options[0]?.episode, {
     seasonNumber: 2,
     episodeNumber: 1,
-    absoluteEpisodeNumber: 1,
+    absoluteEpisodeNumber: 2,
   });
   assert.deepEqual(result?.episodes?.[0]?.options, result?.options);
 });

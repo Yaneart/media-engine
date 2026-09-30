@@ -1,7 +1,7 @@
 import { ProviderError, type MediaAvailability, type ProviderContext } from "@media-engine/core";
 import { fetchJson, normalizeProviderOutputUrl } from "../shared/index.js";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
-import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
+import { verifyAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import type { VideoHubStreamingConfig } from "./config.js";
 
 const PLAYLIST_PUBLICATION_ID = "12";
@@ -270,7 +270,7 @@ export function selectVideoHubPlaylistItems(
   }
   if (!playlist.isSerial) return [];
 
-  const animeSelection = resolveAnimeEpisodeSelection(query);
+  const animeSelection = verifyAnimeEpisodeSelection(query, playlist.items);
   if (query.type === "anime" && !animeSelection) return [];
 
   const seasonNumber = animeSelection?.seasonNumber ?? query.seasonNumber;

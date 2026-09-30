@@ -59,6 +59,13 @@ if (missingResults.some(({ availability }) => (availability?.options.length ?? 0
   failed = true;
 print("missing anime episode", missingResults, "expected empty");
 
+const mismatchedEpisodeResults = await queryProviders({
+  ...animeCases[0].query,
+  absoluteEpisodeNumber: 2,
+});
+if (mismatchedEpisodeResults.some(({ availability }) => availability !== null)) failed = true;
+print("mismatched anime episode coordinates", mismatchedEpisodeResults, "expected empty");
+
 const validationEngine = new MediaEngine({
   identityResolver: new IdentityResolver([shikimoriCinemaIdentitySource()]),
   streamingProviders: providers,

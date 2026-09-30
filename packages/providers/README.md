@@ -119,7 +119,8 @@ public content ID, discards the iframe token, and returns direct signed HTTPS HL
 short-lived direct MP4 qualities for movies or one exact series episode. Both providers preserve
 `type: "anime"` for anime films. They also accept TV anime only with a verified anime-native/cinema
 identity and explicit `seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`; ambiguous or
-mismatched episode requests are rejected. VideoHUB links are bound to the
+mismatched episode requests are rejected after deriving the absolute number from a complete,
+gap-free seasonal catalog prefix. VideoHUB links are bound to the
 playback User-Agent and may also be bound to the requesting public IP. Pass the playback client's
 exact User-Agent as `MediaEngineOperationOptions.playbackUserAgent`; the required value is retained
 in each option's `access.headers` for non-browser clients.

@@ -147,7 +147,7 @@ test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", asy
       ids: { aniList: "170000", kinopoisk: "5401195" },
       seasonNumber: 2,
       episodeNumber: 1,
-      absoluteEpisodeNumber: 1,
+      absoluteEpisodeNumber: 2,
     },
     {},
   );
@@ -157,8 +157,24 @@ test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", asy
   assert.deepEqual(result?.options[0]?.episode, {
     seasonNumber: 2,
     episodeNumber: 1,
-    absoluteEpisodeNumber: 1,
+    absoluteEpisodeNumber: 2,
   });
+
+  assert.equal(
+    await provider.getAvailability(
+      {
+        type: "anime",
+        animeKind: "tv",
+        ids: { aniList: "170000", kinopoisk: "5401195" },
+        seasonNumber: 2,
+        episodeNumber: 1,
+        absoluteEpisodeNumber: 1,
+      },
+      {},
+    ),
+    null,
+  );
+  assert.deepEqual(requestedManifests, ["/s02e01/master.m3u8"]);
 });
 
 test("veoVeoStreamingProvider avoids unsupported and underidentified queries", async () => {

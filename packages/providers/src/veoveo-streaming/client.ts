@@ -1,7 +1,10 @@
 import { ProviderError, type MediaAvailability, type ProviderContext } from "@media-engine/core";
 import { fetchJson } from "../shared/index.js";
 import { getHardenedProviderResponseUrl } from "../shared/safe-fetch.js";
-import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
+import {
+  resolveAnimeEpisodeSelection,
+  verifyAnimeEpisodeSelection,
+} from "../shared/anime-episode.js";
 import type { VeoVeoStreamingConfig } from "./config.js";
 
 const LOOKUP_ENTRY_LIMIT = 32;
@@ -90,6 +93,10 @@ export async function resolveVeoVeoManifestUrls(
   query: MediaAvailability["query"],
   context: ProviderContext,
 ): Promise<VeoVeoCatalogItem[]> {
+  const animeSelection =
+    query.type === "anime" ? verifyAnimeEpisodeSelection(query, catalog) : undefined;
+  if (query.type === "anime" && query.animeKind === "tv" && !animeSelection) return catalog;
+
   if (
     query.type === "series" &&
     (query.seasonNumber === undefined || query.episodeNumber === undefined)
@@ -99,7 +106,7 @@ export async function resolveVeoVeoManifestUrls(
 
   return Promise.all(
     catalog.map(async (item) => {
-      if (!isRequestedCatalogItem(item, query)) return item;
+      if (!isRequestedCatalogItem(item, query, animeSelection)) return item;
 
       const variants = await Promise.all(
         item.variants.map((variant) => resolveManifestVariant(config, variant, context)),
@@ -241,13 +248,16 @@ async function resolveManifestVariant(
 function isRequestedCatalogItem(
   item: VeoVeoCatalogItem,
   query: MediaAvailability["query"],
+  animeSelection = resolveAnimeEpisodeSelection(query),
 ): boolean {
   if (query.type === "movie" || (query.type === "anime" && query.animeKind === "movie")) {
     return item.seasonNumber === 0;
   }
-  const animeSelection = resolveAnimeEpisodeSelection(query);
   if (query.type === "anime" && !animeSelection) return false;
-  return item.seasonNumber === query.seasonNumber && item.episodeNumber === query.episodeNumber;
+  return (
+    item.seasonNumber === (animeSelection?.seasonNumber ?? query.seasonNumber) &&
+    item.episodeNumber === (animeSelection?.episodeNumber ?? query.episodeNumber)
+  );
 }
 
 function normalizeManifestUrl(value: string): URL | undefined {

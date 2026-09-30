@@ -5,6 +5,7 @@ import type {
   StreamOption,
 } from "@media-engine/core";
 import { normalizeProviderOutputUrl } from "../shared/index.js";
+import { verifyAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import type { VeoVeoCatalogItem, VeoVeoLookup, VeoVeoVariant } from "./client.js";
 
 export function mapVeoVeoAvailability(
@@ -83,12 +84,18 @@ function selectSeriesItems(
   catalog: VeoVeoCatalogItem[],
   query: MediaAvailability["query"],
 ): VeoVeoCatalogItem[] {
+  const animeSelection =
+    query.type === "anime" ? verifyAnimeEpisodeSelection(query, catalog) : undefined;
+  if (query.type === "anime" && !animeSelection) return [];
+
   return mergeItems(
     catalog.filter(
       (item) =>
         item.seasonNumber > 0 &&
-        (query.seasonNumber === undefined || item.seasonNumber === query.seasonNumber) &&
-        (query.episodeNumber === undefined || item.episodeNumber === query.episodeNumber),
+        (query.seasonNumber === undefined ||
+          item.seasonNumber === (animeSelection?.seasonNumber ?? query.seasonNumber)) &&
+        (query.episodeNumber === undefined ||
+          item.episodeNumber === (animeSelection?.episodeNumber ?? query.episodeNumber)),
     ),
   );
 }
