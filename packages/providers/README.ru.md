@@ -119,9 +119,9 @@ for await (const snapshot of media.getAvailabilityProgressively({
 развёртывании. Ссылки на видео CDN используют HTTPS. VeoVeo использует DDBB только для получения публичного
 content ID, отбрасывает iframe-токен и возвращает прямой подписанный HTTPS HLS.
 VideoHUB ищет по ID Кинопоиска и возвращает короткоживущие прямые MP4 для фильмов или одной точной
-серии сериала. VeoVeo и VideoHUB принимают аниме только с подтверждённым `animeKind: "movie"`;
-эпизодное аниме остаётся на совместимых с аниме провайдерах. Ответ для аниме-фильма сохраняет
-`type: "anime"`. Ссылки VideoHUB привязаны к User-Agent проигрывающего
+серии сериала. Оба провайдера сохраняют `type: "anime"` для аниме-фильмов. TV-аниме принимается
+только с проверенной связкой anime-native/cinema ID и явными `seasonNumber`, `episodeNumber` и
+`absoluteEpisodeNumber`; неоднозначные и несовпадающие серии отклоняются. Ссылки VideoHUB привязаны к User-Agent проигрывающего
 клиента и могут быть привязаны к внешнему IP. Передавайте точный User-Agent клиента через
 `MediaEngineOperationOptions.playbackUserAgent`; для небраузерных клиентов нужное значение также
 сохраняется в `access.headers` каждого варианта.

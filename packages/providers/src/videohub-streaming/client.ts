@@ -1,6 +1,7 @@
 import { ProviderError, type MediaAvailability, type ProviderContext } from "@media-engine/core";
 import { fetchJson, normalizeProviderOutputUrl } from "../shared/index.js";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
+import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import type { VideoHubStreamingConfig } from "./config.js";
 
 const PLAYLIST_PUBLICATION_ID = "12";
@@ -267,19 +268,24 @@ export function selectVideoHubPlaylistItems(
   if (query.type === "movie" || (query.type === "anime" && query.animeKind === "movie")) {
     return playlist.isSerial ? [] : playlist.items;
   }
-  if (query.type === "anime" || !playlist.isSerial) return [];
+  if (!playlist.isSerial) return [];
+
+  const animeSelection = resolveAnimeEpisodeSelection(query);
+  if (query.type === "anime" && !animeSelection) return [];
+
+  const seasonNumber = animeSelection?.seasonNumber ?? query.seasonNumber;
+  const episodeNumber = animeSelection?.episodeNumber ?? query.episodeNumber;
 
   return playlist.items.filter((item) => {
-    if (query.seasonNumber !== undefined && item.seasonNumber !== query.seasonNumber) {
+    if (seasonNumber !== undefined && item.seasonNumber !== seasonNumber) {
       return false;
     }
-    if (query.episodeNumber !== undefined && item.episodeNumber !== query.episodeNumber) {
+    if (episodeNumber !== undefined && item.episodeNumber !== episodeNumber) {
       return false;
     }
-    return (
-      query.absoluteEpisodeNumber === undefined ||
-      item.absoluteEpisodeNumber === query.absoluteEpisodeNumber
-    );
+    return query.type !== "anime" && query.absoluteEpisodeNumber !== undefined
+      ? item.absoluteEpisodeNumber === query.absoluteEpisodeNumber
+      : true;
   });
 }
 

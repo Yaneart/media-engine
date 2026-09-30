@@ -107,6 +107,60 @@ test("veoVeoStreamingProvider resolves a confirmed anime movie as direct HLS", a
   assert.equal(result?.episodes, undefined);
 });
 
+test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", async () => {
+  const requestedManifests: string[] = [];
+  const provider = veoVeoStreamingProvider({
+    lookupBaseUrl: "https://lookup.test",
+    streamBaseUrl: "https://veo.test",
+    fetch: async (input) => {
+      const url = new URL(input.toString());
+      if (url.hostname === "lookup.test") {
+        return Response.json({
+          data: [{ type: "VeoVeo", iframeUrl: "https://iframe.test/?movie_id=96592" }],
+        });
+      }
+      if (url.hostname === "cdn.test") {
+        requestedManifests.push(url.pathname);
+        return new Response("#EXTM3U\n#EXT-X-ENDLIST", {
+          headers: { "content-type": "application/vnd.apple.mpegurl" },
+        });
+      }
+      return Response.json([
+        {
+          order: 1,
+          season: { order: 1 },
+          episodeVariants: [{ filepath: "https://cdn.test/s01e01/master.m3u8" }],
+        },
+        {
+          order: 1,
+          season: { order: 2 },
+          episodeVariants: [{ filepath: "https://cdn.test/s02e01/master.m3u8" }],
+        },
+      ]);
+    },
+  });
+
+  const result = await provider.getAvailability(
+    {
+      type: "anime",
+      animeKind: "tv",
+      ids: { aniList: "170000", kinopoisk: "5401195" },
+      seasonNumber: 2,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 1,
+    },
+    {},
+  );
+
+  assert.deepEqual(requestedManifests, ["/s02e01/master.m3u8"]);
+  assert.equal(result?.item?.type, "anime");
+  assert.deepEqual(result?.options[0]?.episode, {
+    seasonNumber: 2,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+  });
+});
+
 test("veoVeoStreamingProvider avoids unsupported and underidentified queries", async () => {
   let calls = 0;
   const provider = veoVeoStreamingProvider({
@@ -119,6 +173,20 @@ test("veoVeoStreamingProvider avoids unsupported and underidentified queries", a
   for (const query of [
     { type: "movie" as const, title: "Movie" },
     { type: "anime" as const, ids: { kinopoisk: "1" } },
+    {
+      type: "anime" as const,
+      animeKind: "tv" as const,
+      ids: { aniList: "154587", kinopoisk: "5401195" },
+      absoluteEpisodeNumber: 1,
+    },
+    {
+      type: "anime" as const,
+      animeKind: "tv" as const,
+      ids: { kinopoisk: "5401195" },
+      seasonNumber: 1,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 1,
+    },
     { type: "series" as const, ids: { kinopoisk: "1" }, episodeNumber: 1 },
     { type: "series" as const, ids: { kinopoisk: "1" }, absoluteEpisodeNumber: 1 },
     { type: "movie" as const, ids: { kinopoisk: "1" }, providers: ["other"] },

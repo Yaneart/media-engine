@@ -9,7 +9,7 @@ test("videoHubStreamingProvider exposes direct Kinopoisk MP4 capabilities", () =
   assert.equal(provider.name, "videohub-streaming");
   assert.deepEqual(provider.capabilities, {
     mediaTypes: ["movie", "series", "anime"],
-    animeKinds: ["movie"],
+    animeKinds: ["movie", "tv"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk"],

@@ -148,7 +148,7 @@ test("videoHubStreamingProvider skips episodic anime catalogs", async () => {
   assert.equal(result, null);
 });
 
-test("videoHubStreamingProvider skips episodic anime playback", async () => {
+test("videoHubStreamingProvider resolves only the explicit episodic anime mapping", async () => {
   const requestedVideos: string[] = [];
   const provider = videoHubStreamingProvider({
     baseUrl: "https://videohub.test",
@@ -181,13 +181,79 @@ test("videoHubStreamingProvider skips episodic anime playback", async () => {
       animeKind: "tv",
       title: "Frieren: Beyond Journey's End",
       ids: { aniList: "154587", kinopoisk: "5401195" },
+      seasonNumber: 1,
+      episodeNumber: 1,
       absoluteEpisodeNumber: 1,
     },
     context(undefined, "Playback Browser/1.0"),
   );
 
-  assert.deepEqual(requestedVideos, []);
-  assert.equal(result, null);
+  assert.deepEqual(requestedVideos, ["101", "102"]);
+  assert.equal(result?.item?.type, "anime");
+  assert.deepEqual(result?.options[0]?.episode, {
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+  });
+  assert.equal(result?.options.length, 2);
+});
+
+test("videoHubStreamingProvider rejects ambiguous, underidentified, and missing anime episodes", async () => {
+  let playlistCalls = 0;
+  let videoCalls = 0;
+  const provider = videoHubStreamingProvider({
+    baseUrl: "https://videohub.test",
+    fetch: async (input) => {
+      if (String(input).includes("/playlist?")) {
+        playlistCalls += 1;
+        return Response.json({
+          isSerial: true,
+          items: [
+            { season: 1, episode: 1, vkId: "101" },
+            { season: 2, episode: 1, vkId: "201" },
+          ],
+        });
+      }
+      videoCalls += 1;
+      return Response.json({ sources: { mpegHighUrl: "https://cdn.test/720.mp4" } });
+    },
+  });
+
+  for (const query of [
+    {
+      type: "anime" as const,
+      animeKind: "tv" as const,
+      ids: { aniList: "154587", kinopoisk: "5401195" },
+      absoluteEpisodeNumber: 1,
+    },
+    {
+      type: "anime" as const,
+      animeKind: "tv" as const,
+      ids: { kinopoisk: "5401195" },
+      seasonNumber: 1,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 1,
+    },
+  ]) {
+    assert.equal(await provider.getAvailability(query, context()), null);
+  }
+
+  assert.equal(
+    await provider.getAvailability(
+      {
+        type: "anime",
+        animeKind: "tv",
+        ids: { aniList: "154587", kinopoisk: "5401195" },
+        seasonNumber: 1,
+        episodeNumber: 99,
+        absoluteEpisodeNumber: 99,
+      },
+      context(),
+    ),
+    null,
+  );
+  assert.equal(playlistCalls, 1);
+  assert.equal(videoCalls, 0);
 });
 
 test("videoHubStreamingProvider rejects type mismatches without resolving video URLs", async () => {

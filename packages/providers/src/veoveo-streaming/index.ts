@@ -1,5 +1,6 @@
 import type { StreamingProvider } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
+import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import {
   loadVeoVeoCatalog,
   lookupVeoVeoContentId,
@@ -59,10 +60,14 @@ export function veoVeoStreamingProvider(
 
 function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>[0]): boolean {
   const isMovie = query.type === "movie" || (query.type === "anime" && query.animeKind === "movie");
-  if (!isMovie && query.type !== "series") return false;
-  if (query.absoluteEpisodeNumber !== undefined) return false;
   if (isMovie) {
-    return query.seasonNumber === undefined && query.episodeNumber === undefined;
+    return (
+      query.seasonNumber === undefined &&
+      query.episodeNumber === undefined &&
+      query.absoluteEpisodeNumber === undefined
+    );
   }
+  if (query.type === "anime") return resolveAnimeEpisodeSelection(query) !== undefined;
+  if (query.type !== "series" || query.absoluteEpisodeNumber !== undefined) return false;
   return query.episodeNumber === undefined || query.seasonNumber !== undefined;
 }

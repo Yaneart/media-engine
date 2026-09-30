@@ -1,6 +1,7 @@
 import { ProviderError, type MediaAvailability, type ProviderContext } from "@media-engine/core";
 import { fetchJson } from "../shared/index.js";
 import { getHardenedProviderResponseUrl } from "../shared/safe-fetch.js";
+import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import type { VeoVeoStreamingConfig } from "./config.js";
 
 const LOOKUP_ENTRY_LIMIT = 32;
@@ -244,6 +245,8 @@ function isRequestedCatalogItem(
   if (query.type === "movie" || (query.type === "anime" && query.animeKind === "movie")) {
     return item.seasonNumber === 0;
   }
+  const animeSelection = resolveAnimeEpisodeSelection(query);
+  if (query.type === "anime" && !animeSelection) return false;
   return item.seasonNumber === query.seasonNumber && item.episodeNumber === query.episodeNumber;
 }
 

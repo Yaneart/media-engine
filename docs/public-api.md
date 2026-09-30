@@ -161,9 +161,13 @@ subtitle, audio, expiry, and provider metadata when available.
 
 Anime availability queries may carry the confirmed details value as `animeKind`. Providers whose
 `animeKinds` capability is restricted are selected only when that value is present and supported;
-an omitted or `unknown` kind never guesses that episodic anime is a movie. In particular, direct
-movie adapters can serve `{ type: "anime", animeKind: "movie" }` while episodic anime continues
-through anime-compatible providers without movie-only direct lookups.
+an omitted or `unknown` kind never guesses that episodic anime is a movie. Direct movie adapters can
+serve `{ type: "anime", animeKind: "movie" }`. VideoHUB and VeoVeo additionally support TV anime
+only for an exact query containing `seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`, an
+anime-native ID, and a cinema ID verified by the configured `IdentityResolver`. The seasonal pair
+selects the provider catalog row while the absolute number preserves the canonical anime episode.
+An absolute-only or conflicting query does not call these direct providers; independent anime/embed
+providers remain usable and Core reports degraded identity when verification cannot complete.
 
 When a streaming provider requires an external-ID namespace missing from the query, both
 availability operations can resolve it through the engine's configured metadata providers before

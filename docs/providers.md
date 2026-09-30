@@ -148,16 +148,20 @@ token without requesting the iframe, and loads the bounded episode catalog from 
 API. Only direct HTTPS `.m3u8` variants are exposed; JSON indirection and unsafe URLs are excluded.
 Series queries support a bounded generic episode map or an exact season/episode. Output links are
 treated as short-lived and the provider stays disabled by default because availability depends on
-both upstream contracts. Anime is accepted only with the confirmed release shape
-`animeKind: "movie"`; the response preserves `type: "anime"` while using the provider's movie
-catalog path.
+both upstream contracts. Anime films use the provider's movie path and preserve `type: "anime"`.
+TV anime requires a verified anime-native/cinema identity plus explicit seasonal and absolute
+episode coordinates. Only the exact season/episode catalog row is resolved, and the canonical
+absolute episode is retained in every normalized option. Absolute-only, underidentified,
+conflicting, missing, and non-TV episodic queries are rejected.
 
 VideoHUB streaming is opt-in through `videoHubStreamingProvider()` or
 `MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk ID. Series require
-an exact season and episode. Anime is accepted only with the confirmed release shape
-`animeKind: "movie"`, uses the non-serial playlist path, and preserves `type: "anime"`; episodic
-anime is intentionally rejected so it remains on anime-compatible providers. Returned options
-preserve the query's external identities. When metadata providers are configured and the
+an exact season and episode. Anime films use the non-serial playlist path and preserve
+`type: "anime"`. TV anime requires a verified anime-native/Kinopoisk identity and explicit
+`seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`; only playlist rows matching the exact
+seasonal pair are resolved, while the absolute number is preserved for canonical anime progress.
+Absolute-only, underidentified, conflicting, missing, and non-TV episodic queries are rejected.
+Returned options preserve the query's external identities. When metadata providers are configured and the
 availability query also carries a title, Core can conservatively resolve a missing Kinopoisk ID
 from another external-ID namespace before selecting VideoHUB; conflicting or ambiguous identities
 are never guessed. The adapter itself still uses only the Kinopoisk-keyed public playlist and video
@@ -178,6 +182,7 @@ stable option IDs, and later lookup failures do not discard earlier success. A b
 cache separately retains playlists and still-valid signed video resolutions; signed links are never
 served stale or assigned a later expiry. `playlistCacheTtlMs` and `cacheMaxEntries` tune or disable
 playlist caching, while video cache lifetime remains bounded by each link's configured lifetime.
+The repeatable live contract matrix is available as `pnpm smoke:episodic-anime`.
 
 Rutube streaming is opt-in through `rutubeStreamingProvider()` or
 `MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED=true`. It supports movies only and searches the public

@@ -1195,36 +1195,47 @@ export class MediaEngine {
     signal: AbortSignal | undefined,
   ): Promise<{ query: StreamQuery; degraded: boolean }> {
     const initialMissing = getMissingStreamingIdentitySources(this.streamingProviders, query);
-    const resolved = initialMissing.length
-      ? await resolveQueryIdentity(query, this.identityResolver, signal)
-      : query;
-    const missingSources = getMissingStreamingIdentitySources(this.streamingProviders, resolved);
+    const validateAnimeEpisode = needsAnimeEpisodeIdentityValidation(
+      this.streamingProviders,
+      query,
+    );
+    const validation = validateAnimeEpisode
+      ? await verifyAnimeEpisodeIdentity(query, this.identityResolver, signal)
+      : { query, degraded: false };
+    const safeQuery =
+      initialMissing.length > 0 && !validateAnimeEpisode
+        ? await resolveQueryIdentity(query, this.identityResolver, signal)
+        : validation.query;
+    const missingSources = getMissingStreamingIdentitySources(this.streamingProviders, safeQuery);
+    const identityDegraded = validation.degraded || missingSources.length > 0;
 
-    if (missingSources.length === 0) return { query: resolved, degraded: false };
-    if (!resolved.title) return { query: resolved, degraded: true };
+    if (missingSources.length === 0) return { query: safeQuery, degraded: identityDegraded };
+    if (!safeQuery.title) return { query: safeQuery, degraded: true };
 
     try {
       const response = await this.search(
         {
-          title: resolved.title,
-          type: resolved.type,
-          year: resolved.year,
-          ids: resolved.ids,
+          title: safeQuery.title,
+          type: safeQuery.type,
+          year: safeQuery.year,
+          ids: safeQuery.ids,
           limit: 10,
-          language: resolved.language,
+          language: safeQuery.language,
         },
         { signal },
       );
 
-      const enriched = enrichStreamQueryIdentity(resolved, response, missingSources);
+      const enriched = enrichStreamQueryIdentity(safeQuery, response, missingSources);
       return {
         query: enriched,
-        degraded: getMissingStreamingIdentitySources(this.streamingProviders, enriched).length > 0,
+        degraded:
+          identityDegraded ||
+          getMissingStreamingIdentitySources(this.streamingProviders, enriched).length > 0,
       };
     } catch (error) {
       throwIfAborted(signal);
       if (error instanceof MediaEngineError && error.code === "PROVIDER_ERROR") {
-        return { query: resolved, degraded: true };
+        return { query: safeQuery, degraded: true };
       }
       throw error;
     }
@@ -1392,6 +1403,83 @@ export class MediaEngine {
   protected get engineDebug(): boolean {
     return this.debug;
   }
+}
+
+function needsAnimeEpisodeIdentityValidation(
+  providers: readonly StreamingProvider[],
+  query: StreamQuery,
+): boolean {
+  if (
+    query.type !== "anime" ||
+    query.animeKind !== "tv" ||
+    query.seasonNumber === undefined ||
+    query.episodeNumber === undefined ||
+    query.absoluteEpisodeNumber === undefined
+  ) {
+    return false;
+  }
+
+  return providers.some(
+    (provider) =>
+      (!query.providers || query.providers.includes(provider.name)) &&
+      provider.capabilities.mediaTypes.includes("anime") &&
+      provider.capabilities.animeKinds?.includes("tv") === true &&
+      provider.capabilities.lookup.byEpisode &&
+      provider.capabilities.lookup.byExternalIds.some((source) =>
+        ["imdb", "tmdb", "kinopoisk"].includes(source),
+      ),
+  );
+}
+
+function removeCinemaIdentity(query: StreamQuery): StreamQuery {
+  const ids = { ...query.ids };
+  delete ids.imdb;
+  delete ids.tmdb;
+  delete ids.kinopoisk;
+  return { ...query, ids };
+}
+
+async function verifyAnimeEpisodeIdentity(
+  query: StreamQuery,
+  resolver: IdentityResolver | undefined,
+  signal: AbortSignal | undefined,
+): Promise<{ query: StreamQuery; degraded: boolean }> {
+  if (!resolver || !query.ids) return { query: removeCinemaIdentity(query), degraded: true };
+
+  const resolution = await resolver.resolve("anime", { ...query.ids }, signal);
+  const ids = { ...query.ids, ...resolution.ids };
+  const verifiedCinemaIds = new Set(
+    resolution.provenance
+      .filter(
+        ({ namespace, source }) =>
+          source !== "initial" && ["imdb", "tmdb", "kinopoisk"].includes(namespace),
+      )
+      .map(({ namespace, value }) => `${namespace}:${value}`),
+  );
+  let removed = false;
+
+  for (const namespace of ["imdb", "tmdb", "kinopoisk"] as const) {
+    const value = ids[namespace];
+    if (value && !verifiedCinemaIds.has(`${namespace}:${value}`)) {
+      delete ids[namespace];
+      removed = true;
+    }
+  }
+
+  return {
+    query: { ...query, ids },
+    degraded:
+      removed ||
+      resolution.diagnostics.some(({ code }) =>
+        [
+          "EXTERNAL_ID_CONFLICT",
+          "AMBIGUOUS_ID",
+          "SOURCE_ERROR",
+          "SOURCE_TIMEOUT",
+          "BUDGET_EXHAUSTED",
+        ].includes(code),
+      ),
+  };
 }
 
 type AvailabilityProgressEvent =

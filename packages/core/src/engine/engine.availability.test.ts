@@ -4,6 +4,7 @@ import { test } from "node:test";
 import type { Cache, CacheSetOptions } from "../cache/index.js";
 import { MemoryCache } from "../cache/index.js";
 import { MediaEngineError, ProviderError } from "../errors/index.js";
+import { IdentityResolver, type IdentityResolverSource } from "../identity/index.js";
 import type { MediaAvailability, StreamQuery } from "../streaming/index.js";
 import { MediaEngine } from "./engine.js";
 import {
@@ -340,6 +341,107 @@ test("getAvailability does not guess a missing streaming ID after metadata confl
   assert.equal(streamingCalls, 0);
   assert.deepEqual(availability.query.ids, { shikimori: "100" });
   assert.deepEqual(availability.meta?.providers.requested, []);
+});
+
+test("getAvailability withholds cinema providers after an episodic anime identity conflict", async () => {
+  let directCalls = 0;
+  const source: IdentityResolverSource = {
+    name: "verified-anime-map",
+    canResolve: (ids, type) => type === "anime" && ids.aniList === "154587",
+    async resolve() {
+      return [
+        {
+          source: "verified-anime-map",
+          type: "anime",
+          matched: { namespace: "aniList", value: "154587" },
+          ids: { aniList: "154587", kinopoisk: "5401195" },
+        },
+      ];
+    },
+  };
+  const engine = new MediaEngine({
+    identityResolver: new IdentityResolver([source]),
+    streamingProviders: [
+      createStreamingProvider({ name: "anime-embed" }),
+      createStreamingProvider({
+        name: "anime-direct",
+        capabilities: {
+          mediaTypes: ["anime"],
+          animeKinds: ["tv"],
+          lookup: { byTitle: false, byExternalIds: ["kinopoisk"], byEpisode: true },
+          features: ["hls", "episode_mapping"],
+        },
+        async getAvailability(query) {
+          directCalls += 1;
+          return createAvailability(query, "anime-direct");
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    animeKind: "tv",
+    title: "Frieren",
+    ids: { aniList: "154587", kinopoisk: "1381125" },
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+  });
+
+  assert.equal(directCalls, 0);
+  assert.deepEqual(availability.query.ids, { aniList: "154587" });
+  assert.deepEqual(availability.meta?.providers.requested, ["anime-embed"]);
+  assert.deepEqual(availability.state, { status: "degraded", degradedBy: ["identity"] });
+
+  const confirmed = await engine.getAvailability({
+    type: "anime",
+    animeKind: "tv",
+    title: "Frieren",
+    ids: { aniList: "154587", kinopoisk: "5401195" },
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+  });
+
+  assert.equal(directCalls, 1);
+  assert.deepEqual(confirmed.query.ids, { aniList: "154587", kinopoisk: "5401195" });
+  assert.deepEqual(confirmed.meta?.providers.requested, ["anime-embed", "anime-direct"]);
+});
+
+test("getAvailability degrades unverified episodic anime without hiding title providers", async () => {
+  let directCalls = 0;
+  const engine = new MediaEngine({
+    streamingProviders: [
+      createStreamingProvider({ name: "anime-embed" }),
+      createStreamingProvider({
+        name: "anime-direct",
+        capabilities: {
+          mediaTypes: ["anime"],
+          animeKinds: ["tv"],
+          lookup: { byTitle: false, byExternalIds: ["kinopoisk"], byEpisode: true },
+        },
+        async getAvailability(query) {
+          directCalls += 1;
+          return createAvailability(query, "anime-direct");
+        },
+      }),
+    ],
+  });
+
+  const availability = await engine.getAvailability({
+    type: "anime",
+    animeKind: "tv",
+    title: "Frieren",
+    ids: { kinopoisk: "5401195" },
+    seasonNumber: 1,
+    episodeNumber: 1,
+    absoluteEpisodeNumber: 1,
+  });
+
+  assert.equal(directCalls, 0);
+  assert.deepEqual(availability.meta?.providers.requested, ["anime-embed"]);
+  assert.deepEqual(availability.state, { status: "degraded", degradedBy: ["identity"] });
 });
 
 test("getAvailabilityProgressively resolves missing streaming IDs before provider selection", async () => {

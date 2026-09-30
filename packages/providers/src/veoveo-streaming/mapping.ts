@@ -28,12 +28,15 @@ export function mapVeoVeoAvailability(
 
   const selectedItems = selectSeriesItems(catalog, query);
   const episodes = selectedItems.flatMap((item) => {
-    const options = mapItemOptions(provider, contentId, item, sourceUrl, expiresAt);
+    const options = mapItemOptions(provider, contentId, item, sourceUrl, expiresAt, query);
     return options.length > 0
       ? [
           {
             seasonNumber: item.seasonNumber,
             episodeNumber: item.episodeNumber,
+            ...(query.type === "anime" && query.absoluteEpisodeNumber !== undefined
+              ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
+              : {}),
             title: item.title,
             options,
           } satisfies StreamEpisodeAvailability,
@@ -116,6 +119,7 @@ function mapItemOptions(
   item: VeoVeoCatalogItem,
   sourceUrl: string,
   expiresAt: string,
+  query?: MediaAvailability["query"],
 ): StreamOption[] {
   const seenUrls = new Set<string>();
 
@@ -124,7 +128,9 @@ function mapItemOptions(
     if (!url || seenUrls.has(url)) return [];
     seenUrls.add(url);
 
-    return [createOption(provider, contentId, item, variant, index, url, sourceUrl, expiresAt)];
+    return [
+      createOption(provider, contentId, item, variant, index, url, sourceUrl, expiresAt, query),
+    ];
   });
 }
 
@@ -137,12 +143,19 @@ function createOption(
   url: string,
   sourceUrl: string,
   expiresAt: string,
+  query?: MediaAvailability["query"],
 ): StreamOption {
   const height = parseHeight(variant.title);
   const translationTitle = height ? "VeoVeo" : variant.title?.trim() || "VeoVeo";
   const episode =
     item.seasonNumber > 0
-      ? { seasonNumber: item.seasonNumber, episodeNumber: item.episodeNumber }
+      ? {
+          seasonNumber: item.seasonNumber,
+          episodeNumber: item.episodeNumber,
+          ...(query?.type === "anime" && query.absoluteEpisodeNumber !== undefined
+            ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
+            : {}),
+        }
       : undefined;
 
   return {

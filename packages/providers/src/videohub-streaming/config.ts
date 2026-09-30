@@ -146,7 +146,7 @@ export function createVideoHubConfig(
 export function createVideoHubCapabilities(): StreamingProviderCapabilities {
   return {
     mediaTypes: ["movie", "series", "anime"],
-    animeKinds: ["movie"],
+    animeKinds: ["movie", "tv"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk"],

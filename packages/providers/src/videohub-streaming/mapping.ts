@@ -104,8 +104,8 @@ function createEpisodeRef(
   return {
     ...(item.seasonNumber !== undefined ? { seasonNumber: item.seasonNumber } : {}),
     ...(item.episodeNumber !== undefined ? { episodeNumber: item.episodeNumber } : {}),
-    ...(query.type === "anime" && item.absoluteEpisodeNumber !== undefined
-      ? { absoluteEpisodeNumber: item.absoluteEpisodeNumber }
+    ...(query.type === "anime" && query.absoluteEpisodeNumber !== undefined
+      ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
       : {}),
   };
 }

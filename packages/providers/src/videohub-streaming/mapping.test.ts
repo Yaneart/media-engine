@@ -110,7 +110,6 @@ test("mapVideoHubAvailability preserves anime type and seasonal plus absolute ep
     vkId: "101",
     seasonNumber: 1,
     episodeNumber: 1,
-    absoluteEpisodeNumber: 1,
     voiceStudio: "Dub",
     sourceUrl: "https://videohub.test/video/101",
     sources: [{ url: "https://cdn.test/anime-1080.mp4", label: "1080p", height: 1080 }],
@@ -122,7 +121,10 @@ test("mapVideoHubAvailability preserves anime type and seasonal plus absolute ep
     [item],
     {
       type: "anime",
+      animeKind: "tv",
       ids: { aniList: "154587", kinopoisk: "5401195" },
+      seasonNumber: 1,
+      episodeNumber: 1,
       absoluteEpisodeNumber: 1,
     },
     "https://videohub.test/playlist?id=5401195",

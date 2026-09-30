@@ -5,6 +5,7 @@ import type {
   StreamingProvider,
 } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
+import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import {
   loadVideoHubPlaylist,
   resolveVideoHubItemsProgressively,
@@ -152,7 +153,7 @@ function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>
     return hasSeason && hasEpisode && query.absoluteEpisodeNumber === undefined;
   }
 
-  return false;
+  return resolveAnimeEpisodeSelection(query) !== undefined;
 }
 
 function isPositiveInteger(value: number | undefined): boolean {

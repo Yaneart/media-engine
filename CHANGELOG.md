@@ -7,6 +7,27 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.11.0 - 2026-09-30
+
+### Added
+
+- VideoHUB and VeoVeo now support exact TV-anime playback when a verified anime-native/cinema
+  identity is paired with explicit seasonal and canonical absolute episode coordinates.
+- Added `pnpm smoke:episodic-anime` for the live Frieren, Solo Leveling, Jujutsu Kaisen, Death Note,
+  ambiguity, mismatch, anime-film, movie, and series contract matrix.
+
+### Changed
+
+- Core verifies episodic-anime cinema IDs through non-initial Identity Resolver provenance before
+  selecting cinema-keyed direct providers. Ambiguous, conflicting, or unverifiable mappings remain
+  degraded without suppressing independent anime and embed providers.
+
+### Fixed
+
+- Multi-season cinema catalogs no longer let an absolute-only anime request silently select the
+  wrong provider season. Direct options retain `type: anime` and both seasonal and absolute episode
+  identity for canonical history and progress.
+
 ## 1.10.0 - 2026-09-28
 
 ### Added

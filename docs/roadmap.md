@@ -17,6 +17,15 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 ## Current focus
 
+The active cross-repository task is **MP-008A: safe episodic-anime support for VideoHub and VeoVeo**.
+The Media Engine implementation and joint Core/Providers/SDK `1.11.0` release candidate are prepared.
+Exact canonical anime identity plus season, episode, and absolute-episode selection is required;
+ambiguous, underidentified, or mismatched requests are rejected without hiding healthy AniLiberty or
+embed sources. The deterministic release gate and the live Frieren, Solo Leveling, Jujutsu Kaisen,
+Death Note, negative identity/episode, anime-film, movie, and series matrix pass. The next checkpoint
+is user-run Git/npm publication. Only after `1.11.0` is published may yaneMedia upgrade the exact
+versions and perform browser acceptance; MP-009 remains blocked until that acceptance is complete.
+
 1. Monitor the accepted default DDBB and AniLiberty providers while keeping their requests bounded,
    failures isolated, attribution explicit, and `embed` versus direct-HLS classification accurate.
 2. Monitor the accepted opt-in YTS, JacRed, Bitsearch, and Magnetz torrent sources with the combined

@@ -110,12 +110,15 @@ test("parseVideoHubSources rejects missing current source containers", () => {
   );
 });
 
-test("selectVideoHubPlaylistItems keeps episodic anime out of the movie adapter", () => {
+test("selectVideoHubPlaylistItems requires and applies explicit anime episode coordinates", () => {
   const playlist = parseVideoHubPlaylist(
     "videohub-streaming",
     {
       isSerial: true,
-      items: [{ season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" }],
+      items: [
+        { season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" },
+        { season: 2, episode: 1, voiceStudio: "Dub", vkId: "201" },
+      ],
     },
     10,
   );
@@ -128,5 +131,16 @@ test("selectVideoHubPlaylistItems keeps episodic anime out of the movie adapter"
       absoluteEpisodeNumber: 1,
     }),
     [],
+  );
+  assert.deepEqual(
+    selectVideoHubPlaylistItems(playlist, {
+      type: "anime",
+      animeKind: "tv",
+      ids: { aniList: "154587", kinopoisk: "5401195" },
+      seasonNumber: 2,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 1,
+    }),
+    [{ seasonNumber: 2, episodeNumber: 1, voiceStudio: "Dub", vkId: "201" }],
   );
 });
