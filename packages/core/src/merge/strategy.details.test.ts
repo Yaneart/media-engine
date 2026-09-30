@@ -557,3 +557,39 @@ test("keeps details that share a strong ID despite another ID conflict", () => {
     },
   ]);
 });
+
+test("preserves anime-only fields when the primary details entry omits release shape", () => {
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("kinobd", {
+        id: "kinobd-solo-leveling",
+        type: "anime",
+        title: "Поднятие уровня в одиночку",
+        ids: { aniList: "151807", kinopoisk: "5230828" },
+        episodesCount: 25,
+      }),
+      providerDetailsResult("shikimori", {
+        id: "shikimori-solo-leveling",
+        type: "anime",
+        animeKind: "tv",
+        title: "Поднятие уровня в одиночку",
+        ids: { aniList: "151807", kinopoisk: "5230828" },
+        airedOn: "2024-01-06",
+        releasedOn: "2024-03-30",
+        ageRating: "r_17_plus",
+      }),
+    ],
+    {
+      query: {
+        ids: { aniList: "151807", kinopoisk: "5230828" },
+        type: "anime",
+      },
+    },
+  );
+
+  assert.equal(details?.type, "anime");
+  assert.equal(details?.animeKind, "tv");
+  assert.equal(details?.airedOn, "2024-01-06");
+  assert.equal(details?.releasedOn, "2024-03-30");
+  assert.equal(details?.ageRating, "r_17_plus");
+});

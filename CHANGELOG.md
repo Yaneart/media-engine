@@ -7,6 +7,15 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.11.2 - 2026-09-30
+
+### Fixed
+
+- Details merging now preserves `animeKind`, air/release dates, and age rating from compatible
+  anime providers when a higher-priority cinema details result omits anime-specific fields. This
+  keeps safe episodic-anime routing available for verified works such as Solo Leveling without
+  weakening release-shape validation.
+
 ## 1.11.1 - 2026-09-30
 
 ### Fixed
