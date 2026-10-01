@@ -605,6 +605,10 @@ test("anchors episodic anime details to the requested anime identity year", () =
         year: 2018,
         ids: { imdb: "tt8213522", tmdb: "286516" },
         episodesCount: 24,
+        seasons: [
+          { number: 1, episodesCount: 12 },
+          { number: 2, episodesCount: 12 },
+        ],
       }),
       providerDetailsResult("shikimori", {
         id: "shikimori-tokyo-ghoul-root-a",
@@ -646,6 +650,10 @@ test("anchors episodic anime details to the requested anime identity year", () =
   assert.equal(details?.animeKind, "tv");
   assert.equal(details?.episodesCount, 12);
   assert.equal(details?.episodes?.length, 1);
+  assert.deepEqual(details?.canonicalSeasons, [
+    { number: 1, episodesCount: 12 },
+    { number: 2, episodesCount: 12 },
+  ]);
   assert.deepEqual(
     details?.sourceProviders?.map((source) => source.provider),
     ["shikimori", "anilist"],

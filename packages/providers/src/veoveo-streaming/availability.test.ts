@@ -145,9 +145,14 @@ test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", asy
       type: "anime",
       animeKind: "tv",
       ids: { aniList: "170000", kinopoisk: "5401195" },
-      seasonNumber: 2,
-      episodeNumber: 1,
+      seasonNumber: 1,
+      episodeNumber: 2,
       absoluteEpisodeNumber: 2,
+      animeReleaseEpisode: {
+        releaseIndex: 1,
+        releaseEpisodeNumber: 1,
+        releaseEpisodeCounts: [1, 1],
+      },
     },
     {},
   );
@@ -155,8 +160,8 @@ test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", asy
   assert.deepEqual(requestedManifests, ["/s02e01/master.m3u8"]);
   assert.equal(result?.item?.type, "anime");
   assert.deepEqual(result?.options[0]?.episode, {
-    seasonNumber: 2,
-    episodeNumber: 1,
+    seasonNumber: 1,
+    episodeNumber: 2,
     absoluteEpisodeNumber: 2,
   });
 
@@ -169,6 +174,11 @@ test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", asy
         seasonNumber: 2,
         episodeNumber: 1,
         absoluteEpisodeNumber: 1,
+        animeReleaseEpisode: {
+          releaseIndex: 1,
+          releaseEpisodeNumber: 1,
+          releaseEpisodeCounts: [1, 1],
+        },
       },
       {},
     ),

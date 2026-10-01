@@ -2,6 +2,14 @@ import type { AnimeKind, ExternalIds, MediaType } from "../media/index.js";
 import type { ExternalIdSource, ProviderContext } from "../providers/index.js";
 import type { ResponseMeta } from "../response/index.js";
 
+// Locates an episode inside the ordered anime release/segment chain. The flat
+// season fields on StreamQuery remain canonical user-facing coordinates.
+export interface AnimeReleaseEpisodeSelection {
+  releaseIndex: number;
+  releaseEpisodeNumber: number;
+  releaseEpisodeCounts: number[];
+}
+
 // Query that identifies one media item or episode for streaming lookup.
 // Запрос, который определяет медиа или эпизод для поиска streaming-вариантов.
 export interface StreamQuery {
@@ -19,6 +27,7 @@ export interface StreamQuery {
   seasonNumber?: number;
   episodeNumber?: number;
   absoluteEpisodeNumber?: number;
+  animeReleaseEpisode?: AnimeReleaseEpisodeSelection;
   providers?: string[];
   language?: string;
 }

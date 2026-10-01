@@ -141,6 +141,17 @@ export class MediaController {
   @ApiQuery({ name: 'seasonNumber', required: false, type: Number })
   @ApiQuery({ name: 'episodeNumber', required: false, type: Number })
   @ApiQuery({ name: 'absoluteEpisodeNumber', required: false, type: Number })
+  @ApiQuery({ name: 'animeReleaseIndex', required: false, type: Number })
+  @ApiQuery({
+    name: 'animeReleaseEpisodeNumber',
+    required: false,
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'animeReleaseEpisodeCounts',
+    required: false,
+    type: String,
+  })
   @ApiQuery({ name: 'providers', required: false, type: String })
   @ApiQuery({ name: 'language', required: false, type: String })
   @ApiExternalIdQueryParameters()

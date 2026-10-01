@@ -7,6 +7,29 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.12.0 - 2026-10-01
+
+### Added
+
+- Anime details can expose `canonicalSeasons` from a verified series identity, and Core exports an
+  exact count-partition helper for mapping ordered anime releases into user-facing seasons.
+- `StreamQuery.animeReleaseEpisode` carries the selected release index, release-local episode, and
+  ordered release counts. The REST API and SDK expose the same additive contract; the REST/OpenAPI
+  contract version is now `0.18.0`.
+
+### Changed
+
+- TVmaze details load a gap-free regular-season episode catalog for exact IMDb identities.
+- VideoHUB and VeoVeo independently map canonical anime episodes into provider-native season
+  boundaries, while returned options retain canonical season, episode, and absolute coordinates.
+- AniLiberty exact playback uses the release-local episode from the validated mapping instead of a
+  franchise-wide absolute number.
+
+### Fixed
+
+- Typed Shikimori cinema links accept legacy `http://kinopoisk.ru` records as well as HTTPS links;
+  only the numeric ID is parsed and no insecure URL is fetched.
+
 ## 1.11.3 - 2026-10-01
 
 ### Fixed

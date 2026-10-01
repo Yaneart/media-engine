@@ -345,6 +345,7 @@ test("getAvailability does not guess a missing streaming ID after metadata confl
 
 test("getAvailability withholds cinema providers after an episodic anime identity conflict", async () => {
   let directCalls = 0;
+  let directQuery: StreamQuery | undefined;
   const source: IdentityResolverSource = {
     name: "verified-anime-map",
     canResolve: (ids, type) => type === "anime" && ids.aniList === "154587",
@@ -373,6 +374,7 @@ test("getAvailability withholds cinema providers after an episodic anime identit
         },
         async getAvailability(query) {
           directCalls += 1;
+          directQuery = query;
           return createAvailability(query, "anime-direct");
         },
       }),
@@ -387,6 +389,11 @@ test("getAvailability withholds cinema providers after an episodic anime identit
     seasonNumber: 1,
     episodeNumber: 1,
     absoluteEpisodeNumber: 1,
+    animeReleaseEpisode: {
+      releaseIndex: 0,
+      releaseEpisodeNumber: 1,
+      releaseEpisodeCounts: [28],
+    },
   });
 
   assert.equal(directCalls, 0);
@@ -402,9 +409,19 @@ test("getAvailability withholds cinema providers after an episodic anime identit
     seasonNumber: 1,
     episodeNumber: 1,
     absoluteEpisodeNumber: 1,
+    animeReleaseEpisode: {
+      releaseIndex: 0,
+      releaseEpisodeNumber: 1,
+      releaseEpisodeCounts: [28],
+    },
   });
 
   assert.equal(directCalls, 1);
+  assert.deepEqual(directQuery?.animeReleaseEpisode, {
+    releaseIndex: 0,
+    releaseEpisodeNumber: 1,
+    releaseEpisodeCounts: [28],
+  });
   assert.deepEqual(confirmed.query.ids, { aniList: "154587", kinopoisk: "5401195" });
   assert.deepEqual(confirmed.meta?.providers.requested, ["anime-embed", "anime-direct"]);
 });

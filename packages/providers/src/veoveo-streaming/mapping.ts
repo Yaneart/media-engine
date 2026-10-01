@@ -33,8 +33,8 @@ export function mapVeoVeoAvailability(
     return options.length > 0
       ? [
           {
-            seasonNumber: item.seasonNumber,
-            episodeNumber: item.episodeNumber,
+            seasonNumber: query.type === "anime" ? query.seasonNumber : item.seasonNumber,
+            episodeNumber: query.type === "anime" ? query.episodeNumber : item.episodeNumber,
             ...(query.type === "anime" && query.absoluteEpisodeNumber !== undefined
               ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
               : {}),
@@ -157,8 +157,8 @@ function createOption(
   const episode =
     item.seasonNumber > 0
       ? {
-          seasonNumber: item.seasonNumber,
-          episodeNumber: item.episodeNumber,
+          seasonNumber: query?.type === "anime" ? query.seasonNumber : item.seasonNumber,
+          episodeNumber: query?.type === "anime" ? query.episodeNumber : item.episodeNumber,
           ...(query?.type === "anime" && query.absoluteEpisodeNumber !== undefined
             ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
             : {}),

@@ -118,9 +118,11 @@ and must not be used in a public deployment. Returned CDN video URLs use HTTPS. 
 public content ID, discards the iframe token, and returns direct signed HTTPS HLS. VideoHUB uses a Kinopoisk ID and returns
 short-lived direct MP4 qualities for movies or one exact series episode. Both providers preserve
 `type: "anime"` for anime films. They also accept TV anime only with a verified anime-native/cinema
-identity and explicit `seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`; ambiguous or
-mismatched episode requests are rejected after deriving the absolute number from a complete,
-gap-free seasonal catalog prefix. VideoHUB links are bound to the
+identity and explicit canonical `seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`.
+For split releases, pass `animeReleaseEpisode` with the selected release index, its local episode,
+and the ordered release counts. Each adapter maps that evidence to its own complete, gap-free
+catalog; ambiguous, incomplete, or conflicting mappings are rejected. Returned options keep the
+canonical coordinates rather than leaking provider-native season boundaries. VideoHUB links are bound to the
 playback User-Agent and may also be bound to the requesting public IP. Pass the playback client's
 exact User-Agent as `MediaEngineOperationOptions.playbackUserAgent`; the required value is retained
 in each option's `access.headers` for non-browser clients.

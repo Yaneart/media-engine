@@ -256,6 +256,15 @@ function appendQuery(
     "absoluteEpisodeNumber",
     "absoluteEpisodeNumber" in query ? query.absoluteEpisodeNumber : undefined,
   );
+  if ("animeReleaseEpisode" in query && query.animeReleaseEpisode) {
+    appendParam(url, "animeReleaseIndex", query.animeReleaseEpisode.releaseIndex);
+    appendParam(url, "animeReleaseEpisodeNumber", query.animeReleaseEpisode.releaseEpisodeNumber);
+    appendArrayParam(
+      url,
+      "animeReleaseEpisodeCounts",
+      query.animeReleaseEpisode.releaseEpisodeCounts.map(String),
+    );
+  }
   appendArrayParam(url, "providers", "providers" in query ? query.providers : undefined);
 
   for (const key of EXTERNAL_ID_KEYS) {

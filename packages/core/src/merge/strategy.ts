@@ -1,4 +1,4 @@
-import type { ExternalIds, MediaDetails, MediaItem, MediaType } from "../media/index.js";
+import type { ExternalIds, MediaDetails, MediaItem, MediaType, Season } from "../media/index.js";
 import type { ProviderDetailsResult, ProviderSearchResult } from "../providers/index.js";
 import type { MediaSearchResult, SearchQuery, SearchRankEvidence } from "../search/index.js";
 import { diversifySearchCandidates } from "./diversity.js";
@@ -28,6 +28,7 @@ import {
   selectYear,
 } from "./fields.js";
 import { groupSearchResults } from "./grouping.js";
+import { hasSharedStrongId } from "./identity.js";
 import type {
   DetailsEntry,
   ExternalIdKey,
@@ -147,14 +148,13 @@ export class DefaultMergeStrategy implements MergeStrategy {
   // Объединяет details-результаты провайдеров вокруг основного результата.
   mergeDetails(results: ProviderDetailsResult[], context: MergeContext = {}): MediaDetails | null {
     const priorityType = selectMetadataPriorityType(results.map((result) => result.details));
-    const sortedEntries = filterDetailsEntriesByIdentity(
-      sortEntriesByPriority(
-        results.map((result, index) => ({ result, index })),
-        context,
-        priorityType,
-      ),
+    const rankedEntries = sortEntriesByPriority(
+      results.map((result, index) => ({ result, index })),
       context,
+      priorityType,
     );
+    const canonicalAnimeSeasons = selectCanonicalAnimeSeasons(rankedEntries, context);
+    const sortedEntries = filterDetailsEntriesByIdentity(rankedEntries, context);
     const mediaType = selectMergedDetailsType(
       sortedEntries.map((entry) => entry.result.details),
       context,
@@ -165,7 +165,7 @@ export class DefaultMergeStrategy implements MergeStrategy {
       selectMetadataPriorityType(sortedEntries.map((entry) => entry.result.details)),
     );
 
-    return mergeDetailsEntries(finalEntries, context, mediaType);
+    return mergeDetailsEntries(finalEntries, context, mediaType, canonicalAnimeSeasons);
   }
 }
 
@@ -279,6 +279,7 @@ function mergeDetailsEntries(
   entries: DetailsEntry[],
   context: MergeContext,
   mediaType?: MediaType,
+  canonicalAnimeSeasons?: Season[],
 ): MediaDetails | null {
   const primary = entries[0]?.result.details;
 
@@ -347,6 +348,7 @@ function mergeDetailsEntries(
               ? entry.result.details.episodesCount
               : undefined,
           ),
+        canonicalSeasons: canonicalAnimeSeasons,
         airedOn: firstDefined(entries, (entry) =>
           entry.result.details.type === "anime" ? entry.result.details.airedOn : undefined,
         ),
@@ -358,6 +360,40 @@ function mergeDetailsEntries(
         ),
       };
   }
+}
+
+function selectCanonicalAnimeSeasons(
+  entries: readonly DetailsEntry[],
+  context: MergeContext,
+): Season[] | undefined {
+  if (context.query?.type !== "anime") return undefined;
+  const queryIds = readQueryIds(context);
+  const candidates = entries.flatMap(({ result }) => {
+    const details = result.details;
+    return details.type === "series" &&
+      details.seasons?.length &&
+      hasSharedStrongId(queryIds, details.ids)
+      ? [details.seasons]
+      : [];
+  });
+  if (candidates.length === 0) return undefined;
+
+  const signatures = new Set(
+    candidates.map((seasons) =>
+      JSON.stringify(seasons.map((season) => [season.number, season.episodesCount])),
+    ),
+  );
+  return signatures.size === 1 ? candidates[0] : undefined;
+}
+
+function readQueryIds(context: MergeContext): ExternalIds {
+  const ids: ExternalIds = { ...context.query?.ids };
+  const directKeys = ["imdb", "tmdb", "kinopoisk", "shikimori", "myAnimeList", "aniList"] as const;
+  for (const key of directKeys) {
+    const value = context.query?.[key];
+    if (typeof value === "string" && value.trim()) ids[key] = value.trim();
+  }
+  return ids;
 }
 
 // Merges external IDs and records conflicts without overwriting priority values.

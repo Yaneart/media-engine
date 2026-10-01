@@ -200,6 +200,9 @@ export interface AnimeDetails extends BaseMediaDetails {
   animeKind?: AnimeKind;
   episodes?: Episode[];
   episodesCount?: number;
+  // Canonical user-facing seasons from a verified series identity. Anime catalog
+  // releases can split one season into several independently identified segments.
+  canonicalSeasons?: Season[];
   airedOn?: string;
   releasedOn?: string;
   ageRating?: string;

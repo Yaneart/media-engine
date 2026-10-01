@@ -17,19 +17,25 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 ## Current focus
 
-The active cross-repository task is **MP-008A: safe episodic-anime support for VideoHub and VeoVeo**.
-The corrective joint Core/Providers/SDK `1.11.3` release candidate preserves season-specific anime
-metadata when series-level cinema details describe a different release year, prefers anime episode
-counts over aggregate series totals, and supports ongoing titles whose final episode count is not
-known. It follows `1.11.2`, which preserved anime release shape when compatible cinema details omit
-anime-only fields, and `1.11.1`, which closed two safety gaps in provenance-free metadata
-re-enrichment and seasonal-to-absolute episode mapping.
-Exact canonical anime identity plus season, episode, and absolute-episode selection is required;
-ambiguous, underidentified, or mismatched requests are rejected without hiding healthy AniLiberty or
-embed sources. The deterministic release gate and the live Frieren, Solo Leveling, Jujutsu Kaisen,
-Death Note, negative identity/episode, anime-film, movie, and series matrix pass. The next checkpoint
-is user-run Git/npm publication. Only after `1.11.3` is published may yaneMedia upgrade the exact
-versions and perform browser acceptance; MP-009 remains blocked until that acceptance is complete.
+The active cross-repository task is **MP-008B: canonical anime seasons and provider episode mapping**.
+The joint Core/Providers/SDK `1.12.0` release candidate separates an anime release-local episode,
+the user-facing canonical season coordinate, the franchise absolute coordinate, and each streaming
+provider's native season boundary. TVmaze supplies a verified gap-free canonical season catalog for
+exact IMDb identities; ordered AniList/Shikimori release counts are accepted only when they form an
+exact contiguous partition. No title/ID exceptions or guessed season-one fallbacks are used.
+
+`StreamQuery.animeReleaseEpisode` supplies explicit release evidence. VideoHUB and VeoVeo map it
+against their own complete catalogs while returning canonical coordinates; AniLiberty selects the
+release-local episode. Ambiguous, incomplete, conflicting, underidentified, and wrong-episode
+mappings fail closed without hiding independent sources. Typed legacy HTTP Kinopoisk links from
+Shikimori are parsed safely without fetching an insecure URL.
+
+Focused tests and the live matrix pass for Re:Zero S2 Part 2 (canonical S2E14, VideoHUB provider
+S3E1), Demon Slayer Entertainment District (canonical S2E8), Vinland Saga S2, first-season anime,
+anime films, ordinary movies/series, and negative mapping/identity cases. The next checkpoint is
+user-run Git/npm publication. Only after `1.12.0` is published may yaneMedia update exact versions
+and integrate canonical selector/history/progress behavior; MP-009 remains blocked until browser
+acceptance is complete.
 
 1. Monitor the accepted default DDBB and AniLiberty providers while keeping their requests bounded,
    failures isolated, attribution explicit, and `embed` versus direct-HLS classification accurate.

@@ -132,6 +132,14 @@ export function normalizeStreamQuery(query: StreamQuery): StreamQuery {
     ...(query.absoluteEpisodeNumber !== undefined
       ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
       : {}),
+    ...(query.animeReleaseEpisode
+      ? {
+          animeReleaseEpisode: {
+            ...query.animeReleaseEpisode,
+            releaseEpisodeCounts: [...query.animeReleaseEpisode.releaseEpisodeCounts],
+          },
+        }
+      : {}),
     ...(providers ? { providers } : {}),
     ...(language ? { language } : {}),
   };
@@ -308,6 +316,44 @@ export function validateStreamQuery(query: StreamQuery): void {
       code: "INVALID_QUERY",
       message: "Stream query numeric fields must be non-negative integers.",
     });
+  }
+
+  const release = query.animeReleaseEpisode;
+  if (release) {
+    const validCounts =
+      release.releaseEpisodeCounts.length > 0 &&
+      release.releaseEpisodeCounts.length <= 100 &&
+      release.releaseEpisodeCounts.every((count) => Number.isSafeInteger(count) && count > 0);
+    const validIndex =
+      Number.isSafeInteger(release.releaseIndex) &&
+      release.releaseIndex >= 0 &&
+      release.releaseIndex < release.releaseEpisodeCounts.length;
+    const validEpisode =
+      Number.isSafeInteger(release.releaseEpisodeNumber) &&
+      release.releaseEpisodeNumber > 0 &&
+      validIndex &&
+      release.releaseEpisodeNumber <= release.releaseEpisodeCounts[release.releaseIndex]!;
+    const expectedAbsolute = validIndex
+      ? release.releaseEpisodeCounts
+          .slice(0, release.releaseIndex)
+          .reduce((total, count) => total + count, 0) + release.releaseEpisodeNumber
+      : undefined;
+
+    if (
+      query.type !== "anime" ||
+      query.animeKind !== "tv" ||
+      query.seasonNumber === undefined ||
+      query.episodeNumber === undefined ||
+      query.absoluteEpisodeNumber === undefined ||
+      !validCounts ||
+      !validIndex ||
+      !validEpisode ||
+      expectedAbsolute !== query.absoluteEpisodeNumber
+    ) {
+      throwInvalidQuery(
+        "Stream query animeReleaseEpisode must identify the same explicit episodic anime episode.",
+      );
+    }
   }
 
   if (query.title || hasExternalIds(query.ids)) {

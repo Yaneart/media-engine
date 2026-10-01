@@ -99,14 +99,21 @@ function createEpisodeRef(
   item: ResolvedVideoHubItem,
   query: MediaAvailability["query"],
 ): StreamOption["episode"] {
-  if (query.type === "movie") return undefined;
+  if (query.type === "movie" || (query.type === "anime" && query.animeKind === "movie")) {
+    return undefined;
+  }
+
+  if (query.type === "anime") {
+    return {
+      seasonNumber: query.seasonNumber,
+      episodeNumber: query.episodeNumber,
+      absoluteEpisodeNumber: query.absoluteEpisodeNumber,
+    };
+  }
 
   return {
     ...(item.seasonNumber !== undefined ? { seasonNumber: item.seasonNumber } : {}),
     ...(item.episodeNumber !== undefined ? { episodeNumber: item.episodeNumber } : {}),
-    ...(query.type === "anime" && query.absoluteEpisodeNumber !== undefined
-      ? { absoluteEpisodeNumber: query.absoluteEpisodeNumber }
-      : {}),
   };
 }
 

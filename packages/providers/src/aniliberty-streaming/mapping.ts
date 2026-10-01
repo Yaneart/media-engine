@@ -5,6 +5,7 @@ import type {
   StreamOption,
 } from "@media-engine/core";
 import { normalizeProviderOutputUrl } from "../shared/index.js";
+import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import type { AniLibertyEpisode, AniLibertyRelease } from "./client.js";
 
 const QUALITIES = [
@@ -22,7 +23,7 @@ export function mapAniLibertyAvailability(
   const selectedEpisodes = selectEpisodes(release.episodes, query);
   const availability = mapReleaseAvailability(release);
   const episodes = selectedEpisodes.flatMap((episode) => {
-    const mapped = mapEpisode(provider, release.id, episode, sourceUrl, availability);
+    const mapped = mapEpisode(provider, release.id, episode, query, sourceUrl, availability);
     return mapped.options.length > 0 ? [mapped] : [];
   });
   const options = episodes.flatMap((episode) => episode.options);
@@ -47,12 +48,14 @@ function selectEpisodes(
   episodes: AniLibertyEpisode[],
   query: MediaAvailability["query"],
 ): AniLibertyEpisode[] {
-  if (query.absoluteEpisodeNumber === undefined) {
+  const selection = resolveAnimeEpisodeSelection(query);
+  const requestedEpisode = selection?.releaseEpisodeNumber ?? query.absoluteEpisodeNumber;
+  if (requestedEpisode === undefined) {
     return uniqueEpisodes(episodes);
   }
 
   const matching = uniqueEpisodes(episodes).filter(
-    (episode) => episode.ordinal === query.absoluteEpisodeNumber,
+    (episode) => episode.ordinal === requestedEpisode,
   );
   return matching.length === 1 ? matching : [];
 }
@@ -71,16 +74,36 @@ function mapEpisode(
   provider: string,
   releaseId: number,
   episode: AniLibertyEpisode,
+  query: MediaAvailability["query"],
   sourceUrl: string,
   availability: StreamAvailabilityStatus,
 ): StreamEpisodeAvailability {
+  const selection = resolveAnimeEpisodeSelection(query);
+  const episodeRef = selection?.releaseEpisodeNumber
+    ? {
+        seasonNumber: selection.canonicalSeasonNumber,
+        episodeNumber: selection.canonicalEpisodeNumber,
+        absoluteEpisodeNumber: selection.absoluteEpisodeNumber,
+      }
+    : { absoluteEpisodeNumber: episode.ordinal };
   return {
-    absoluteEpisodeNumber: episode.ordinal,
+    ...episodeRef,
     title: episode.name,
     options: QUALITIES.flatMap(({ field, height }) => {
       const url = normalizeProviderOutputUrl(episode[field]);
       return url
-        ? [createOption(provider, releaseId, episode, height, url, sourceUrl, availability)]
+        ? [
+            createOption(
+              provider,
+              releaseId,
+              episode,
+              episodeRef,
+              height,
+              url,
+              sourceUrl,
+              availability,
+            ),
+          ]
         : [];
     }),
   };
@@ -90,6 +113,7 @@ function createOption(
   provider: string,
   releaseId: number,
   episode: AniLibertyEpisode,
+  episodeRef: NonNullable<StreamOption["episode"]>,
   height: number,
   url: string,
   sourceUrl: string,
@@ -110,7 +134,7 @@ function createOption(
       team: "AniLiberty",
     },
     quality: { label: `${height}p`, height },
-    episode: { absoluteEpisodeNumber: episode.ordinal },
+    episode: episodeRef,
     access: { url },
     availability,
     sourceUrl,

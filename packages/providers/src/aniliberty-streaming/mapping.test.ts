@@ -65,6 +65,42 @@ test("mapAniLibertyAvailability preserves copyright blocks", () => {
   assert.ok(result?.options.every((option) => option.availability === "temporarily_unavailable"));
 });
 
+test("mapAniLibertyAvailability maps release-local episodes to canonical coordinates", () => {
+  const result = mapAniLibertyAvailability(
+    "aniliberty-streaming",
+    createRelease(),
+    {
+      type: "anime",
+      animeKind: "tv",
+      title: "One Piece Part 2",
+      year: 2000,
+      ids: { aniList: "2" },
+      seasonNumber: 1,
+      episodeNumber: 3,
+      absoluteEpisodeNumber: 3,
+      animeReleaseEpisode: {
+        releaseIndex: 1,
+        releaseEpisodeNumber: 1,
+        releaseEpisodeCounts: [2, 2],
+      },
+    },
+    "https://aniliberty.test/api/v1/anime/releases/10290",
+  );
+
+  assert.deepEqual(result?.episodes?.[0], {
+    seasonNumber: 1,
+    episodeNumber: 3,
+    absoluteEpisodeNumber: 3,
+    title: "Episode 1",
+    options: result?.episodes?.[0]?.options,
+  });
+  assert.deepEqual(result?.options[0]?.episode, {
+    seasonNumber: 1,
+    episodeNumber: 3,
+    absoluteEpisodeNumber: 3,
+  });
+});
+
 test("mapAniLibertyAvailability returns null for missing or ambiguous episode streams", () => {
   const release = createRelease();
   release.episodes.push({

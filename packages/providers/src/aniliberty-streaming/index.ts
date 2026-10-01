@@ -1,5 +1,6 @@
 import type { StreamingProvider } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
+import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
 import { loadAniLibertyRelease, searchAniLibertyReleases } from "./client.js";
 import {
   createAniLibertyCapabilities,
@@ -49,11 +50,9 @@ export function aniLibertyStreamingProvider(
 }
 
 function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>[0]): boolean {
-  return (
-    query.type === "anime" &&
-    Boolean(query.title?.trim()) &&
-    Number.isInteger(query.year) &&
-    query.seasonNumber === undefined &&
-    query.episodeNumber === undefined
-  );
+  if (query.type !== "anime" || !query.title?.trim() || !Number.isInteger(query.year)) return false;
+  if (query.seasonNumber === undefined && query.episodeNumber === undefined) {
+    return true;
+  }
+  return resolveAnimeEpisodeSelection(query)?.releaseEpisodeNumber !== undefined;
 }

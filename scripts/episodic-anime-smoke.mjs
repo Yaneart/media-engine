@@ -18,6 +18,21 @@ const animeCases = [
   animeCase("Solo Leveling", "52299", "5230828", 1, 1, 1),
   animeCase("Jujutsu Kaisen", "40748", "1381125", 1, 1, 1),
   animeCase("Death Note", "1535", "406148", 1, 1, 1),
+  animeCase("Re:Zero S2 Part 2", "42203", "971114", 2, 14, 39, {
+    releaseIndex: 2,
+    releaseEpisodeNumber: 1,
+    releaseEpisodeCounts: [25, 13, 12, 16, 19],
+  }),
+  animeCase("Demon Slayer Entertainment District", "47778", "1220920", 2, 8, 34, {
+    releaseIndex: 2,
+    releaseEpisodeNumber: 1,
+    releaseEpisodeCounts: [26, 7, 11, 11, 8],
+  }),
+  animeCase("Vinland Saga S2", "49387", "1274280", 2, 1, 25, {
+    releaseIndex: 1,
+    releaseEpisodeNumber: 1,
+    releaseEpisodeCounts: [24, 24],
+  }),
 ];
 const regressions = [
   {
@@ -83,13 +98,39 @@ console.log(
     `state=${mismatchedIdentity.state?.status}`,
 );
 
+const resolvedSplitQuery = {
+  ...animeCases[4].query,
+  title: "Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season Part 2",
+  ids: { shikimori: "42203" },
+};
+const resolvedSplit = await validationEngine.getAvailability(resolvedSplitQuery, {
+  playbackUserAgent,
+});
+const resolvedSplitMismatches = resolvedSplit.options.filter(
+  (option) => !sameEpisode(option.episode, resolvedSplitQuery),
+);
+if (resolvedSplit.options.length === 0 || resolvedSplitMismatches.length > 0) failed = true;
+console.log(
+  `resolved split-release identity: ${resolvedSplit.options.length} options; ` +
+    `requested=${resolvedSplit.meta?.providers.requested.join(",") || "none"}; ` +
+    `mismatches=${resolvedSplitMismatches.length}; state=${resolvedSplit.state?.status}`,
+);
+
 for (const regression of regressions) {
   print(regression.name, await queryProviders(regression.query), "regression probe");
 }
 
 process.exitCode = failed ? 1 : 0;
 
-function animeCase(name, shikimori, kinopoisk, seasonNumber, episodeNumber, absoluteEpisodeNumber) {
+function animeCase(
+  name,
+  shikimori,
+  kinopoisk,
+  seasonNumber,
+  episodeNumber,
+  absoluteEpisodeNumber,
+  animeReleaseEpisode,
+) {
   return {
     name,
     query: {
@@ -99,6 +140,7 @@ function animeCase(name, shikimori, kinopoisk, seasonNumber, episodeNumber, abso
       seasonNumber,
       episodeNumber,
       absoluteEpisodeNumber,
+      ...(animeReleaseEpisode ? { animeReleaseEpisode } : {}),
     },
   };
 }

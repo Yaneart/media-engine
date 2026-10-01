@@ -94,6 +94,12 @@ const response = await engine.getDetails({
 
 Details queries require at least one namespaced external ID, either inside `ids` or through a shortcut such as `imdb`, `kinopoisk`, or `shikimori`. The plain `DetailsQuery.id` field is deprecated because provider-native IDs do not share a global namespace; an id-only query throws `INVALID_QUERY`. A valid external-ID request can return `details: null` when selected providers have no matching item.
 
+For TV anime, `episodes` and `episodesCount` describe the requested anime release. When a verified
+cinema identity also resolves to a gap-free series catalog, `canonicalSeasons` describes the
+user-facing seasons across releases. Applications can combine ordered release counts with
+`mapAnimeReleasesToCanonicalSeasons()`; a partial or crossing partition is rejected instead of
+being inferred from titles.
+
 ## Related media
 
 ```ts
@@ -163,11 +169,22 @@ Anime availability queries may carry the confirmed details value as `animeKind`.
 `animeKinds` capability is restricted are selected only when that value is present and supported;
 an omitted or `unknown` kind never guesses that episodic anime is a movie. Direct movie adapters can
 serve `{ type: "anime", animeKind: "movie" }`. VideoHUB and VeoVeo additionally support TV anime
-only for an exact query containing `seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`, an
-anime-native ID, and a cinema ID verified by the configured `IdentityResolver`. The seasonal pair
-selects the provider catalog row only when a complete, gap-free catalog prefix derives the same
-absolute number. An absolute-only, conflicting, incomplete, or provenance-free query does not
-resolve direct playback; independent anime/embed providers remain usable and Core reports degraded
+only for an exact query containing canonical `seasonNumber`, `episodeNumber`, and
+`absoluteEpisodeNumber`, an anime-native ID, and a cinema ID verified by the configured
+`IdentityResolver`. Split releases additionally use `animeReleaseEpisode`:
+
+```ts
+animeReleaseEpisode: {
+  releaseIndex: 2,
+  releaseEpisodeNumber: 1,
+  releaseEpisodeCounts: [25, 13, 12, 16],
+}
+```
+
+The release evidence must derive the same absolute episode. Each provider then maps it against its
+own complete, gap-free catalog; one provider may use S3E1 while the canonical selection remains
+S2E14. An absolute-only, conflicting, incomplete, ambiguous, or provenance-free direct query does
+not resolve playback. Independent anime/embed providers remain usable and Core reports degraded
 identity when verification cannot complete.
 
 When a streaming provider requires an external-ID namespace missing from the query, both
@@ -243,6 +260,10 @@ HEAD /media/torrent-streams/:capability
 Query parameters mirror the core query objects. `GET /media/details` and `GET /media/related`
 document namespaced external IDs; invalid identity or limit inputs return HTTP 400. The API also
 exposes generated OpenAPI documentation when running locally.
+
+The nested `animeReleaseEpisode` availability field is represented by `animeReleaseIndex`,
+`animeReleaseEpisodeNumber`, and repeated or comma-separated `animeReleaseEpisodeCounts` query
+parameters. The SDK serializes these automatically.
 
 The media endpoints connect request/response disconnect events to the engine operation signal and remove their lifecycle listeners when the operation settles. An HTTP client that closes early therefore stops waiting immediately and cancels shared provider work only when no other identical request is still subscribed.
 

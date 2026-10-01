@@ -474,7 +474,12 @@ describe('MediaController', () => {
         type: 'anime',
         animeKind: 'tv',
         shikimori: ' 20 ',
-        absoluteEpisodeNumber: '1',
+        seasonNumber: '2',
+        episodeNumber: '14',
+        absoluteEpisodeNumber: '39',
+        animeReleaseIndex: '2',
+        animeReleaseEpisodeNumber: '1',
+        animeReleaseEpisodeCounts: '25,13,12,16',
         providers: 'experimental-streaming,mirror',
         language: 'ru',
       })
@@ -487,7 +492,14 @@ describe('MediaController', () => {
         type: 'anime',
         animeKind: 'tv',
         shikimori: '20',
-        absoluteEpisodeNumber: 1,
+        seasonNumber: 2,
+        episodeNumber: 14,
+        absoluteEpisodeNumber: 39,
+        animeReleaseEpisode: {
+          releaseIndex: 2,
+          releaseEpisodeNumber: 1,
+          releaseEpisodeCounts: [25, 13, 12, 16],
+        },
         providers: ['experimental-streaming', 'mirror'],
         language: 'ru',
       },
@@ -532,6 +544,19 @@ describe('MediaController', () => {
         title: 'Naruto',
         type: 'anime',
         absoluteEpisodeNumber: 'first',
+      })
+      .expect(400);
+
+    expect(mediaEngine.getAvailability).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an incomplete anime release episode mapping', async () => {
+    await request(app.getHttpServer())
+      .get('/media/availability')
+      .query({
+        title: 'Naruto',
+        type: 'anime',
+        animeReleaseIndex: '0',
       })
       .expect(400);
 

@@ -88,7 +88,14 @@ test("tvMazeProvider skips unsupported media types before HTTP work", async () =
 test("tvMazeProvider maps series details through exact IMDb lookup", async () => {
   const requests: RequestRecord[] = [];
   const provider = createProvider({
-    fetch: createMockFetch(requests, { lookup: gameOfThronesShow() }),
+    fetch: createMockFetch(requests, {
+      lookup: gameOfThronesShow(),
+      episodes: [
+        { id: 1, season: 1, number: 1, name: "Winter Is Coming", airdate: "2011-04-17" },
+        { id: 2, season: 1, number: 2, name: "The Kingsroad", airdate: "2011-04-24" },
+        { id: 99, season: 0, number: 1, name: "Special" },
+      ],
+    }),
   });
 
   const result = await provider.getDetails?.(
@@ -102,10 +109,38 @@ test("tvMazeProvider maps series details through exact IMDb lookup", async () =>
   assert.equal(result?.details.runtimeMinutes, 61);
   assert.deepEqual(result?.details.countries, ["United States"]);
   assert.equal(result?.details.sourceProviders?.[0]?.provider, "tvmaze");
+  assert.deepEqual(result?.details.type === "series" ? result.details.seasons : undefined, [
+    {
+      number: 1,
+      episodes: [
+        {
+          id: "1",
+          seasonNumber: 1,
+          episodeNumber: 1,
+          absoluteNumber: 1,
+          title: "Winter Is Coming",
+          releaseDate: "2011-04-17",
+          runtimeMinutes: undefined,
+        },
+        {
+          id: "2",
+          seasonNumber: 1,
+          episodeNumber: 2,
+          absoluteNumber: 2,
+          title: "The Kingsroad",
+          releaseDate: "2011-04-24",
+          runtimeMinutes: undefined,
+        },
+      ],
+      episodesCount: 2,
+      releaseDate: "2011-04-17",
+    },
+  ]);
   assert.equal(result?.confidence, 1);
   assert.ok(result?.raw);
   assert.equal(requests[0]?.path, "/lookup/shows");
   assert.equal(requests[0]?.params.get("imdb"), "tt0944947");
+  assert.equal(requests[1]?.path, "/shows/82/episodes");
 });
 
 test("tvMazeProvider keeps exact IMDb search results compact", async () => {
@@ -211,6 +246,7 @@ function createMockFetch(
     aliases?: unknown;
     lookup?: unknown;
     lookupStatus?: number;
+    episodes?: unknown;
   },
 ) {
   return async (input: string | URL, init?: RequestInit): Promise<Response> => {
@@ -233,6 +269,10 @@ function createMockFetch(
       return responses.lookupStatus
         ? new Response("null", { status: responses.lookupStatus })
         : Response.json(responses.lookup ?? null);
+    }
+
+    if (/^\/shows\/\d+\/episodes$/.test(url.pathname)) {
+      return Response.json(responses.episodes ?? []);
     }
 
     return new Response("Not found", { status: 404 });

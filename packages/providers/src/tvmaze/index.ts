@@ -1,4 +1,5 @@
 import type {
+  Episode,
   ExternalIds,
   MediaItem,
   MediaProvider,
@@ -9,6 +10,7 @@ import type {
   ProviderSearchResult,
   ProviderSource,
   Rating,
+  Season,
   SeriesDetails,
 } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
@@ -83,6 +85,15 @@ interface TvMazeAlias {
   name?: string | null;
 }
 
+interface TvMazeEpisode {
+  id?: number;
+  name?: string | null;
+  season?: number | null;
+  number?: number | null;
+  airdate?: string | null;
+  runtime?: number | null;
+}
+
 // Creates a no-token fallback identity provider for series backed by TVmaze's public API.
 // Создает no-token fallback identity provider сериалов на публичном API TVmaze.
 export function tvMazeProvider(options: TvMazeProviderOptions = {}): MediaProvider {
@@ -102,7 +113,7 @@ export function tvMazeProvider(options: TvMazeProviderOptions = {}): MediaProvid
         titleDiscovery: "fallback",
       },
       details: { byExternalIds: ["imdb"] },
-      features: ["posters", "ratings", "genres", "alternative_titles"],
+      features: ["posters", "ratings", "genres", "episodes", "alternative_titles"],
     },
     search: (query, context) => searchTvMaze(config, query, context),
     getDetails: (query, context) => getTvMazeDetails(config, query.ids?.imdb, context),
@@ -203,7 +214,8 @@ async function getTvMazeDetails(
 
   try {
     const show = await requestJson<TvMazeShow>(config, url, context);
-    const details = mapDetails(show);
+    const seasons = show.id ? await loadSeasons(config, show.id, context) : undefined;
+    const details = mapDetails(show, seasons);
 
     return details
       ? {
@@ -222,6 +234,24 @@ async function getTvMazeDetails(
     }
 
     throw error;
+  }
+}
+
+async function loadSeasons(
+  config: TvMazeConfig,
+  showId: number,
+  context: ProviderContext,
+): Promise<Season[] | undefined> {
+  try {
+    const response = await requestJson<TvMazeEpisode[]>(
+      config,
+      new URL(`${config.baseUrl}/shows/${showId}/episodes`),
+      context,
+    );
+    return mapSeasons(response);
+  } catch (error) {
+    rethrowIfProviderAborted(context, error);
+    return undefined;
   }
 }
 
@@ -279,7 +309,7 @@ function mapShow(show: TvMazeShow, aliases?: string[]): MediaItem | undefined {
   };
 }
 
-function mapDetails(show: TvMazeShow): SeriesDetails | null {
+function mapDetails(show: TvMazeShow, seasons?: Season[]): SeriesDetails | null {
   const item = mapShow(show);
 
   if (!item) {
@@ -297,8 +327,49 @@ function mapDetails(show: TvMazeShow): SeriesDetails | null {
     runtimeMinutes: normalizePositiveInteger(show.averageRuntime ?? show.runtime),
     countries: countries.length > 0 ? [...new Set(countries)] : undefined,
     images: item.poster ? [item.poster] : undefined,
+    seasons,
+    seasonsCount: seasons?.length,
+    episodesCount: seasons?.reduce((total, season) => total + (season.episodesCount ?? 0), 0),
     sourceProviders: [createProviderSource(show)],
   };
+}
+
+function mapSeasons(entries: readonly TvMazeEpisode[]): Season[] | undefined {
+  const grouped = new Map<number, Map<number, TvMazeEpisode>>();
+
+  for (const entry of entries) {
+    if (!isPositiveInteger(entry.season) || !isPositiveInteger(entry.number)) continue;
+    const episodes = grouped.get(entry.season) ?? new Map<number, TvMazeEpisode>();
+    if (!episodes.has(entry.number)) episodes.set(entry.number, entry);
+    grouped.set(entry.season, episodes);
+  }
+
+  let absoluteNumber = 0;
+  const seasons: Season[] = [];
+  const orderedSeasons = [...grouped.entries()].sort(([left], [right]) => left - right);
+  for (const [number, entriesByNumber] of orderedSeasons) {
+    if (number !== seasons.length + 1) return undefined;
+    const ordered = [...entriesByNumber.entries()].sort(([left], [right]) => left - right);
+    if (ordered.some(([episodeNumber], index) => episodeNumber !== index + 1)) return undefined;
+
+    const episodes: Episode[] = ordered.map(([episodeNumber, entry]) => ({
+      id: isPositiveInteger(entry.id) ? String(entry.id) : undefined,
+      seasonNumber: number,
+      episodeNumber,
+      absoluteNumber: ++absoluteNumber,
+      title: entry.name?.trim() || undefined,
+      releaseDate: normalizeDate(entry.airdate),
+      runtimeMinutes: normalizePositiveInteger(entry.runtime),
+    }));
+    seasons.push({
+      number,
+      episodes,
+      episodesCount: episodes.length,
+      releaseDate: episodes.find((episode) => episode.releaseDate)?.releaseDate,
+    });
+  }
+
+  return seasons.length > 0 ? seasons : undefined;
 }
 
 function detailsToSearchResult(details: ProviderDetailsResult): ProviderSearchResult {
@@ -410,6 +481,10 @@ function normalizeDate(value: string | null | undefined): string | undefined {
 
 function normalizePositiveInteger(value: number | null | undefined): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+function isPositiveInteger(value: number | null | undefined): value is number {
+  return Number.isSafeInteger(value) && (value ?? 0) > 0;
 }
 
 async function requestJson<T>(

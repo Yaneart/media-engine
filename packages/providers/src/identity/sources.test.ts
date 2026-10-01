@@ -228,7 +228,7 @@ test("anime sources refuse upstream records that do not repeat the input ID", as
   );
 });
 
-test("Shikimori cinema links bridge an exact anime record to Kinopoisk", async () => {
+test("Shikimori cinema links bridge exact HTTPS and legacy HTTP Kinopoisk URLs", async () => {
   const links = [
     {
       kind: "myanimelist",
@@ -238,7 +238,7 @@ test("Shikimori cinema links bridge an exact anime record to Kinopoisk", async (
     },
     {
       kind: "kinopoisk",
-      url: "https://www.kinopoisk.ru/series/5401195/",
+      url: "http://www.kinopoisk.ru/series/5401195/",
       entry_id: 52991,
       entry_type: "Anime",
     },

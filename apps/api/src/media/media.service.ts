@@ -227,6 +227,18 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
     query.absoluteEpisodeNumber,
     'absoluteEpisodeNumber',
   );
+  const animeReleaseIndex = readInteger(
+    query.animeReleaseIndex,
+    'animeReleaseIndex',
+  );
+  const animeReleaseEpisodeNumber = readInteger(
+    query.animeReleaseEpisodeNumber,
+    'animeReleaseEpisodeNumber',
+  );
+  const animeReleaseEpisodeCounts = readIntegerList(
+    query.animeReleaseEpisodeCounts,
+    'animeReleaseEpisodeCounts',
+  );
   const providers = readStringList(query.providers);
 
   if (type === undefined) {
@@ -261,6 +273,27 @@ export function toStreamQuery(query: MediaAvailabilityHttpQuery): StreamQuery {
 
   if (absoluteEpisodeNumber !== undefined) {
     streamQuery.absoluteEpisodeNumber = absoluteEpisodeNumber;
+  }
+
+  const hasAnimeReleaseEpisode =
+    animeReleaseIndex !== undefined ||
+    animeReleaseEpisodeNumber !== undefined ||
+    animeReleaseEpisodeCounts.length > 0;
+  if (hasAnimeReleaseEpisode) {
+    if (
+      animeReleaseIndex === undefined ||
+      animeReleaseEpisodeNumber === undefined ||
+      animeReleaseEpisodeCounts.length === 0
+    ) {
+      throw new BadRequestException(
+        'anime release episode mapping requires index, episode number, and counts.',
+      );
+    }
+    streamQuery.animeReleaseEpisode = {
+      releaseIndex: animeReleaseIndex,
+      releaseEpisodeNumber: animeReleaseEpisodeNumber,
+      releaseEpisodeCounts: animeReleaseEpisodeCounts,
+    };
   }
 
   if (providers.length > 0) {
@@ -355,6 +388,19 @@ function readStringList(value: string | string[] | undefined): string[] {
     .flatMap((entry) => entry.split(','))
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
+}
+
+function readIntegerList(
+  value: string | string[] | undefined,
+  field: string,
+): number[] {
+  return readStringList(value).map((entry) => {
+    const parsed = Number(entry);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new BadRequestException(`${field} must contain integers.`);
+    }
+    return parsed;
+  });
 }
 
 // EN: Apply the shared top-level shortcut precedence and nested-only IDs.

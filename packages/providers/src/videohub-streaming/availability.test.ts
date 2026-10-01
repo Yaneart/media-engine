@@ -160,9 +160,8 @@ test("videoHubStreamingProvider resolves only the explicit episodic anime mappin
           titleName: "Провожающая в последний путь Фрирен",
           isSerial: true,
           items: [
-            { season: 1, episode: 2, voiceStudio: "Dub", vkId: "201" },
+            { season: 2, episode: 1, voiceStudio: "Dub", vkId: "201" },
             { season: 1, episode: 1, voiceStudio: "Dub", vkId: "101" },
-            { season: 1, episode: 1, voiceStudio: "Sub", vkId: "102" },
           ],
         });
       }
@@ -182,20 +181,25 @@ test("videoHubStreamingProvider resolves only the explicit episodic anime mappin
       title: "Frieren: Beyond Journey's End",
       ids: { aniList: "154587", kinopoisk: "5401195" },
       seasonNumber: 1,
-      episodeNumber: 1,
-      absoluteEpisodeNumber: 1,
+      episodeNumber: 2,
+      absoluteEpisodeNumber: 2,
+      animeReleaseEpisode: {
+        releaseIndex: 1,
+        releaseEpisodeNumber: 1,
+        releaseEpisodeCounts: [1, 1],
+      },
     },
     context(undefined, "Playback Browser/1.0"),
   );
 
-  assert.deepEqual(requestedVideos, ["101", "102"]);
+  assert.deepEqual(requestedVideos, ["201"]);
   assert.equal(result?.item?.type, "anime");
   assert.deepEqual(result?.options[0]?.episode, {
     seasonNumber: 1,
-    episodeNumber: 1,
-    absoluteEpisodeNumber: 1,
+    episodeNumber: 2,
+    absoluteEpisodeNumber: 2,
   });
-  assert.equal(result?.options.length, 2);
+  assert.equal(result?.options.length, 1);
 });
 
 test("videoHubStreamingProvider rejects ambiguous, underidentified, and missing anime episodes", async () => {

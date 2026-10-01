@@ -190,7 +190,7 @@ export function shikimoriCinemaIdentitySource(
         recordLinks,
         "kinopoisk",
         "kinopoisk",
-        /^https:\/\/(?:www\.)?kinopoisk\.ru\/(?:film|series)\/([1-9]\d*)(?:[/?#]|$)/iu,
+        /^https?:\/\/(?:www\.)?kinopoisk\.ru\/(?:film|series)\/([1-9]\d*)(?:[/?#]|$)/iu,
       );
       if (!kinopoisk) return [];
       return [

@@ -93,6 +93,11 @@ the configured metadata providers to resolve one unambiguous matching ID before 
 Pass a canonical title, media type, and preferably the exact year alongside the IDs you already
 know. Conflicting identities are never guessed.
 
+For episodic anime, `AnimeDetails.canonicalSeasons` may contain a verified series-level season
+catalog while `episodes` remains local to the requested anime release. Core exports
+`mapAnimeReleasesToCanonicalSeasons()` to accept only exact contiguous count partitions; consumers
+can therefore group split cours without parsing titles.
+
 `getAvailabilityProgressively()` is a transport-neutral `AsyncIterable`. It emits merged snapshots
 while `pendingProviders` is non-empty and always marks the final snapshot as `complete`. The existing
 `getAvailability()` Promise remains the final-result API. HTTP applications must choose their own
