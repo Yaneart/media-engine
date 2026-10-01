@@ -1,4 +1,4 @@
-export const MEDIA_ENGINE_CORE_VERSION = "1.11.2";
+export const MEDIA_ENGINE_CORE_VERSION = "1.11.3";
 
 export type * from "./media/index.js";
 export * from "./identity/index.js";

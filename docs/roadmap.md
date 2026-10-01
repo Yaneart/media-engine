@@ -18,14 +18,17 @@ The `0.1.x` releases established and hardened the first public baseline:
 ## Current focus
 
 The active cross-repository task is **MP-008A: safe episodic-anime support for VideoHub and VeoVeo**.
-The corrective joint Core/Providers/SDK `1.11.2` release candidate preserves anime release shape
-when compatible cinema details omit anime-only fields. It follows `1.11.1`, which closed two safety
-gaps in provenance-free metadata re-enrichment and seasonal-to-absolute episode mapping.
+The corrective joint Core/Providers/SDK `1.11.3` release candidate preserves season-specific anime
+metadata when series-level cinema details describe a different release year, prefers anime episode
+counts over aggregate series totals, and supports ongoing titles whose final episode count is not
+known. It follows `1.11.2`, which preserved anime release shape when compatible cinema details omit
+anime-only fields, and `1.11.1`, which closed two safety gaps in provenance-free metadata
+re-enrichment and seasonal-to-absolute episode mapping.
 Exact canonical anime identity plus season, episode, and absolute-episode selection is required;
 ambiguous, underidentified, or mismatched requests are rejected without hiding healthy AniLiberty or
 embed sources. The deterministic release gate and the live Frieren, Solo Leveling, Jujutsu Kaisen,
 Death Note, negative identity/episode, anime-film, movie, and series matrix pass. The next checkpoint
-is user-run Git/npm publication. Only after `1.11.2` is published may yaneMedia upgrade the exact
+is user-run Git/npm publication. Only after `1.11.3` is published may yaneMedia upgrade the exact
 versions and perform browser acceptance; MP-009 remains blocked until that acceptance is complete.
 
 1. Monitor the accepted default DDBB and AniLiberty providers while keeping their requests bounded,

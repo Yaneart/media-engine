@@ -338,9 +338,15 @@ function mergeDetailsEntries(
         episodes: firstDefined(entries, (entry) =>
           entry.result.details.type === "anime" ? entry.result.details.episodes : undefined,
         ),
-        episodesCount: firstDefined(entries, (entry) =>
-          "episodesCount" in entry.result.details ? entry.result.details.episodesCount : undefined,
-        ),
+        episodesCount:
+          firstDefined(entries, (entry) =>
+            entry.result.details.type === "anime" ? entry.result.details.episodesCount : undefined,
+          ) ??
+          firstDefined(entries, (entry) =>
+            "episodesCount" in entry.result.details
+              ? entry.result.details.episodesCount
+              : undefined,
+          ),
         airedOn: firstDefined(entries, (entry) =>
           entry.result.details.type === "anime" ? entry.result.details.airedOn : undefined,
         ),

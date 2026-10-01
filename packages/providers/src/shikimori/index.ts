@@ -444,7 +444,7 @@ function mapRelatedAnime(
       ...item,
       status: mapStatus(anime.status),
       animeKind: mapAnimeKind(anime.kind),
-      episodesCount: anime.episodes && anime.episodes > 0 ? anime.episodes : undefined,
+      episodesCount: getKnownEpisodeCount(anime),
     },
     source: createProviderSource(config, item.ids),
   };
@@ -582,6 +582,7 @@ function mapAnimeDetails(
 ): AnimeDetails {
   const ids = createIds(item.id, item.myanimelist_id);
   const images = mapImages(config, item, screenshots);
+  const episodesCount = getKnownEpisodeCount(item);
   const details: AnimeDetails = {
     ...mapAnimeSearchResult(config, item, ids),
     type: "anime",
@@ -599,14 +600,20 @@ function mapAnimeDetails(
     persons: mapPersons(config, roles, config.personLimit),
     sourceProviders: [createProviderSource(config, ids)],
     animeKind: mapAnimeKind(item.kind),
-    episodes: createEpisodes(item.episodes),
-    episodesCount: item.episodes || undefined,
+    episodes: createEpisodes(episodesCount),
+    episodesCount,
     airedOn: item.aired_on || undefined,
     releasedOn: item.released_on || undefined,
     ageRating: item.rating,
   };
 
   return details;
+}
+
+function getKnownEpisodeCount(item: ShikimoriAnimeSearchResult): number | undefined {
+  const count = Math.max(item.episodes ?? 0, item.episodes_aired ?? 0);
+
+  return Number.isSafeInteger(count) && count > 0 ? count : undefined;
 }
 
 // Removes Shikimori BBCode references that should not leak into public text.

@@ -330,6 +330,32 @@ test("shikimoriProvider maps anime details", async () => {
   assert.equal(result?.details.alternativeTitles?.includes("カウボーイビバップ"), true);
 });
 
+test("shikimoriProvider uses aired episodes when an ongoing total is unknown", async () => {
+  const provider = createProvider({
+    fetch: createMockFetch([], {
+      "/api/animes/21": {
+        id: 21,
+        name: "One Piece",
+        russian: "Ван-Пис",
+        kind: "tv",
+        status: "ongoing",
+        episodes: 0,
+        episodes_aired: 1179,
+        myanimelist_id: 21,
+      },
+      "/api/animes/21/roles": [],
+      "/api/animes/21/screenshots": [],
+    }),
+  });
+
+  const result = await provider.getDetails?.({ ids: { shikimori: "21" }, type: "anime" }, {});
+
+  assert.equal(result?.details.type, "anime");
+  assert.equal(result?.details.episodesCount, 1179);
+  assert.equal(result?.details.episodes?.length, 1179);
+  assert.equal(result?.details.episodes?.at(-1)?.episodeNumber, 1179);
+});
+
 test("shikimoriProvider omits unsupported details status labels", async () => {
   const provider = createProvider({
     fetch: createMockFetch([], {

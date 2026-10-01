@@ -7,6 +7,15 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.11.3 - 2026-10-01
+
+### Fixed
+
+- Episodic anime details now anchor release-year filtering to the requested AniList/MAL/Shikimori
+  identity, preventing series-level cinema metadata from replacing a specific anime season.
+- Anime-specific episode counts now take precedence over aggregate generic-series totals, while
+  Shikimori ongoing titles use the number of aired episodes when the final total is unknown.
+
 ## 1.11.2 - 2026-09-30
 
 ### Fixed

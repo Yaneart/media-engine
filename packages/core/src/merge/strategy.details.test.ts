@@ -593,3 +593,103 @@ test("preserves anime-only fields when the primary details entry omits release s
   assert.equal(details?.releasedOn, "2024-03-30");
   assert.equal(details?.ageRating, "r_17_plus");
 });
+
+test("anchors episodic anime details to the requested anime identity year", () => {
+  const warnings: EngineWarning[] = [];
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-tokyo-ghoul-re",
+        type: "series",
+        title: "Tokyo Ghoul: re",
+        year: 2018,
+        ids: { imdb: "tt8213522", tmdb: "286516" },
+        episodesCount: 24,
+      }),
+      providerDetailsResult("shikimori", {
+        id: "shikimori-tokyo-ghoul-root-a",
+        type: "anime",
+        animeKind: "tv",
+        title: "Tokyo Ghoul Root A",
+        year: 2015,
+        ids: { shikimori: "27899", myAnimeList: "27899" },
+        episodes: [{ episodeNumber: 1, absoluteNumber: 1 }],
+        episodesCount: 12,
+      }),
+      providerDetailsResult("anilist", {
+        id: "anilist-tokyo-ghoul-root-a",
+        type: "anime",
+        animeKind: "tv",
+        title: "Tokyo Ghoul Root A",
+        year: 2015,
+        ids: { aniList: "20850", myAnimeList: "27899" },
+        episodesCount: 12,
+      }),
+    ],
+    {
+      query: {
+        ids: {
+          aniList: "20850",
+          myAnimeList: "27899",
+          shikimori: "27899",
+          imdb: "tt8213522",
+        },
+        type: "anime",
+      },
+      warnings,
+    },
+  );
+
+  assert.equal(details?.title, "Tokyo Ghoul Root A");
+  assert.equal(details?.year, 2015);
+  assert.equal(details?.type, "anime");
+  assert.equal(details?.animeKind, "tv");
+  assert.equal(details?.episodesCount, 12);
+  assert.equal(details?.episodes?.length, 1);
+  assert.deepEqual(
+    details?.sourceProviders?.map((source) => source.provider),
+    ["shikimori", "anilist"],
+  );
+  assert.deepEqual(warnings, [
+    {
+      code: "MEDIA_IDENTITY_CONFLICT",
+      message: "Conflicting release years while merging details; excluded 2018.",
+      provider: "cinemeta",
+    },
+  ]);
+});
+
+test("prefers a season-specific anime episode count over a generic series total", () => {
+  const details = strategy.mergeDetails(
+    [
+      providerDetailsResult("cinemeta", {
+        id: "cinemeta-anime-series",
+        type: "series",
+        title: "Anime Series",
+        year: 2024,
+        ids: { imdb: "tt1234567" },
+        episodesCount: 24,
+      }),
+      providerDetailsResult("shikimori", {
+        id: "shikimori-anime-season",
+        type: "anime",
+        animeKind: "tv",
+        title: "Anime Season 2",
+        year: 2024,
+        ids: { shikimori: "123", myAnimeList: "123" },
+        episodes: Array.from({ length: 12 }, (_, index) => ({ episodeNumber: index + 1 })),
+        episodesCount: 12,
+      }),
+    ],
+    {
+      query: {
+        ids: { shikimori: "123", myAnimeList: "123", imdb: "tt1234567" },
+        type: "anime",
+      },
+    },
+  );
+
+  assert.equal(details?.type, "anime");
+  assert.equal(details?.episodesCount, 12);
+  assert.equal(details?.episodes?.length, 12);
+});

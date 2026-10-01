@@ -4,6 +4,8 @@ import type { DetailsEntry } from "./internal.js";
 import { STRONG_ID_KEYS } from "./internal.js";
 import type { MergeContext } from "./types.js";
 
+const ANIME_ID_KEYS = ["shikimori", "myAnimeList", "aniList"] as const;
+
 // Keeps details attached to one strong-ID identity before any fields are combined.
 // Оставляет details одной strong-ID сущности до объединения любых полей.
 export function filterDetailsEntriesByIdentity(
@@ -13,13 +15,23 @@ export function filterDetailsEntriesByIdentity(
   const selectedIds: ExternalIds = { ...readQueryExternalIds(context) };
   const accepted: DetailsEntry[] = [];
   const requestedType = context.query?.type;
+  const requestedIds = readQueryExternalIds(context);
+  const animeIdentityYear =
+    requestedType === "anime"
+      ? entries.find(({ result }) =>
+          ANIME_ID_KEYS.some(
+            (key) => requestedIds?.[key] && result.details.ids?.[key] === requestedIds[key],
+          ),
+        )?.result.details.year
+      : undefined;
 
   for (const entry of entries) {
     const details = entry.result.details;
     const ids = details.ids;
     const primary = accepted[0]?.result.details;
-    const selectedYear = accepted.find((candidate) => candidate.result.details.year)?.result.details
-      .year;
+    const selectedYear =
+      animeIdentityYear ??
+      accepted.find((candidate) => candidate.result.details.year)?.result.details.year;
     const selectedType = requestedType ?? primary?.type;
     const compatibleAnimeSeries = selectedType === "anime" && details.type === "series";
 
