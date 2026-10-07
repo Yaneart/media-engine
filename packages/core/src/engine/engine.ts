@@ -1,12 +1,13 @@
 import type { Cache } from "../cache/index.js";
 import type { DetailsQuery, DetailsResponse } from "../details/index.js";
 import { MediaEngineError } from "../errors/index.js";
-import type { MediaDetails } from "../media/index.js";
+import type { ExternalIds, MediaDetails } from "../media/index.js";
 import type { IdentityResolver } from "../identity/index.js";
 import { DefaultMergeStrategy, type MergeStrategy } from "../merge/index.js";
 import { ProviderRegistry, type ProviderInfo } from "../providers/index.js";
 import type {
   ProviderDetailsResult,
+  MediaProvider,
   ProviderRelatedMediaResult,
   ProviderSearchResult,
 } from "../providers/index.js";
@@ -49,6 +50,7 @@ import {
   callTimedProviderRelatedMedia,
   callTimedProviderSearch,
   retryFailedSearchProviders,
+  type ProviderDetailsCallOutcome,
   type ProviderAvailabilityCallOutcome,
 } from "./provider-calls.js";
 import {
@@ -208,7 +210,9 @@ export class MediaEngine {
   getProviderHealth(): ProviderHealthStatus[] {
     const metadata = this.registry
       .getProviders()
-      .map((provider) => this.createProviderHealthStatus(provider.name, "metadata"));
+      .map((provider) =>
+        this.createProviderHealthStatus(provider.name, "metadata", provider.configured),
+      );
     const streaming = this.streamingProviders.map((provider) =>
       this.createProviderHealthStatus(provider.name, "streaming"),
     );
@@ -274,13 +278,29 @@ export class MediaEngine {
     const inFlight = this.inFlightRequests.forCaller(options);
     const pending = inFlight.run(`search:${cacheKey}`, async (operationSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
+      const usesMetadataRoutes = this.registry
+        .selectSearchProviders(normalizedQuery)
+        .some((provider) => provider.capabilities.metadataRoute === "primary");
+      const providerSearchLanguage = usesMetadataRoutes
+        ? (normalizedQuery.language ?? "ru")
+        : searchLanguage;
+      const requiresRussianMetadata =
+        usesMetadataRoutes && (normalizedQuery.language ?? "ru").startsWith("ru");
       const providers = this.registry.selectSearchProviders(normalizedQuery, {
         titleDiscovery: "primary",
+        ...(usesMetadataRoutes ? { metadataRoute: "primary" as const } : {}),
       });
       const primaryProviderNames = new Set(providers.map((provider) => provider.name));
       const fallbackProviders = this.registry
-        .selectSearchProviders(normalizedQuery, { titleDiscovery: "fallback" })
-        .filter((provider) => !primaryProviderNames.has(provider.name));
+        .selectSearchProviders(
+          normalizedQuery,
+          usesMetadataRoutes ? { metadataRoute: "fallback" } : { titleDiscovery: "fallback" },
+        )
+        .filter(
+          (provider) =>
+            !primaryProviderNames.has(provider.name) &&
+            !(requiresRussianMetadata && provider.name === "anilist"),
+        );
       const requested = providers.map((provider) => provider.name);
       const successful: string[] = [];
       const failed: ProviderFailure[] = [];
@@ -299,7 +319,7 @@ export class MediaEngine {
         providers.map((provider) =>
           callTimedProviderSearch(provider, createProviderSearchQuery(normalizedQuery), {
             debug: this.debug,
-            language: searchLanguage,
+            language: providerSearchLanguage,
             signal: operationSignal,
             timeoutMs: timeoutBudget.getRemainingMs(provider.name),
             circuitBreaker: this.circuitBreaker,
@@ -316,7 +336,7 @@ export class MediaEngine {
           normalizedQuery,
           {
             debug: this.debug,
-            language: searchLanguage,
+            language: providerSearchLanguage,
             signal: operationSignal,
             circuitBreaker: this.circuitBreaker,
             concurrencyLimiter: this.concurrencyLimiter,
@@ -339,11 +359,12 @@ export class MediaEngine {
         fallbackQuery || fallbackProviders.length > 0
           ? this.mergeStrategy.mergeSearchResults(providerResults, {
               query: normalizedQuery,
-              language: searchLanguage,
+              language: providerSearchLanguage,
               debug: this.debug,
             })
           : results;
       let primaryTitleBroadened = false;
+      let providerFallbackUsed = false;
 
       if (fallbackQuery && needsPrimaryTitleBroadening(normalizedQuery, relevantResults)) {
         primaryTitleBroadened = true;
@@ -351,7 +372,7 @@ export class MediaEngine {
           providers.map((provider) =>
             callTimedProviderSearch(provider, createProviderSearchQuery(fallbackQuery), {
               debug: this.debug,
-              language: searchLanguage,
+              language: providerSearchLanguage,
               signal: operationSignal,
               timeoutMs: timeoutBudget.getRemainingMs(provider.name),
               circuitBreaker: this.circuitBreaker,
@@ -382,6 +403,7 @@ export class MediaEngine {
         !(primaryTitleBroadened && relevantResults.length > 0) &&
         needsFallbackTitleDiscovery(normalizedQuery, relevantResults)
       ) {
+        providerFallbackUsed = true;
         requested.push(...fallbackProviders.map((provider) => provider.name));
         const providerFallbackQuery =
           relevantResults.length === 0 && fallbackQuery ? fallbackQuery : normalizedQuery;
@@ -389,7 +411,7 @@ export class MediaEngine {
           fallbackProviders.map((provider) =>
             callTimedProviderSearch(provider, createProviderSearchQuery(providerFallbackQuery), {
               debug: this.debug,
-              language: searchLanguage,
+              language: providerSearchLanguage,
               signal: operationSignal,
               timeoutMs: timeoutBudget.getRemainingMs(provider.name),
               circuitBreaker: this.circuitBreaker,
@@ -495,8 +517,13 @@ export class MediaEngine {
       const enrichment = await executeSearchEnrichmentPlan({
         results: enrichmentCandidates,
         publicLimit: normalizedQuery.limit,
-        language: searchLanguage,
+        language: providerSearchLanguage,
         excludedProviders: excludedPosterProviders,
+        metadataRoute: usesMetadataRoutes
+          ? providerFallbackUsed
+            ? "fallback"
+            : "primary"
+          : undefined,
         registry: this.registry,
         mergeStrategy: this.mergeStrategy,
         debug: this.debug,
@@ -602,12 +629,17 @@ export class MediaEngine {
     const normalizedQuery = normalizeDetailsQuery(query);
     validateDetailsQuery(normalizedQuery);
     const identityWarnings: EngineWarning[] = [];
-    const resolvedQuery = await resolveQueryIdentity(
-      normalizedQuery,
-      this.identityResolver,
-      options.signal,
-      identityWarnings,
-    );
+    const hasDirectPrimaryIdentity = this.registry
+      .selectDetailsProviders(normalizedQuery)
+      .some((provider) => provider.capabilities.metadataRoute === "primary");
+    const resolvedQuery = hasDirectPrimaryIdentity
+      ? normalizedQuery
+      : await resolveQueryIdentity(
+          normalizedQuery,
+          this.identityResolver,
+          options.signal,
+          identityWarnings,
+        );
     throwIfAborted(options.signal);
 
     const cacheKey = createDetailsCacheKey(resolvedQuery);
@@ -636,133 +668,32 @@ export class MediaEngine {
     const stale = identityResolutionFailed
       ? undefined
       : await waitForCaller(this.cache?.getStale?.<DetailsResponse>(cacheKey), options.signal);
-    const inFlight = this.inFlightRequests.forCaller(options);
-    const pending = inFlight.run(`details:${cacheKey}`, async (operationSignal) => {
-      const timeoutBudget = this.createProviderTimeoutBudget();
-      const providers = this.registry.selectDetailsProviders(resolvedQuery);
-      const requested = providers.map((provider) => provider.name);
-      const successful: string[] = [];
-      const failed: ProviderFailure[] = [];
-      const warnings: EngineWarning[] = [];
-      const providerResults: ProviderDetailsResult[] = [];
-      const providerTimings: ProviderTimingMeta[] = [];
-
-      const outcomes = await Promise.all(
-        providers.map((provider) =>
-          callTimedProviderDetails(provider, resolvedQuery, {
-            debug: this.debug,
-            language: resolvedQuery.language,
-            signal: operationSignal,
-            timeoutMs: timeoutBudget.getRemainingMs(provider.name),
-            circuitBreaker: this.circuitBreaker,
-            concurrencyLimiter: this.concurrencyLimiter,
-          }),
-        ),
+    const usesMetadataRoutes = this.registry
+      .selectDetailsProviders(resolvedQuery)
+      .some((provider) => provider.capabilities.metadataRoute === "primary");
+    const load = (operationSignal: AbortSignal) =>
+      this.loadDetailsSnapshot(
+        resolvedQuery,
+        cacheKey,
+        operationSignal,
+        startedAt,
+        identityResolutionFailed,
       );
 
-      for (const outcome of outcomes) {
-        providerTimings.push(outcome.timing);
+    if (stale && usesMetadataRoutes) {
+      const background = this.inFlightRequests.forCaller().run(`details:${cacheKey}`, load);
+      void background.catch(() => undefined);
+      return appendDetailsWarnings(createStaleDetailsResponse(stale, startedAt), identityWarnings);
+    }
 
-        if (outcome.failure) {
-          failed.push(outcome.failure);
-        } else {
-          successful.push(outcome.provider);
-
-          if (outcome.result) {
-            providerResults.push(outcome.result);
-          }
-        }
-      }
-
-      // AniList can reveal a MAL ID that lets a Russian anime provider supply localized details.
-      if (resolvedQuery.type === "anime" && resolvedQuery.language?.startsWith("ru")) {
-        const myAnimeList = providerResults.find((result) => result.details.type === "anime")
-          ?.details.ids?.myAnimeList;
-        if (myAnimeList && !resolvedQuery.ids?.myAnimeList) {
-          const linkedQuery = {
-            ...resolvedQuery,
-            ids: { ...resolvedQuery.ids, myAnimeList },
-          };
-          const linkedProviders = this.registry
-            .selectDetailsProviders(linkedQuery)
-            .filter((provider) => !requested.includes(provider.name));
-          requested.push(...linkedProviders.map((provider) => provider.name));
-          const linkedOutcomes = await Promise.all(
-            linkedProviders.map((provider) =>
-              callTimedProviderDetails(provider, linkedQuery, {
-                debug: this.debug,
-                language: resolvedQuery.language,
-                signal: operationSignal,
-                timeoutMs: timeoutBudget.getRemainingMs(provider.name),
-                circuitBreaker: this.circuitBreaker,
-                concurrencyLimiter: this.concurrencyLimiter,
-              }),
-            ),
-          );
-          for (const outcome of linkedOutcomes) {
-            providerTimings.push(outcome.timing);
-            if (outcome.failure) failed.push(outcome.failure);
-            else {
-              successful.push(outcome.provider);
-              if (outcome.result?.details.ids?.myAnimeList === myAnimeList) {
-                providerResults.push(outcome.result);
-              }
-            }
-          }
-        }
-      }
-
-      if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
-        throw new MediaEngineError({
-          code: "PROVIDER_ERROR",
-          message: "All details providers failed.",
-          cause: { failed },
+    const pending = this.inFlightRequests.forCaller(options).run(`details:${cacheKey}`, load);
+    const response = usesMetadataRoutes
+      ? await pending
+      : await loadWithStaleFallback({
+          stale,
+          pending,
+          tookMs: () => elapsedSince(startedAt),
         });
-      }
-
-      const details = this.mergeStrategy.mergeDetails(providerResults, {
-        query: resolvedQuery,
-        language: resolvedQuery.language,
-        debug: this.debug,
-        warnings,
-      });
-      const resolvedDetails = details
-        ? await resolveItemIdentity(details, this.identityResolver, operationSignal, warnings)
-        : null;
-
-      const response: DetailsResponse = {
-        query: resolvedQuery,
-        details: resolvedDetails,
-        meta: createResponseMeta({
-          requested,
-          successful,
-          failed,
-          warnings,
-          cached: false,
-          tookMs: elapsedSince(startedAt),
-          debug: this.debug,
-          timings: providerTimings,
-        }),
-      };
-
-      throwIfAborted(operationSignal);
-
-      if (
-        !identityResolutionFailed &&
-        !hasRetryableProviderFailure(failed) &&
-        !hasIdentitySourceFailure(warnings)
-      ) {
-        await this.cache?.set(cacheKey, structuredClone(response));
-      }
-
-      return response;
-    });
-
-    const response = await loadWithStaleFallback({
-      stale,
-      pending,
-      tookMs: () => elapsedSince(startedAt),
-    });
     return appendDetailsWarnings(response, identityWarnings);
   }
 
@@ -1318,6 +1249,338 @@ export class MediaEngine {
     return new ProviderTimeoutBudget((providerName) => this.getProviderTimeoutMs(providerName));
   }
 
+  private async loadDetailsSnapshot(
+    query: DetailsQuery,
+    cacheKey: string,
+    signal: AbortSignal,
+    startedAt: number,
+    identityResolutionFailed: boolean,
+  ): Promise<DetailsResponse> {
+    const allProviders = this.registry.selectDetailsProviders(query);
+    if (!allProviders.some((provider) => provider.capabilities.metadataRoute === "primary")) {
+      return this.loadLegacyDetailsSnapshot(
+        query,
+        cacheKey,
+        signal,
+        startedAt,
+        identityResolutionFailed,
+        allProviders,
+      );
+    }
+
+    const timeoutBudget = this.createProviderTimeoutBudget();
+    const primaryProviders = this.registry.selectDetailsProviders(query, {
+      metadataRoute: "primary",
+    });
+    const fallbackProviders = this.registry.selectDetailsProviders(query, {
+      metadataRoute: "fallback",
+    });
+    const requested: string[] = [];
+    const successful: string[] = [];
+    const failed: ProviderFailure[] = [];
+    const warnings: EngineWarning[] = [];
+    const timings: ProviderTimingMeta[] = [];
+    const operationDeadline = Date.now() + 6_000;
+    const primaryDeadline = Math.min(operationDeadline, Date.now() + 2_000);
+    let selected: ProviderDetailsResult | undefined;
+    let route: "primary" | "fallback" = "primary";
+
+    const primaryOutcomes = await Promise.all(
+      primaryProviders.map((provider) =>
+        this.callDetailsProvider(
+          provider,
+          query,
+          signal,
+          timeoutBudget,
+          primaryDeadline,
+          "primary",
+        ),
+      ),
+    );
+    const finalPrimaryOutcomes: ProviderDetailsCallOutcome[] = [];
+    for (let index = 0; index < primaryOutcomes.length; index += 1) {
+      const provider = primaryProviders[index]!;
+      const first = primaryOutcomes[index]!;
+      requested.push(provider.name);
+      recordDetailsOutcome(first, successful, failed, timings, "primary");
+
+      if (first.failure?.retryable && Date.now() < primaryDeadline) {
+        const retried = await this.callDetailsProvider(
+          provider,
+          query,
+          signal,
+          timeoutBudget,
+          primaryDeadline,
+          "retry",
+        );
+        recordDetailsOutcome(retried, successful, failed, timings, "retry");
+        finalPrimaryOutcomes.push(retried);
+      } else {
+        finalPrimaryOutcomes.push(first);
+      }
+    }
+
+    for (const outcome of finalPrimaryOutcomes) {
+      if (!outcome.result) continue;
+      const invalidReason = getInvalidMetadataSnapshotReason(outcome.result.details, query, true);
+      if (!invalidReason) {
+        selected = outcome.result;
+        break;
+      }
+      failed.push(createInvalidMetadataFailure(outcome.provider, invalidReason, "primary"));
+    }
+
+    const fallbackResults: ProviderDetailsResult[] = [];
+    if (!selected) {
+      route = "fallback";
+      const fallbackDeadline = Math.min(operationDeadline, Date.now() + 3_500);
+      for (const provider of fallbackProviders) {
+        throwIfAborted(signal);
+        if (Date.now() >= fallbackDeadline) break;
+        requested.push(provider.name);
+        const outcome = await this.callDetailsProvider(
+          provider,
+          query,
+          signal,
+          timeoutBudget,
+          fallbackDeadline,
+          "fallback",
+        );
+        recordDetailsOutcome(outcome, successful, failed, timings, "fallback");
+        if (!outcome.result) continue;
+
+        const invalidReason = getInvalidMetadataSnapshotReason(
+          outcome.result.details,
+          query,
+          false,
+          outcome.provider,
+        );
+        if (!invalidReason) {
+          selected = outcome.result;
+          break;
+        }
+        if (isIdentityCompatible(outcome.result.details, query)) {
+          fallbackResults.push(outcome.result);
+        } else {
+          failed.push(createInvalidMetadataFailure(outcome.provider, invalidReason, "fallback"));
+        }
+      }
+
+      if (
+        !selected &&
+        fallbackResults.length > 1 &&
+        haveCompatibleIdentities(fallbackResults) &&
+        hasLocalizedTextAnchor(fallbackResults, query)
+      ) {
+        const compositeWarnings: EngineWarning[] = [];
+        const composite = this.mergeStrategy.mergeDetails(fallbackResults, {
+          query,
+          language: query.language ?? "ru",
+          debug: this.debug,
+          warnings: compositeWarnings,
+        });
+        const hasConflict = compositeWarnings.some((warning) =>
+          ["EXTERNAL_ID_CONFLICT", "MEDIA_TYPE_CONFLICT"].includes(warning.code),
+        );
+        if (
+          composite &&
+          !hasConflict &&
+          !getInvalidMetadataSnapshotReason(composite, query, false)
+        ) {
+          selected = {
+            provider: fallbackResults.map((result) => result.provider).join("+"),
+            details: composite,
+          };
+          warnings.push(...compositeWarnings);
+        }
+      }
+    }
+
+    if (!selected && successful.length === 0 && failed.length > 0) {
+      throw new MediaEngineError({
+        code: "PROVIDER_ERROR",
+        message: "All details providers failed.",
+        cause: { failed },
+      });
+    }
+
+    const resolvedDetails = selected
+      ? await resolveItemIdentity(selected.details, this.identityResolver, signal, warnings)
+      : null;
+    const providers = selected
+      ? (resolvedDetails?.sourceProviders?.map((source) => source.provider) ?? [selected.provider])
+      : [];
+    if (selected && route === "fallback") {
+      warnings.push({
+        code: "METADATA_FALLBACK_USED",
+        message: "Returned a verified metadata snapshot from fallback providers.",
+      });
+    }
+    const fetchedAt = new Date().toISOString();
+    const response: DetailsResponse = {
+      query,
+      details: resolvedDetails,
+      meta: createResponseMeta({
+        requested: [...new Set(requested)],
+        successful: [...new Set(successful)],
+        failed,
+        warnings,
+        cached: false,
+        tookMs: elapsedSince(startedAt),
+        debug: this.debug,
+        timings,
+        ...(selected ? { metadata: { route, freshness: "fresh", providers, fetchedAt } } : {}),
+      }),
+    };
+
+    throwIfAborted(signal);
+    if (
+      selected &&
+      !identityResolutionFailed &&
+      !hasIdentitySourceFailure(warnings) &&
+      !getInvalidMetadataSnapshotReason(resolvedDetails!, query, route === "primary")
+    ) {
+      await this.cache?.set(cacheKey, structuredClone(response), {
+        ttlMs: 5 * 60_000,
+        staleTtlMs: 30 * 60_000,
+      });
+    }
+
+    return response;
+  }
+
+  private callDetailsProvider(
+    provider: MediaProvider,
+    query: DetailsQuery,
+    signal: AbortSignal,
+    timeoutBudget: ProviderTimeoutBudget,
+    deadline: number,
+    phase: ProviderTimingMeta["phase"],
+  ): Promise<ProviderDetailsCallOutcome> {
+    return callTimedProviderDetails(provider, query, {
+      debug: this.debug,
+      language: query.language ?? "ru",
+      signal,
+      timeoutMs: timeoutBudget.getRemainingMs(provider.name, Math.max(0, deadline - Date.now())),
+      circuitBreaker: this.circuitBreaker,
+      concurrencyLimiter: this.concurrencyLimiter,
+    }).then((outcome) => ({ ...outcome, timing: { ...outcome.timing, phase } }));
+  }
+
+  private async loadLegacyDetailsSnapshot(
+    query: DetailsQuery,
+    cacheKey: string,
+    signal: AbortSignal,
+    startedAt: number,
+    identityResolutionFailed: boolean,
+    providers: MediaProvider[],
+  ): Promise<DetailsResponse> {
+    const timeoutBudget = this.createProviderTimeoutBudget();
+    const requested = providers.map((provider) => provider.name);
+    const successful: string[] = [];
+    const failed: ProviderFailure[] = [];
+    const warnings: EngineWarning[] = [];
+    const providerResults: ProviderDetailsResult[] = [];
+    const timings: ProviderTimingMeta[] = [];
+    const outcomes = await Promise.all(
+      providers.map((provider) =>
+        callTimedProviderDetails(provider, query, {
+          debug: this.debug,
+          language: query.language,
+          signal,
+          timeoutMs: timeoutBudget.getRemainingMs(provider.name),
+          circuitBreaker: this.circuitBreaker,
+          concurrencyLimiter: this.concurrencyLimiter,
+        }),
+      ),
+    );
+
+    for (const outcome of outcomes) {
+      timings.push(outcome.timing);
+      if (outcome.failure) failed.push(outcome.failure);
+      else {
+        successful.push(outcome.provider);
+        if (outcome.result) providerResults.push(outcome.result);
+      }
+    }
+
+    if (query.type === "anime" && query.language?.startsWith("ru")) {
+      const myAnimeList = providerResults.find((result) => result.details.type === "anime")?.details
+        .ids?.myAnimeList;
+      if (myAnimeList && !query.ids?.myAnimeList) {
+        const linkedQuery = { ...query, ids: { ...query.ids, myAnimeList } };
+        const linkedProviders = this.registry
+          .selectDetailsProviders(linkedQuery)
+          .filter((provider) => !requested.includes(provider.name));
+        requested.push(...linkedProviders.map((provider) => provider.name));
+        const linkedOutcomes = await Promise.all(
+          linkedProviders.map((provider) =>
+            callTimedProviderDetails(provider, linkedQuery, {
+              debug: this.debug,
+              language: query.language,
+              signal,
+              timeoutMs: timeoutBudget.getRemainingMs(provider.name),
+              circuitBreaker: this.circuitBreaker,
+              concurrencyLimiter: this.concurrencyLimiter,
+            }),
+          ),
+        );
+        for (const outcome of linkedOutcomes) {
+          timings.push(outcome.timing);
+          if (outcome.failure) failed.push(outcome.failure);
+          else {
+            successful.push(outcome.provider);
+            if (outcome.result?.details.ids?.myAnimeList === myAnimeList) {
+              providerResults.push(outcome.result);
+            }
+          }
+        }
+      }
+    }
+
+    if (providers.length > 0 && successful.length === 0 && failed.length > 0) {
+      throw new MediaEngineError({
+        code: "PROVIDER_ERROR",
+        message: "All details providers failed.",
+        cause: { failed },
+      });
+    }
+
+    const details = this.mergeStrategy.mergeDetails(providerResults, {
+      query,
+      language: query.language,
+      debug: this.debug,
+      warnings,
+    });
+    const resolvedDetails = details
+      ? await resolveItemIdentity(details, this.identityResolver, signal, warnings)
+      : null;
+    const response: DetailsResponse = {
+      query,
+      details: resolvedDetails,
+      meta: createResponseMeta({
+        requested,
+        successful,
+        failed,
+        warnings,
+        cached: false,
+        tookMs: elapsedSince(startedAt),
+        debug: this.debug,
+        timings,
+      }),
+    };
+
+    throwIfAborted(signal);
+    if (
+      !identityResolutionFailed &&
+      !hasRetryableProviderFailure(failed) &&
+      !hasIdentitySourceFailure(warnings)
+    ) {
+      await this.cache?.set(cacheKey, structuredClone(response));
+    }
+    return response;
+  }
+
   private async loadReusableDetails(
     query: DetailsQuery,
     signal: AbortSignal | undefined,
@@ -1369,11 +1632,13 @@ export class MediaEngine {
   private createProviderHealthStatus(
     provider: string,
     kind: ProviderHealthStatus["kind"],
+    configured?: boolean,
   ): ProviderHealthStatus {
     if (!this.circuitBreaker) {
       return {
         provider,
         kind,
+        ...(configured !== undefined ? { configured } : {}),
         circuitState: "disabled",
         consecutiveFailures: 0,
         totalRequests: 0,
@@ -1387,6 +1652,7 @@ export class MediaEngine {
     return {
       provider,
       kind,
+      ...(configured !== undefined ? { configured } : {}),
       circuitState: snapshot.state,
       consecutiveFailures: snapshot.consecutiveFailures,
       totalRequests: snapshot.totalRequests,
@@ -1626,6 +1892,165 @@ function appendDetailsWarnings(
     warnings.push(warning);
   }
   return { ...response, meta: { ...response.meta, warnings } };
+}
+
+function createStaleDetailsResponse(response: DetailsResponse, startedAt: number): DetailsResponse {
+  const stale = structuredClone(response);
+  return {
+    ...stale,
+    meta: {
+      ...stale.meta,
+      cached: true,
+      stale: true,
+      tookMs: elapsedSince(startedAt),
+      metadata: stale.meta.metadata ? { ...stale.meta.metadata, freshness: "stale" } : undefined,
+      warnings: [
+        ...(stale.meta.warnings ?? []),
+        {
+          code: "STALE_CACHE_FALLBACK",
+          message: "Returned a verified stale metadata snapshot while it refreshes.",
+        },
+      ],
+    },
+  };
+}
+
+function recordDetailsOutcome(
+  outcome: ProviderDetailsCallOutcome,
+  successful: string[],
+  failed: ProviderFailure[],
+  timings: ProviderTimingMeta[],
+  phase: ProviderTimingMeta["phase"],
+): void {
+  timings.push({ ...outcome.timing, phase });
+  if (outcome.failure) {
+    failed.push({
+      ...outcome.failure,
+      message: safeProviderFailureMessage(outcome.failure),
+      phase,
+    });
+  } else {
+    successful.push(outcome.provider);
+  }
+}
+
+function safeProviderFailureMessage(failure: ProviderFailure): string {
+  switch (failure.code) {
+    case "PROVIDER_TIMEOUT":
+      return `Provider "${failure.provider}" timed out.`;
+    case "PROVIDER_RATE_LIMITED":
+      return `Provider "${failure.provider}" is rate limited.`;
+    case "PROVIDER_UNAUTHORIZED":
+      return `Provider "${failure.provider}" is not configured or authorized.`;
+    case "PROVIDER_INVALID_RESPONSE":
+    case "PROVIDER_RESPONSE_TOO_LARGE":
+      return `Provider "${failure.provider}" returned an invalid response.`;
+    case "PROVIDER_UNAVAILABLE":
+      return `Provider "${failure.provider}" is unavailable.`;
+    default:
+      return `Provider "${failure.provider}" failed.`;
+  }
+}
+
+function getInvalidMetadataSnapshotReason(
+  details: MediaDetails,
+  query: DetailsQuery,
+  primary: boolean,
+  provider?: string,
+): string | undefined {
+  if (query.type && details.type !== query.type) return "media type mismatch";
+  if (!details.title.trim()) return "missing localized title";
+  if (!details.description?.trim()) return "missing localized description";
+  if (!details.year) return "missing release year";
+  if (!isHttpsImage(details.poster?.url)) return "missing safe poster";
+  if (!isHttpsImage(details.backdrop?.url)) return "missing safe backdrop";
+  if (!isIdentityCompatible(details, query)) return "identity mismatch";
+  if (!details.sourceProviders?.length) return "missing provider provenance";
+  if ((query.language ?? "ru").startsWith("ru") && provider === "anilist") {
+    return "provider cannot independently satisfy Russian text requirements";
+  }
+
+  if (details.type === "anime") {
+    if (!details.ids?.shikimori || !details.ids.myAnimeList) return "missing stable anime identity";
+    if (!details.animeKind || details.animeKind === "unknown") return "missing anime release kind";
+  } else if (primary && !details.ids?.tmdb) {
+    return "missing stable TMDB identity";
+  }
+  return undefined;
+}
+
+function hasLocalizedTextAnchor(
+  results: readonly ProviderDetailsResult[],
+  query: DetailsQuery,
+): boolean {
+  if (!(query.language ?? "ru").startsWith("ru")) return true;
+  return results.some(
+    ({ provider, details }) =>
+      provider !== "anilist" &&
+      Boolean(details.title.trim()) &&
+      Boolean(details.description?.trim()) &&
+      Boolean(details.year) &&
+      isIdentityCompatible(details, query),
+  );
+}
+
+function isIdentityCompatible(details: MediaDetails, query: DetailsQuery): boolean {
+  if (query.type && details.type !== query.type) return false;
+  const expected = query.ids ?? {};
+  const actual = details.ids ?? {};
+  let shared = false;
+  for (const key of Object.keys(expected) as Array<keyof ExternalIds>) {
+    const expectedValue = expected[key];
+    const actualValue = actual[key];
+    if (!expectedValue || !actualValue) continue;
+    if (expectedValue !== actualValue) return false;
+    shared = true;
+  }
+  return shared;
+}
+
+function haveCompatibleIdentities(results: readonly ProviderDetailsResult[]): boolean {
+  for (let index = 0; index < results.length; index += 1) {
+    const left = results[index]!.details;
+    for (let otherIndex = index + 1; otherIndex < results.length; otherIndex += 1) {
+      const right = results[otherIndex]!.details;
+      if (left.type !== right.type || haveConflictingIds(left.ids, right.ids)) return false;
+    }
+  }
+  return true;
+}
+
+function haveConflictingIds(
+  left: ExternalIds | undefined,
+  right: ExternalIds | undefined,
+): boolean {
+  for (const key of Object.keys(left ?? {}) as Array<keyof ExternalIds>) {
+    if (left?.[key] && right?.[key] && left[key] !== right[key]) return true;
+  }
+  return false;
+}
+
+function createInvalidMetadataFailure(
+  provider: string,
+  reason: string,
+  phase: ProviderFailure["phase"],
+): ProviderFailure {
+  return {
+    provider,
+    code: "PROVIDER_INVALID_RESPONSE",
+    retryable: false,
+    message: `Provider "${provider}" returned an incomplete or conflicting metadata snapshot (${reason}).`,
+    phase,
+  };
+}
+
+function isHttpsImage(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function normalizePlaybackUserAgent(value: unknown): string | undefined {

@@ -39,6 +39,13 @@ describe('HealthService', () => {
       expect(service.getHealth()).toEqual(service.getReadiness());
     },
   );
+
+  it('reports readiness as degraded when a primary provider is unconfigured', () => {
+    const providers = [{ ...providerHealth('closed'), configured: false }];
+    const service = createService(providers);
+
+    expect(service.getReadiness().status).toBe('degraded');
+  });
 });
 
 function createService(providers: ProviderHealthStatus[]): HealthService {

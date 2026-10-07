@@ -6,6 +6,8 @@ import type {
 } from '@media-engine/core';
 
 export interface MediaEngineEnv {
+  TMDB_API_KEY?: string;
+  MEDIA_ENGINE_SHIKIMORI_USER_AGENT?: string;
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS?: string;
@@ -44,7 +46,9 @@ export type ConfiguredTorrentProviderName =
 
 // EN: Build providers from environment without requiring secrets for local boot.
 // RU: Собираем провайдеры из env без обязательных секретов для локального запуска.
-export async function createConfiguredProviders(): Promise<MediaProvider[]> {
+export async function createConfiguredProviders(
+  env: MediaEngineEnv = process.env,
+): Promise<MediaProvider[]> {
   const {
     cinemetaProvider,
     aniListProvider,
@@ -53,8 +57,14 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
     tvMazeProvider,
     wikidataProvider,
     tmdbProvider,
+    tmdbOfficialProvider,
+    shikimoriGraphqlProvider,
   } = await import('@media-engine/providers');
   const providers: MediaProvider[] = [
+    tmdbOfficialProvider({ apiKey: readOptionalEnv(env.TMDB_API_KEY) }),
+    shikimoriGraphqlProvider({
+      userAgent: readOptionalEnv(env.MEDIA_ENGINE_SHIKIMORI_USER_AGENT),
+    }),
     tmdbProvider(),
     kinobdProvider(),
     cinemetaProvider(),
@@ -194,7 +204,7 @@ export async function createMediaEngine(
   });
 
   return new MediaEngine({
-    providers: await createConfiguredProviders(),
+    providers: await createConfiguredProviders(env),
     streamingProviders: await createConfiguredStreamingProviders(env),
     torrentProviders,
     cache,
@@ -210,6 +220,8 @@ export async function createMediaEngine(
     ),
     timeoutMs: Math.max(...operationTimeouts),
     providerTimeouts: {
+      'tmdb-official': 2_000,
+      'shikimori-graphql': 2_000,
       kinobd: metadataTimeoutMs,
       shikimori: metadataTimeoutMs,
       anilist: metadataTimeoutMs,

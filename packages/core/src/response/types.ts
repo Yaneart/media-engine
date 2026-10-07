@@ -69,6 +69,14 @@ export interface ResponseDebugMeta {
   identitySnapshot?: SearchIdentitySnapshotDebugMeta;
 }
 
+// Provenance of one coherent metadata snapshot.
+export interface MetadataSnapshotMeta {
+  route: "primary" | "fallback";
+  freshness: "fresh" | "stale";
+  providers: string[];
+  fetchedAt: string;
+}
+
 // Shared metadata returned with search and details responses.
 // Общие метаданные, возвращаемые с ответами поиска и деталей.
 export interface ResponseMeta {
@@ -77,5 +85,6 @@ export interface ResponseMeta {
   stale?: boolean;
   tookMs: number;
   warnings?: EngineWarning[];
+  metadata?: MetadataSnapshotMeta;
   debug?: ResponseDebugMeta;
 }

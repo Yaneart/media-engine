@@ -5,6 +5,7 @@ import {
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS,
+  createConfiguredProviders,
   createConfiguredStreamingProviders,
   createMediaEngine,
   readFilmixStreamingEnabled,
@@ -29,6 +30,8 @@ describe('MediaEngine configuration', () => {
     const engine = await createMediaEngine({});
 
     expect(engine.getProviders().map((provider) => provider.name)).toEqual([
+      'tmdb-official',
+      'shikimori-graphql',
       'tmdb',
       'kinobd',
       'cinemeta',
@@ -46,6 +49,22 @@ describe('MediaEngine configuration', () => {
       'ddbb-streaming',
       'aniliberty-streaming',
     ]);
+  });
+
+  it('keeps primary metadata credentials server-owned and exposes readiness only', async () => {
+    const unconfigured = await createConfiguredProviders({});
+    expect(
+      unconfigured.slice(0, 2).map((provider) => provider.configured),
+    ).toEqual([false, false]);
+
+    const configured = await createConfiguredProviders({
+      TMDB_API_KEY: 'server-secret',
+      MEDIA_ENGINE_SHIKIMORI_USER_AGENT: 'yaneMedia/1.0',
+    });
+    expect(
+      configured.slice(0, 2).map((provider) => provider.configured),
+    ).toEqual([true, true]);
+    expect(JSON.stringify(configured)).not.toContain('server-secret');
   });
 
   it('creates no-token streaming providers by default', async () => {

@@ -60,6 +60,7 @@ export function cinemetaProvider(options: CinemetaProviderOptions = {}): MediaPr
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["movie", "series"],
+      metadataRoute: "fallback",
       search: {
         byTitle: true,
         byExternalIds: ["imdb"],

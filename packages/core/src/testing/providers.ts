@@ -168,6 +168,7 @@ export function createDetailsResult(
 function createCapabilities(overrides: Partial<ProviderCapabilities> = {}): ProviderCapabilities {
   return {
     mediaTypes: overrides.mediaTypes ?? (["movie", "series", "anime"] satisfies MediaType[]),
+    metadataRoute: overrides.metadataRoute,
     searchEnrichment: overrides.searchEnrichment,
     search: {
       byTitle: overrides.search?.byTitle ?? true,

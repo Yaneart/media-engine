@@ -1,7 +1,7 @@
 import type { DetailsQuery } from "../details/index.js";
 import type { ExternalIds, MediaDetails, MediaItem } from "../media/index.js";
 import type { MergeStrategy } from "../merge/index.js";
-import type { MediaProvider, ProviderRegistry } from "../providers/index.js";
+import type { MediaProvider, MetadataRoute, ProviderRegistry } from "../providers/index.js";
 import type { MediaSearchResult } from "../search/index.js";
 import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import type { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
@@ -26,6 +26,7 @@ interface SearchEnrichmentPlannerInput {
   publicLimit: number | undefined;
   language: string | undefined;
   excludedProviders: ReadonlySet<string>;
+  metadataRoute?: MetadataRoute;
   registry: ProviderRegistry;
   mergeStrategy: MergeStrategy;
   debug: boolean;
@@ -105,6 +106,7 @@ export async function executeSearchEnrichmentPlan(
         result,
         language: input.language,
         excludedProviders: input.excludedProviders,
+        metadataRoute: input.metadataRoute,
         registry: input.registry,
         mergeStrategy: input.mergeStrategy,
         debug: input.debug,
@@ -162,7 +164,10 @@ function planIdEnrichment(
   const existingProviders = new Set(result.sources.map((source) => source.provider));
   const enrichmentType = result.item.type === "anime" ? undefined : result.item.type;
   const providers = input.registry
-    .selectSearchProviders({ ids: result.item.ids, type: enrichmentType })
+    .selectSearchProviders(
+      { ids: result.item.ids, type: enrichmentType },
+      input.metadataRoute ? { metadataRoute: input.metadataRoute } : {},
+    )
     .filter(
       (candidate) => supportsSearchEnrichment(candidate) && !existingProviders.has(candidate.name),
     )

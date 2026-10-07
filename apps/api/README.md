@@ -45,8 +45,12 @@ ambiguous and the API intentionally rejects it.
 Local settings live in the root `.env` file. Start with `.env.example`; it already contains safe
 development defaults for the port, CORS, timeouts, and rate limits.
 
-Metadata and player providers work without your API keys. Torrent discovery is off by default. To
-enable it, set `MEDIA_ENGINE_TORRENT_PROVIDERS` to the providers you want, for example:
+Legacy metadata fallbacks and player providers work without API keys. The direct primary metadata
+path uses a server-only `TMDB_API_KEY` for movies/series and an identifying
+`MEDIA_ENGINE_SHIKIMORI_USER_AGENT` for anime; neither value may use a `VITE_` prefix. Missing
+primary configuration keeps startup available but marks affected requests degraded and routes them
+through bounded fallbacks. Torrent discovery is off by default. To enable it, set
+`MEDIA_ENGINE_TORRENT_PROVIDERS` to the providers you want, for example:
 
 Filmix direct MP4 is also opt-in. Set `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true` to add guest
 480p lookup; known copyright/service placeholder streams are filtered instead of being marked

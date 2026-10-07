@@ -44,7 +44,7 @@ describe('API application bootstrap', () => {
       expect.objectContaining({
         info: expect.objectContaining({
           title: 'Media Engine API',
-          version: '0.18.0',
+          version: '0.19.0',
         }),
       }),
     );

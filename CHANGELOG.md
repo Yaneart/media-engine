@@ -7,6 +7,17 @@ documented breaking changes.
 
 ## Unreleased
 
+### Added
+
+- Direct official TMDB and Shikimori GraphQL primary metadata providers, coherent primary/fallback
+  routing, verified five-minute fresh plus thirty-minute stale snapshots, and additive metadata
+  provenance. The REST/OpenAPI contract version is now `0.19.0`.
+
+### Changed
+
+- Legacy indirect metadata providers now run only as bounded fallbacks when the configured primary
+  is unavailable, incomplete, or identity-invalid.
+
 ## 1.12.0 - 2026-10-01
 
 ### Added

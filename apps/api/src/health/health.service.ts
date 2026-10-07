@@ -33,6 +33,7 @@ export class HealthService {
     const providers = this.mediaEngine.getProviderHealth();
     const degraded = providers.some(
       (provider) =>
+        provider.configured === false ||
         provider.circuitState === 'open' ||
         provider.circuitState === 'half-open',
     );

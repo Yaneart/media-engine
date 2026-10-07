@@ -193,6 +193,7 @@ export function tmdbProvider(options: TmdbProviderOptions = {}): MediaProvider {
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["movie", "series"],
+      metadataRoute: "fallback",
       search: {
         byTitle: true,
         byExternalIds: ["imdb", "tmdb"],

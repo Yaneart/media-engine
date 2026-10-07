@@ -118,6 +118,7 @@ export function aniListProvider(options: AniListProviderOptions = {}): MediaProv
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["anime"],
+      metadataRoute: "fallback",
       search: {
         byTitle: true,
         byExternalIds: ["aniList", "myAnimeList"],
