@@ -31,6 +31,7 @@
     "smoke:details-latency": "pnpm smoke:verify-builds && node scripts/details-latency-smoke.mjs",
     "smoke:latency": "pnpm smoke:verify-builds && node scripts/search-latency-smoke.mjs",
     "smoke:merge-performance": "pnpm smoke:verify-builds && node scripts/merge-performance-smoke.mjs",
+    "smoke:metadata-resilience": "pnpm smoke:verify-builds && node scripts/metadata-resilience-gate.mjs",
     "smoke:primary-metadata": "pnpm smoke:verify-builds && node scripts/primary-metadata-smoke.mjs",
     "smoke:search-quality": "pnpm smoke:verify-builds && node scripts/search-quality-smoke.mjs",
     "smoke:search-quality:full": "pnpm smoke:verify-builds && node scripts/search-quality-smoke.mjs --matrix full --strict",

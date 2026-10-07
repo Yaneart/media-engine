@@ -2,8 +2,8 @@
 
 ## Status
 
-- Program status: `RP-004` accepted on 2026-10-07; changes remain uncommitted for user review.
-- Current task: `RP-005` — metadata performance and resilience gate, awaiting an explicit start command.
+- Program status: `RP-005` accepted on 2026-10-07.
+- Current task: `RP-006` — direct streaming source audit, awaiting an explicit start command.
 - Current published Core/Providers/SDK version: `1.12.0`.
 - yaneMedia integration starts only after the new Media Engine packages are published.
 - Ratings and comments work in yaneMedia remains paused until this program is accepted.
@@ -148,6 +148,8 @@ cache, timeout, identity, localization, or artwork regressions. This task is com
 approved latency budgets and Russian field requirements are met without KinoBD in the critical
 metadata path.
 
+Evidence: [RP-005 metadata performance and resilience gate](rp-005-metadata-performance-resilience.md).
+
 ### RP-006 — direct streaming source audit
 
 Revalidate existing providers and investigate current direct contracts for Kodik, Alloha, Collaps,
@@ -239,27 +241,18 @@ packages.
 
 ## Current checkpoint
 
-`RP-004` was accepted on 2026-10-07. Media Engine now uses direct official TMDB as the explicit
-movie/series primary and Shikimori GraphQL as the explicit anime primary. Both adapters return one
-coherent localized snapshot with exact stable identity and release shape, Russian title and
-description, HTTPS poster/backdrop, and safe source provenance. Server-owned configuration uses
-`TMDB_API_KEY` and `MEDIA_ENGINE_SHIKIMORI_USER_AGENT`; missing configuration is visible as degraded
-readiness without exposing credentials.
+`RP-005` was accepted on 2026-10-07. A reproducible five-iteration gate covers
+the eleven-work matrix for cold/warm/stale search and details plus forced no-stale movie/anime
+fallback. Final p95 values were 568 ms details cold, 1,637 ms search cold, 1 ms for every warm/stale
+path, and 1,945 ms degraded; every approved budget passed. All 110 healthy cold samples requested
+only the class primary, with no KinoBD on the critical path. The primary metadata smoke also passed
+all details and localized/original/alternative-title searches.
 
-Core routes only explicitly marked primary providers on the healthy path. Existing indirect TMDB,
-Cinemeta, KinoBD, Shikimori REST, AniList, TVmaze, and Wikidata are bounded fallbacks. Fallback
-snapshots require compatible exact identities and complete fields; AniList cannot independently
-replace Russian text. Details use five minutes fresh plus thirty minutes stale, immediate
-stale-while-revalidate with one coalesced refresh, a shared 2,000 ms primary budget with one
-eligible retry, and a 3,500 ms fallback ceiling. `ResponseMeta.metadata` reports route, freshness,
-contributors, and fetch time without upstream payloads.
+The gate corrected two routed-search regressions: Core now owns the explicit five-minute fresh plus
+thirty-minute stale window and returns stale search results immediately with one coalesced refresh;
+distinct exact-title primary results no longer trigger slow legacy disambiguation. Focused search
+and metadata-routing tests pass 28/28. Full evidence and reproduction commands are in
+`docs/rp-005-metadata-performance-resilience.md`.
 
-Focused verification passed: Core routing/registry 21/21, direct and affected provider tests 33/33,
-the full provider unit set 402/402, API 25/25, smoke policy 8/8, Core/Providers/API/SDK typechecks,
-focused API lint, formatting, and diff checks. The live matrix passed five TMDB details, six anime
-details, localized/original/alias searches, and anime-only Shikimori routing; observed calls were
-173–857 ms. Repeated p95 and degraded-path measurement remains intentionally owned by `RP-005`.
-
-RP-001 through RP-004 changes remain uncommitted on `feature/resilient-sources` for the user to
-review and commit. The next separate task is `RP-005` — run the metadata performance and resilience
-gate. Do not start it without an explicit user command.
+The next separate task is `RP-006` — direct streaming source audit. Do not start it without a
+separate explicit user command.

@@ -98,6 +98,69 @@ test("routed search does not wait for legacy discovery after a healthy primary",
   assert.deepEqual(response.meta.providers.requested, ["tmdb-official"]);
 });
 
+test("routed search keeps distinct exact primary matches without legacy disambiguation", async () => {
+  let fallbackCalls = 0;
+  const primary = createMockProvider({
+    name: "tmdb-official",
+    capabilities: { mediaTypes: ["movie"], metadataRoute: "primary" },
+    searchResults: [
+      createSearchResult("tmdb-official", completeMovie),
+      createSearchResult("tmdb-official", {
+        ...completeMovie,
+        id: "tmdb-official-movie-999",
+        year: 2024,
+        ids: { tmdb: "999" },
+      }),
+    ],
+  });
+  const fallback = createMockProvider({
+    name: "legacy",
+    capabilities: { mediaTypes: ["movie"], metadataRoute: "fallback" },
+    search() {
+      fallbackCalls += 1;
+      return [];
+    },
+  });
+  const engine = new MediaEngine({ providers: [primary, fallback] });
+
+  const response = await engine.search({ title: "Интерстеллар", type: "movie", language: "ru" });
+  assert.equal(response.results.length, 2);
+  assert.equal(fallbackCalls, 0);
+  assert.deepEqual(response.meta.providers.requested, ["tmdb-official"]);
+});
+
+test("routed search serves stale immediately and coalesces one background refresh", async () => {
+  let now = 0;
+  let calls = 0;
+  let releaseRefresh!: () => void;
+  const refreshGate = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const cache = new MemoryCache({ now: () => now });
+  const primary = createMockProvider({
+    name: "tmdb-official",
+    capabilities: { mediaTypes: ["movie"], metadataRoute: "primary" },
+    async search() {
+      calls += 1;
+      if (calls > 1) await refreshGate;
+      return [createSearchResult("tmdb-official", completeMovie)];
+    },
+  });
+  const engine = new MediaEngine({ cache, providers: [primary] });
+  const query = { title: "Интерстеллар", type: "movie" as const, language: "ru" };
+  await engine.search(query);
+  now = 5 * 60_000 + 1;
+
+  const [first, second] = await Promise.all([engine.search(query), engine.search(query)]);
+  assert.equal(first.meta.stale, true);
+  assert.equal(first.meta.cached, true);
+  assert.equal(second.meta.stale, true);
+  assert.ok(first.meta.warnings?.some((warning) => warning.code === "STALE_CACHE_FALLBACK"));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 2);
+  releaseRefresh();
+});
+
 test("routed Russian search does not use AniList as title discovery fallback", async () => {
   let anilistCalls = 0;
   const engine = new MediaEngine({

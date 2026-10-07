@@ -27,6 +27,8 @@ This folder contains the details that would only make the main README harder to 
   anime-source localization, identity, artwork, latency, and usage evidence;
 - [RP-003 metadata contract](rp-003-primary-metadata-contract.md) — primary routing, coherent
   snapshots, cache/stale behavior, bounded fallback, budgets, provenance, and ownership;
+- [RP-005 metadata gate](rp-005-metadata-performance-resilience.md) — repeated cold, warm, stale,
+  degraded, localization, identity, and critical-path evidence;
 - [Versioning](versioning.md) — release and compatibility rules.
 
 The exported TypeScript types are the source of truth for exact fields. The documents here explain

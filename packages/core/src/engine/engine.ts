@@ -275,12 +275,11 @@ export class MediaEngine {
       this.cache?.getStale?.<SearchResponse>(cacheKey),
       options.signal,
     );
-    const inFlight = this.inFlightRequests.forCaller(options);
-    const pending = inFlight.run(`search:${cacheKey}`, async (operationSignal) => {
+    const usesMetadataRoutes = this.registry
+      .selectSearchProviders(normalizedQuery)
+      .some((provider) => provider.capabilities.metadataRoute === "primary");
+    const load = async (operationSignal: AbortSignal) => {
       const timeoutBudget = this.createProviderTimeoutBudget();
-      const usesMetadataRoutes = this.registry
-        .selectSearchProviders(normalizedQuery)
-        .some((provider) => provider.capabilities.metadataRoute === "primary");
       const providerSearchLanguage = usesMetadataRoutes
         ? (normalizedQuery.language ?? "ru")
         : searchLanguage;
@@ -401,6 +400,7 @@ export class MediaEngine {
       if (
         fallbackProviders.length > 0 &&
         !(primaryTitleBroadened && relevantResults.length > 0) &&
+        (!usesMetadataRoutes || relevantResults.length === 0) &&
         needsFallbackTitleDiscovery(normalizedQuery, relevantResults)
       ) {
         providerFallbackUsed = true;
@@ -605,17 +605,30 @@ export class MediaEngine {
       // Keep the complete response most recent when a bounded cache can retain only one entry.
       // Сохраняем полный ответ последним, если bounded cache вмещает только одну запись.
       if (!hasRetryableMandatoryFailure && !hasIdentitySourceFailure(warnings)) {
-        await this.cache?.set(cacheKey, structuredClone(response));
+        await this.cache?.set(
+          cacheKey,
+          structuredClone(response),
+          usesMetadataRoutes ? { ttlMs: 5 * 60_000, staleTtlMs: 30 * 60_000 } : undefined,
+        );
       }
 
       return response;
-    });
+    };
 
-    return loadWithStaleFallback({
-      stale,
-      pending,
-      tookMs: () => elapsedSince(startedAt),
-    });
+    if (stale && usesMetadataRoutes) {
+      const background = this.inFlightRequests.forCaller().run(`search:${cacheKey}`, load);
+      void background.catch(() => undefined);
+      return createStaleSearchResponse(stale, normalizedQuery, startedAt);
+    }
+
+    const pending = this.inFlightRequests.forCaller(options).run(`search:${cacheKey}`, load);
+    return usesMetadataRoutes
+      ? await pending
+      : loadWithStaleFallback({
+          stale,
+          pending,
+          tookMs: () => elapsedSince(startedAt),
+        });
   }
 
   // Loads media details through selected providers and merges normalized results.
@@ -1904,6 +1917,31 @@ function createStaleDetailsResponse(response: DetailsResponse, startedAt: number
       stale: true,
       tookMs: elapsedSince(startedAt),
       metadata: stale.meta.metadata ? { ...stale.meta.metadata, freshness: "stale" } : undefined,
+      warnings: [
+        ...(stale.meta.warnings ?? []),
+        {
+          code: "STALE_CACHE_FALLBACK",
+          message: "Returned a verified stale metadata snapshot while it refreshes.",
+        },
+      ],
+    },
+  };
+}
+
+function createStaleSearchResponse(
+  response: SearchResponse,
+  query: SearchQuery,
+  startedAt: number,
+): SearchResponse {
+  const stale = structuredClone(response);
+  return {
+    ...stale,
+    query,
+    meta: {
+      ...stale.meta,
+      cached: true,
+      stale: true,
+      tookMs: elapsedSince(startedAt),
       warnings: [
         ...(stale.meta.warnings ?? []),
         {
