@@ -19,11 +19,15 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 The active cross-repository program is the
 [resilient metadata and streaming sources plan](resilient-sources-plan.md). `RP-001` through
-`RP-004` are accepted: official TMDB now directly serves movie/series primary metadata and
-Shikimori GraphQL directly serves anime, with bounded verified legacy fallback and stale refresh.
-The next separate task is `RP-005`, the repeated performance and resilience gate. The program then
-adds independently justified direct streaming integrations, publishes a joint Core/Providers/SDK
-release, and integrates that exact release into yaneMedia.
+`RP-005` are accepted: official TMDB now directly serves movie/series primary metadata and
+Shikimori GraphQL directly serves anime, with bounded verified legacy fallback, stale refresh, and
+a passed repeated performance/resilience gate. The Kodik lane is now the only resumed streaming
+work: provenance/deduplication is accepted, followed by a direct credentialed adapter.
+
+The direct-streaming audit is complete. A provider-issued Kodik token is available locally; all
+other additional direct providers remain paused while official credentials and current first-party
+contracts are requested. Credentialed adapters remain optional and server-owned, never using leaked
+or shared tokens.
 
 The previous cross-repository task was **MP-008B: canonical anime seasons and provider episode mapping**.
 The published joint Core/Providers/SDK `1.12.0` release separates an anime release-local episode,
@@ -90,8 +94,9 @@ work was accepted before the resilient-sources program began.
 
 ## Principles
 
-- built-in providers must not require API keys, access tokens, private credentials, account
-  cookies, or caller-domain binding;
+- default providers must not require API keys, access tokens, private credentials, account cookies,
+  or caller-domain binding; optional credentialed providers require explicit server-owned official
+  access and must never expose credentials to clients;
 - Kinobox, DDBB Live, RHServ, and token/account-bound downstream balancers are excluded from the
   current integration path;
 - metadata and streaming remain separate layers;

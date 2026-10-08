@@ -2,8 +2,12 @@
 
 ## Status
 
-- Program status: `RP-005` accepted on 2026-10-07.
-- Current task: `RP-006` — direct streaming source audit, awaiting an explicit start command.
+- Program status: the fast metadata milestone (`RP-001` through `RP-005`) is accepted; the
+  direct-streaming audit (`RP-006`) is complete.
+- `RP-007` streaming provenance and deduplication was accepted on 2026-10-08.
+- Current task: `RP-008` direct Kodik, awaiting a separate explicit start command.
+- The user has supplied a working provider-issued Kodik token. All other credentialed direct
+  providers remain paused; no adapter may use leaked, shared, or third-party tokens.
 - Current published Core/Providers/SDK version: `1.12.0`.
 - yaneMedia integration starts only after the new Media Engine packages are published.
 - Ratings and comments work in yaneMedia remains paused until this program is accepted.
@@ -19,7 +23,8 @@ then continues in `yaneMedia` with an exact package upgrade and browser acceptan
 2. Remove KinoBD from the critical path for metadata and from the role of a single point of failure
    for several streaming players.
 3. Prefer direct, documented upstream integrations. Aggregators remain bounded fallbacks where they
-   still add independent value.
+   still add independent value. Additional direct streaming integrations are a later milestone and
+   do not block the metadata release.
 4. Preserve canonical identity, anime release shape, exact episode mapping, partial-success
    semantics, safe diagnostics, and yaneMedia user data.
 5. Publish a stable Core/Providers/SDK version before yaneMedia consumes any new contract.
@@ -47,6 +52,10 @@ may use a different primary source if one global provider cannot meet the Russia
 season requirements.
 
 ## Required streaming behavior
+
+This section remains the contract for the streaming milestone. Only the Kodik lane is currently
+resumed; other credentialed adapters remain paused. Streaming changes are not part of the existing
+metadata-only `RP-015` scope unless the user explicitly revises that release decision.
 
 - Direct providers are independent calls. Failure of KinoBD or DDBB must not remove an otherwise
   healthy direct option.
@@ -158,11 +167,20 @@ found during research. Classify each as `implement`, `requires credentials`, `de
 Research includes identity inputs, movies/series/anime coverage, episode selection, translations,
 availability truthfulness, iframe policy, output type, rate limits, latency, and maintenance risk.
 
+Status: complete. Evidence is recorded in
+[RP-006 direct streaming source audit](rp-006-direct-streaming-source-audit.md); official access
+steps are recorded separately in
+[provider access onboarding](rp-006-provider-access-onboarding.md). Credential-gated integrations
+remain paused until provider-issued access is available.
+
 ### RP-007 — streaming provenance and deduplication contract
 
 Add the minimum normalized distinction between discovery adapter and actual upstream player. Define
 stable deduplication and priority rules so the same Kodik, Alloha, Collaps, or VideoCDN player found
 directly and through KinoBD appears once while retaining attribution and degradation evidence.
+
+Status: accepted on 2026-10-08. Evidence is recorded in
+[RP-007 streaming provenance and deduplication](rp-007-streaming-provenance-deduplication.md).
 
 ### RP-008 — direct Kodik provider (conditional)
 
@@ -170,17 +188,27 @@ Implement as a separate task only if `RP-006` confirms a current supported contr
 the required access. Cover external-ID lookup, translations, series/anime episodes, bounded parsing,
 and aggregate/direct deduplication.
 
+Status: credential and `RP-007` prerequisites satisfied; awaiting a separate explicit start command.
+
 ### RP-009 — direct Alloha provider (conditional)
 
 Implement and accept independently under the same evidence and safety requirements.
+
+Status: paused pending an official user-owned credential and current provider contract.
 
 ### RP-010 — direct Collaps provider (conditional)
 
 Implement and accept independently under the same evidence and safety requirements.
 
+Status: paused; the audit rejected the current public contract. Reopen only with new first-party
+evidence and official access.
+
 ### RP-011 — direct VideoCDN provider (conditional)
 
 Implement and accept independently under the same evidence and safety requirements.
+
+Status: paused; the audit rejected the old VideoCDN path. Re-evaluate only through a current
+first-party Lumex/VideoCDN contract and official access.
 
 ### RP-012 — remove VeoVeo discovery dependence on DDBB
 
@@ -188,10 +216,14 @@ Find and implement a direct, identity-safe VeoVeo lookup path if its current con
 If no supported path exists, retain the dependency as an explicit operational risk rather than
 copying a private or unstable discovery mechanism.
 
+Status: paused with the streaming milestone; it does not block the metadata release.
+
 ### RP-013 — additional accepted direct providers
 
 Create one separately accepted task per additional `implement` decision from `RP-006`. This slot is
 not permission to bundle several unrelated adapters into one commit.
+
+Status: paused pending official access and a separately accepted provider contract.
 
 ### RP-014 — aggregate fallback and progressive availability
 
@@ -199,11 +231,19 @@ Place accepted direct sources on independent primary paths, keep useful aggregat
 fallbacks, and ensure early healthy options are observable without waiting for the slowest provider.
 Verify deterministic ordering, deduplication, degradation, caching, and background refresh.
 
+Status: paused with the streaming milestone; existing streaming behavior remains unchanged in the
+metadata-only release.
+
 ### RP-015 — Media Engine release candidate and npm publication
 
 Update versions and changelog, run the agreed full release gate and live matrix, inspect dry package
 contents, and prepare exact release notes. The user alone stages, commits, pushes, tags, and publishes
 Core, Providers, and SDK. yaneMedia work cannot start until the published versions are confirmed.
+
+Current scope: release only the accepted `RP-001` through `RP-005` metadata work. Do not add, remove,
+or reconfigure streaming providers in this release. The release candidate must re-run the focused
+primary metadata smoke and resilience gate before the full release gate. A later streaming release
+will receive its own version and acceptance cycle after the paused tasks resume.
 
 ### RP-016 — yaneMedia package and backend integration
 
@@ -211,11 +251,17 @@ Upgrade exact `@media-engine/*` versions and the lockfile, add server-owned conf
 app-owned DTO mapping where the accepted contract requires it, and preserve canonical registry,
 redirects, favorites, history, progress, and safe diagnostics.
 
+Current scope: integrate the published metadata contract and server-owned TMDB/Shikimori
+configuration. Existing streaming configuration and playback behavior remain unchanged.
+
 ### RP-017 — yaneMedia frontend and playback integration
 
 Use the released metadata and provenance behavior in search/details/player UI. Preserve progressive
 source discovery, source labels, embed/direct handling, loading states, and narrow-screen behavior.
 Make UI changes only where the released contract creates a real product difference.
+
+Current scope: verify faster Russian search/details rendering and metadata provenance. No new player
+or source UI is required for the metadata-only release.
 
 ### RP-018 — cross-repository acceptance and closeout
 
@@ -254,5 +300,19 @@ distinct exact-title primary results no longer trigger slow legacy disambiguatio
 and metadata-routing tests pass 28/28. Full evidence and reproduction commands are in
 `docs/rp-005-metadata-performance-resilience.md`.
 
-The next separate task is `RP-006` — direct streaming source audit. Do not start it without a
-separate explicit user command.
+`RP-006` then audited the direct-streaming candidates. The user supplied and locally stored a
+provider-issued Kodik token, and live authentication plus representative list/anime lookups passed.
+Alloha, Vibix, VideoSeed, HDVB/Lumex, and the other credentialed candidates remain paused. Leaked or
+shared keys remain explicitly outside the plan.
+
+`RP-007` was accepted on 2026-10-08. It adds an additive provenance contract:
+`StreamOption.provider` remains the discovery
+adapter, `player.provider` identifies the normalized upstream player, and `discovery` distinguishes
+direct from aggregate observations. Exact playback targets deduplicate independently of descriptive
+translation/quality metadata, prefer stronger availability and then direct discovery, and retain
+per-observation attribution. KinoBD options are marked as aggregate and expose their real player.
+Focused Core and KinoBD checks pass; detailed evidence is in
+`docs/rp-007-streaming-provenance-deduplication.md`.
+
+The next separate task is `RP-008`, the direct Kodik adapter. `RP-015` remains deferred and its
+metadata-only release scope is unchanged unless the user explicitly revises it.

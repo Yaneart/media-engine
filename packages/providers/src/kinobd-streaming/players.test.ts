@@ -89,6 +89,8 @@ test("kinobdStreamingProvider maps movie playerdata into embed options", async (
     availability?.options.map((option) => option.player.kind),
     ["embed"],
   );
+  assert.equal(availability?.options[0]?.discovery, "aggregate");
+  assert.equal(availability?.options[0]?.player.provider, "kodik");
   assert.equal(availability?.options[0]?.access.url, "https://kodik.test/video/94666");
   assert.equal(availability?.options[0]?.translation?.title, "Дубляж");
   assert.equal(availability?.options[0]?.translation?.type, "dub");

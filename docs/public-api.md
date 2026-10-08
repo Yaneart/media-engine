@@ -165,6 +165,12 @@ seasons and their seasonal plus absolute episode identities before requesting ex
 Options may describe an embed, HLS, MP4, or external target together with translation, quality,
 subtitle, audio, expiry, and provider metadata when available.
 
+`StreamOption.provider` identifies the adapter that discovered an option. When known,
+`StreamOption.player.provider` identifies the normalized upstream player and `discovery` says
+whether the adapter reached it directly or through an aggregate. Core deduplicates the same
+playback target across adapters, preferring a stronger availability state and then a direct
+observation while retaining every observation in `attributions`.
+
 Anime availability queries may carry the confirmed details value as `animeKind`. Providers whose
 `animeKinds` capability is restricted are selected only when that value is present and supported;
 an omitted or `unknown` kind never guesses that episodic anime is a movie. Direct movie adapters can

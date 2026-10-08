@@ -196,22 +196,32 @@ test("getAvailability exposes unresolved provider identity as degraded instead o
   assert.equal(availability.meta?.warnings?.[0]?.code, "STREAM_IDENTITY_DEGRADED");
 });
 
-test("getAvailability deduplicates equivalent targets with complete attribution", async () => {
-  const provider = (name: string, kind: "embed" | "hls" | "mp4") =>
+test("getAvailability deduplicates equivalent targets with direct-provider priority", async () => {
+  const provider = (
+    name: string,
+    kind: "embed" | "hls" | "mp4",
+    discovery?: "direct" | "aggregate",
+  ) =>
     createStreamingProvider({
       name,
       async getAvailability(query) {
         const availability = createAvailability(query, name);
         availability.episodes = undefined;
         availability.options[0]!.player.kind = kind;
+        availability.options[0]!.player.provider = kind === "embed" ? "kodik" : name;
+        availability.options[0]!.discovery = discovery;
         availability.options[0]!.access.url = "https://shared.test/play";
+        availability.options[0]!.translation =
+          discovery === "aggregate"
+            ? { title: "KinoBD label", type: "unknown" }
+            : { id: "610", title: "Official translation", type: "voiceover", language: "ru" };
         return availability;
       },
     });
   const engine = new MediaEngine({
     streamingProviders: [
-      provider("embed-a", "embed"),
-      provider("embed-b", "embed"),
+      provider("kinobd-streaming", "embed", "aggregate"),
+      provider("kodik", "embed", "direct"),
       provider("direct-hls", "hls"),
       provider("direct-mp4", "mp4"),
     ],
@@ -224,12 +234,64 @@ test("getAvailability deduplicates equivalent targets with complete attribution"
     availability.options.map((option) => option.player.kind),
     ["embed", "hls", "mp4"],
   );
+  assert.equal(availability.options[0]?.provider, "kodik");
+  assert.equal(availability.options[0]?.player.provider, "kodik");
+  assert.equal(availability.options[0]?.translation?.title, "Official translation");
   assert.deepEqual(availability.options[0]?.attributions, [
-    { provider: "embed-a", optionId: "embed-a:episode-1:embed" },
-    { provider: "embed-b", optionId: "embed-b:episode-1:embed" },
+    {
+      provider: "kinobd-streaming",
+      optionId: "kinobd-streaming:episode-1:embed",
+      discovery: "aggregate",
+      playerProvider: "kodik",
+      availability: "available",
+    },
+    {
+      provider: "kodik",
+      optionId: "kodik:episode-1:embed",
+      discovery: "direct",
+      playerProvider: "kodik",
+      availability: "available",
+    },
   ]);
   assert.deepEqual(
     availability.sourceProviders.map((source) => source.provider),
-    ["embed-a", "embed-b", "direct-hls", "direct-mp4"],
+    ["kinobd-streaming", "kodik", "direct-hls", "direct-mp4"],
+  );
+});
+
+test("getAvailability prefers confirmed aggregate playback over an unknown direct observation", async () => {
+  const provider = (name: string, discovery: "direct" | "aggregate", available: boolean) =>
+    createStreamingProvider({
+      name,
+      async getAvailability(query) {
+        const availability = createAvailability(query, name);
+        availability.episodes = undefined;
+        availability.options[0]!.discovery = discovery;
+        availability.options[0]!.player.provider = "kodik";
+        availability.options[0]!.access.url = "https://shared.test/confirmed";
+        availability.options[0]!.availability = available ? "available" : "unknown";
+        return availability;
+      },
+    });
+  const engine = new MediaEngine({
+    streamingProviders: [
+      provider("kodik", "direct", false),
+      provider("kinobd-streaming", "aggregate", true),
+    ],
+  });
+
+  const availability = await engine.getAvailability({ type: "anime", title: "Shared" });
+
+  assert.equal(availability.options.length, 1);
+  assert.equal(availability.options[0]?.provider, "kinobd-streaming");
+  assert.deepEqual(
+    availability.options[0]?.attributions?.map(({ provider, availability: status }) => ({
+      provider,
+      status,
+    })),
+    [
+      { provider: "kodik", status: "unknown" },
+      { provider: "kinobd-streaming", status: "available" },
+    ],
   );
 });
