@@ -45,8 +45,12 @@ ambiguous and the API intentionally rejects it.
 Local settings live in the root `.env` file. Start with `.env.example`; it already contains safe
 development defaults for the port, CORS, timeouts, and rate limits.
 
-Metadata and player providers work without your API keys. Torrent discovery is off by default. To
-enable it, set `MEDIA_ENGINE_TORRENT_PROVIDERS` to the providers you want, for example:
+Legacy metadata fallbacks and player providers work without API keys. The direct primary metadata
+path uses a server-only `TMDB_API_KEY` for movies/series and an identifying
+`MEDIA_ENGINE_SHIKIMORI_USER_AGENT` for anime; neither value may use a `VITE_` prefix. Missing
+primary configuration keeps startup available but marks affected requests degraded and routes them
+through bounded fallbacks. Torrent discovery is off by default. To enable it, set
+`MEDIA_ENGINE_TORRENT_PROVIDERS` to the providers you want, for example:
 
 Filmix direct MP4 is also opt-in. Set `MEDIA_ENGINE_FILMIX_STREAMING_ENABLED=true` to add guest
 480p lookup; known copyright/service placeholder streams are filtered instead of being marked
@@ -55,6 +59,10 @@ playable. Authenticated 720p requires your own device token in
 against Filmix's current plain-HTTP app endpoint, you must additionally set
 `MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH=true`; this transmits the token without TLS
 and must not be used by a public deployment. Returned CDN video links use HTTPS.
+
+Direct Kodik iframe lookup is enabled only when `KODIK_API_KEY` contains a provider-issued token.
+The token stays server-side and must never use a `VITE_` prefix. Lookup uses exact Kinopoisk, IMDb,
+or Shikimori IDs; series and TV anime return only a verified requested episode.
 
 VeoVeo direct signed HLS is opt-in with `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It needs a
 Kinopoisk or IMDb ID, uses DDBB only to resolve VeoVeo's public content ID, and discards the iframe

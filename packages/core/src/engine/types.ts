@@ -23,6 +23,7 @@ export interface ProviderConcurrencyOptions {
 export interface ProviderHealthStatus {
   provider: string;
   kind: "metadata" | "streaming" | "torrent";
+  configured?: boolean;
   circuitState: "closed" | "open" | "half-open" | "disabled";
   consecutiveFailures: number;
   totalRequests: number;

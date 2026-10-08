@@ -170,6 +170,36 @@ test("keeps fallback title providers available for direct external ID search", (
   );
 });
 
+test("selects explicit metadata routes for search and details", () => {
+  const primary = createProvider({
+    name: "primary",
+    configured: true,
+    capabilities: {
+      mediaTypes: ["movie"],
+      metadataRoute: "primary",
+      search: { byTitle: true, byExternalIds: ["imdb"] },
+      details: { byExternalIds: ["imdb"] },
+    },
+  });
+  const fallback = createProvider({
+    name: "fallback",
+    capabilities: {
+      mediaTypes: ["movie"],
+      metadataRoute: "fallback",
+      search: { byTitle: true, byExternalIds: ["imdb"] },
+      details: { byExternalIds: ["imdb"] },
+    },
+  });
+  const registry = new ProviderRegistry([primary, fallback]);
+  const query = { type: "movie" as const, ids: { imdb: "tt0816692" } };
+
+  assert.deepEqual(registry.selectSearchProviders(query, { metadataRoute: "primary" }), [primary]);
+  assert.deepEqual(registry.selectDetailsProviders(query, { metadataRoute: "fallback" }), [
+    fallback,
+  ]);
+  assert.equal(registry.getProviders()[0]?.configured, true);
+});
+
 test("selects search providers by external ids", () => {
   const imdbProvider = createProvider({ name: "imdb-provider" });
   const shikimoriProvider = createProvider({

@@ -74,8 +74,13 @@ export type PlayerSourceKind = "embed" | "hls" | "mp4" | "external";
 export interface PlayerSource {
   kind: PlayerSourceKind;
   label: string;
+  // Normalized upstream player identity, distinct from the adapter in StreamOption.provider.
+  provider?: string;
   providerPlayerId?: string;
 }
+
+// How a streaming adapter discovered an upstream player option.
+export type StreamDiscoveryKind = "direct" | "aggregate";
 
 // Playable access target returned only when it is safe to expose.
 // Цель доступа к проигрыванию, возвращаемая только когда ее безопасно раскрывать.
@@ -136,7 +141,9 @@ export type StreamAvailabilityStatus =
 // Один выбираемый player или stream-кандидат от провайдера.
 export interface StreamOption {
   id: string;
+  // Adapter that discovered this option. The actual player is identified by player.provider.
   provider: string;
+  discovery?: StreamDiscoveryKind;
   attributions?: StreamOptionAttribution[];
   player: PlayerSource;
   translation?: TranslationInfo;
@@ -154,6 +161,9 @@ export interface StreamOption {
 export interface StreamOptionAttribution {
   provider: string;
   optionId: string;
+  discovery?: StreamDiscoveryKind;
+  playerProvider?: string;
+  availability?: StreamAvailabilityStatus;
   sourceUrl?: string;
 }
 

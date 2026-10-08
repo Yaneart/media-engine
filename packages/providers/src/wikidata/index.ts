@@ -72,6 +72,7 @@ export function wikidataProvider(options: WikidataProviderOptions = {}): MediaPr
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["movie", "series"],
+      metadataRoute: "fallback",
       searchEnrichment: false,
       search: {
         byTitle: true,

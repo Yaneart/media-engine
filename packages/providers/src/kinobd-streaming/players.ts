@@ -242,9 +242,11 @@ function mapPayloadToOption(
       .join(":")
       .replace(/\s+/g, "-"),
     provider: providerName,
+    discovery: "aggregate",
     player: {
       kind: "embed",
       label,
+      provider: normalizePlayerProvider(providerKey),
       providerPlayerId: providerKey,
     },
     translation: createTranslationInfo(translationTitle),
@@ -289,6 +291,10 @@ function toAbsoluteUrl(value: string, baseUrl: string | undefined): string | und
 // Преобразует provider map keys в display labels.
 function normalizeProviderLabel(providerKey: string): string {
   return providerKey.split(">")[0]?.trim().toUpperCase() || "PLAYER";
+}
+
+function normalizePlayerProvider(providerKey: string): string {
+  return providerKey.split(">")[0]?.trim().toLowerCase() || "unknown";
 }
 
 function createTranslationInfo(title: string): TranslationInfo {

@@ -59,7 +59,8 @@ Request the next page with `offset: 48`. Search windows are bounded to
 `offset + limit <= 250`; request one extra result when the application needs a `has more` signal
 without claiming an upstream total.
 
-The built-in providers do not require API keys, account cookies, or private tokens.
+Most built-in providers do not require API keys, account cookies, or private tokens. Optional
+credentialed adapters keep user-owned tokens in server configuration.
 
 If you are building a browser application, do not create the engine in the browser. Put it in your
 backend and call that backend through `@media-engine/sdk`. The
@@ -131,8 +132,9 @@ but it cannot guarantee that every third-party source or player will always work
 Media Engine does not host video. It normalizes metadata and third-party handoff options for your
 application.
 
-Optional streaming sources include direct Filmix, VeoVeo, and VideoHUB adapters plus an official
-Rutube movie embed adapter. Each stays disabled until its corresponding `.env` flag is enabled.
+Optional streaming sources include direct Kodik, Filmix, VeoVeo, and VideoHUB adapters plus an
+official Rutube movie embed adapter. Kodik is enabled by a server-owned `KODIK_API_KEY`; the others
+stay disabled until their corresponding `.env` flag is enabled.
 
 ## Documentation and development
 

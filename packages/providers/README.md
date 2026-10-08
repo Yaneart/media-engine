@@ -11,7 +11,8 @@ catalogs without writing provider adapters yourself.
 npm install @media-engine/core @media-engine/providers
 ```
 
-The built-in providers do not need your API keys.
+Most built-in providers need no API key. Credentialed adapters such as direct Kodik require an
+explicit server-owned token.
 
 ## Search metadata
 
@@ -21,12 +22,16 @@ import {
   aniListProvider,
   cinemetaProvider,
   kinobdProvider,
+  tmdbOfficialProvider,
   tmdbProvider,
+  shikimoriGraphqlProvider,
   shikimoriProvider,
 } from "@media-engine/providers";
 
 const media = new MediaEngine({
   providers: [
+    tmdbOfficialProvider({ apiKey: process.env.TMDB_API_KEY }),
+    shikimoriGraphqlProvider({ userAgent: process.env.MEDIA_ENGINE_SHIKIMORI_USER_AGENT }),
     kinobdProvider(),
     tmdbProvider(),
     cinemetaProvider(),
@@ -60,6 +65,10 @@ grouping titles by franchise-name heuristics.
 
 Available metadata providers:
 
+- `tmdbOfficialProvider()` for direct official movie and series metadata; its API key stays in
+  server-owned configuration;
+- `shikimoriGraphqlProvider()` for direct Russian anime metadata with an application-identifying
+  server-owned `User-Agent`;
 - `tmdbProvider()` for localized movie and series metadata through a public Stremio addon;
 - `kinobdProvider()` and `cinemetaProvider()` as independent movie and series sources;
 - `shikimoriProvider()` and `aniListProvider()` for anime;
@@ -73,6 +82,10 @@ the [TVmaze API license](https://www.tvmaze.com/api#licensing).
 and needs no user token. Its host can be changed with `baseUrl`; Cinemeta continues to work if
 the addon is unavailable. Applications displaying TMDB data should follow
 [TMDB's attribution requirements](https://developer.themoviedb.org/docs/faq).
+
+Core treats the two direct providers as coherent metadata primaries and the older adapters as
+bounded fallbacks. Missing primary configuration does not prevent startup; provider readiness is
+reported as degraded until the server-owned value is supplied.
 
 The optional SQLite-backed IMDb dataset tools need Node.js 22.13 or newer. Everything else in the
 package keeps the normal Node.js 20 baseline.
@@ -107,9 +120,13 @@ for await (const snapshot of media.getAvailabilityProgressively({
 ```
 
 The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
-`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
+`kodikStreamingProvider()`, `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
 `rutubeStreamingProvider()`, and
 `experimentalStreamingProvider()`.
+Kodik requires a provider-issued `apiKey`, keeps it only in server-side requests, and performs
+bounded exact lookup by Kinopoisk, IMDb, or Shikimori ID. It returns direct Kodik iframe options,
+translations, quality labels, and only a verified requested series/anime episode. Split anime
+releases use `animeReleaseEpisode`; ambiguous or conflicting identities and episode maps are rejected.
 Add them explicitly when they fit your application. Filmix guest mode is capped at 480p and filters
 known copyright/service placeholder videos. A user-owned device token raises the cap to 720p.
 Authenticated mode requires an HTTPS `baseUrl` unless the application explicitly enables

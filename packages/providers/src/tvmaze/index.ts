@@ -106,6 +106,7 @@ export function tvMazeProvider(options: TvMazeProviderOptions = {}): MediaProvid
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["series"],
+      metadataRoute: "fallback",
       searchEnrichment: false,
       search: {
         byTitle: true,

@@ -56,6 +56,7 @@ export function kinobdProvider(options: KinoBdProviderOptions = {}): MediaProvid
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["movie", "series"],
+      metadataRoute: "fallback",
       search: {
         byTitle: true,
         byExternalIds: ["imdb", "kinopoisk"],

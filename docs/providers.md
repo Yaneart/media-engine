@@ -92,6 +92,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | Provider               | Main role                                                                             | Credentials               |
 | ---------------------- | ------------------------------------------------------------------------------------- | ------------------------- |
 | KinoBD streaming       | Discovers normalized player options for movies, series, and anime                     | None                      |
+| Kodik streaming        | Opt-in exact-ID direct iframe for movies, series episodes, and verified anime         | Provider-issued API token |
 | FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available    | None                      |
 | DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds           | None                      |
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities                 | None                      |
@@ -104,6 +105,15 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | Experimental streaming | Deterministic configured options for development and tests                            | Application configuration |
 
 Streaming providers return targets and metadata; the consuming UI decides how to render an iframe or media element. A returned third-party option may still fail because of geography, browser policy, upstream changes, or temporary availability.
+
+Kodik streaming is opt-in through `kodikStreamingProvider({ apiKey })` or the repository API's
+server-only `KODIK_API_KEY`. It makes bounded exact lookups by Kinopoisk, IMDb, or Shikimori ID and
+never searches by title. Movie/anime-film records return direct iframe options per translation;
+series and TV anime select only an existing requested episode. TV anime requires explicit canonical
+season, episode, and absolute coordinates. For split releases, the adapter validates
+`animeReleaseEpisode` and maps it only when one complete provider season matches the release-local
+catalog. Conflicting IDs, media types, partial episode coordinates, malformed responses, and
+ambiguous mappings fail closed. The API token is never included in normalized output or errors.
 
 KinoBD streaming shares one fixed wall deadline and a default 24-attempt child-request budget across candidate search, optional anime lookup, player loading, retries, and iframe validation. Live validation uses three workers by default, checks at most eight players, and does not start an optional nested iframe check without enough remaining time for its full validation window. The public limits are capped at 50 search candidates, 16 validated players, four validation workers, 64 child attempts, and 10 seconds for individual validation or Shikimori helper timeouts. Its optional player audit callback exposes bounded counters without changing availability results.
 

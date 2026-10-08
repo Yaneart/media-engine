@@ -57,7 +57,7 @@ Search adds an explicit discovery pipeline before merging:
 1. run `primary` title-discovery providers concurrently;
 2. if no exact candidate exists, broaden a supported typo or joined-title query through the same primary providers even when weak fuzzy noise is present;
 3. run `fallback` title-discovery providers when primary candidates remain empty, a multi-word query has no exact identity, or multiple conflicting exact-title identities remain;
-4. merge mandatory candidates, apply the bounded comparable-candidate diversity policy, and freeze their identities, scores, and order, applying a prior identity snapshot when eligible;
+4. merge mandatory candidates, apply the bounded comparable-candidate diversity policy, and freeze their identities, scores, and order, applying a prior identity snapshot when eligible; complete routed-primary candidates keep their provider-native strong IDs without waiting for cross-catalog identity resolution, while fallback discovery retains verified canonicalization;
 5. execute bounded ID/details/poster enrichment against the frozen candidates and remove any candidate that remains textually unrelated without reranking;
 6. after healthy mandatory discovery, retain the visible frozen identities independently of the full response cache.
 
@@ -70,6 +70,12 @@ Optional enrichment never joins its provider results back into mandatory discove
 For the next 30 minutes, equivalent cache misses use the first healthy identity snapshot whose top candidate has a strong external ID to keep confirmed candidates and ordering stable even if a successful upstream response drifts. The snapshot is not refreshed inside that window. It ignores the public `limit`, keeps at most 20 candidates, never replaces a current candidate with conflicting strong IDs, and does not mark the response as cached. Retryably degraded partial searches can use the same recovery while retaining current provider failures; non-retryable degradation does not. A cold request without a prior confirmed snapshot remains dependent on the currently available identity sources, and a weak top candidate without a strong ID is never promoted into the snapshot.
 
 Availability is separate from metadata. Streaming providers receive a normalized media or episode identity and return selectable player or stream options. Torrent providers use a package-level operation and return discovery metadata plus an opaque handoff instead of claiming immediate stream availability.
+
+Complete routed-primary details likewise return their coherent provider snapshot without optional
+cross-catalog identity expansion. Legacy identifiers are resolved before provider selection only
+when no primary provider can consume the supplied identity; fallback metadata is canonicalized
+before it is returned. Availability and torrent paths continue to resolve additional verified IDs
+when their selected downstream providers require them.
 
 The repository API also has an app-specific original-torrent runtime boundary. Its default Compose
 service pins TorrServer release `MatriX.141.1`, keeps the API control path on an internal network,

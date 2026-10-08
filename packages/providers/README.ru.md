@@ -11,7 +11,8 @@
 npm install @media-engine/core @media-engine/providers
 ```
 
-Для встроенных провайдеров ваши API-ключи не нужны.
+Большинству встроенных провайдеров API-ключи не нужны. Credentialed-адаптеры, включая прямой
+Kodik, требуют явно переданный серверный токен.
 
 ## Поиск метаданных
 
@@ -108,9 +109,14 @@ for await (const snapshot of media.getAvailabilityProgressively({
 ```
 
 Пакет также экспортирует `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
-`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
+`kodikStreamingProvider()`, `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
 `rutubeStreamingProvider()` и
 `experimentalStreamingProvider()`.
+Kodik требует выданный провайдером `apiKey`, использует его только в серверных запросах и выполняет
+ограниченный точный поиск по ID Кинопоиска, IMDb или Shikimori. Адаптер возвращает прямые iframe
+Kodik, переводы, качество и только проверенную запрошенную серию сериала или аниме. Split-release
+аниме использует `animeReleaseEpisode`; конфликтующие identity и неоднозначные карты серий
+отклоняются.
 Подключайте их явно, если они
 подходят вашему приложению. Гостевой режим Filmix ограничен 480p и отбрасывает известные заглушки о
 блокировке и служебные видео. Собственный device token повышает предел до 720p. Для авторизации

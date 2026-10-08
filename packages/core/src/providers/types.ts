@@ -33,6 +33,9 @@ export type ProviderFeature =
 // Роль провайдера в поиске кандидатов по названию.
 export type TitleDiscoveryRole = "primary" | "fallback";
 
+// Role of a provider in coherent metadata snapshot routing.
+export type MetadataRoute = "primary" | "fallback";
+
 // Search filters that can independently discover catalog items.
 // Поисковые фильтры, по которым провайдер умеет находить элементы каталога без названия.
 export type ProviderSearchFilter = "year" | "genre" | "minimumRating";
@@ -41,6 +44,7 @@ export type ProviderSearchFilter = "year" | "genre" | "minimumRating";
 // Возможности, по которым движок выбирает подходящих провайдеров.
 export interface ProviderCapabilities {
   mediaTypes: MediaType[];
+  metadataRoute?: MetadataRoute;
   searchEnrichment?: boolean;
   search: {
     byTitle: boolean;
@@ -136,6 +140,7 @@ export interface ProviderInfo {
   name: string;
   version?: string;
   kind: ProviderKind;
+  configured?: boolean;
   capabilities: ProviderCapabilities;
 }
 
@@ -145,6 +150,7 @@ export interface MediaProvider {
   name: string;
   version?: string;
   kind: "metadata";
+  configured?: boolean;
   capabilities: ProviderCapabilities;
   // Opt-in guarantee used to reuse a returned search poster during details-poster enrichment.
   // Opt-in гарантия для переиспользования search poster при обогащении poster из details.

@@ -1,6 +1,7 @@
 import type { ExternalIds } from "../media/index.js";
 import type {
   ExternalIdSource,
+  MetadataRoute,
   MediaProvider,
   ProviderDetailsQuery,
   ProviderInfo,
@@ -60,8 +61,12 @@ export class ProviderRegistry {
       name: provider.name,
       version: provider.version,
       kind: provider.kind,
+      ...(provider.configured !== undefined ? { configured: provider.configured } : {}),
       capabilities: {
         mediaTypes: [...provider.capabilities.mediaTypes],
+        ...(provider.capabilities.metadataRoute
+          ? { metadataRoute: provider.capabilities.metadataRoute }
+          : {}),
         ...(provider.capabilities.searchEnrichment !== undefined
           ? { searchEnrichment: provider.capabilities.searchEnrichment }
           : {}),
@@ -94,12 +99,16 @@ export class ProviderRegistry {
   // Выбирает провайдеров, которые могут обработать нормализованный поисковый запрос.
   selectSearchProviders(
     query: ProviderSearchQuery,
-    options: { titleDiscovery?: TitleDiscoveryRole } = {},
+    options: { titleDiscovery?: TitleDiscoveryRole; metadataRoute?: MetadataRoute } = {},
   ): MediaProvider[] {
     const queryIdSources = getExternalIdSources(query.ids);
     const queryFilters = getSearchFilters(query);
 
     return Array.from(this.providers.values()).filter((provider) => {
+      if (options.metadataRoute && provider.capabilities.metadataRoute !== options.metadataRoute) {
+        return false;
+      }
+
       if (query.type && !provider.capabilities.mediaTypes.includes(query.type)) {
         return false;
       }
@@ -126,10 +135,17 @@ export class ProviderRegistry {
 
   // Selects providers that can handle a normalized details query.
   // Выбирает провайдеров, которые могут обработать нормализованный запрос деталей.
-  selectDetailsProviders(query: ProviderDetailsQuery): MediaProvider[] {
+  selectDetailsProviders(
+    query: ProviderDetailsQuery,
+    options: { metadataRoute?: MetadataRoute } = {},
+  ): MediaProvider[] {
     const queryIdSources = getExternalIdSources(query.ids);
 
     return Array.from(this.providers.values()).filter((provider) => {
+      if (options.metadataRoute && provider.capabilities.metadataRoute !== options.metadataRoute) {
+        return false;
+      }
+
       if (!provider.getDetails) {
         return false;
       }

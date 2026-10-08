@@ -7,6 +7,32 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.13.0 - 2026-10-08
+
+### Added
+
+- Direct official TMDB and Shikimori GraphQL primary metadata providers, coherent primary/fallback
+  routing, verified five-minute fresh plus thirty-minute stale snapshots, and additive metadata
+  provenance.
+- Additive streaming provenance distinguishes discovery adapters from upstream players and retains
+  every observation when equivalent playback targets are deduplicated.
+- A server-owned, provider-issued token can enable direct Kodik iframe lookup by exact
+  Kinopoisk/IMDb/Shikimori identity, including translations and verified series/anime episodes.
+- Repeatable metadata resilience, primary metadata, direct Kodik, and Kodik rollout gates cover the
+  combined release. The REST/OpenAPI contract version is now `0.20.0`.
+
+### Changed
+
+- Complete official-primary search cards and details snapshots now return without waiting for
+  optional cross-catalog identity expansion. Verified identity resolution remains on fallback,
+  streaming, torrent, and legacy-ID paths that need it.
+- Legacy indirect metadata providers now run only as bounded fallbacks when the configured primary
+  is unavailable, incomplete, or identity-invalid.
+- Public TMDB and KinoBD metadata fallback calls are capped independently so a stalled source leaves
+  time for later fallback providers inside the shared deadline.
+- Equivalent streaming targets prefer stronger availability and then direct discovery while
+  retaining aggregate attribution and independent provider failures.
+
 ## 1.12.0 - 2026-10-01
 
 ### Added

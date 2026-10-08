@@ -351,10 +351,12 @@ function mergeStreamOptions(options: StreamOption[]): StreamOption[] {
       continue;
     }
 
-    existing.attributions = uniqueBy(
+    const preferred = preferStreamOption(existing, option);
+    preferred.attributions = uniqueBy(
       [...(existing.attributions ?? []), ...attributions],
       createStreamOptionAttributionKey,
     );
+    merged.set(key, preferred);
   }
 
   return [...merged.values()];
@@ -366,12 +368,36 @@ function createStreamOptionKey(option: StreamOption): string {
       playerKind: option.player.kind,
       access: option.access,
       episode: option.episode,
-      translation: option.translation,
-      quality: option.quality,
-      subtitles: option.subtitles,
-      audio: option.audio,
     }),
   );
+}
+
+// Prefer a proven target, then a direct observation; configured provider order breaks ties.
+function preferStreamOption(current: StreamOption, candidate: StreamOption): StreamOption {
+  return getStreamOptionPriority(candidate) > getStreamOptionPriority(current)
+    ? candidate
+    : current;
+}
+
+function getStreamOptionPriority(option: StreamOption): number {
+  const availability = getAvailabilityPriority(option.availability) * 2;
+  const discovery = option.discovery === "direct" ? 1 : 0;
+  return availability + discovery;
+}
+
+function getAvailabilityPriority(status: StreamOption["availability"]): number {
+  switch (status) {
+    case "available":
+      return 4;
+    case "requires_account":
+      return 3;
+    case "region_locked":
+      return 2;
+    case "temporarily_unavailable":
+      return 1;
+    case "unknown":
+      return 0;
+  }
 }
 
 function getStreamOptionAttributions(option: StreamOption): StreamOptionAttribution[] {
@@ -381,6 +407,9 @@ function getStreamOptionAttributions(option: StreamOption): StreamOptionAttribut
       {
         provider: option.provider,
         optionId: option.id,
+        ...(option.discovery ? { discovery: option.discovery } : {}),
+        ...(option.player.provider ? { playerProvider: option.player.provider } : {}),
+        availability: option.availability,
         ...(option.sourceUrl ? { sourceUrl: option.sourceUrl } : {}),
       },
     ],
@@ -389,7 +418,14 @@ function getStreamOptionAttributions(option: StreamOption): StreamOptionAttribut
 }
 
 function createStreamOptionAttributionKey(attribution: StreamOptionAttribution): string {
-  return `${attribution.provider}:${attribution.optionId}:${attribution.sourceUrl ?? ""}`;
+  return [
+    attribution.provider,
+    attribution.optionId,
+    attribution.discovery ?? "",
+    attribution.playerProvider ?? "",
+    attribution.availability ?? "",
+    attribution.sourceUrl ?? "",
+  ].join(":");
 }
 
 // Keeps the first value for each derived key.

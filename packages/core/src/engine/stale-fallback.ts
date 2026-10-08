@@ -41,6 +41,9 @@ export async function loadWithStaleFallback<T extends ResponseWithMeta>(
           message: "Returned stale cached data because all selected providers failed retryably.",
         },
       ],
+      metadata: response.meta.metadata
+        ? { ...response.meta.metadata, freshness: "stale" }
+        : undefined,
       debug: response.meta.debug
         ? {
             providers: failed.map((failure) => failure.provider),

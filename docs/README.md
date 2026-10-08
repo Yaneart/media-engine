@@ -19,6 +19,16 @@ This folder contains the details that would only make the main README harder to 
 - [Original torrent streaming decision](decisions/0001-original-torrent-streaming.md) — security and
   lifecycle boundaries;
 - [Roadmap](roadmap.md) — completed work and future plans;
+- [Resilient sources plan](resilient-sources-plan.md) — active cross-repository metadata and
+  streaming resilience program;
+- [RP-001 baseline audit](rp-001-baseline-audit.md) — current provider graph, latency, cache, and
+  KinoBD-down evidence;
+- [RP-002 metadata evaluation](rp-002-russian-metadata-evaluation.md) — official TMDB and direct
+  anime-source localization, identity, artwork, latency, and usage evidence;
+- [RP-003 metadata contract](rp-003-primary-metadata-contract.md) — primary routing, coherent
+  snapshots, cache/stale behavior, bounded fallback, budgets, provenance, and ownership;
+- [RP-005 metadata gate](rp-005-metadata-performance-resilience.md) — repeated cold, warm, stale,
+  degraded, localization, identity, and critical-path evidence;
 - [Versioning](versioning.md) — release and compatibility rules.
 
 The exported TypeScript types are the source of truth for exact fields. The documents here explain

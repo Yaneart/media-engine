@@ -6,6 +6,9 @@ import type {
 } from '@media-engine/core';
 
 export interface MediaEngineEnv {
+  TMDB_API_KEY?: string;
+  KODIK_API_KEY?: string;
+  MEDIA_ENGINE_SHIKIMORI_USER_AGENT?: string;
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS?: string;
@@ -44,7 +47,9 @@ export type ConfiguredTorrentProviderName =
 
 // EN: Build providers from environment without requiring secrets for local boot.
 // RU: Собираем провайдеры из env без обязательных секретов для локального запуска.
-export async function createConfiguredProviders(): Promise<MediaProvider[]> {
+export async function createConfiguredProviders(
+  env: MediaEngineEnv = process.env,
+): Promise<MediaProvider[]> {
   const {
     cinemetaProvider,
     aniListProvider,
@@ -53,8 +58,14 @@ export async function createConfiguredProviders(): Promise<MediaProvider[]> {
     tvMazeProvider,
     wikidataProvider,
     tmdbProvider,
+    tmdbOfficialProvider,
+    shikimoriGraphqlProvider,
   } = await import('@media-engine/providers');
   const providers: MediaProvider[] = [
+    tmdbOfficialProvider({ apiKey: readOptionalEnv(env.TMDB_API_KEY) }),
+    shikimoriGraphqlProvider({
+      userAgent: readOptionalEnv(env.MEDIA_ENGINE_SHIKIMORI_USER_AGENT),
+    }),
     tmdbProvider(),
     kinobdProvider(),
     cinemetaProvider(),
@@ -78,6 +89,7 @@ export async function createConfiguredStreamingProviders(
     filmixStreamingProvider,
     flixHqStreamingProvider,
     initemStreamingProvider,
+    kodikStreamingProvider,
     kinobdStreamingProvider,
     rutubeStreamingProvider,
     veoVeoStreamingProvider,
@@ -90,6 +102,11 @@ export async function createConfiguredStreamingProviders(
     ddbbStreamingProvider(),
     aniLibertyStreamingProvider(),
   ];
+
+  const kodikApiKey = readOptionalEnv(env.KODIK_API_KEY);
+  if (kodikApiKey) {
+    providers.unshift(kodikStreamingProvider({ apiKey: kodikApiKey }));
+  }
 
   if (readFilmixStreamingEnabled(env)) {
     const baseUrl = readOptionalEnv(env.MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL);
@@ -194,7 +211,7 @@ export async function createMediaEngine(
   });
 
   return new MediaEngine({
-    providers: await createConfiguredProviders(),
+    providers: await createConfiguredProviders(env),
     streamingProviders: await createConfiguredStreamingProviders(env),
     torrentProviders,
     cache,
@@ -210,13 +227,18 @@ export async function createMediaEngine(
     ),
     timeoutMs: Math.max(...operationTimeouts),
     providerTimeouts: {
-      kinobd: metadataTimeoutMs,
+      'tmdb-official': 2_000,
+      'shikimori-graphql': 2_000,
+      // Preserve time for later fallbacks when a public metadata addon stalls.
+      tmdb: Math.min(metadataTimeoutMs, 1_500),
+      kinobd: Math.min(metadataTimeoutMs, 1_000),
       shikimori: metadataTimeoutMs,
       anilist: metadataTimeoutMs,
       tvmaze: metadataTimeoutMs,
       cinemeta: metadataTimeoutMs,
       wikidata: metadataTimeoutMs,
       'kinobd-streaming': streamingTimeoutMs,
+      'kodik-streaming': streamingTimeoutMs,
       'flixhq-streaming': flixHqTimeoutMs,
       'ddbb-streaming': streamingTimeoutMs,
       'aniliberty-streaming': streamingTimeoutMs,

@@ -17,8 +17,22 @@ The `0.1.x` releases established and hardened the first public baseline:
 
 ## Current focus
 
-The active cross-repository task is **MP-008B: canonical anime seasons and provider episode mapping**.
-The joint Core/Providers/SDK `1.12.0` release candidate separates an anime release-local episode,
+The active cross-repository program is the
+[resilient metadata and streaming sources plan](resilient-sources-plan.md). The combined `1.13.0`
+release candidate includes accepted `RP-001` through `RP-005` fast Russian metadata plus the
+accepted direct Kodik provenance, provider, and narrow rollout gate. The complete deterministic
+release gate and all metadata/Kodik live gates pass; publication is the user's next action.
+
+Official TMDB directly serves movie/series primary metadata and Shikimori GraphQL directly serves
+anime, with bounded verified legacy fallback and stale refresh. Complete primary search cards and
+details snapshots return without waiting for optional cross-catalog identity expansion; fallback,
+legacy-ID, playback, and torrent paths retain verified resolution. Direct Kodik is optional and
+server-owned, appears before a slow KinoBD aggregate, and retains independent attribution and
+failure evidence. All other additional direct providers remain paused while official credentials
+and current first-party contracts are requested.
+
+The previous cross-repository task was **MP-008B: canonical anime seasons and provider episode mapping**.
+The published joint Core/Providers/SDK `1.12.0` release separates an anime release-local episode,
 the user-facing canonical season coordinate, the franchise absolute coordinate, and each streaming
 provider's native season boundary. TVmaze supplies a verified gap-free canonical season catalog for
 exact IMDb identities; ordered AniList/Shikimori release counts are accepted only when they form an
@@ -30,12 +44,11 @@ release-local episode. Ambiguous, incomplete, conflicting, underidentified, and 
 mappings fail closed without hiding independent sources. Typed legacy HTTP Kinopoisk links from
 Shikimori are parsed safely without fetching an insecure URL.
 
-Focused tests and the live matrix pass for Re:Zero S2 Part 2 (canonical S2E14, VideoHUB provider
+Focused tests and the live matrix passed for Re:Zero S2 Part 2 (canonical S2E14, VideoHUB provider
 S3E1), Demon Slayer Entertainment District (canonical S2E8), Vinland Saga S2, first-season anime,
 anime films, ordinary movies/series, and negative mapping/identity cases. The next checkpoint is
-user-run Git/npm publication. Only after `1.12.0` is published may yaneMedia update exact versions
-and integrate canonical selector/history/progress behavior; MP-009 remains blocked until browser
-acceptance is complete.
+complete: `1.12.0` was published and integrated into yaneMedia, and the later MP-009 through MP-013
+work was accepted before the resilient-sources program began.
 
 1. Monitor the accepted default DDBB and AniLiberty providers while keeping their requests bounded,
    failures isolated, attribution explicit, and `embed` versus direct-HLS classification accurate.
@@ -83,8 +96,9 @@ acceptance is complete.
 
 ## Principles
 
-- built-in providers must not require API keys, access tokens, private credentials, account
-  cookies, or caller-domain binding;
+- default providers must not require API keys, access tokens, private credentials, account cookies,
+  or caller-domain binding; optional credentialed providers require explicit server-owned official
+  access and must never expose credentials to clients;
 - Kinobox, DDBB Live, RHServ, and token/account-bound downstream balancers are excluded from the
   current integration path;
 - metadata and streaming remain separate layers;

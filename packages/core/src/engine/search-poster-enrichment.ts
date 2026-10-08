@@ -1,7 +1,12 @@
 import type { DetailsQuery } from "../details/index.js";
 import type { ExternalIds, Image, MediaDetails } from "../media/index.js";
 import type { MergeStrategy } from "../merge/index.js";
-import type { MediaProvider, ProviderDetailsResult, ProviderRegistry } from "../providers/index.js";
+import type {
+  MediaProvider,
+  MetadataRoute,
+  ProviderDetailsResult,
+  ProviderRegistry,
+} from "../providers/index.js";
 import type { MediaSearchResult } from "../search/index.js";
 import type { ProviderCircuitBreaker } from "./circuit-breaker.js";
 import type { ProviderConcurrencyLimiter } from "./concurrency-limiter.js";
@@ -27,6 +32,7 @@ interface SearchPosterLookupInput {
   result: MediaSearchResult;
   language: string | undefined;
   excludedProviders: ReadonlySet<string>;
+  metadataRoute?: MetadataRoute;
   registry: ProviderRegistry;
   mergeStrategy: MergeStrategy;
   debug: boolean;
@@ -44,7 +50,10 @@ export async function loadSearchPoster(
   input: SearchPosterLookupInput,
 ): Promise<SearchPosterEnrichment> {
   const query = createSearchDetailsQuery(input.result, input.language);
-  const selectedProviders = input.registry.selectDetailsProviders(query);
+  const selectedProviders = input.registry.selectDetailsProviders(
+    query,
+    input.metadataRoute ? { metadataRoute: input.metadataRoute } : {},
+  );
   const providers = selectedProviders.filter(
     (provider) =>
       !input.excludedProviders.has(provider.name) &&

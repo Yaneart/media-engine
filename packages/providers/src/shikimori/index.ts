@@ -60,6 +60,7 @@ export function shikimoriProvider(options: ShikimoriProviderOptions = {}): Media
     searchPosterMatchesDetails: true,
     capabilities: {
       mediaTypes: ["anime"],
+      metadataRoute: "fallback",
       search: {
         byTitle: true,
         byExternalIds: ["shikimori", "myAnimeList"],

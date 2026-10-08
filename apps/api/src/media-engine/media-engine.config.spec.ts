@@ -5,6 +5,7 @@ import {
   DEFAULT_MEDIA_ENGINE_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS,
   DEFAULT_MEDIA_ENGINE_VIDEOHUB_STREAMING_PROVIDER_TIMEOUT_MS,
+  createConfiguredProviders,
   createConfiguredStreamingProviders,
   createMediaEngine,
   readFilmixStreamingEnabled,
@@ -29,6 +30,8 @@ describe('MediaEngine configuration', () => {
     const engine = await createMediaEngine({});
 
     expect(engine.getProviders().map((provider) => provider.name)).toEqual([
+      'tmdb-official',
+      'shikimori-graphql',
       'tmdb',
       'kinobd',
       'cinemeta',
@@ -48,6 +51,22 @@ describe('MediaEngine configuration', () => {
     ]);
   });
 
+  it('keeps primary metadata credentials server-owned and exposes readiness only', async () => {
+    const unconfigured = await createConfiguredProviders({});
+    expect(
+      unconfigured.slice(0, 2).map((provider) => provider.configured),
+    ).toEqual([false, false]);
+
+    const configured = await createConfiguredProviders({
+      TMDB_API_KEY: 'server-secret',
+      MEDIA_ENGINE_SHIKIMORI_USER_AGENT: 'yaneMedia/1.0',
+    });
+    expect(
+      configured.slice(0, 2).map((provider) => provider.configured),
+    ).toEqual([true, true]);
+    expect(JSON.stringify(configured)).not.toContain('server-secret');
+  });
+
   it('creates no-token streaming providers by default', async () => {
     const providers = await createConfiguredStreamingProviders({});
 
@@ -61,6 +80,22 @@ describe('MediaEngine configuration', () => {
     expect(providers.every((provider) => provider.kind === 'streaming')).toBe(
       true,
     );
+  });
+
+  it('adds direct Kodik only for a server-owned token without exposing it', async () => {
+    const providers = await createConfiguredStreamingProviders({
+      KODIK_API_KEY: ' owned-secret ',
+    });
+
+    expect(providers.map((provider) => provider.name)).toEqual([
+      'kodik-streaming',
+      'initem-streaming',
+      'kinobd-streaming',
+      'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
+    ]);
+    expect(JSON.stringify(providers)).not.toContain('owned-secret');
   });
 
   it('adds Filmix MP4 only when explicitly enabled and protects authenticated mode', async () => {
