@@ -60,6 +60,10 @@ against Filmix's current plain-HTTP app endpoint, you must additionally set
 `MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH=true`; this transmits the token without TLS
 and must not be used by a public deployment. Returned CDN video links use HTTPS.
 
+Direct Kodik iframe lookup is enabled only when `KODIK_API_KEY` contains a provider-issued token.
+The token stays server-side and must never use a `VITE_` prefix. Lookup uses exact Kinopoisk, IMDb,
+or Shikimori IDs; series and TV anime return only a verified requested episode.
+
 VeoVeo direct signed HLS is opt-in with `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It needs a
 Kinopoisk or IMDb ID, uses DDBB only to resolve VeoVeo's public content ID, and discards the iframe
 token without loading the iframe.

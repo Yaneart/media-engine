@@ -7,6 +7,7 @@ import type {
 
 export interface MediaEngineEnv {
   TMDB_API_KEY?: string;
+  KODIK_API_KEY?: string;
   MEDIA_ENGINE_SHIKIMORI_USER_AGENT?: string;
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
@@ -88,6 +89,7 @@ export async function createConfiguredStreamingProviders(
     filmixStreamingProvider,
     flixHqStreamingProvider,
     initemStreamingProvider,
+    kodikStreamingProvider,
     kinobdStreamingProvider,
     rutubeStreamingProvider,
     veoVeoStreamingProvider,
@@ -100,6 +102,11 @@ export async function createConfiguredStreamingProviders(
     ddbbStreamingProvider(),
     aniLibertyStreamingProvider(),
   ];
+
+  const kodikApiKey = readOptionalEnv(env.KODIK_API_KEY);
+  if (kodikApiKey) {
+    providers.unshift(kodikStreamingProvider({ apiKey: kodikApiKey }));
+  }
 
   if (readFilmixStreamingEnabled(env)) {
     const baseUrl = readOptionalEnv(env.MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL);
@@ -229,6 +236,7 @@ export async function createMediaEngine(
       cinemeta: metadataTimeoutMs,
       wikidata: metadataTimeoutMs,
       'kinobd-streaming': streamingTimeoutMs,
+      'kodik-streaming': streamingTimeoutMs,
       'flixhq-streaming': flixHqTimeoutMs,
       'ddbb-streaming': streamingTimeoutMs,
       'aniliberty-streaming': streamingTimeoutMs,

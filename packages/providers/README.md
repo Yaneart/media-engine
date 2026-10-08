@@ -11,7 +11,8 @@ catalogs without writing provider adapters yourself.
 npm install @media-engine/core @media-engine/providers
 ```
 
-The built-in providers do not need your API keys.
+Most built-in providers need no API key. Credentialed adapters such as direct Kodik require an
+explicit server-owned token.
 
 ## Search metadata
 
@@ -119,9 +120,13 @@ for await (const snapshot of media.getAvailabilityProgressively({
 ```
 
 The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
-`filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
+`kodikStreamingProvider()`, `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
 `rutubeStreamingProvider()`, and
 `experimentalStreamingProvider()`.
+Kodik requires a provider-issued `apiKey`, keeps it only in server-side requests, and performs
+bounded exact lookup by Kinopoisk, IMDb, or Shikimori ID. It returns direct Kodik iframe options,
+translations, quality labels, and only a verified requested series/anime episode. Split anime
+releases use `animeReleaseEpisode`; ambiguous or conflicting identities and episode maps are rejected.
 Add them explicitly when they fit your application. Filmix guest mode is capped at 480p and filters
 known copyright/service placeholder videos. A user-owned device token raises the cap to 720p.
 Authenticated mode requires an HTTPS `baseUrl` unless the application explicitly enables

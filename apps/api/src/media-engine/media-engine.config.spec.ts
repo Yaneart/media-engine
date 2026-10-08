@@ -82,6 +82,22 @@ describe('MediaEngine configuration', () => {
     );
   });
 
+  it('adds direct Kodik only for a server-owned token without exposing it', async () => {
+    const providers = await createConfiguredStreamingProviders({
+      KODIK_API_KEY: ' owned-secret ',
+    });
+
+    expect(providers.map((provider) => provider.name)).toEqual([
+      'kodik-streaming',
+      'initem-streaming',
+      'kinobd-streaming',
+      'flixhq-streaming',
+      'ddbb-streaming',
+      'aniliberty-streaming',
+    ]);
+    expect(JSON.stringify(providers)).not.toContain('owned-secret');
+  });
+
   it('adds Filmix MP4 only when explicitly enabled and protects authenticated mode', async () => {
     expect(readFilmixStreamingEnabled({})).toBe(false);
     expect(
