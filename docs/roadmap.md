@@ -18,16 +18,18 @@ The `0.1.x` releases established and hardened the first public baseline:
 ## Current focus
 
 The active cross-repository program is the
-[resilient metadata and streaming sources plan](resilient-sources-plan.md). `RP-001` through
-`RP-005` are accepted: official TMDB now directly serves movie/series primary metadata and
-Shikimori GraphQL directly serves anime, with bounded verified legacy fallback, stale refresh, and
-a passed repeated performance/resilience gate. The Kodik lane is now the only resumed streaming
-work: provenance/deduplication is accepted, followed by a direct credentialed adapter.
+[resilient metadata and streaming sources plan](resilient-sources-plan.md). The combined `1.13.0`
+release candidate includes accepted `RP-001` through `RP-005` fast Russian metadata plus the
+accepted direct Kodik provenance, provider, and narrow rollout gate. The complete deterministic
+release gate and all metadata/Kodik live gates pass; publication is the user's next action.
 
-The direct-streaming audit is complete. A provider-issued Kodik token is available locally; all
-other additional direct providers remain paused while official credentials and current first-party
-contracts are requested. Credentialed adapters remain optional and server-owned, never using leaked
-or shared tokens.
+Official TMDB directly serves movie/series primary metadata and Shikimori GraphQL directly serves
+anime, with bounded verified legacy fallback and stale refresh. Complete primary search cards and
+details snapshots return without waiting for optional cross-catalog identity expansion; fallback,
+legacy-ID, playback, and torrent paths retain verified resolution. Direct Kodik is optional and
+server-owned, appears before a slow KinoBD aggregate, and retains independent attribution and
+failure evidence. All other additional direct providers remain paused while official credentials
+and current first-party contracts are requested.
 
 The previous cross-repository task was **MP-008B: canonical anime seasons and provider episode mapping**.
 The published joint Core/Providers/SDK `1.12.0` release separates an anime release-local episode,

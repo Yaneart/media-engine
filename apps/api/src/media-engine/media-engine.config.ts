@@ -229,7 +229,9 @@ export async function createMediaEngine(
     providerTimeouts: {
       'tmdb-official': 2_000,
       'shikimori-graphql': 2_000,
-      kinobd: metadataTimeoutMs,
+      // Preserve time for later fallbacks when a public metadata addon stalls.
+      tmdb: Math.min(metadataTimeoutMs, 1_500),
+      kinobd: Math.min(metadataTimeoutMs, 1_000),
       shikimori: metadataTimeoutMs,
       anilist: metadataTimeoutMs,
       tvmaze: metadataTimeoutMs,

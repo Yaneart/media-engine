@@ -14,6 +14,7 @@ const PRIMARY_STREAMING_PROVIDERS = [
   "aniliberty-streaming",
 ];
 const EMBED_STREAMING_PROVIDERS = [
+  "kodik-streaming",
   "initem-streaming",
   "aderom-streaming",
   "rutube-streaming",

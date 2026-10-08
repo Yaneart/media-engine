@@ -452,13 +452,16 @@ export class MediaEngine {
         this.mergeStrategy instanceof DefaultMergeStrategy
           ? createFrozenDiscoveryResults(rankedDiscoveryResults, results)
           : results;
-      const canonicalProviderResults = await canonicalizeSearchCandidateWindow(
-        providerResults,
-        identityCandidates,
-        this.identityResolver,
-        operationSignal,
-        warnings,
-      );
+      const canonicalProviderResults =
+        usesMetadataRoutes && !providerFallbackUsed
+          ? providerResults
+          : await canonicalizeSearchCandidateWindow(
+              providerResults,
+              identityCandidates,
+              this.identityResolver,
+              operationSignal,
+              warnings,
+            );
 
       if (canonicalProviderResults !== providerResults) {
         results = this.mergeStrategy.mergeSearchResults(canonicalProviderResults, {
@@ -1417,9 +1420,10 @@ export class MediaEngine {
       });
     }
 
-    const resolvedDetails = selected
-      ? await resolveItemIdentity(selected.details, this.identityResolver, signal, warnings)
-      : null;
+    const resolvedDetails =
+      selected && route === "fallback"
+        ? await resolveItemIdentity(selected.details, this.identityResolver, signal, warnings)
+        : (selected?.details ?? null);
     const providers = selected
       ? (resolvedDetails?.sourceProviders?.map((source) => source.provider) ?? [selected.provider])
       : [];

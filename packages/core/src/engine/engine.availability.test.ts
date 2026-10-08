@@ -1110,6 +1110,7 @@ test("getAvailabilityProgressively emits first, second, and final deterministic 
   const extraOption = structuredClone(first.options[0]!);
   extraOption.id = "progressive-stream:episode-1:second";
   extraOption.translation = { title: "Second dub", type: "dub", language: "ru" };
+  extraOption.access.url = "https://example.test/progressive-stream/episode-1-second";
   second.options.push(extraOption);
   second.episodes?.[0]?.options.push(extraOption);
   const provider = createStreamingProvider({
@@ -1154,6 +1155,35 @@ test("getAvailabilityProgressively emits first, second, and final deterministic 
     snapshots[2]?.availability?.options.map((option) => option.id),
     ["progressive-stream:episode-1:embed", "progressive-stream:episode-1:second"],
   );
+});
+
+test("getAvailabilityProgressively returns one complete snapshot from cache", async () => {
+  let calls = 0;
+  const query: StreamQuery = { type: "anime", title: "Naruto", absoluteEpisodeNumber: 1 };
+  const engine = new MediaEngine({
+    cache: new MemoryCache(),
+    streamingProviders: [
+      createStreamingProvider({
+        name: "cached-progressive-stream",
+        async getAvailability(receivedQuery) {
+          calls += 1;
+          return createAvailability(receivedQuery, "cached-progressive-stream");
+        },
+      }),
+    ],
+  });
+
+  await engine.getAvailability(query);
+  const snapshots = [];
+  for await (const snapshot of engine.getAvailabilityProgressively(query)) {
+    snapshots.push(snapshot);
+  }
+
+  assert.equal(calls, 1);
+  assert.equal(snapshots.length, 1);
+  assert.equal(snapshots[0]?.state, "complete");
+  assert.equal(snapshots[0]?.availability?.meta?.cached, true);
+  assert.deepEqual(snapshots[0]?.pendingProviders, []);
 });
 
 test("getAvailabilityProgressively keeps partial success when another provider fails", async () => {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MemoryCache } from "../cache/index.js";
 import { ProviderError } from "../errors/index.js";
+import { IdentityResolver, type IdentityResolverSource } from "../identity/index.js";
 import type { MovieDetails } from "../media/index.js";
 import {
   createDetailsResult,
@@ -38,6 +39,24 @@ function provider(
     },
     getDetails,
   });
+}
+
+function identitySource(onResolve: () => void): IdentityResolverSource {
+  return {
+    name: "verified-map",
+    canResolve: (ids, type) => type === "movie" && Boolean(ids.imdb),
+    async resolve(ids) {
+      onResolve();
+      return [
+        {
+          source: "verified-map",
+          type: "movie",
+          matched: { namespace: "imdb", value: ids.imdb! },
+          ids: { ...ids, kinopoisk: "258687" },
+        },
+      ];
+    },
+  };
 }
 
 test("routed details returns one coherent primary snapshot without touching fallback", async () => {
@@ -96,6 +115,54 @@ test("routed search does not wait for legacy discovery after a healthy primary",
   assert.equal(response.results[0]?.item.title, "Интерстеллар");
   assert.equal(fallbackCalls, 0);
   assert.deepEqual(response.meta.providers.requested, ["tmdb-official"]);
+});
+
+test("routed search returns complete primary cards without blocking on identity enrichment", async () => {
+  let identityCalls = 0;
+  const engine = new MediaEngine({
+    identityResolver: new IdentityResolver([
+      identitySource(() => {
+        identityCalls += 1;
+      }),
+    ]),
+    providers: [
+      createMockProvider({
+        name: "tmdb-official",
+        capabilities: { mediaTypes: ["movie"], metadataRoute: "primary" },
+        searchResults: [createSearchResult("tmdb-official", completeMovie)],
+      }),
+    ],
+  });
+
+  const response = await engine.search({ title: "Interstellar", type: "movie", language: "ru" });
+
+  assert.equal(identityCalls, 0);
+  assert.deepEqual(response.results[0]?.item.ids, completeMovie.ids);
+});
+
+test("routed details returns a complete primary snapshot without blocking on identity enrichment", async () => {
+  let identityCalls = 0;
+  const engine = new MediaEngine({
+    identityResolver: new IdentityResolver([
+      identitySource(() => {
+        identityCalls += 1;
+      }),
+    ]),
+    providers: [
+      provider("tmdb-official", "primary", () =>
+        createDetailsResult("tmdb-official", completeMovie),
+      ),
+    ],
+  });
+
+  const response = await engine.getDetails({
+    type: "movie",
+    ids: { tmdb: "157336", imdb: "tt0816692" },
+    language: "ru",
+  });
+
+  assert.equal(identityCalls, 0);
+  assert.deepEqual(response.details?.ids, completeMovie.ids);
 });
 
 test("routed search keeps distinct exact primary matches without legacy disambiguation", async () => {
@@ -212,6 +279,34 @@ test("routed details falls back on an incomplete primary and reports safe proven
         failure.provider === "tmdb-official" && failure.code === "PROVIDER_INVALID_RESPONSE",
     ),
   );
+});
+
+test("routed fallback details retain verified identity enrichment", async () => {
+  let identityCalls = 0;
+  const engine = new MediaEngine({
+    identityResolver: new IdentityResolver([
+      identitySource(() => {
+        identityCalls += 1;
+      }),
+    ]),
+    providers: [
+      provider("tmdb-official", "primary", () =>
+        createDetailsResult("tmdb-official", { ...completeMovie, description: undefined }),
+      ),
+      provider("legacy", "fallback", () =>
+        createDetailsResult("legacy", {
+          ...completeMovie,
+          sourceProviders: [{ provider: "legacy", ids: completeMovie.ids }],
+        }),
+      ),
+    ],
+  });
+
+  const response = await engine.getDetails({ type: "movie", ids: { tmdb: "157336" } });
+
+  assert.ok(identityCalls > 0);
+  assert.equal(response.details?.ids?.kinopoisk, "258687");
+  assert.equal(response.meta.metadata?.route, "fallback");
 });
 
 test("routed details retries one transient primary failure inside the shared budget", async () => {

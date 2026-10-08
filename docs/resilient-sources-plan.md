@@ -4,8 +4,9 @@
 
 - Program status: the fast metadata milestone (`RP-001` through `RP-005`) is accepted; the
   direct-streaming audit (`RP-006`) is complete.
-- `RP-007` streaming provenance and deduplication was accepted on 2026-10-08.
-- Current task: `RP-008` direct Kodik, awaiting a separate explicit start command.
+- `RP-007` streaming provenance/deduplication and `RP-008` direct Kodik were accepted on 2026-10-08.
+- The user selected one combined metadata plus Kodik release. The narrow `RP-014` rollout gate and
+  the `RP-015` release candidate checks passed; publication remains user-owned.
 - The user has supplied a working provider-issued Kodik token. All other credentialed direct
   providers remain paused; no adapter may use leaked, shared, or third-party tokens.
 - Current published Core/Providers/SDK version: `1.12.0`.
@@ -53,9 +54,8 @@ season requirements.
 
 ## Required streaming behavior
 
-This section remains the contract for the streaming milestone. Only the Kodik lane is currently
-resumed; other credentialed adapters remain paused. Streaming changes are not part of the existing
-metadata-only `RP-015` scope unless the user explicitly revises that release decision.
+This section remains the contract for the streaming milestone. The accepted Kodik lane is included
+in the combined `RP-015` release; other credentialed adapters remain paused.
 
 - Direct providers are independent calls. Failure of KinoBD or DDBB must not remove an otherwise
   healthy direct option.
@@ -188,7 +188,8 @@ Implement as a separate task only if `RP-006` confirms a current supported contr
 the required access. Cover external-ID lookup, translations, series/anime episodes, bounded parsing,
 and aggregate/direct deduplication.
 
-Status: credential and `RP-007` prerequisites satisfied; awaiting a separate explicit start command.
+Status: accepted on 2026-10-08. Evidence is recorded in
+[RP-008 direct Kodik provider](rp-008-direct-kodik-provider.md).
 
 ### RP-009 — direct Alloha provider (conditional)
 
@@ -231,8 +232,8 @@ Place accepted direct sources on independent primary paths, keep useful aggregat
 fallbacks, and ensure early healthy options are observable without waiting for the slowest provider.
 Verify deterministic ordering, deduplication, degradation, caching, and background refresh.
 
-Status: paused with the streaming milestone; existing streaming behavior remains unchanged in the
-metadata-only release.
+Status: narrow Kodik rollout gate passed on 2026-10-08. Direct Kodik is independently observable,
+cached, and retained when KinoBD times out; other streaming lanes remain paused.
 
 ### RP-015 — Media Engine release candidate and npm publication
 
@@ -240,10 +241,12 @@ Update versions and changelog, run the agreed full release gate and live matrix,
 contents, and prepare exact release notes. The user alone stages, commits, pushes, tags, and publishes
 Core, Providers, and SDK. yaneMedia work cannot start until the published versions are confirmed.
 
-Current scope: release only the accepted `RP-001` through `RP-005` metadata work. Do not add, remove,
-or reconfigure streaming providers in this release. The release candidate must re-run the focused
-primary metadata smoke and resilience gate before the full release gate. A later streaming release
-will receive its own version and acceptance cycle after the paused tasks resume.
+Current scope: one combined `1.13.0` release of accepted `RP-001` through `RP-005` metadata work and
+the accepted `RP-007`/`RP-008` Kodik lane through the narrow `RP-014` rollout gate. The primary
+metadata smoke, five-iteration resilience gate, Kodik matrix, streaming rollout gate, and complete
+release check passed. Complete official-primary search and details now return without blocking on
+optional cross-catalog identity expansion; fallback and downstream playback/torrent paths retain
+verified resolution. The user alone commits, tags, pushes, and publishes the packages.
 
 ### RP-016 — yaneMedia package and backend integration
 
@@ -251,8 +254,8 @@ Upgrade exact `@media-engine/*` versions and the lockfile, add server-owned conf
 app-owned DTO mapping where the accepted contract requires it, and preserve canonical registry,
 redirects, favorites, history, progress, and safe diagnostics.
 
-Current scope: integrate the published metadata contract and server-owned TMDB/Shikimori
-configuration. Existing streaming configuration and playback behavior remain unchanged.
+Current scope: after publication, integrate the combined metadata contract plus optional
+server-owned Kodik configuration. Existing player behavior remains compatible.
 
 ### RP-017 — yaneMedia frontend and playback integration
 
@@ -260,8 +263,8 @@ Use the released metadata and provenance behavior in search/details/player UI. P
 source discovery, source labels, embed/direct handling, loading states, and narrow-screen behavior.
 Make UI changes only where the released contract creates a real product difference.
 
-Current scope: verify faster Russian search/details rendering and metadata provenance. No new player
-or source UI is required for the metadata-only release.
+Current scope: verify faster Russian search/details rendering, metadata provenance, and existing
+player handling of direct Kodik options. No new source UI is required by the additive contract.
 
 ### RP-018 — cross-repository acceptance and closeout
 
@@ -287,32 +290,21 @@ packages.
 
 ## Current checkpoint
 
-`RP-005` was accepted on 2026-10-07. A reproducible five-iteration gate covers
-the eleven-work matrix for cold/warm/stale search and details plus forced no-stale movie/anime
-fallback. Final p95 values were 568 ms details cold, 1,637 ms search cold, 1 ms for every warm/stale
-path, and 1,945 ms degraded; every approved budget passed. All 110 healthy cold samples requested
-only the class primary, with no KinoBD on the critical path. The primary metadata smoke also passed
-all details and localized/original/alternative-title searches.
+The combined `1.13.0` Core/Providers/SDK release candidate is ready for the user's commit and
+publication. It includes the accepted fast Russian metadata milestone and the direct Kodik lane.
+The REST/OpenAPI contract is `0.20.0`. The full deterministic `pnpm release:check` passed, including
+clean builds, coverage, API unit/e2e tests, consistency checks, and clean dry package contents.
 
-The gate corrected two routed-search regressions: Core now owns the explicit five-minute fresh plus
-thirty-minute stale window and returns stale search results immediately with one coalesced refresh;
-distinct exact-title primary results no longer trigger slow legacy disambiguation. Focused search
-and metadata-routing tests pass 28/28. Full evidence and reproduction commands are in
-`docs/rp-005-metadata-performance-resilience.md`.
+Live gates also passed. Primary metadata covered the complete details and RU/EN alias matrix. The
+five-iteration resilience run met every budget after production and gate configuration capped the
+public TMDB fallback at 1.5 seconds and KinoBD metadata fallback at 1 second, preserving time for
+later providers. After removing optional identity expansion from the healthy primary critical path,
+final p95 values were 273 ms cold details, 969 ms cold search, 1/2 ms warm/stale, and 3,343 ms
+degraded; the maximum healthy cold search was 1,410 ms. Kodik passed all 15 positive, coverage, and
+negative cases. Its rollout gate returned five direct Parasite options at 621 ms, warm cache at 1 ms, isolated KinoBD's bounded
+timeout, and retained direct plus aggregate attribution during deduplication.
 
-`RP-006` then audited the direct-streaming candidates. The user supplied and locally stored a
-provider-issued Kodik token, and live authentication plus representative list/anime lookups passed.
-Alloha, Vibix, VideoSeed, HDVB/Lumex, and the other credentialed candidates remain paused. Leaked or
-shared keys remain explicitly outside the plan.
-
-`RP-007` was accepted on 2026-10-08. It adds an additive provenance contract:
-`StreamOption.provider` remains the discovery
-adapter, `player.provider` identifies the normalized upstream player, and `discovery` distinguishes
-direct from aggregate observations. Exact playback targets deduplicate independently of descriptive
-translation/quality metadata, prefer stronger availability and then direct discovery, and retain
-per-observation attribution. KinoBD options are marked as aggregate and expose their real player.
-Focused Core and KinoBD checks pass; detailed evidence is in
-`docs/rp-007-streaming-provenance-deduplication.md`.
-
-The next separate task is `RP-008`, the direct Kodik adapter. `RP-015` remains deferred and its
-metadata-only release scope is unchanged unless the user explicitly revises it.
+No further implementation starts automatically. The user now commits and publishes
+`@media-engine/core`, `@media-engine/providers`, and `@media-engine/sdk` at `1.13.0` in dependency
+order. After all three versions are confirmed on npm, the next explicit task is `RP-016` in
+yaneMedia. `RP-009` through `RP-013` remain paused.

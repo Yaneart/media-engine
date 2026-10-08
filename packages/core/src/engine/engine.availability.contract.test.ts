@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { MemoryCache } from "../cache/index.js";
 import { ProviderError } from "../errors/index.js";
 import type { MediaAvailability, StreamQuery } from "../streaming/index.js";
+import { enrichStreamQueryIdentity, selectStreamingProviders } from "./availability.js";
 import { MediaEngine } from "./engine.js";
 import { createAvailability, createStreamingProvider } from "./test-helpers.js";
 
@@ -294,4 +295,95 @@ test("getAvailability prefers confirmed aggregate playback over an unknown direc
       { provider: "kinobd-streaming", status: "available" },
     ],
   );
+});
+
+test("getAvailability orders every validation state before direct discovery", async () => {
+  const states = [
+    "unknown",
+    "temporarily_unavailable",
+    "region_locked",
+    "requires_account",
+    "available",
+  ] as const;
+  const engine = new MediaEngine({
+    streamingProviders: states.map((status, index) =>
+      createStreamingProvider({
+        name: `stream-${index}`,
+        async getAvailability(query) {
+          const availability = createAvailability(query, `stream-${index}`);
+          availability.episodes = undefined;
+          availability.options[0]!.access.url = "https://shared.test/status-priority";
+          availability.options[0]!.availability = status;
+          availability.options[0]!.discovery = index === 0 ? "direct" : "aggregate";
+          return availability;
+        },
+      }),
+    ),
+  });
+
+  const availability = await engine.getAvailability({ type: "anime", title: "Shared" });
+
+  assert.equal(availability.options.length, 1);
+  assert.equal(availability.options[0]?.availability, "available");
+  assert.equal(availability.options[0]?.attributions?.length, states.length);
+});
+
+test("streaming selection rejects incompatible media and episode capabilities", () => {
+  const compatible = createStreamingProvider({ name: "compatible" });
+  const wrongMedia = createStreamingProvider({
+    name: "movie-only",
+    capabilities: {
+      mediaTypes: ["movie"],
+      lookup: { byTitle: true, byExternalIds: [], byEpisode: true },
+      features: ["embed"],
+    },
+  });
+  const noEpisodes = createStreamingProvider({
+    name: "no-episodes",
+    capabilities: {
+      mediaTypes: ["anime"],
+      lookup: { byTitle: true, byExternalIds: [], byEpisode: false },
+      features: ["embed"],
+    },
+  });
+
+  assert.deepEqual(
+    selectStreamingProviders([wrongMedia, noEpisodes, compatible], {
+      type: "anime",
+      title: "Naruto",
+      absoluteEpisodeNumber: 1,
+    }).map((provider) => provider.name),
+    ["compatible"],
+  );
+});
+
+test("streaming identity can be confirmed by exact title, year, and type", () => {
+  const query: StreamQuery = { type: "series", title: "Shogun", year: 2024 };
+  const enriched = enrichStreamQueryIdentity(
+    query,
+    {
+      query,
+      results: [
+        {
+          item: {
+            id: "shogun",
+            type: "series",
+            title: "Shogun",
+            year: 2024,
+            ids: { kinopoisk: "123" },
+          },
+          score: 1,
+          sources: [{ provider: "metadata" }],
+        },
+      ],
+      meta: {
+        providers: { requested: ["metadata"], successful: ["metadata"], failed: [] },
+        cached: false,
+        tookMs: 1,
+      },
+    },
+    ["kinopoisk"],
+  );
+
+  assert.deepEqual(enriched.ids, { kinopoisk: "123" });
 });

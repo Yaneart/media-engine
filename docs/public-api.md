@@ -60,6 +60,12 @@ Each result contains a normalized item, a score, and source attribution. Respons
 
 Mandatory discovery and snapshot recovery freeze each result's identity, score, and relative order before optional enrichment. Enrichment can add presentation fields, non-conflicting external IDs, source attribution, and an alias that makes a frozen unresolved candidate relevant. It cannot introduce a new result, replace `id`, `type`, `title`, `originalTitle`, or `year`, change the score, or rerank results. An external-ID conflict keeps the mandatory discovery value and emits `EXTERNAL_ID_CONFLICT`.
 
+Complete results from routed official-primary title discovery return with their provider-native
+strong IDs and do not wait for optional cross-catalog identity resolution. Fallback discovery keeps
+verified identity canonicalization. Details follow the same rule when a primary provider supports
+the supplied namespaced ID; legacy-only inputs are resolved before routing, while streaming and
+torrent operations resolve any additional IDs required by their selected downstream providers.
+
 For title discovery, a supported multi-word typo is broadened through primary providers whenever no exact title exists, including when weak fuzzy candidates are non-empty. Fallback title providers also run for a multi-word query without an exact identity. Mandatory ranking prefers close token-length matches, broadly reusable external IDs, and audience signals with known vote counts before its order is frozen.
 
 The built-in merge strategy also applies a conservative candidate-diversity pass inside the top ten score-ranked results. It preserves the first result, all public scores, and every candidate. Once two results share the same normalized matched title and media type, only another candidate with a score within `0.03` and title relevance within `0.05` may be interleaved; materially weaker results never move up merely for variety.

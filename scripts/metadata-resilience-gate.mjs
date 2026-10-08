@@ -251,8 +251,8 @@ for (let iteration = 1; iteration <= iterations; iteration += 1) {
       providerTimeouts: {
         "tmdb-official": 2_000,
         "shikimori-graphql": 2_000,
-        tmdb: 3_500,
-        kinobd: 3_500,
+        tmdb: 1_500,
+        kinobd: 1_000,
         cinemeta: 3_500,
         shikimori: 3_500,
         anilist: 3_500,
@@ -362,8 +362,8 @@ function createProductionEngine(cache) {
     providerTimeouts: {
       "tmdb-official": 2_000,
       "shikimori-graphql": 2_000,
-      tmdb: 3_500,
-      kinobd: 3_500,
+      tmdb: 1_500,
+      kinobd: 1_000,
       cinemeta: 3_500,
       shikimori: 3_500,
       anilist: 3_500,
