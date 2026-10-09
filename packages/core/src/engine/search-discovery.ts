@@ -1,14 +1,21 @@
 import type { MediaSearchResult, SearchQuery } from "../search/index.js";
 import { normalizeTitle } from "../merge/title.js";
 
-// Decides whether slower fallback discovery can still resolve title identity.
+// Decides whether slower fallback discovery can still resolve title identity or an empty filter set.
 // Решает, может ли более медленный fallback discovery уточнить identity по названию.
 export function needsFallbackTitleDiscovery(
   query: SearchQuery,
   relevantResults: MediaSearchResult[],
 ): boolean {
-  if (!query.title?.trim() || hasExternalIds(query)) {
+  if (hasExternalIds(query)) {
     return false;
+  }
+
+  if (!query.title?.trim()) {
+    return (
+      relevantResults.length === 0 &&
+      [query.year, query.genre, query.minimumRating].some((value) => value !== undefined)
+    );
   }
 
   if (relevantResults.length === 0) {

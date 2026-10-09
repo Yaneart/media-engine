@@ -7,6 +7,13 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.13.3 - 2026-10-09
+
+### Fixed
+
+- Empty official filter discovery now falls back to legacy metadata providers, preserving results
+  for genres outside the official TMDB taxonomy.
+
 ## 1.13.2 - 2026-10-09
 
 ### Changed

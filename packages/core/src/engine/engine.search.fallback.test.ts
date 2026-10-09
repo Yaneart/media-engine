@@ -87,6 +87,61 @@ test("search invokes fallback discovery after empty primary discovery", async ()
   );
 });
 
+test("search invokes fallback filter discovery after an empty primary result", async () => {
+  let fallbackCalls = 0;
+  const filterDiscovery = ["year", "genre", "minimumRating"] as const;
+  const engine = new MediaEngine({
+    debug: true,
+    providers: [
+      createProvider({
+        name: "primary-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          metadataRoute: "primary",
+          search: { byTitle: true, byExternalIds: [], filterDiscovery: [...filterDiscovery] },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          return [];
+        },
+      }),
+      createProvider({
+        name: "fallback-provider",
+        capabilities: {
+          mediaTypes: ["movie"],
+          metadataRoute: "fallback",
+          search: { byTitle: true, byExternalIds: [], filterDiscovery: [...filterDiscovery] },
+          details: { byExternalIds: [] },
+        },
+        async search(): Promise<ProviderSearchResult[]> {
+          fallbackCalls += 1;
+          return [
+            {
+              provider: "fallback-provider",
+              item: {
+                id: "biography",
+                type: "movie",
+                title: "Biography",
+                genres: [{ name: "Biography" }],
+              },
+            },
+          ];
+        },
+      }),
+    ],
+  });
+
+  const response = await engine.search({ type: "movie", genre: "Biography", limit: 10 });
+
+  assert.equal(fallbackCalls, 1);
+  assert.equal(response.results[0]?.item.title, "Biography");
+  assert.deepEqual(response.meta.providers.requested, ["primary-provider", "fallback-provider"]);
+  assert.deepEqual(
+    response.meta.debug?.timings.map((timing) => timing.phase),
+    ["primary", "provider_fallback"],
+  );
+});
+
 test("search invokes fallback discovery for conflicting exact title identities", async () => {
   let fallbackCalls = 0;
   const engine = new MediaEngine({
