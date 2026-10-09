@@ -125,8 +125,9 @@ The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider
 `experimentalStreamingProvider()`.
 Kodik requires a provider-issued `apiKey`, keeps it only in server-side requests, and performs
 bounded exact lookup by Kinopoisk, IMDb, or Shikimori ID. It returns direct Kodik iframe options,
-translations, quality labels, and only a verified requested series/anime episode. Split anime
-releases use `animeReleaseEpisode`; ambiguous or conflicting identities and episode maps are rejected.
+translations, and quality labels. Generic series and TV-anime queries return a player-managed embed;
+exact queries return only a verified requested episode. Split anime releases use
+`animeReleaseEpisode`; ambiguous or conflicting identities and episode maps are rejected.
 Add them explicitly when they fit your application. Filmix guest mode is capped at 480p and filters
 known copyright/service placeholder videos. A user-owned device token raises the cap to 720p.
 Authenticated mode requires an HTTPS `baseUrl` unless the application explicitly enables

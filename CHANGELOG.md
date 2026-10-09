@@ -7,6 +7,14 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.13.1 - 2026-10-09
+
+### Changed
+
+- Generic TV-anime Kodik queries now return the exact-ID player-managed embed so applications can
+  use Kodik's internal translation and episode controls. Exact episode queries retain strict
+  canonical season, episode, absolute-episode, and split-release validation.
+
 ## 1.13.0 - 2026-10-08
 
 ### Added

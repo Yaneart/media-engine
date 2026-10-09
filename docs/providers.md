@@ -92,7 +92,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | Provider               | Main role                                                                             | Credentials               |
 | ---------------------- | ------------------------------------------------------------------------------------- | ------------------------- |
 | KinoBD streaming       | Discovers normalized player options for movies, series, and anime                     | None                      |
-| Kodik streaming        | Opt-in exact-ID direct iframe for movies, series episodes, and verified anime         | Provider-issued API token |
+| Kodik streaming        | Opt-in exact-ID iframe for movies and player-managed or exact episodic playback       | Provider-issued API token |
 | FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available    | None                      |
 | DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds           | None                      |
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities                 | None                      |
@@ -109,7 +109,8 @@ Streaming providers return targets and metadata; the consuming UI decides how to
 Kodik streaming is opt-in through `kodikStreamingProvider({ apiKey })` or the repository API's
 server-only `KODIK_API_KEY`. It makes bounded exact lookups by Kinopoisk, IMDb, or Shikimori ID and
 never searches by title. Movie/anime-film records return direct iframe options per translation;
-series and TV anime select only an existing requested episode. TV anime requires explicit canonical
+generic series and TV-anime queries return the provider player with its internal episode selector.
+Exact queries select only an existing requested episode; exact TV-anime queries require canonical
 season, episode, and absolute coordinates. For split releases, the adapter validates
 `animeReleaseEpisode` and maps it only when one complete provider season matches the release-local
 catalog. Conflicting IDs, media types, partial episode coordinates, malformed responses, and

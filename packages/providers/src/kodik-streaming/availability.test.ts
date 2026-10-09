@@ -85,6 +85,23 @@ test("kodikStreamingProvider maps a split anime release to its provider episode"
   assert.equal(await provider.getAvailability({ ...query, absoluteEpisodeNumber: 29 }, {}), null);
 });
 
+test("kodikStreamingProvider returns the player-managed TV anime embed without an episode", async () => {
+  const provider = createProvider([animeFixture()]);
+  const result = await provider.getAvailability(
+    {
+      type: "anime",
+      animeKind: "tv",
+      ids: { shikimori: "60000", kinopoisk: "5401195" },
+    },
+    {},
+  );
+
+  assert.equal(result?.options.length, 1);
+  assert.equal(result?.options[0]?.access.url, "https://kodik.test/frieren");
+  assert.equal(result?.options[0]?.episode, undefined);
+  assert.equal(result?.episodes, undefined);
+});
+
 test("kodikStreamingProvider maps a release-local split season with a noncanonical season key", async () => {
   const release = animeFixture();
   const season = release.seasons["1"];
@@ -143,7 +160,12 @@ test("kodikStreamingProvider avoids underidentified requests and preserves cance
     { type: "movie" as const, title: "Movie" },
     { type: "movie" as const, ids: { kinopoisk: "1" }, seasonNumber: 1 },
     { type: "series" as const, ids: { kinopoisk: "1" }, episodeNumber: 1 },
-    { type: "anime" as const, animeKind: "tv" as const, ids: { shikimori: "20" } },
+    {
+      type: "anime" as const,
+      animeKind: "tv" as const,
+      ids: { shikimori: "20" },
+      episodeNumber: 1,
+    },
     { type: "movie" as const, ids: { kinopoisk: "1" }, providers: ["other"] },
   ]) {
     assert.equal(await provider.getAvailability(query, {}), null);

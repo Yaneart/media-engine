@@ -54,11 +54,17 @@ function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>
     );
   }
   if (query.type === "anime") {
+    const hasAnyEpisodeCoordinate =
+      query.seasonNumber !== undefined ||
+      query.episodeNumber !== undefined ||
+      query.absoluteEpisodeNumber !== undefined;
+
     return (
       query.animeKind === "tv" &&
-      query.seasonNumber !== undefined &&
-      query.episodeNumber !== undefined &&
-      query.absoluteEpisodeNumber !== undefined
+      (!hasAnyEpisodeCoordinate ||
+        (query.seasonNumber !== undefined &&
+          query.episodeNumber !== undefined &&
+          query.absoluteEpisodeNumber !== undefined))
     );
   }
   return (

@@ -103,6 +103,10 @@ function selectAccess(
     return selectEpisode(result, query.seasonNumber!, query.episodeNumber!);
   }
 
+  if (!hasSeason && !hasEpisode && query.absoluteEpisodeNumber === undefined) {
+    return normalizeLink(result.link);
+  }
+
   const catalog = Object.entries(result.seasons).flatMap(([seasonNumber, season]) =>
     Object.keys(season.episodes).map((episodeNumber) => ({
       seasonNumber: Number(seasonNumber),
