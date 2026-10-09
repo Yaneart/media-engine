@@ -7,6 +7,13 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.13.2 - 2026-10-09
+
+### Changed
+
+- Official TMDB and Shikimori GraphQL primary providers now serve year, genre, and minimum-rating
+  discovery directly, avoiding slower legacy metadata fallback for supported catalog filters.
+
 ## 1.13.1 - 2026-10-09
 
 ### Changed

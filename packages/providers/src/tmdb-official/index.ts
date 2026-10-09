@@ -20,6 +20,47 @@ const NAME = "tmdb-official";
 const DEFAULT_BASE_URL = "https://api.themoviedb.org/3";
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/original";
 const MAX_SEARCH_RESULTS_PER_TYPE = 10;
+const DISCOVER_PAGE_SIZE = 20;
+const TMDB_GENRES = {
+  movie: new Map([
+    [12, "Adventure"],
+    [14, "Fantasy"],
+    [16, "Animation"],
+    [18, "Drama"],
+    [27, "Horror"],
+    [28, "Action"],
+    [35, "Comedy"],
+    [36, "History"],
+    [37, "Western"],
+    [53, "Thriller"],
+    [80, "Crime"],
+    [99, "Documentary"],
+    [878, "Science Fiction"],
+    [9648, "Mystery"],
+    [10402, "Music"],
+    [10749, "Romance"],
+    [10751, "Family"],
+    [10752, "War"],
+  ]),
+  series: new Map([
+    [16, "Animation"],
+    [18, "Drama"],
+    [35, "Comedy"],
+    [37, "Western"],
+    [80, "Crime"],
+    [99, "Documentary"],
+    [9648, "Mystery"],
+    [10751, "Family"],
+    [10759, "Action & Adventure"],
+    [10762, "Kids"],
+    [10763, "News"],
+    [10764, "Reality"],
+    [10765, "Sci-Fi & Fantasy"],
+    [10766, "Soap"],
+    [10767, "Talk"],
+    [10768, "War & Politics"],
+  ]),
+} as const;
 
 export interface TmdbOfficialProviderOptions {
   apiKey?: string;
@@ -59,6 +100,7 @@ interface TmdbRecord {
   runtime?: number;
   episode_run_time?: number[];
   genres?: TmdbGenre[];
+  genre_ids?: number[];
   vote_average?: number;
   vote_count?: number;
   number_of_episodes?: number;
@@ -209,6 +251,49 @@ export function tmdbOfficialProvider(options: TmdbOfficialProviderOptions = {}):
       .map(toSearchResult);
   }
 
+  async function discover(
+    query: ProviderSearchQuery,
+    context: ProviderContext,
+  ): Promise<ProviderSearchResult[]> {
+    if (query.type === "anime") return [];
+    const types = query.type ? [query.type] : (["movie", "series"] as const);
+    const target = query.limit ?? DISCOVER_PAGE_SIZE;
+    const results = await Promise.all(
+      types.map(async (type) => {
+        const genreId = query.genre ? discoverGenreId(type, query.genre) : undefined;
+        if (query.genre && genreId === undefined) return [];
+
+        const pageCount = Math.ceil(target / DISCOVER_PAGE_SIZE);
+        const pages = await Promise.all(
+          Array.from({ length: pageCount }, (_, index) =>
+            request<TmdbSearchResponse>(
+              `/discover/${type === "movie" ? "movie" : "tv"}`,
+              {
+                language: locale(query.language),
+                page: index + 1,
+                sort_by: "popularity.desc",
+                include_adult: "false",
+                with_genres: genreId,
+                primary_release_year: type === "movie" ? query.year : undefined,
+                first_air_date_year: type === "series" ? query.year : undefined,
+                "vote_average.gte": query.minimumRating,
+              },
+              context,
+            ),
+          ),
+        );
+
+        return pages
+          .flatMap((page) => page.results ?? [])
+          .slice(0, target)
+          .map((record) => mapDiscoveryItem(record, type, query.genre))
+          .filter((item): item is MediaItem => Boolean(item))
+          .map((item) => toSearchResult(item));
+      }),
+    );
+    return results.flat();
+  }
+
   return {
     name: NAME,
     version: options.version,
@@ -218,16 +303,93 @@ export function tmdbOfficialProvider(options: TmdbOfficialProviderOptions = {}):
     capabilities: {
       mediaTypes: ["movie", "series"],
       metadataRoute: "primary",
-      search: { byTitle: true, byExternalIds: ["imdb", "tmdb"] },
+      search: {
+        byTitle: true,
+        byExternalIds: ["imdb", "tmdb"],
+        filterDiscovery: ["year", "genre", "minimumRating"],
+      },
       details: { byExternalIds: ["imdb", "tmdb"] },
       features: ["posters", "backdrops", "ratings", "genres", "seasons"],
     },
-    search,
+    search: (query, context) =>
+      !query.title && !query.ids?.tmdb && !query.ids?.imdb
+        ? discover(query, context)
+        : search(query, context),
     getDetails: async (query, context) => {
       const details = await loadDetails(query, context);
       return details ? { provider: NAME, details, source: details.sourceProviders?.[0] } : null;
     },
   };
+}
+
+function mapDiscoveryItem(
+  record: TmdbRecord,
+  type: "movie" | "series",
+  requestedGenre: string | undefined,
+): MediaDetails | null {
+  const id = positiveInteger(record.id);
+  const title = (type === "movie" ? record.title : record.name)?.trim();
+  const date = type === "movie" ? record.release_date : record.first_air_date;
+  const poster = image(record.poster_path, "poster");
+  const year = parseYear(date);
+  if (!id || !title || !poster || !year) return null;
+
+  const genreNames = (record.genre_ids ?? []).flatMap((genreId) => {
+    const name = TMDB_GENRES[type].get(genreId);
+    return name ? [name] : [];
+  });
+  if (requestedGenre && !genreNames.includes(requestedGenre)) genreNames.push(requestedGenre);
+  const ids: ExternalIds = { tmdb: id };
+
+  return {
+    id: `${NAME}-${type}-${id}`,
+    type,
+    title,
+    originalTitle:
+      (type === "movie" ? record.original_title : record.original_name)?.trim() || undefined,
+    year,
+    releaseDate: validDate(date),
+    description: record.overview?.trim() || undefined,
+    poster,
+    backdrop: image(record.backdrop_path, "backdrop"),
+    genres: genreNames.map((name) => ({ name, source: NAME })),
+    ratings:
+      typeof record.vote_average === "number" && record.vote_average > 0
+        ? [{ source: "tmdb", value: record.vote_average, max: 10, votes: record.vote_count }]
+        : undefined,
+    ids,
+    sourceProviders: [
+      {
+        provider: NAME,
+        ids,
+        url: `https://www.themoviedb.org/${type === "movie" ? "movie" : "tv"}/${id}`,
+      },
+    ],
+  };
+}
+
+function discoverGenreId(type: "movie" | "series", genre: string): number | undefined {
+  const normalized = genre
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll(/[\s_-]+/gu, " ");
+  const aliases: Record<string, string[]> =
+    type === "movie"
+      ? { "sci fi": ["science fiction"] }
+      : {
+          action: ["action & adventure"],
+          adventure: ["action & adventure"],
+          fantasy: ["sci-fi & fantasy"],
+          "sci fi": ["sci-fi & fantasy"],
+          "reality tv": ["reality"],
+          "talk show": ["talk"],
+          war: ["war & politics"],
+        };
+  const accepted = new Set([normalized, ...(aliases[normalized] ?? [])]);
+  for (const [id, name] of TMDB_GENRES[type]) {
+    if (accepted.has(name.toLocaleLowerCase())) return id;
+  }
+  return undefined;
 }
 
 function mapDetails(record: TmdbRecord, type: "movie" | "series"): MediaDetails | null {

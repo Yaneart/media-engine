@@ -81,3 +81,64 @@ test("shikimoriGraphqlProvider fails closed on GraphQL errors and missing User-A
     (error: unknown) => error instanceof ProviderError && error.code === "PROVIDER_UNAUTHORIZED",
   );
 });
+
+test("shikimoriGraphqlProvider discovers filtered anime through official GraphQL filters", async () => {
+  const requests: Array<{ query: string; variables: Record<string, string | number> }> = [];
+  const provider = shikimoriGraphqlProvider({
+    userAgent: "yaneMedia/1.0",
+    fetch: async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as {
+        query: string;
+        variables: Record<string, string | number>;
+      };
+      requests.push(body);
+      if (body.query.includes("genres(entryType: Anime)")) {
+        return Response.json({
+          data: { genres: [{ id: "117", name: "Suspense", russian: "Триллер" }] },
+        });
+      }
+      return Response.json({
+        data: { animes: [{ ...anime, airedOn: { date: "2024-01-10", year: 2024 } }] },
+      });
+    },
+  });
+
+  const results = await provider.search(
+    { type: "anime", year: 2024, genre: "Thriller", minimumRating: 7.2, limit: 49 },
+    { language: "ru" },
+  );
+
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1]?.variables, {
+    page: 1,
+    limit: 49,
+    season: "2024",
+    genre: "117",
+    score: 7,
+  });
+  assert.match(requests[1]?.query ?? "", /order: ranked/u);
+  assert.ok(results[0]?.item.genres?.some((genre) => genre.name === "Thriller"));
+  assert.deepEqual(provider.capabilities.search.filterDiscovery, [
+    "year",
+    "genre",
+    "minimumRating",
+  ]);
+});
+
+test("shikimoriGraphqlProvider does not mark title results with an unverified genre", async () => {
+  const provider = shikimoriGraphqlProvider({
+    userAgent: "yaneMedia/1.0",
+    fetch: async () => Response.json({ data: { animes: [anime] } }),
+  });
+
+  const results = await provider.search(
+    { type: "anime", title: "Death Note", genre: "Comedy" },
+    {},
+  );
+
+  assert.equal(results.length, 1);
+  assert.equal(
+    results[0]?.item.genres?.some((genre) => genre.name === "Comedy"),
+    false,
+  );
+});

@@ -78,3 +78,67 @@ test("tmdbOfficialProvider keeps missing configuration behind a safe provider er
       !error.message.includes("api_key"),
   );
 });
+
+test("tmdbOfficialProvider discovers filtered movie cards without per-item detail requests", async () => {
+  const requestedUrls: URL[] = [];
+  const provider = tmdbOfficialProvider({
+    apiKey: "secret",
+    fetch: async (input) => {
+      const url = new URL(input);
+      requestedUrls.push(url);
+      const page = Number(url.searchParams.get("page"));
+      return Response.json({
+        results: [
+          {
+            id: 1000 + page,
+            title: `Фильм ${page}`,
+            original_title: `Movie ${page}`,
+            overview: "Overview",
+            poster_path: `/poster-${page}.jpg`,
+            backdrop_path: `/backdrop-${page}.jpg`,
+            release_date: "2024-03-01",
+            genre_ids: [53],
+            vote_average: 8.1,
+            vote_count: 50,
+          },
+        ],
+      });
+    },
+  });
+
+  const results = await provider.search(
+    { type: "movie", year: 2024, genre: "Thriller", minimumRating: 7, limit: 49 },
+    { language: "ru" },
+  );
+
+  assert.equal(requestedUrls.length, 3);
+  assert.ok(requestedUrls.every((url) => url.pathname === "/3/discover/movie"));
+  assert.ok(requestedUrls.every((url) => url.searchParams.get("with_genres") === "53"));
+  assert.ok(requestedUrls.every((url) => url.searchParams.get("language") === "ru-RU"));
+  assert.ok(requestedUrls.every((url) => url.searchParams.get("primary_release_year") === "2024"));
+  assert.ok(requestedUrls.every((url) => url.searchParams.get("vote_average.gte") === "7"));
+  assert.equal(results.length, 3);
+  assert.equal(results[0]?.item.title, "Фильм 1");
+  assert.equal(results[0]?.item.originalTitle, "Movie 1");
+  assert.deepEqual(results[0]?.item.ids, { tmdb: "1001" });
+  assert.ok(results[0]?.item.genres?.some((genre) => genre.name === "Thriller"));
+  assert.deepEqual(provider.capabilities.search.filterDiscovery, [
+    "year",
+    "genre",
+    "minimumRating",
+  ]);
+});
+
+test("tmdbOfficialProvider leaves unsupported official genres to fallback discovery", async () => {
+  let requests = 0;
+  const provider = tmdbOfficialProvider({
+    apiKey: "secret",
+    fetch: async () => {
+      requests += 1;
+      return Response.json({ results: [] });
+    },
+  });
+
+  assert.deepEqual(await provider.search({ type: "movie", genre: "Biography" }, {}), []);
+  assert.equal(requests, 0);
+});

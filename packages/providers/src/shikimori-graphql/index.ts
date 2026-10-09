@@ -13,6 +13,7 @@ import { fetchJson, ProviderRateLimitGate, type ProviderFetch } from "../shared/
 
 const NAME = "shikimori-graphql";
 const DEFAULT_ENDPOINT = "https://shikimori.io/api/graphql";
+const SEARCH_PAGE_SIZE = 50;
 const ANIME_FIELDS = `
   id malId name russian english japanese synonyms description kind episodes episodesAired score status
   airedOn { date year } releasedOn { date }
@@ -29,8 +30,17 @@ export interface ShikimoriGraphqlProviderOptions {
 }
 
 interface GraphqlResponse {
-  data?: { animes?: ShikimoriAnime[] | null };
+  data?: {
+    animes?: ShikimoriAnime[] | null;
+    genres?: ShikimoriGenre[] | null;
+  };
   errors?: Array<{ message?: string }>;
+}
+
+interface ShikimoriGenre {
+  id?: string;
+  name?: string;
+  russian?: string;
 }
 
 interface ShikimoriAnime {
@@ -60,12 +70,14 @@ export function shikimoriGraphqlProvider(
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
   const userAgent = options.userAgent?.trim();
   const gate = new ProviderRateLimitGate();
+  let genreCatalog: ShikimoriGenre[] | undefined;
 
-  async function request(
+  async function request<T>(
     query: string,
     variables: Record<string, string | number>,
     context: ProviderContext,
-  ): Promise<ShikimoriAnime[]> {
+    field: "animes" | "genres",
+  ): Promise<T[]> {
     if (!userAgent) {
       throw new ProviderError({
         provider: NAME,
@@ -88,14 +100,26 @@ export function shikimoriGraphqlProvider(
       },
     });
 
-    if (response.errors?.length || !Array.isArray(response.data?.animes)) {
+    const records = response.data?.[field];
+    if (response.errors?.length || !Array.isArray(records)) {
       throw new ProviderError({
         provider: NAME,
         code: "PROVIDER_INVALID_RESPONSE",
         message: `Provider "${NAME}" returned an invalid GraphQL response.`,
       });
     }
-    return response.data.animes;
+    return records as T[];
+  }
+
+  async function loadGenreCatalog(context: ProviderContext): Promise<ShikimoriGenre[]> {
+    if (genreCatalog) return genreCatalog;
+    genreCatalog = await request<ShikimoriGenre>(
+      "query { genres(entryType: Anime) { id name russian } }",
+      {},
+      context,
+      "genres",
+    );
+    return genreCatalog;
   }
 
   async function loadDetails(
@@ -105,12 +129,15 @@ export function shikimoriGraphqlProvider(
     if (query.type && query.type !== "anime") return null;
     const requestedId = query.ids?.shikimori ?? query.ids?.myAnimeList;
     if (!requestedId || !/^\d+$/u.test(requestedId)) return null;
-    const records = await request(
+    const records = await request<ShikimoriAnime>(
       `query ($ids: String!) { animes(ids: $ids, limit: 2) { ${ANIME_FIELDS} } }`,
       { ids: requestedId },
       context,
+      "animes",
     );
-    const matches = records.map(mapAnime).filter((item): item is AnimeDetails => Boolean(item));
+    const matches = records
+      .map((record) => mapAnime(record))
+      .filter((item): item is AnimeDetails => Boolean(item));
     const exact = matches.filter((item) => matchesIds(query.ids, item.ids));
     return exact.length === 1 ? exact[0]! : null;
   }
@@ -124,15 +151,47 @@ export function shikimoriGraphqlProvider(
       const details = await loadDetails({ ...query, type: "anime" }, context);
       return details ? [toSearchResult(details)] : [];
     }
-    if (!query.title) return [];
+    let records: ShikimoriAnime[];
+    if (query.title) {
+      records = await request<ShikimoriAnime>(
+        `query ($search: String!, $limit: Int!) { animes(search: $search, limit: $limit) { ${ANIME_FIELDS} } }`,
+        { search: query.title, limit: Math.min(query.limit ?? 20, SEARCH_PAGE_SIZE) },
+        context,
+        "animes",
+      );
+    } else {
+      const genreId = query.genre
+        ? resolveGenreId(await loadGenreCatalog(context), query.genre)
+        : undefined;
+      if (query.genre && !genreId) return [];
 
-    const records = await request(
-      `query ($search: String!, $limit: Int!) { animes(search: $search, limit: $limit) { ${ANIME_FIELDS} } }`,
-      { search: query.title, limit: Math.min(query.limit ?? 20, 50) },
-      context,
-    );
+      const target = query.limit ?? 20;
+      const pages = await Promise.all(
+        Array.from({ length: Math.ceil(target / SEARCH_PAGE_SIZE) }, (_, index) =>
+          request<ShikimoriAnime>(
+            `query ($page: Int!, $limit: Int!, $season: SeasonString, $genre: String, $score: Int) {
+              animes(page: $page, limit: $limit, order: ranked, season: $season, genre: $genre, score: $score) {
+                ${ANIME_FIELDS}
+              }
+            }`,
+            {
+              page: index + 1,
+              limit: Math.min(SEARCH_PAGE_SIZE, target - index * SEARCH_PAGE_SIZE),
+              ...(query.year !== undefined ? { season: String(query.year) } : {}),
+              ...(genreId ? { genre: genreId } : {}),
+              ...(query.minimumRating !== undefined
+                ? { score: Math.floor(query.minimumRating) }
+                : {}),
+            },
+            context,
+            "animes",
+          ),
+        ),
+      );
+      records = pages.flat().slice(0, target);
+    }
     return records
-      .map(mapAnime)
+      .map((record) => mapAnime(record, query.title ? undefined : query.genre))
       .filter((item): item is AnimeDetails => Boolean(item))
       .filter((item) => query.year === undefined || item.year === query.year)
       .filter((item) =>
@@ -150,7 +209,11 @@ export function shikimoriGraphqlProvider(
     capabilities: {
       mediaTypes: ["anime"],
       metadataRoute: "primary",
-      search: { byTitle: true, byExternalIds: ["shikimori", "myAnimeList"] },
+      search: {
+        byTitle: true,
+        byExternalIds: ["shikimori", "myAnimeList"],
+        filterDiscovery: ["year", "genre", "minimumRating"],
+      },
       details: { byExternalIds: ["shikimori", "myAnimeList"] },
       features: ["posters", "backdrops", "ratings", "genres", "episodes", "alternative_titles"],
     },
@@ -162,7 +225,7 @@ export function shikimoriGraphqlProvider(
   };
 }
 
-function mapAnime(record: ShikimoriAnime): AnimeDetails | null {
+function mapAnime(record: ShikimoriAnime, requestedGenre?: string): AnimeDetails | null {
   const id = numericId(record.id);
   const malId = numericId(record.malId ?? undefined);
   const title = record.russian?.trim() || record.name?.trim();
@@ -182,6 +245,18 @@ function mapAnime(record: ShikimoriAnime): AnimeDetails | null {
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value && value !== title));
 
+  const genres: NonNullable<AnimeDetails["genres"]> =
+    record.genres?.flatMap((genre) => {
+      const name = genre.russian?.trim() || genre.name?.trim();
+      return name ? [{ id: numericId(genre.id), name, source: NAME }] : [];
+    }) ?? [];
+  if (
+    requestedGenre &&
+    !genres?.some((genre) => normalizeGenre(genre.name) === normalizeGenre(requestedGenre))
+  ) {
+    genres.push({ name: requestedGenre, source: NAME });
+  }
+
   return {
     id: `${NAME}-anime-${id}`,
     type: "anime",
@@ -200,10 +275,7 @@ function mapAnime(record: ShikimoriAnime): AnimeDetails | null {
       const url = httpsUrl(item.originalUrl) ?? httpsUrl(item.x332Url);
       return url ? [{ url, type: "backdrop" as const, source: NAME }] : [];
     }),
-    genres: record.genres?.flatMap((genre) => {
-      const name = genre.russian?.trim() || genre.name?.trim();
-      return name ? [{ id: numericId(genre.id), name, source: NAME }] : [];
-    }),
+    genres,
     ratings:
       typeof record.score === "number" && record.score > 0
         ? [{ source: "shikimori", value: record.score, max: 10 }]
@@ -220,6 +292,24 @@ function mapAnime(record: ShikimoriAnime): AnimeDetails | null {
     ids,
     sourceProviders: [{ provider: NAME, ids, url: `https://shikimori.io/animes/${id}` }],
   };
+}
+
+function resolveGenreId(genres: ShikimoriGenre[], requestedGenre: string): string | undefined {
+  const requested = normalizeGenre(requestedGenre);
+  const aliases = new Set([requested, ...(requested === "thriller" ? ["suspense"] : [])]);
+  return genres.find((genre) => {
+    const names = [genre.name, genre.russian]
+      .filter((name): name is string => Boolean(name))
+      .map(normalizeGenre);
+    return names.some((name) => aliases.has(name));
+  })?.id;
+}
+
+function normalizeGenre(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll(/[\s_-]+/gu, " ");
 }
 
 function toSearchResult(details: AnimeDetails): ProviderSearchResult {
