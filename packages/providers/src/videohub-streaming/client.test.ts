@@ -103,6 +103,23 @@ test("parseVideoHubSources maps only fixed HTTPS MP4 fields and deduplicates URL
   );
 });
 
+test("parseVideoHubSources uses decoded resolution tiers for VideoHUB's reversed legacy fields", () => {
+  assert.deepEqual(
+    parseVideoHubSources("videohub-streaming", {
+      sources: {
+        mpeg4kUrl: "https://cdn.test/2560-wide.mp4",
+        mpeg2kUrl: "https://cdn.test/3840-wide.mp4",
+        mpegFullHdUrl: "https://cdn.test/1920-wide.mp4",
+      },
+    }),
+    [
+      { url: "https://cdn.test/3840-wide.mp4", label: "4K", height: 2160 },
+      { url: "https://cdn.test/2560-wide.mp4", label: "2K", height: 1440 },
+      { url: "https://cdn.test/1920-wide.mp4", label: "1080p", height: 1080 },
+    ],
+  );
+});
+
 test("parseVideoHubSources rejects missing current source containers", () => {
   assert.throws(
     () => parseVideoHubSources("videohub-streaming", { hlsUrl: "https://cdn.test/a.m3u8" }),

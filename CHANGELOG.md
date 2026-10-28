@@ -7,6 +7,14 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.13.4 - 2026-10-28
+
+### Fixed
+
+- VideoHUB high-resolution MP4 labels now match the decoded resolution tiers: its legacy
+  `mpeg2kUrl` field carries 4K video, while `mpeg4kUrl` carries 2K video. Both tiers include
+  a nominal height so quality selection sorts them correctly, including cropped cinema encodes.
+
 ## 1.13.3 - 2026-10-09
 
 ### Fixed

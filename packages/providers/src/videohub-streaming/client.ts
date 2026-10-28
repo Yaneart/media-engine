@@ -9,8 +9,10 @@ const MAX_TITLE_LENGTH = 500;
 const MAX_TRANSLATION_LENGTH = 200;
 
 const MP4_SOURCE_FIELDS = [
-  { key: "mpeg4kUrl", label: "4K", height: 2160 },
-  { key: "mpeg2kUrl", label: "2K" },
+  // VideoHUB's legacy field names are reversed: verified decoded widths are
+  // 3840 for mpeg2kUrl and 2560 for mpeg4kUrl (including cropped cinema encodes).
+  { key: "mpeg2kUrl", label: "4K", height: 2160 },
+  { key: "mpeg4kUrl", label: "2K", height: 1440 },
   { key: "mpegQhdUrl", label: "1440p", height: 1440 },
   { key: "mpegFullHdUrl", label: "1080p", height: 1080 },
   { key: "mpegHighUrl", label: "720p", height: 720 },

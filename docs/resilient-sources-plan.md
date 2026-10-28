@@ -2,16 +2,15 @@
 
 ## Status
 
-- Program status: the fast metadata milestone (`RP-001` through `RP-005`) is accepted; the
-  direct-streaming audit (`RP-006`) is complete.
-- `RP-007` streaming provenance/deduplication and `RP-008` direct Kodik were accepted on 2026-10-08.
-- The user selected one combined metadata plus Kodik release. The narrow `RP-014` rollout gate and
-  the `RP-015` release candidate checks passed; publication remains user-owned.
+- Program status: complete and accepted on 2026-10-10 (`RP-001` through `RP-018`).
+- Published Core/Providers/SDK version: `1.13.3`; yaneMedia consumes exact Core and Providers
+  `1.13.3` packages.
+- Fast Russian metadata, direct Kodik, yaneMedia integration, and cross-repository desktop/mobile
+  acceptance are complete.
 - The user has supplied a working provider-issued Kodik token. All other credentialed direct
   providers remain paused; no adapter may use leaked, shared, or third-party tokens.
-- Current published Core/Providers/SDK version: `1.12.0`.
-- yaneMedia integration starts only after the new Media Engine packages are published.
-- Ratings and comments work in yaneMedia remains paused until this program is accepted.
+- Ratings and comments work in yaneMedia (`B-033`) is unblocked but starts only on an explicit user
+  command.
 
 This is the authoritative execution plan for the cross-repository resilience work agreed on
 2026-10-06. The work starts in `media-engine`, finishes with a jointly versioned npm release, and
@@ -273,6 +272,9 @@ acceptance for desktop and mobile. Confirm Russian metadata, latency, player div
 outages, canonical user data, and absence of secret/provider payload exposure. Only then mark the
 program complete and resume yaneMedia `B-033`.
 
+Status: accepted on 2026-10-10. The automated, live, database, security-boundary, and user
+desktop/mobile acceptance gates passed against published `1.13.3` packages.
+
 ## Per-task workflow and history
 
 Each task above is implemented and accepted separately:
@@ -290,21 +292,25 @@ packages.
 
 ## Current checkpoint
 
-The combined `1.13.0` Core/Providers/SDK release candidate is ready for the user's commit and
-publication. It includes the accepted fast Russian metadata milestone and the direct Kodik lane.
-The REST/OpenAPI contract is `0.20.0`. The full deterministic `pnpm release:check` passed, including
-clean builds, coverage, API unit/e2e tests, consistency checks, and clean dry package contents.
+RP-018 and the resilient metadata/streaming program are accepted. Published
+`@media-engine/core`, `@media-engine/providers`, and `@media-engine/sdk` `1.13.3` were confirmed on
+npm; yaneMedia uses exact Core/Providers `1.13.3`.
 
-Live gates also passed. Primary metadata covered the complete details and RU/EN alias matrix. The
-five-iteration resilience run met every budget after production and gate configuration capped the
-public TMDB fallback at 1.5 seconds and KinoBD metadata fallback at 1 second, preserving time for
-later providers. After removing optional identity expansion from the healthy primary critical path,
-final p95 values were 273 ms cold details, 969 ms cold search, 1/2 ms warm/stale, and 3,343 ms
-degraded; the maximum healthy cold search was 1,410 ms. Kodik passed all 15 positive, coverage, and
-negative cases. Its rollout gate returned five direct Parasite options at 621 ms, warm cache at 1 ms, isolated KinoBD's bounded
-timeout, and retained direct plus aggregate attribution during deduplication.
+The focused integration gate passed 118 backend and 45 frontend tests. The yaneMedia live platform
+matrix passed seven required scenarios plus canonical pre-save, and the extended coverage probe
+completed 30/30 cases without search misses. The repeat five-iteration metadata resilience gate
+passed with p95 382 ms cold details, 728 ms cold search, 1 ms warm/stale, and 3,219 ms degraded
+against the 6,000 ms budget. The Kodik gate passed all 15 positive, split-season, coverage, and
+negative cases. The rollout gate retained direct Kodik across an isolated KinoBD timeout with the
+first useful result at 618 ms.
 
-No further implementation starts automatically. The user now commits and publishes
-`@media-engine/core`, `@media-engine/providers`, and `@media-engine/sdk` at `1.13.0` in dependency
-order. After all three versions are confirmed on npm, the next explicit task is `RP-016` in
-yaneMedia. `RP-009` through `RP-013` remain paused.
+Favorites, history, and progress contain no non-canonical or orphaned media refs, and all three
+media-work foreign keys are validated. Public search/details/availability responses and recent
+frontend/backend logs contain none of the three configured secret values or forbidden internal
+payload keys. One initial resilience attempt encountered a transient open Shikimori circuit; a
+fresh complete five-iteration run passed and is the accepted measurement. The user completed and
+accepted the desktop/mobile browser check.
+
+No further task starts automatically. The exact next yaneMedia task is `B-033` ratings and comments,
+only on an explicit user command. `RP-009` through `RP-013` remain paused pending their separate
+credential and contract requirements.
