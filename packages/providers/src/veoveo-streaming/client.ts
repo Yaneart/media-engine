@@ -66,7 +66,7 @@ export async function resolveVeoVeoManifestUrls(
 ): Promise<VeoVeoCatalogItem[]> {
   const animeSelection =
     query.type === "anime" ? verifyAnimeEpisodeSelection(query, catalog) : undefined;
-  if (query.type === "anime" && query.animeKind === "tv" && !animeSelection) return catalog;
+  if (query.type === "anime" && query.animeKind !== "movie" && !animeSelection) return catalog;
 
   if (
     query.type === "series" &&

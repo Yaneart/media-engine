@@ -1702,7 +1702,7 @@ function needsAnimeEpisodeIdentityValidation(
 ): boolean {
   if (
     query.type !== "anime" ||
-    query.animeKind !== "tv" ||
+    query.animeKind === "movie" ||
     query.seasonNumber === undefined ||
     query.episodeNumber === undefined ||
     query.absoluteEpisodeNumber === undefined
@@ -1714,7 +1714,9 @@ function needsAnimeEpisodeIdentityValidation(
     (provider) =>
       (!query.providers || query.providers.includes(provider.name)) &&
       provider.capabilities.mediaTypes.includes("anime") &&
-      provider.capabilities.animeKinds?.includes("tv") === true &&
+      (!provider.capabilities.animeKinds ||
+        (query.animeKind !== undefined &&
+          provider.capabilities.animeKinds.includes(query.animeKind))) &&
       provider.capabilities.lookup.byEpisode &&
       provider.capabilities.lookup.byExternalIds.some((source) =>
         ["imdb", "tmdb", "kinopoisk"].includes(source),

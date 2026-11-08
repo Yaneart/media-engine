@@ -33,3 +33,10 @@ test("rejects anime release evidence that conflicts with the absolute episode", 
     /must identify the same explicit episodic anime episode/u,
   );
 });
+
+test("validates episode evidence independently of anime distribution kind", () => {
+  for (const animeKind of ["ona", "ova", "special", "music", "unknown", undefined] as const) {
+    assert.doesNotThrow(() => validateStreamQuery({ ...query, animeKind }));
+  }
+  assert.throws(() => validateStreamQuery({ ...query, animeKind: "movie" }));
+});

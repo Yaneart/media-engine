@@ -83,7 +83,7 @@ function matchesType(type: string, query: MediaAvailability["query"]): boolean {
   if (query.type === "movie") return MOVIE_TYPES.has(type);
   if (query.type === "series") return SERIES_TYPES.has(type);
   if (query.animeKind === "movie") return type === "anime";
-  return query.animeKind === "tv" && type === "anime-serial";
+  return type === "anime-serial";
 }
 
 function selectAccess(

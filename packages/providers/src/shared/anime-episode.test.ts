@@ -12,6 +12,63 @@ const query = {
   absoluteEpisodeNumber: 3,
 };
 
+for (const animeKind of ["tv", "ona", "ova", "special", "music", "unknown", undefined] as const) {
+  test(`verifies episode coordinates independently of distribution kind: ${animeKind}`, () => {
+    const selected = {
+      ...query,
+      animeKind,
+      animeReleaseEpisode: {
+        releaseIndex: 1,
+        releaseEpisodeNumber: 1,
+        releaseEpisodeCounts: [2, 1],
+      },
+    };
+    const catalog = [
+      { seasonNumber: 1, episodeNumber: 1 },
+      { seasonNumber: 1, episodeNumber: 2 },
+      { seasonNumber: 2, episodeNumber: 1 },
+      { seasonNumber: 2, episodeNumber: 2 },
+      { seasonNumber: 3, episodeNumber: 4 },
+    ];
+    assert.deepEqual(verifyAnimeEpisodeSelection(selected, catalog), {
+      seasonNumber: 2,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 3,
+      canonicalSeasonNumber: 2,
+      canonicalEpisodeNumber: 1,
+      releaseEpisodeNumber: 1,
+    });
+    assert.equal(
+      verifyAnimeEpisodeSelection({ ...selected, animeKind: "movie" }, catalog),
+      undefined,
+    );
+    assert.equal(
+      verifyAnimeEpisodeSelection({ ...selected, absoluteEpisodeNumber: 2 }, catalog),
+      undefined,
+    );
+    assert.equal(
+      verifyAnimeEpisodeSelection(
+        {
+          ...selected,
+          animeReleaseEpisode: {
+            ...selected.animeReleaseEpisode,
+            releaseEpisodeNumber: 2,
+          },
+        },
+        catalog,
+      ),
+      undefined,
+    );
+    assert.equal(
+      verifyAnimeEpisodeSelection(
+        selected,
+        catalog.filter((episode) => !(episode.seasonNumber === 1 && episode.episodeNumber === 2)),
+      ),
+      undefined,
+    );
+  });
+}
+
 test("verifyAnimeEpisodeSelection proves a continuous seasonal-to-absolute mapping", () => {
   assert.deepEqual(
     verifyAnimeEpisodeSelection(query, [

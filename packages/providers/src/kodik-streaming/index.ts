@@ -60,11 +60,10 @@ function canResolveQuery(query: Parameters<StreamingProvider["getAvailability"]>
       query.absoluteEpisodeNumber !== undefined;
 
     return (
-      query.animeKind === "tv" &&
-      (!hasAnyEpisodeCoordinate ||
-        (query.seasonNumber !== undefined &&
-          query.episodeNumber !== undefined &&
-          query.absoluteEpisodeNumber !== undefined))
+      !hasAnyEpisodeCoordinate ||
+      (query.seasonNumber !== undefined &&
+        query.episodeNumber !== undefined &&
+        query.absoluteEpisodeNumber !== undefined)
     );
   }
   return (

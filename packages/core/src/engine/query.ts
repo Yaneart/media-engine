@@ -341,7 +341,7 @@ export function validateStreamQuery(query: StreamQuery): void {
 
     if (
       query.type !== "anime" ||
-      query.animeKind !== "tv" ||
+      query.animeKind === "movie" ||
       query.seasonNumber === undefined ||
       query.episodeNumber === undefined ||
       query.absoluteEpisodeNumber === undefined ||

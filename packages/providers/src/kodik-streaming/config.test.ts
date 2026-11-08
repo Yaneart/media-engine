@@ -12,7 +12,6 @@ test("kodikStreamingProvider exposes credentialed direct embed capabilities", ()
   assert.equal(provider.name, "kodik-streaming");
   assert.deepEqual(provider.capabilities, {
     mediaTypes: ["movie", "series", "anime"],
-    animeKinds: ["movie", "tv"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk", "imdb", "shikimori"],

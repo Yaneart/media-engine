@@ -22,7 +22,7 @@ export interface SeasonalEpisodeCoordinate {
 export function resolveAnimeEpisodeSelection(
   query: StreamQuery,
 ): AnimeEpisodeSelection | undefined {
-  if (query.type !== "anime" || query.animeKind !== "tv" || !hasAnimeIdentity(query)) {
+  if (query.type !== "anime" || query.animeKind === "movie" || !hasAnimeIdentity(query)) {
     return undefined;
   }
 
@@ -54,14 +54,33 @@ export function verifyAnimeEpisodeSelection(
   const selection = resolveAnimeEpisodeSelection(query);
   if (!selection) return undefined;
 
+  const release = query.animeReleaseEpisode;
+  const releaseEpisode = resolveReleaseEpisode(query);
+  if (!releaseEpisode) return undefined;
+
+  // Only the prefix through this episode proves its seasonal/absolute identity.
+  // Extra episodes or gaps later in the catalog cannot invalidate that proof.
+  const prefix = createGapFreeCatalog(
+    catalog.filter(
+      (episode) =>
+        (episode.seasonNumber ?? 0) < selection.seasonNumber ||
+        (episode.seasonNumber === selection.seasonNumber &&
+          (episode.episodeNumber ?? 0) <= selection.episodeNumber),
+    ),
+  );
+  const last = prefix?.at(-1);
+  if (
+    last?.seasonNumber === selection.seasonNumber &&
+    last.episodeNumber === selection.episodeNumber &&
+    prefix?.length === selection.absoluteEpisodeNumber
+  ) {
+    return { ...selection, ...releaseEpisode };
+  }
+
   const coordinates = createGapFreeCatalog(catalog);
   if (!coordinates) return undefined;
 
-  const release = query.animeReleaseEpisode;
   if (release) {
-    const releaseEpisode = resolveReleaseEpisode(query);
-    if (!releaseEpisode) return undefined;
-
     const releaseTotal = release.releaseEpisodeCounts.reduce((total, count) => total + count, 0);
     const selectedReleaseCount = release.releaseEpisodeCounts[release.releaseIndex]!;
     const prefixTotals = new Set<number>();

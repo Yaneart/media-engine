@@ -7,6 +7,17 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.13.6 - 2026-11-08
+
+### Fixed
+
+- Episodic anime streaming no longer depends on distribution kind (TV, ONA, OVA,
+  specials, or an unspecified kind). Explicit movies keep their non-episodic contract;
+  verified external identity and exact episode coordinates remain required.
+- Seasonal anime catalogs verify the gap-free prefix through the requested episode.
+  Additional episodes or incomplete later seasons no longer hide already verified
+  sources. Split-release and arc-only catalog mapping remains available when needed.
+
 ## 1.13.5 - 2026-11-08
 
 ### Fixed

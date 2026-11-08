@@ -4,6 +4,20 @@ import { test } from "node:test";
 import { MediaEngine, ProviderError, type StreamingProvider } from "@media-engine/core";
 import { kodikStreamingProvider } from "./index.js";
 
+test("Kodik keeps exact anime embeds and episodes available for every distribution kind", async () => {
+  for (const animeKind of ["ona", "ova", "special", "music", "unknown", undefined] as const) {
+    const provider = createProvider([animeFixture()]);
+    const selected = { type: "anime" as const, animeKind, ids: { shikimori: "60000" } };
+    assert.equal((await provider.getAvailability(selected, {}))?.options.length, 1);
+    const result = await provider.getAvailability(
+      { ...selected, seasonNumber: 1, episodeNumber: 1, absoluteEpisodeNumber: 1 },
+      {},
+    );
+    assert.equal(result?.options.length, 1);
+    assert.equal(result?.options[0]?.episode?.episodeNumber, 1);
+  }
+});
+
 test("kodikStreamingProvider maps direct movie translations and provenance", async () => {
   const provider = createProvider([movieFixture()]);
   const result = await provider.getAvailability(

@@ -4,6 +4,55 @@ import { test } from "node:test";
 import { ProviderError } from "@media-engine/core";
 import { veoVeoStreamingProvider } from "./index.js";
 
+for (const animeKind of ["tv", "ona", "ova", "special", undefined] as const) {
+  test(`VeoVeo preserves verified episodes with extra/gapped future seasons: ${animeKind}`, async () => {
+    const catalog = [13, 13].flatMap((count, season) =>
+      Array.from({ length: count }, (_, episode) => ({
+        season: { order: season + 1 },
+        order: episode + 1,
+        episodeVariants: [{ filepath: `https://cdn.test/${season + 1}/${episode + 1}.m3u8` }],
+      })),
+    );
+    catalog.push({ season: { order: 3 }, order: 4, episodeVariants: [] });
+    const provider = veoVeoStreamingProvider({
+      apiKey: "owned-fixture-key",
+      fetch: async (input) => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith("/iframe")) return new Response("window.MOVIE_ID=1;");
+        if (path.endsWith(".m3u8"))
+          return new Response("#EXTM3U\n", {
+            headers: { "Content-Type": "application/vnd.apple.mpegurl" },
+          });
+        return Response.json(
+          path.endsWith("/episodes") ? catalog : { id: 1, kinopoiskId: 1047593 },
+        );
+      },
+    });
+    for (const seasonNumber of [1, 2]) {
+      const selected = {
+        type: "anime" as const,
+        animeKind,
+        ids: { shikimori: "34599", kinopoisk: "1047593" },
+        seasonNumber,
+        episodeNumber: 1,
+        absoluteEpisodeNumber: seasonNumber === 1 ? 1 : 14,
+        animeReleaseEpisode: {
+          releaseIndex: seasonNumber - 1,
+          releaseEpisodeNumber: 1,
+          releaseEpisodeCounts: [13, 12],
+        },
+      };
+      const result = await provider.getAvailability(selected, {});
+      assert.equal(result?.options[0]?.access.url, `https://cdn.test/${seasonNumber}/1.m3u8`);
+      assert.equal(result?.query.animeKind, animeKind);
+      assert.equal(
+        result?.options[0]?.episode?.absoluteEpisodeNumber,
+        selected.absoluteEpisodeNumber,
+      );
+    }
+  });
+}
+
 test("veoVeoStreamingProvider resolves direct VeoVeo identity into one exact direct HLS episode", async () => {
   const requestedUrls: URL[] = [];
   let manifestAttempts = 0;

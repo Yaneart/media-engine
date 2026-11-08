@@ -125,7 +125,7 @@ The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider
 `experimentalStreamingProvider()`.
 Kodik requires a provider-issued `apiKey`, keeps it only in server-side requests, and performs
 bounded exact lookup by Kinopoisk, IMDb, or Shikimori ID. It returns direct Kodik iframe options,
-translations, and quality labels. Generic series and TV-anime queries return a player-managed embed;
+translations, and quality labels. Generic series and episodic-anime queries return a player-managed embed;
 exact queries return only a verified requested episode. Split anime releases use
 `animeReleaseEpisode`; ambiguous or conflicting identities and episode maps are rejected.
 Add them explicitly when they fit your application. Filmix guest mode is capped at 480p and filters
@@ -139,11 +139,12 @@ your provider-issued token. It resolves and verifies content identity directly t
 independently of DDBB, and returns signed HTTPS HLS. Tokens are excluded from output and errors.
 VideoHUB uses a Kinopoisk ID and returns
 short-lived direct MP4 qualities for movies or one exact series episode. Both providers preserve
-`type: "anime"` for anime films. They also accept TV anime only with a verified anime-native/cinema
+`type: "anime"` for anime films. Episodic anime of any distribution kind requires a verified anime-native/cinema
 identity and explicit canonical `seasonNumber`, `episodeNumber`, and `absoluteEpisodeNumber`.
 For split releases, pass `animeReleaseEpisode` with the selected release index, its local episode,
-and the ordered release counts. Each adapter maps that evidence to its own complete, gap-free
-catalog; ambiguous, incomplete, or conflicting mappings are rejected. Returned options keep the
+and the ordered release counts. A gap-free catalog prefix through the requested episode is sufficient;
+extra episodes or gaps in later seasons do not hide a verified source. Split releases and arc-only
+catalogs can also use release-count mapping; ambiguous or conflicting mappings are rejected. Returned options keep the
 canonical coordinates rather than leaking provider-native season boundaries. VideoHUB links are bound to the
 playback User-Agent and may also be bound to the requesting public IP. Pass the playback client's
 exact User-Agent as `MediaEngineOperationOptions.playbackUserAgent`; the required value is retained

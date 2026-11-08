@@ -14,6 +14,56 @@ import {
   sleep,
 } from "./test-helpers.js";
 
+for (const animeKind of ["ona", "ova", "special", "music", "unknown", undefined] as const) {
+  test(`keeps verified cinema identity mandatory for episodic anime: ${animeKind}`, async () => {
+    const received: StreamQuery[] = [];
+    const provider = createStreamingProvider({
+      name: "direct-anime",
+      capabilities: {
+        mediaTypes: ["anime"],
+        lookup: { byTitle: false, byExternalIds: ["kinopoisk"], byEpisode: true },
+      },
+      async getAvailability(selected) {
+        received.push(selected);
+        return createAvailability(selected, "direct-anime");
+      },
+    });
+    const selected: StreamQuery = {
+      type: "anime",
+      animeKind,
+      ids: { aniList: "154587", kinopoisk: "5401195" },
+      seasonNumber: 1,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 1,
+    };
+    const unverified = await new MediaEngine({ streamingProviders: [provider] }).getAvailability(
+      selected,
+    );
+    assert.equal(received.length, 0);
+    assert.equal(unverified.options.length, 0);
+    const source: IdentityResolverSource = {
+      name: "verified-map",
+      canResolve: () => true,
+      async resolve() {
+        return [
+          {
+            source: "verified-map",
+            type: "anime",
+            matched: { namespace: "aniList", value: "154587" },
+            ids: { aniList: "154587", kinopoisk: "5401195" },
+          },
+        ];
+      },
+    };
+    const verified = await new MediaEngine({
+      streamingProviders: [provider],
+      identityResolver: new IdentityResolver([source]),
+    }).getAvailability(selected);
+    assert.equal(verified.options.length, 1);
+    assert.equal(received.at(-1)?.animeKind, animeKind);
+  });
+}
+
 test("getAvailability rejects empty identity predictably", async () => {
   const engine = new MediaEngine();
 

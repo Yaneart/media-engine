@@ -8,6 +8,53 @@ import {
 import type { ProviderFetch } from "../shared/index.js";
 import { videoHubStreamingProvider } from "./index.js";
 
+for (const animeKind of ["ona", "ova", undefined] as const) {
+  test(`VideoHUB streams verified episodes independently of format and future catalog gaps: ${animeKind}`, async () => {
+    const items = [13, 13].flatMap((count, season) =>
+      Array.from({ length: count }, (_, episode) => ({
+        season: season + 1,
+        episode: episode + 1,
+        vkId: String((season + 1) * 100 + episode + 1),
+      })),
+    );
+    items.push({ season: 3, episode: 4, vkId: "304" });
+    const provider = videoHubStreamingProvider({
+      fetch: async (input) => {
+        const path = new URL(String(input)).pathname;
+        return Response.json(
+          path.endsWith("/playlist")
+            ? { isSerial: true, items }
+            : { sources: { mpegFullHdUrl: `https://cdn.test/${path.split("/").at(-1)}.mp4` } },
+        );
+      },
+    });
+    const selected = {
+      type: "anime" as const,
+      animeKind,
+      ids: { shikimori: "41084", kinopoisk: "1047593" },
+      seasonNumber: 2,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 14,
+      animeReleaseEpisode: {
+        releaseIndex: 1,
+        releaseEpisodeNumber: 1,
+        releaseEpisodeCounts: [13, 12],
+      },
+    };
+    const snapshots: MediaAvailabilityProgressSnapshot[] = [];
+    for await (const snapshot of provider.getAvailabilityProgressively!(selected, {}))
+      snapshots.push(snapshot);
+    assert.equal(snapshots.at(-1)?.state, "complete");
+    const result = snapshots.at(-1)?.availability;
+    assert.equal(result?.options[0]?.access.url, "https://cdn.test/201.mp4");
+    assert.deepEqual(result?.options[0]?.episode, {
+      seasonNumber: 2,
+      episodeNumber: 1,
+      absoluteEpisodeNumber: 14,
+    });
+  });
+}
+
 test("videoHubStreamingProvider resolves one exact series episode into direct MP4 qualities", async () => {
   const requests: string[] = [];
   const requestUserAgents: string[] = [];

@@ -64,7 +64,6 @@ export function createKodikConfig(options: KodikStreamingProviderOptions): Kodik
 export function createKodikCapabilities(): StreamingProviderCapabilities {
   return {
     mediaTypes: ["movie", "series", "anime"],
-    animeKinds: ["movie", "tv"],
     lookup: {
       byTitle: false,
       byExternalIds: ["kinopoisk", "imdb", "shikimori"],
