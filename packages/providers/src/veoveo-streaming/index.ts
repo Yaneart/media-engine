@@ -1,12 +1,8 @@
 import type { StreamingProvider } from "@media-engine/core";
 import { rethrowIfProviderAborted } from "../shared/abort.js";
 import { resolveAnimeEpisodeSelection } from "../shared/anime-episode.js";
-import {
-  loadVeoVeoCatalog,
-  lookupVeoVeoContentId,
-  resolveVeoVeoLookup,
-  resolveVeoVeoManifestUrls,
-} from "./client.js";
+import { loadVeoVeoCatalog, resolveVeoVeoLookup, resolveVeoVeoManifestUrls } from "./client.js";
+import { lookupVeoVeoContentId } from "./lookup.js";
 import {
   createVeoVeoCapabilities,
   createVeoVeoConfig,

@@ -8,6 +8,7 @@ import type {
 export interface MediaEngineEnv {
   TMDB_API_KEY?: string;
   KODIK_API_KEY?: string;
+  VEOVEO_API_KEY?: string;
   MEDIA_ENGINE_SHIKIMORI_USER_AGENT?: string;
   MEDIA_ENGINE_PROVIDER_TIMEOUT_MS?: string;
   MEDIA_ENGINE_STREAMING_PROVIDER_TIMEOUT_MS?: string;
@@ -125,7 +126,9 @@ export async function createConfiguredStreamingProviders(
   }
 
   if (readVeoVeoStreamingEnabled(env)) {
-    providers.unshift(veoVeoStreamingProvider());
+    providers.unshift(
+      veoVeoStreamingProvider({ apiKey: readOptionalEnv(env.VEOVEO_API_KEY) }),
+    );
   }
 
   if (readVideoHubStreamingEnabled(env)) {

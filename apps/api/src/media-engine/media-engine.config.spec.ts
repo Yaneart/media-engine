@@ -168,6 +168,7 @@ describe('MediaEngine configuration', () => {
       (
         await createConfiguredStreamingProviders({
           MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: 'true',
+          VEOVEO_API_KEY: 'owned-veoveo-token',
         })
       ).map((provider) => provider.name),
     ).toEqual([

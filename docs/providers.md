@@ -97,7 +97,7 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds           | None                      |
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities                 | None                      |
 | Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                           | None                      |
-| VeoVeo streaming       | Opt-in movie, series-episode, and verified anime direct signed HLS                    | None                      |
+| VeoVeo streaming       | Opt-in movie, series-episode, and verified anime direct signed HLS                    | Provider-issued API token |
 | VideoHUB streaming     | Opt-in Kinopoisk movie, series-episode, and verified anime signed MP4 qualities       | None                      |
 | Rutube streaming       | Opt-in exact title/year movie lookup to the official public embed player              | None                      |
 | Aderom streaming       | Opt-in dubbed series/anime iframe by Kinopoisk or resolved IMDb ID                    | None                      |
@@ -119,8 +119,14 @@ ambiguous mappings fail closed. The API token is never included in normalized ou
 KinoBD streaming shares one fixed wall deadline and a default 24-attempt child-request budget across candidate search, optional anime lookup, player loading, retries, and iframe validation. Live validation uses three workers by default, checks at most eight players, and does not start an optional nested iframe check without enough remaining time for its full validation window. The public limits are capped at 50 search candidates, 16 validated players, four validation workers, 64 child attempts, and 10 seconds for individual validation or Shikimori helper timeouts. Its optional player audit callback exposes bounded counters without changing availability results.
 
 DDBB streaming is enabled in repository API defaults after the repeated reliability/diversity
-checkpoint. It uses only caller-supplied normalized Kinopoisk/IMDb IDs and makes one generic lookup;
-exact episode queries do not select it. The adapter strictly parses nullable player responses,
+checkpoint. It uses only caller-supplied normalized Kinopoisk/IMDb IDs for generic lookups;
+exact episode queries do not select it. The default `https://p2.ddbb.lol` endpoint falls back to
+`https://a.ddbb.live` after transport, HTTP (except rate limiting), or invalid-response failures.
+The primary gets at most 1.5 seconds when a fallback is available, reserving time inside the
+shared lookup deadline. A valid empty result does not trigger fallback. Custom `baseUrl` values
+use only that endpoint unless `fallbackBaseUrls` is explicitly supplied (at most three URLs);
+`fallbackBaseUrls: []` disables fallback. Provenance records the endpoint that actually succeeded.
+The adapter strictly parses nullable player responses,
 preserves one main option per player before unique translation URLs, collapses Alloha to its one
 main entry because that player switches voiceovers internally, and bounds response bytes, output
 count, validation count/concurrency/body bytes, and validation time. It removes only
@@ -153,13 +159,19 @@ deployment. The repository API maps these options from `MEDIA_ENGINE_FILMIX_STRE
 cache lifetime are bounded. Normalized CDN MP4 output URLs are HTTPS.
 
 VeoVeo streaming is opt-in through `veoVeoStreamingProvider()` or
-`MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It requires a normalized Kinopoisk or IMDb ID. The
-adapter asks the open DDBB player lookup only for VeoVeo's public `movie_id`, discards the iframe
-token without requesting the iframe, and loads the bounded episode catalog from VeoVeo's no-auth
-API. Only direct HTTPS `.m3u8` variants are exposed; JSON indirection and unsafe URLs are excluded.
+`MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true` with server-only `VEOVEO_API_KEY` in the reference API.
+Package consumers pass `veoVeoStreamingProvider({ apiKey })`. It requires a normalized Kinopoisk
+or IMDb ID and a provider-issued token; missing tokens report `PROVIDER_UNAUTHORIZED` without a
+network request. Discovery goes directly to VeoVeo's HTTPS `/balancer-api/iframe?kp=...` or `?imdb=...`,
+reads the unique numeric `window.MOVIE_ID` without executing scripts, and confirms the internal
+content ID and requested external ID against VeoVeo's catalog details before loading episodes.
+There are no DDBB requests. Lookup response bytes and time are bounded, caller cancellation is
+preserved, and the token is excluded from normalized output, provenance, and request errors.
+`lookupBaseUrl` now points to VeoVeo and defaults to `streamBaseUrl`; custom lookup URLs require
+HTTPS. Only direct HTTPS `.m3u8` variants are exposed; JSON indirection and unsafe URLs are excluded.
 Series queries support a bounded generic episode map or an exact season/episode. Output links are
-treated as short-lived and the provider stays disabled by default because availability depends on
-both upstream contracts. Anime films use the provider's movie path and preserve `type: "anime"`.
+treated as short-lived and the provider stays disabled by default. Anime films use the provider's
+movie path and preserve `type: "anime"`.
 TV anime requires a verified anime-native/cinema identity plus explicit seasonal and absolute
 episode coordinates. The adapter derives the absolute number from a complete, gap-free seasonal
 catalog prefix and resolves only the exact row when that derived number matches the request.

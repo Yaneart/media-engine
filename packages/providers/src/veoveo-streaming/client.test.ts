@@ -1,14 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createLookupUrl, parseVeoVeoContentId } from "./lookup.js";
 import { ProviderError } from "@media-engine/core";
-import {
-  createCatalogUrl,
-  createLookupUrl,
-  parseVeoVeoCatalog,
-  parseVeoVeoContentId,
-  resolveVeoVeoLookup,
-} from "./client.js";
+import { createCatalogUrl, parseVeoVeoCatalog, resolveVeoVeoLookup } from "./client.js";
 
 test("resolveVeoVeoLookup prefers Kinopoisk and validates external IDs", () => {
   assert.deepEqual(
@@ -25,41 +20,27 @@ test("resolveVeoVeoLookup prefers Kinopoisk and validates external IDs", () => {
   assert.equal(resolveVeoVeoLookup({ type: "movie", kinopoisk: "bad" }), undefined);
 });
 
-test("parseVeoVeoContentId extracts one ID and discards iframe tokens", () => {
-  const payload = {
-    data: [
-      { type: "Collaps", iframeUrl: "https://other.test/embed", translations: [] },
-      {
-        type: "Veo veo",
-        iframeUrl: "https://player.test/iframe?movie_id=31869&token=secret-one",
-        translations: [
-          {
-            iframeUrl: "https://player.test/iframe?token=secret-two&movie_id=31869",
-          },
-          { iframeUrl: "http://player.test/iframe?movie_id=999" },
-        ],
-      },
-    ],
-  };
-
-  assert.equal(parseVeoVeoContentId("veo-test", payload), "31869");
-  assert.equal(JSON.stringify(parseVeoVeoContentId("veo-test", payload)).includes("secret"), false);
-});
-
-test("parseVeoVeoContentId rejects ambiguous or malformed lookup responses", () => {
+test("parseVeoVeoContentId reads one public ID without evaluating scripts", () => {
   assert.equal(
-    parseVeoVeoContentId("veo-test", {
-      data: [
-        { type: "VeoVeo", iframeUrl: "https://player.test/?movie_id=10", translations: [] },
-        { type: "VeoVeo", iframeUrl: "https://player.test/?movie_id=11", translations: [] },
-      ],
-    }),
-    undefined,
+    parseVeoVeoContentId("veo-test", "<script>window.MOVIE_ID = 31869;</script>"),
+    "31869",
   );
-  assert.throws(
-    () => parseVeoVeoContentId("veo-test", []),
-    (error) => error instanceof ProviderError && error.code === "PROVIDER_INVALID_RESPONSE",
+  assert.equal(
+    parseVeoVeoContentId("veo-test", "window.MOVIE_ID=31869;window.MOVIE_ID=31869;"),
+    "31869",
   );
+  assert.equal(parseVeoVeoContentId("veo-test", "<html><body></body></html>"), undefined);
+  for (const html of [
+    "window.MOVIE_ID=10;window.MOVIE_ID=11;",
+    "window.MOVIE_ID=-1;",
+    "window.MOVIE_ID=1+2;",
+    "window.MOVIE_ID=0;",
+  ]) {
+    assert.throws(
+      () => parseVeoVeoContentId("veo-test", html),
+      (error) => error instanceof ProviderError && error.code === "PROVIDER_INVALID_RESPONSE",
+    );
+  }
 });
 
 test("parseVeoVeoCatalog parses and bounds catalog items and variants", () => {
@@ -98,7 +79,7 @@ test("parseVeoVeoCatalog parses and bounds catalog items and variants", () => {
 test("VeoVeo request URLs contain only the lookup ID and public content ID", () => {
   assert.equal(
     createLookupUrl("https://lookup.test/root", { source: "kinopoisk", id: "4541515" }).href,
-    "https://lookup.test/api/players?kinopoisk=4541515&n=0",
+    "https://lookup.test/balancer-api/iframe?kp=4541515",
   );
   assert.equal(
     createCatalogUrl("https://veo.test/root", "31869").href,

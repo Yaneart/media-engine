@@ -6,6 +6,7 @@ import { createHardenedProviderFetch } from "../shared/safe-fetch.js";
 
 const DEFAULT_PROVIDER_NAME = "ddbb-streaming";
 const DEFAULT_BASE_URL = "https://p2.ddbb.lol";
+const DEFAULT_FALLBACK_BASE_URL = "https://a.ddbb.live";
 const DEFAULT_MAX_RESPONSE_BYTES = 512 * 1024;
 const DEFAULT_PLAYER_LIMIT = 16;
 const DEFAULT_PLAYER_VALIDATION_LIMIT = 8;
@@ -17,6 +18,7 @@ export interface DdbbStreamingProviderOptions {
   name?: string;
   version?: string;
   baseUrl?: string;
+  fallbackBaseUrls?: string[];
   fetch?: ProviderFetch;
   maxResponseBytes?: number;
   playerLimit?: number;
@@ -30,6 +32,7 @@ export interface DdbbStreamingProviderOptions {
 export interface DdbbStreamingConfig {
   name: string;
   baseUrl: string;
+  fallbackBaseUrls: string[];
   fetch: ProviderFetch;
   externalFetch: ProviderFetch;
   rateLimitGate: ProviderRateLimitGate;
@@ -46,10 +49,19 @@ export function createDdbbConfig(options: DdbbStreamingProviderOptions): DdbbStr
   const name = normalizeProviderName(options.name ?? DEFAULT_PROVIDER_NAME);
   const fetchImpl =
     options.fetch ?? createHardenedProviderFetch({ provider: name, maxRedirects: 3 });
+  const baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+  const fallbacks =
+    options.fallbackBaseUrls ?? (options.baseUrl ? [] : [DEFAULT_FALLBACK_BASE_URL]);
+  if (!Array.isArray(fallbacks) || fallbacks.length > 3) {
+    throw new TypeError("DDBB streaming fallbackBaseUrls must contain at most 3 URLs.");
+  }
 
   return {
     name,
-    baseUrl: normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL),
+    baseUrl,
+    fallbackBaseUrls: [...new Set(fallbacks.map(normalizeBaseUrl))].filter(
+      (url) => url !== baseUrl,
+    ),
     fetch: fetchImpl,
     externalFetch: fetchImpl,
     rateLimitGate: new ProviderRateLimitGate(),

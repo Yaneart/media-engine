@@ -1,5 +1,6 @@
 import { ProviderError, type ProviderContext } from "@media-engine/core";
 import { fetchJson } from "../shared/index.js";
+import { rethrowIfProviderAborted } from "../shared/abort.js";
 import type { DdbbStreamingConfig } from "./config.js";
 
 const PLAYER_ENTRY_LIMIT = 32;
@@ -33,26 +34,49 @@ export async function loadDdbbPlayers(
   lookup: DdbbLookup,
   context: ProviderContext,
 ): Promise<DdbbPlayerResponse> {
-  const url = createDdbbLookupUrl(config.baseUrl, lookup);
-  const payload = await fetchJson<unknown>({
-    provider: config.name,
-    url,
-    context,
-    fetch: config.fetch,
-    rateLimitGate: config.rateLimitGate,
-    maxResponseBytes: config.maxResponseBytes,
-    init: {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": config.userAgent,
-      },
-    },
-  });
+  const endpoints = [config.baseUrl, ...config.fallbackBaseUrls];
+  const deadline = Date.now() + (context.timeoutMs ?? 5_000);
+  for (const [index, baseUrl] of endpoints.entries()) {
+    const url = createDdbbLookupUrl(baseUrl, lookup);
+    try {
+      const remainingMs = deadline - Date.now();
+      const payload = await fetchJson<unknown>({
+        provider: config.name,
+        url,
+        context: {
+          ...context,
+          timeoutMs: Math.max(
+            1,
+            index < endpoints.length - 1 ? Math.min(1_500, remainingMs / 2) : remainingMs,
+          ),
+        },
+        fetch: config.fetch,
+        rateLimitGate: config.rateLimitGate,
+        maxRetries: 0,
+        maxResponseBytes: config.maxResponseBytes,
+        init: {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": config.userAgent,
+          },
+        },
+      });
 
-  return {
-    players: parseDdbbResponse(config.name, payload),
-    sourceUrl: url.href,
-  };
+      return {
+        players: parseDdbbResponse(config.name, payload),
+        sourceUrl: url.href,
+      };
+    } catch (error) {
+      rethrowIfProviderAborted(context, error);
+      if (
+        index === endpoints.length - 1 ||
+        Date.now() >= deadline ||
+        (error instanceof ProviderError && error.code === "PROVIDER_RATE_LIMITED")
+      )
+        throw error;
+    }
+  }
+  throw new Error("DDBB streaming requires a lookup endpoint.");
 }
 
 export function createDdbbLookupUrl(baseUrl: string, lookup: DdbbLookup): URL {

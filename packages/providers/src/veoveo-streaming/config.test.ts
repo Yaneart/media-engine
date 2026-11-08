@@ -27,6 +27,15 @@ test("veoVeoStreamingProvider validates credential-free bounded configuration", 
     () => veoVeoStreamingProvider({ streamBaseUrl: "https://user:secret@veo.test", fetch }),
     /credential-free HTTP\(S\)/u,
   );
+  assert.throws(
+    () =>
+      veoVeoStreamingProvider({
+        apiKey: "owned-secret",
+        lookupBaseUrl: "http://lookup.test",
+        fetch,
+      }),
+    /HTTPS for authentication/u,
+  );
 
   for (const options of [
     { maxLookupResponseBytes: 512 },

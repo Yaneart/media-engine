@@ -4,10 +4,11 @@ import { test } from "node:test";
 import { ProviderError } from "@media-engine/core";
 import { veoVeoStreamingProvider } from "./index.js";
 
-test("veoVeoStreamingProvider resolves DDBB identity into one exact direct HLS episode", async () => {
+test("veoVeoStreamingProvider resolves direct VeoVeo identity into one exact direct HLS episode", async () => {
   const requestedUrls: URL[] = [];
   let manifestAttempts = 0;
   const provider = veoVeoStreamingProvider({
+    apiKey: "never-forward",
     lookupBaseUrl: "https://lookup.test",
     streamBaseUrl: "https://veo.test",
     now: () => Date.parse("2026-08-22T12:00:00.000Z"),
@@ -15,16 +16,10 @@ test("veoVeoStreamingProvider resolves DDBB identity into one exact direct HLS e
       const url = new URL(input.toString());
       requestedUrls.push(url);
       if (url.hostname === "lookup.test") {
-        return Response.json({
-          data: [
-            {
-              type: "VeoVeo",
-              iframeUrl: "https://iframe.test/player?movie_id=31869&token=never-forward",
-              translations: [],
-            },
-          ],
-        });
+        return new Response("window.MOVIE_ID=31869;");
       }
+      if (url.pathname.includes("/contents/"))
+        return Response.json({ id: 31869, kinopoiskId: 4541515 });
       if (url.hostname === "cdn.test") {
         manifestAttempts += 1;
         if (manifestAttempts === 1) return new Response(null, { status: 503 });
@@ -60,28 +55,37 @@ test("veoVeoStreamingProvider resolves DDBB identity into one exact direct HLS e
     {},
   );
 
-  assert.equal(requestedUrls.length, 4);
-  assert.equal(requestedUrls[0]?.searchParams.get("kinopoisk"), "4541515");
-  assert.equal(requestedUrls[1]?.searchParams.get("content-id"), "31869");
+  assert.equal(requestedUrls.length, 5);
+  assert.equal(requestedUrls[0]?.searchParams.get("kp"), "4541515");
+  assert.equal(requestedUrls[2]?.searchParams.get("content-id"), "31869");
   assert.equal(requestedUrls[1]?.href.includes("never-forward"), false);
-  assert.equal(requestedUrls[2]?.hostname, "cdn.test");
+  assert.equal(requestedUrls[4]?.hostname, "cdn.test");
   assert.equal(requestedUrls[3]?.hostname, "cdn.test");
   assert.equal(JSON.stringify(result).includes("never-forward"), false);
+  assert.equal(requestedUrls[0]?.searchParams.get("token"), "never-forward");
+  assert.equal(
+    requestedUrls.slice(1).some((url) => url.searchParams.has("token")),
+    false,
+  );
+  assert.equal(
+    requestedUrls.some((url) => /ddbb/.test(url.hostname)),
+    false,
+  );
   assert.equal(result?.options[0]?.access.url, "https://edge.test/s03e01/master.m3u8?sig=resolved");
   assert.equal(result?.options[0]?.expiresAt, "2026-08-22T12:05:00.000Z");
 });
 
 test("veoVeoStreamingProvider resolves a confirmed anime movie as direct HLS", async () => {
   const provider = veoVeoStreamingProvider({
+    apiKey: "never-forward",
     lookupBaseUrl: "https://lookup.test",
     streamBaseUrl: "https://veo.test",
     fetch: async (input) => {
       const url = new URL(input.toString());
       if (url.hostname === "lookup.test") {
-        return Response.json({
-          data: [{ type: "VeoVeo", iframeUrl: "https://iframe.test/player?movie_id=370" }],
-        });
+        return new Response("window.MOVIE_ID=370;");
       }
+      if (url.pathname.includes("/contents/")) return Response.json({ id: 370, kinopoiskId: 370 });
       if (url.hostname === "cdn.test") {
         return new Response("#EXTM3U\n#EXT-X-ENDLIST", {
           headers: { "content-type": "application/vnd.apple.mpegurl" },
@@ -110,15 +114,16 @@ test("veoVeoStreamingProvider resolves a confirmed anime movie as direct HLS", a
 test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", async () => {
   const requestedManifests: string[] = [];
   const provider = veoVeoStreamingProvider({
+    apiKey: "never-forward",
     lookupBaseUrl: "https://lookup.test",
     streamBaseUrl: "https://veo.test",
     fetch: async (input) => {
       const url = new URL(input.toString());
       if (url.hostname === "lookup.test") {
-        return Response.json({
-          data: [{ type: "VeoVeo", iframeUrl: "https://iframe.test/?movie_id=96592" }],
-        });
+        return new Response("window.MOVIE_ID=96592;");
       }
+      if (url.pathname.includes("/contents/"))
+        return Response.json({ id: 96592, kinopoiskId: 5401195 });
       if (url.hostname === "cdn.test") {
         requestedManifests.push(url.pathname);
         return new Response("#EXTM3U\n#EXT-X-ENDLIST", {
@@ -190,6 +195,7 @@ test("veoVeoStreamingProvider resolves one explicitly mapped anime episode", asy
 test("veoVeoStreamingProvider avoids unsupported and underidentified queries", async () => {
   let calls = 0;
   const provider = veoVeoStreamingProvider({
+    apiKey: "never-forward",
     fetch: async () => {
       calls += 1;
       return Response.json({ data: [] });
@@ -226,6 +232,7 @@ test("veoVeoStreamingProvider preserves cancellation and typed schema failures",
   const controller = new AbortController();
   const cancellation = new Error("caller cancelled");
   const cancellingProvider = veoVeoStreamingProvider({
+    apiKey: "never-forward",
     fetch: async (_input, init) =>
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
@@ -240,7 +247,8 @@ test("veoVeoStreamingProvider preserves cancellation and typed schema failures",
   await assert.rejects(pending, (error) => error === cancellation);
 
   const invalidProvider = veoVeoStreamingProvider({
-    fetch: async () => Response.json([]),
+    apiKey: "never-forward",
+    fetch: async () => new Response("window.MOVIE_ID=-1;"),
   });
   await assert.rejects(
     invalidProvider.getAvailability({ type: "movie", ids: { kinopoisk: "258687" } }, {}),

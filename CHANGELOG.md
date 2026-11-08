@@ -7,6 +7,19 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.13.5 - 2026-11-08
+
+### Fixed
+
+- DDBB now falls back from `p2.ddbb.lol` to `a.ddbb.live` on lookup failures, reserving time
+  for the fallback and recording the successful endpoint in provenance. Custom endpoints can
+  supply bounded `fallbackBaseUrls`; valid empty results and caller cancellation do not fail over.
+- VeoVeo resolves Kinopoisk and IMDb IDs directly through its own authenticated iframe and
+  verifies the returned content ID against its catalog, removing the DDBB discovery dependency.
+  Pass your provider-issued `apiKey` to `veoVeoStreamingProvider()` or set server-only
+  `VEOVEO_API_KEY` together with `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true` in the reference API.
+  Lookup tokens are excluded from output and errors; missing tokens report `PROVIDER_UNAUTHORIZED`.
+
 ## 1.13.4 - 2026-10-28
 
 ### Fixed

@@ -11,7 +11,7 @@ import { createSmokeUserAgent } from "./smoke-user-agent.mjs";
 const playbackUserAgent = createSmokeUserAgent("EpisodicAnimeSmoke");
 const providers = [
   videoHubStreamingProvider({ userAgent: playbackUserAgent }),
-  veoVeoStreamingProvider({ userAgent: playbackUserAgent }),
+  veoVeoStreamingProvider({ apiKey: process.env.VEOVEO_API_KEY, userAgent: playbackUserAgent }),
 ];
 const animeCases = [
   animeCase("Frieren", "52991", "5401195", 1, 1, 1),

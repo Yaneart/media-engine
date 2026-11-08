@@ -7,9 +7,6 @@ import {
 } from "../shared/anime-episode.js";
 import type { VeoVeoStreamingConfig } from "./config.js";
 
-const LOOKUP_ENTRY_LIMIT = 32;
-const TRANSLATION_ENTRY_LIMIT = 64;
-
 export interface VeoVeoLookup {
   source: "kinopoisk" | "imdb";
   id: string;
@@ -27,11 +24,6 @@ export interface VeoVeoCatalogItem {
   variants: VeoVeoVariant[];
 }
 
-export interface VeoVeoLookupResult {
-  contentId: string;
-  sourceUrl: string;
-}
-
 export function resolveVeoVeoLookup(query: MediaAvailability["query"]): VeoVeoLookup | undefined {
   const kinopoisk = query.ids?.kinopoisk ?? query.kinopoisk;
   if (kinopoisk && /^[1-9]\d{0,11}$/u.test(kinopoisk)) {
@@ -44,27 +36,6 @@ export function resolveVeoVeoLookup(query: MediaAvailability["query"]): VeoVeoLo
   }
 
   return undefined;
-}
-
-export async function lookupVeoVeoContentId(
-  config: VeoVeoStreamingConfig,
-  lookup: VeoVeoLookup,
-  context: ProviderContext,
-): Promise<VeoVeoLookupResult | null> {
-  const url = createLookupUrl(config.lookupBaseUrl, lookup);
-  const payload = await fetchJson<unknown>({
-    provider: config.name,
-    url,
-    context,
-    fetch: config.fetch,
-    rateLimitGate: config.rateLimitGate,
-    maxRetries: 0,
-    maxResponseBytes: config.maxLookupResponseBytes,
-    init: { headers: createHeaders(config) },
-  });
-  const contentId = parseVeoVeoContentId(config.name, payload);
-
-  return contentId ? { contentId, sourceUrl: url.href } : null;
 }
 
 export async function loadVeoVeoCatalog(
@@ -116,34 +87,10 @@ export async function resolveVeoVeoManifestUrls(
   );
 }
 
-export function createLookupUrl(baseUrl: string, lookup: VeoVeoLookup): URL {
-  const url = new URL("/api/players", `${baseUrl}/`);
-  url.searchParams.set(lookup.source, lookup.id);
-  url.searchParams.set("n", "0");
-  return url;
-}
-
 export function createCatalogUrl(baseUrl: string, contentId: string): URL {
   const url = new URL("/balancer-api/proxy/playlists/catalog-api/episodes", `${baseUrl}/`);
   url.searchParams.set("content-id", contentId);
   return url;
-}
-
-export function parseVeoVeoContentId(provider: string, value: unknown): string | undefined {
-  if (!isRecord(value) || !Array.isArray(value.data)) throw invalidResponse(provider, "lookup");
-
-  const ids = new Set<string>();
-  for (const entry of value.data.slice(0, LOOKUP_ENTRY_LIMIT)) {
-    if (!isRecord(entry) || normalizeText(entry.type) !== "veoveo") continue;
-
-    collectContentId(ids, entry.iframeUrl);
-    if (!Array.isArray(entry.translations)) continue;
-    for (const translation of entry.translations.slice(0, TRANSLATION_ENTRY_LIMIT)) {
-      if (isRecord(translation)) collectContentId(ids, translation.iframeUrl);
-    }
-  }
-
-  return ids.size === 1 ? ids.values().next().value : undefined;
 }
 
 export function parseVeoVeoCatalog(
@@ -185,21 +132,6 @@ function parseCatalogItem(value: unknown, variantLimit: number): VeoVeoCatalogIt
     ...(title ? { title } : {}),
     variants,
   };
-}
-
-function collectContentId(target: Set<string>, value: unknown): void {
-  if (typeof value !== "string" || !value.trim()) return;
-
-  try {
-    const url = new URL(value);
-    const ids = url.searchParams.getAll("movie_id");
-    if (url.protocol !== "https:" || ids.length !== 1 || !/^[1-9]\d{0,11}$/u.test(ids[0]!)) {
-      return;
-    }
-    target.add(ids[0]!);
-  } catch {
-    return;
-  }
 }
 
 function createHeaders(config: VeoVeoStreamingConfig): HeadersInit {
@@ -277,10 +209,6 @@ function isHlsContentType(value: string | null): boolean {
     contentType === "audio/mpegurl" ||
     contentType === "audio/x-mpegurl"
   );
-}
-
-function normalizeText(value: unknown): string {
-  return typeof value === "string" ? value.trim().toLocaleLowerCase().replace(/\s+/gu, "") : "";
 }
 
 function readInteger(value: unknown, minimum: number): number | undefined {

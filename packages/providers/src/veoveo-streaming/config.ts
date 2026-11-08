@@ -5,7 +5,6 @@ import { resolveBoundedIntegerOption } from "../shared/options.js";
 import { createHardenedProviderFetch } from "../shared/safe-fetch.js";
 
 const DEFAULT_PROVIDER_NAME = "veoveo-streaming";
-const DEFAULT_LOOKUP_BASE_URL = "https://p2.ddbb.lol";
 const DEFAULT_STREAM_BASE_URL = "https://api.rstprgapipt.com";
 const DEFAULT_MAX_LOOKUP_RESPONSE_BYTES = 512 * 1024;
 const DEFAULT_MAX_CATALOG_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -16,6 +15,7 @@ const DEFAULT_LINK_TTL_MS = 5 * 60_000;
 export interface VeoVeoStreamingProviderOptions {
   name?: string;
   version?: string;
+  apiKey?: string;
   lookupBaseUrl?: string;
   streamBaseUrl?: string;
   fetch?: ProviderFetch;
@@ -30,6 +30,7 @@ export interface VeoVeoStreamingProviderOptions {
 
 export interface VeoVeoStreamingConfig {
   name: string;
+  apiKey?: string;
   lookupBaseUrl: string;
   streamBaseUrl: string;
   fetch: ProviderFetch;
@@ -48,8 +49,9 @@ export function createVeoVeoConfig(options: VeoVeoStreamingProviderOptions): Veo
 
   return {
     name,
+    apiKey: options.apiKey?.trim() || undefined,
     lookupBaseUrl: normalizeBaseUrl(
-      options.lookupBaseUrl ?? DEFAULT_LOOKUP_BASE_URL,
+      options.lookupBaseUrl ?? options.streamBaseUrl ?? DEFAULT_STREAM_BASE_URL,
       "lookupBaseUrl",
     ),
     streamBaseUrl: normalizeBaseUrl(
@@ -137,6 +139,9 @@ function normalizeBaseUrl(value: string, option: string): string {
   }
 
   url.pathname = "/";
+  if (option === "lookupBaseUrl" && url.protocol !== "https:") {
+    throw new TypeError("VeoVeo streaming lookupBaseUrl must use HTTPS for authentication.");
+  }
   url.search = "";
   url.hash = "";
   return url.href.replace(/\/$/u, "");

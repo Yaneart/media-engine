@@ -33,6 +33,8 @@ test("ddbbStreamingProvider validates bounded configuration", () => {
   );
 
   for (const options of [
+    { fallbackBaseUrls: ["https://user:secret@fallback.test"] },
+    { fallbackBaseUrls: ["https://a.test", "https://b.test", "https://c.test", "https://d.test"] },
     { maxResponseBytes: 512 },
     { playerLimit: 33 },
     { playerValidationLimit: 17 },
@@ -42,7 +44,7 @@ test("ddbbStreamingProvider validates bounded configuration", () => {
   ]) {
     assert.throws(
       () => ddbbStreamingProvider({ ...options, fetch }),
-      /must be an integer between/u,
+      /must be an integer between|credential-free|at most 3/u,
     );
   }
 });

@@ -65,8 +65,8 @@ The token stays server-side and must never use a `VITE_` prefix. Lookup uses exa
 or Shikimori IDs; series and TV anime return only a verified requested episode.
 
 VeoVeo direct signed HLS is opt-in with `MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED=true`. It needs a
-Kinopoisk or IMDb ID, uses DDBB only to resolve VeoVeo's public content ID, and discards the iframe
-token without loading the iframe.
+Kinopoisk or IMDb ID and your provider-issued `VEOVEO_API_KEY`. Lookup and playback use VeoVeo
+directly, independently of DDBB. The token stays server-side and is omitted from output and errors.
 
 VideoHUB direct signed MP4 is opt-in with `MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED=true`. It needs
 a Kinopoisk ID; series need an exact season and episode, while anime accepts an exact absolute
