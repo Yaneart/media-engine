@@ -2,7 +2,7 @@
 
 Providers are adapters between an external data source and the normalized core contracts. Core selects them by declared capabilities and does not know their HTTP implementation.
 
-Direct authenticated Vibix, Collaps, Alloha, VideoSeed, Mirage and HDVB adapters
+Direct authenticated Collaps, Alloha and Mirage adapters
 are described in [keyed embed providers](./keyed-embed-providers.md), including
 native ID support, episode catalogs, public player credentials and DDBB removal.
 
@@ -98,7 +98,6 @@ TMDB IDs remain supported in the normalized model because upstream providers may
 | KinoBD streaming       | Discovers normalized player options for movies, series, and anime                     | None                      |
 | Kodik streaming        | Opt-in exact-ID iframe for movies and player-managed or exact episodic playback       | Provider-issued API token |
 | FlixHQ streaming       | International embed options, subtitles, and explicit direct streams when available    | None                      |
-| DDBB streaming         | Independent Kinopoisk/IMDb route to generic movie, series, and anime embeds           | None                      |
 | AniLiberty streaming   | Exact title/year anime episodes with direct first-party HLS qualities                 | None                      |
 | Filmix streaming       | Opt-in guest movie and exact series-episode direct 480p MP4                           | None                      |
 | VeoVeo streaming       | Opt-in movie, series-episode, and verified anime direct signed HLS                    | Provider-issued API token |
@@ -122,21 +121,7 @@ ambiguous mappings fail closed. The API token is never included in normalized ou
 
 KinoBD streaming shares one fixed wall deadline and a default 24-attempt child-request budget across candidate search, optional anime lookup, player loading, retries, and iframe validation. Live validation uses three workers by default, checks at most eight players, and does not start an optional nested iframe check without enough remaining time for its full validation window. The public limits are capped at 50 search candidates, 16 validated players, four validation workers, 64 child attempts, and 10 seconds for individual validation or Shikimori helper timeouts. Its optional player audit callback exposes bounded counters without changing availability results.
 
-DDBB streaming is enabled in repository API defaults after the repeated reliability/diversity
-checkpoint. It uses only caller-supplied normalized Kinopoisk/IMDb IDs for generic lookups;
-exact episode queries do not select it. The default `https://p2.ddbb.lol` endpoint falls back to
-`https://a.ddbb.live` after transport, HTTP (except rate limiting), or invalid-response failures.
-The primary gets at most 1.5 seconds when a fallback is available, reserving time inside the
-shared lookup deadline. A valid empty result does not trigger fallback. Custom `baseUrl` values
-use only that endpoint unless `fallbackBaseUrls` is explicitly supplied (at most three URLs);
-`fallbackBaseUrls: []` disables fallback. Provenance records the endpoint that actually succeeded.
-The adapter strictly parses nullable player responses,
-preserves one main option per player before unique translation URLs, collapses Alloha to its one
-main entry because that player switches voiceovers internally, and bounds response bytes, output
-count, validation count/concurrency/body bytes, and validation time. It removes only
-confirmed unavailable options and keeps transient checks as `unknown`. The upstream still has no
-published first-party usage or rate-limit contract; direct package consumers can omit it from their
-configured provider list.
+DDBB was removed in 2.0.0. Register the retained direct providers instead.
 
 AniLiberty streaming is also enabled in repository API defaults. The upstream release catalog has no
 normalized external IDs, so the adapter requires title and year, accepts only a unique exact

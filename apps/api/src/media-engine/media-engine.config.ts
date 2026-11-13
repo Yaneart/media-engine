@@ -10,7 +10,6 @@ import {
 } from './keyed-embed.config';
 
 export interface MediaEngineEnv extends KeyedEmbedEnv {
-  MEDIA_ENGINE_DDBB_STREAMING_ENABLED?: string;
   TMDB_API_KEY?: string;
   KODIK_API_KEY?: string;
   VEOVEO_API_KEY?: string;
@@ -24,6 +23,8 @@ export interface MediaEngineEnv extends KeyedEmbedEnv {
   MEDIA_ENGINE_FILMIX_STREAMING_TOKEN?: string;
   MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH?: string;
   MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED?: string;
+  MEDIA_ENGINE_VEOVEO_EMBED_ENABLED?: string;
+  MEDIA_ENGINE_VEOVEO_EMBED_ALLOW_API_KEY_IN_EMBED_URL?: string;
   MEDIA_ENGINE_VIDEOHUB_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_RUTUBE_STREAMING_ENABLED?: string;
   MEDIA_ENGINE_ADEROM_STREAMING_ENABLED?: string;
@@ -91,7 +92,6 @@ export async function createConfiguredStreamingProviders(
   const {
     aniLibertyStreamingProvider,
     aderomStreamingProvider,
-    ddbbStreamingProvider,
     filmixStreamingProvider,
     flixHqStreamingProvider,
     initemStreamingProvider,
@@ -99,19 +99,13 @@ export async function createConfiguredStreamingProviders(
     kinobdStreamingProvider,
     rutubeStreamingProvider,
     veoVeoStreamingProvider,
+    veoVeoEmbedProvider,
     videoHubStreamingProvider,
   } = await import('@media-engine/providers');
   const providers: StreamingProvider[] = [
     initemStreamingProvider(),
     kinobdStreamingProvider(),
     flixHqStreamingProvider(),
-    ...(env.MEDIA_ENGINE_DDBB_STREAMING_ENABLED === undefined ||
-    readBooleanEnv(
-      env.MEDIA_ENGINE_DDBB_STREAMING_ENABLED,
-      'MEDIA_ENGINE_DDBB_STREAMING_ENABLED',
-    )
-      ? [ddbbStreamingProvider()]
-      : []),
     aniLibertyStreamingProvider(),
   ];
 
@@ -140,6 +134,23 @@ export async function createConfiguredStreamingProviders(
   if (readVeoVeoStreamingEnabled(env)) {
     providers.unshift(
       veoVeoStreamingProvider({ apiKey: readOptionalEnv(env.VEOVEO_API_KEY) }),
+    );
+  }
+
+  if (
+    readBooleanEnv(
+      env.MEDIA_ENGINE_VEOVEO_EMBED_ENABLED,
+      'MEDIA_ENGINE_VEOVEO_EMBED_ENABLED',
+    )
+  ) {
+    providers.unshift(
+      veoVeoEmbedProvider({
+        apiKey: readOptionalEnv(env.VEOVEO_API_KEY),
+        allowApiKeyInEmbedUrl: readBooleanEnv(
+          env.MEDIA_ENGINE_VEOVEO_EMBED_ALLOW_API_KEY_IN_EMBED_URL,
+          'MEDIA_ENGINE_VEOVEO_EMBED_ALLOW_API_KEY_IN_EMBED_URL',
+        ),
+      }),
     );
   }
 
@@ -255,20 +266,17 @@ export async function createMediaEngine(
       'kinobd-streaming': streamingTimeoutMs,
       'kodik-streaming': streamingTimeoutMs,
       'flixhq-streaming': flixHqTimeoutMs,
-      'ddbb-streaming': streamingTimeoutMs,
       'aniliberty-streaming': streamingTimeoutMs,
       'filmix-streaming': streamingTimeoutMs,
       'veoveo-streaming': streamingTimeoutMs,
+      'veoveo-embed': streamingTimeoutMs,
       'videohub-streaming': videoHubTimeoutMs,
       'rutube-streaming': streamingTimeoutMs,
       'aderom-streaming': streamingTimeoutMs,
       'initem-streaming': streamingTimeoutMs,
-      'vibix-streaming': streamingTimeoutMs,
       'collaps-streaming': streamingTimeoutMs,
       'alloha-streaming': streamingTimeoutMs,
-      'videoseed-streaming': streamingTimeoutMs,
       'mirage-streaming': streamingTimeoutMs,
-      'hdvb-streaming': streamingTimeoutMs,
       'yts-torrent': torrentTimeoutMs,
       'jacred-torrent': torrentTimeoutMs,
       'bitsearch-torrent': torrentTimeoutMs,
@@ -359,8 +367,8 @@ export function readVideoHubStreamingProviderTimeoutMs(
   );
 }
 
-// Streaming lookup covers bounded KinoBD, DDBB, and AniLiberty network work.
-// Streaming lookup ограничивает сетевую работу KinoBD, DDBB и AniLiberty.
+// Streaming lookup covers bounded KinoBD and AniLiberty network work.
+// Streaming lookup ограничивает сетевую работу KinoBD и AniLiberty.
 export function readStreamingProviderTimeoutMs(
   env: MediaEngineEnv = process.env,
 ): number {

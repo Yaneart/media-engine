@@ -4,9 +4,6 @@ import { ProviderError, type StreamQuery } from "@media-engine/core";
 import { allohaStreamingProvider } from "../alloha-streaming/index.js";
 import { mirageStreamingProvider } from "../mirage-streaming/index.js";
 import { collapsStreamingProvider } from "../collaps-streaming/index.js";
-import { videoSeedStreamingProvider } from "../videoseed-streaming/index.js";
-import { vibixStreamingProvider } from "../vibix-streaming/index.js";
-import { hdvbStreamingProvider } from "../hdvb-streaming/index.js";
 import type { KeyedEmbedProviderOptions } from "./keyed-embed.js";
 
 const apiKey = "private-api-credential";
@@ -47,41 +44,6 @@ const collaps = {
     },
   ],
 };
-const videoseed = {
-  status: "success",
-  data: [
-    {
-      id: "3555",
-      type: "movie",
-      id_kp: "258687",
-      id_imdb: "tt0816692",
-      id_tmdb: "157336",
-      iframe,
-      translation_iframe: {
-        dub: { translations_id: "2", short_name: "Dub", iframe: `${iframe}?default_audio_id=2` },
-      },
-    },
-  ],
-};
-const vibix = {
-  id: 938205,
-  type: "movie",
-  kp_id: 258687,
-  imdb_id: "tt0816692",
-  iframe_url: "",
-  embed_code: 'data-publisher-id="1234" data-type="movie" data-id="4433"',
-};
-const hdvb = [
-  {
-    type: "movie",
-    kinopoisk_id: 258687,
-    token: "content123",
-    iframe_url: iframe,
-    translator: "Dub",
-    translator_id: 107,
-    block: false,
-  },
-];
 const definitions = [
   { name: "alloha", factory: allohaStreamingProvider, fixture: alloha, path: "/", param: "kp" },
   { name: "mirage", factory: mirageStreamingProvider, fixture: alloha, path: "/", param: "kp" },
@@ -91,27 +53,6 @@ const definitions = [
     fixture: collaps,
     path: "/list",
     param: "kinopoisk_id",
-  },
-  {
-    name: "videoseed",
-    factory: videoSeedStreamingProvider,
-    fixture: videoseed,
-    path: "/apiv2.php",
-    param: "kp",
-  },
-  {
-    name: "vibix",
-    factory: vibixStreamingProvider,
-    fixture: vibix,
-    path: "/api/v1/publisher/videos/kp/258687",
-    param: undefined,
-  },
-  {
-    name: "hdvb",
-    factory: hdvbStreamingProvider,
-    fixture: hdvb,
-    path: "/api/videos.json",
-    param: "id_kp",
   },
 ];
 const clone = <T>(value: T): T => structuredClone(value);
@@ -126,14 +67,11 @@ for (const { name, factory, fixture, path, param } of definitions) {
     const provider = factory({
       apiKey,
       baseUrl: "https://api.example",
-      fetch: async (input, init) => {
+      fetch: async (input) => {
         const url = new URL(input);
         assert.equal(url.pathname, path);
         if (param) assert.equal(url.searchParams.get(param), "258687");
-        if (name === "vibix") {
-          assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${apiKey}`);
-          assert.equal(url.searchParams.has("token"), false);
-        } else assert.equal(url.searchParams.get("token"), apiKey);
+        assert.equal(url.searchParams.get("token"), apiKey);
         return Response.json(fixture);
       },
     });
@@ -148,11 +86,6 @@ for (const { name, factory, fixture, path, param } of definitions) {
       ),
     );
     assert.equal(JSON.stringify(result).includes(apiKey), false);
-    if (name === "vibix")
-      assert.equal(
-        result.options[0]?.access.url,
-        "https://river-3-329.kinescopecdn.net/1234/embed/4433",
-      );
   });
   test(`${name}: no unnecessary requests for filters, missing credentials and invalid episode coordinates`, async () => {
     let calls = 0;
@@ -185,14 +118,13 @@ for (const { name, factory, fixture, path, param } of definitions) {
       await provider(fixture).getAvailability({ type: "series", ids: { kinopoisk: "258687" } }, {}),
       null,
     );
-    if (name !== "hdvb")
-      assert.equal(
-        await provider(fixture).getAvailability(
-          { ...movie, ids: { kinopoisk: "258687", imdb: "tt9999999" } },
-          {},
-        ),
-        null,
-      );
+    assert.equal(
+      await provider(fixture).getAvailability(
+        { ...movie, ids: { kinopoisk: "258687", imdb: "tt9999999" } },
+        {},
+      ),
+      null,
+    );
   });
   test(`${name}: HTTP auth/rate errors and transport exceptions cannot disclose API keys`, async () => {
     for (const [status, code] of [
@@ -244,11 +176,10 @@ for (const { name, factory, fixture, path, param } of definitions) {
 for (const [name, factory] of [
   ["alloha", allohaStreamingProvider],
   ["mirage", mirageStreamingProvider],
-  ["videoseed", videoSeedStreamingProvider],
 ] as const) {
   test(`${name}: TMDB request and isolation of server/public player credentials`, async () => {
-    const fixture = name === "videoseed" ? clone(videoseed) : clone(alloha);
-    const item = Array.isArray(fixture.data) ? fixture.data[0]! : fixture.data;
+    const fixture = clone(alloha);
+    const item = fixture.data;
     item.iframe = `${iframe}?token=${apiKey}`;
     delete (item as Record<string, unknown>).translation_iframe;
     const options: KeyedEmbedProviderOptions = {
@@ -284,7 +215,6 @@ for (const [name, factory] of [
   ["alloha", allohaStreamingProvider],
   ["mirage", mirageStreamingProvider],
   ["collaps", collapsStreamingProvider],
-  ["videoseed", videoSeedStreamingProvider],
 ] as const) {
   test(`${name}: exact catalog episode, missing episodes and anime coordinate proof`, async () => {
     const entry = { iframe, episode: 1 };
@@ -301,29 +231,16 @@ for (const [name, factory] of [
               },
             ],
           }
-        : name === "videoseed"
-          ? {
-              status: "success",
-              data: [
-                {
-                  id: "23",
-                  type: "serial",
-                  id_kp: "404900",
-                  iframe,
-                  seasons: { 1: { videos: { 1: { iframe } } } },
-                },
-              ],
-            }
-          : {
-              status: "success",
-              data: {
-                category: 2,
-                token_movie: "series123",
-                id_kp: 404900,
-                iframe,
-                seasons: { 1: { season: 1, episodes: { 1: entry } } },
-              },
-            };
+        : {
+            status: "success",
+            data: {
+              category: 2,
+              token_movie: "series123",
+              id_kp: 404900,
+              iframe,
+              seasons: { 1: { season: 1, episodes: { 1: entry } } },
+            },
+          };
     const provider = factory({ apiKey, fetch: async () => Response.json(data) });
     const result = await provider.getAvailability(episode, {});
     assert.ok(result?.options.length);
@@ -345,25 +262,6 @@ for (const [name, factory] of [
   });
 }
 
-test("Vibix rejects ambiguous SDK attributes and keeps its API id separate from the embed id", async () => {
-  await assert.rejects(
-    vibixStreamingProvider({
-      apiKey,
-      fetch: async () =>
-        Response.json({ ...vibix, embed_code: vibix.embed_code + ' data-id="999"' }),
-    }).getAvailability(movie, {}),
-    checkCode("PROVIDER_INVALID_RESPONSE"),
-  );
-});
-test("HDVB filters blocked players and does not advertise unsupported TMDB/episode lookup", async () => {
-  const provider = hdvbStreamingProvider({
-    apiKey,
-    fetch: async () => Response.json([{ ...hdvb[0], block: true }]),
-  });
-  assert.equal(await provider.getAvailability(movie, {}), null);
-  assert.deepEqual(provider.capabilities.lookup.byExternalIds, ["kinopoisk"]);
-  assert.equal(provider.capabilities.lookup.byEpisode, false);
-});
 test("Collaps never treats an ignored TMDB filter as a successful lookup", async () => {
   let calls = 0;
   const provider = collapsStreamingProvider({

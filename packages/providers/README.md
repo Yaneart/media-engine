@@ -119,24 +119,15 @@ for await (const snapshot of media.getAvailabilityProgressively({
 }
 ```
 
-Direct authenticated embeds are available through `vibixStreamingProvider()`,
-`collapsStreamingProvider()`, `allohaStreamingProvider()`, `videoSeedStreamingProvider()`,
-`mirageStreamingProvider()` and `hdvbStreamingProvider()`. Each accepts its own server
-`apiKey` and works independently of DDBB. Alloha/Mirage/VideoSeed support native TMDB
-lookup; Vibix/Collaps use Kinopoisk/IMDb, and HDVB uses Kinopoisk. Core's configured
-identity sources handle other ID conversions. Alloha/Mirage/VideoSeed iframe links
-may require a separate public `playerToken`. Shared API credentials in embeds are
-rejected unless explicitly enabled with `allowApiKeyInEmbedUrl: true`.
-Alloha can use one verified public token for both API and iframe with that opt-in;
-the reference environment names it `ALOHA_API_KEY`.
-Collaps/Alloha/Mirage/VideoSeed provide verified exact episodes; Vibix/HDVB keep
-episode selection inside their player. See the repository's
-[API contracts and credential setup](https://github.com/Yaneart/media-engine/blob/main/docs/keyed-embed-providers.md).
+Direct authenticated embeds are available through `collapsStreamingProvider()`,
+`allohaStreamingProvider()` and `mirageStreamingProvider()`. They use their own
+server credentials and verified catalog episode mapping, independently of DDBB.
+Alloha/Mirage support Kinopoisk, IMDb and TMDB; Collaps supports Kinopoisk and IMDb.
+Shared public iframe credentials require explicit `allowApiKeyInEmbedUrl: true`.
+`veoVeoEmbedProvider()` supplies a separate generic iframe using the same VeoVeo
+API token with that opt-in; translations and episodes stay inside its player.
+[Configuration](https://github.com/Yaneart/media-engine/blob/main/docs/keyed-embed-providers.md).
 
-The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
-`kodikStreamingProvider()`, `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
-`rutubeStreamingProvider()`, and
-`experimentalStreamingProvider()`.
 Kodik requires a provider-issued `apiKey`, keeps it only in server-side requests, and performs
 bounded exact lookup by Kinopoisk, IMDb, or Shikimori ID. It returns direct Kodik iframe options,
 translations, and quality labels. Generic series and episodic-anime queries return a player-managed embed;
@@ -146,9 +137,7 @@ Add them explicitly when they fit your application. Filmix guest mode is capped 
 known copyright/service placeholder videos. A user-owned device token raises the cap to 720p.
 Authenticated mode requires an HTTPS `baseUrl` unless the application explicitly enables
 `allowInsecureHttpToken` for a local compatibility test. That override sends the token without TLS
-and must not be used in a public deployment. Returned CDN video URLs use HTTPS. DDBB defaults to
-`p2.ddbb.lol` with `a.ddbb.live` as a bounded fallback; custom `baseUrl` values require explicit
-`fallbackBaseUrls` to enable failover. VeoVeo requires `veoVeoStreamingProvider({ apiKey })` with
+and must not be used in a public deployment. Returned CDN video URLs use HTTPS. VeoVeo requires `veoVeoStreamingProvider({ apiKey })` with
 your provider-issued token. It resolves and verifies content identity directly through VeoVeo,
 independently of DDBB, and returns signed HTTPS HLS. Tokens are excluded from output and errors.
 VideoHUB uses a Kinopoisk ID and returns

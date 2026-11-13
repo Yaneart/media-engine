@@ -162,12 +162,10 @@ export function formatPlayerLabel(value: string): string {
     alloha: "Alloha",
     collaps: "Collaps",
     flixcdn: "FlixCDN",
-    hdvb: "HDVB",
     kodik: "Kodik",
     rutube: "Rutube",
     veoveo: "VeoVeo",
     videohub: "VideoHUB",
-    vibix: "Vibix",
   };
 
   return knownLabels[normalizeLabel(value)] ?? value.trim();
@@ -176,12 +174,15 @@ export function formatPlayerLabel(value: string): string {
 export function formatProviderLabel(value: string): string {
   const knownLabels: Record<string, string> = {
     "aniliberty-streaming": "AniLiberty",
-    "ddbb-streaming": "DDBB",
     "flixhq-streaming": "FlixHQ",
     "filmix-streaming": "Filmix",
     "kinobd-streaming": "KinoBD",
     "rutube-streaming": "Rutube",
     "veoveo-streaming": "VeoVeo",
+    "veoveo-embed": "VeoVeo",
+    "collaps-streaming": "Collaps",
+    "alloha-streaming": "Alloha",
+    "mirage-streaming": "Mirage",
     "videohub-streaming": "VideoHUB",
   };
 

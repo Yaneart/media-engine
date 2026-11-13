@@ -108,24 +108,18 @@ for await (const snapshot of media.getAvailabilityProgressively({
 }
 ```
 
-Пакет также экспортирует `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
+Пакет также экспортирует `aniLibertyStreamingProvider()`,
 `kodikStreamingProvider()`, `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
 `rutubeStreamingProvider()` и
 `experimentalStreamingProvider()`.
 
-Прямые авторизованные iframe доступны через `vibixStreamingProvider()`,
-`collapsStreamingProvider()`, `allohaStreamingProvider()`, `videoSeedStreamingProvider()`,
-`mirageStreamingProvider()` и `hdvbStreamingProvider()`. Каждый использует собственный
-серверный `apiKey` и работает независимо от DDBB. Alloha/Mirage/VideoSeed ищут по TMDB,
-IMDb и Кинопоиску; Vibix/Collaps — по IMDb и Кинопоиску, HDVB — по Кинопоиску.
-Остальные ID сопоставляются настроенными identity sources движка.
-Для Alloha/Mirage/VideoSeed может понадобиться отдельный публичный `playerToken`.
-API-ключ в iframe по умолчанию отклоняется; `allowApiKeyInEmbedUrl: true` явно
-разрешает его раскрытие зрителю. Collaps/Alloha/Mirage/VideoSeed поддерживают точную
-серию по каталогу, Vibix/HDVB оставляют её выбор внутри плеера.
-Для Alloha проверена работа одного публичного токена в API и iframe с этим явным
-разрешением; в окружении он называется `ALOHA_API_KEY`.
-[Контракты API и настройка ключей](https://github.com/Yaneart/media-engine/blob/main/docs/keyed-embed-providers.md).
+Прямые iframe доступны через `collapsStreamingProvider()`, `allohaStreamingProvider()`
+и `mirageStreamingProvider()`. Они используют собственные ключи и проверенные
+каталоги серий, независимо от DDBB. Alloha/Mirage поддерживают Кинопоиск, IMDb и TMDB,
+Collaps — Кинопоиск и IMDb. Публичный общий токен требует `allowApiKeyInEmbedUrl: true`.
+Отдельный `veoVeoEmbedProvider()` использует тот же токен VeoVeo с этим разрешением;
+переводы и серии выбираются внутри iframe.
+[Настройка](https://github.com/Yaneart/media-engine/blob/main/docs/keyed-embed-providers.md).
 
 Kodik требует выданный провайдером `apiKey`, использует его только в серверных запросах и выполняет
 ограниченный точный поиск по ID Кинопоиска, IMDb или Shikimori. Адаптер возвращает прямые iframe
@@ -137,8 +131,7 @@ Kodik, переводы и качество. Общий запрос сериа�
 блокировке и служебные видео. Собственный device token повышает предел до 720p. Для авторизации
 обязателен HTTPS `baseUrl`, если приложение явно не включило `allowInsecureHttpToken` для локальной
 проверки совместимости. Этот режим отправляет токен без TLS и не должен использоваться в публичном
-развёртывании. Ссылки на видео CDN используют HTTPS. DDBB использует `p2.ddbb.lol` с резервным
-`a.ddbb.live`; для собственного `baseUrl` резервные адреса задаются явно через `fallbackBaseUrls`.
+развёртывании. Ссылки на видео CDN используют HTTPS.
 VeoVeo требует `veoVeoStreamingProvider({ apiKey })` с собственным токеном провайдера, напрямую
 находит и проверяет content ID через VeoVeo и возвращает подписанный HTTPS HLS независимо от DDBB.
 Токен исключён из результатов и сообщений об ошибках.

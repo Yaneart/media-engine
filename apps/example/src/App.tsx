@@ -14,13 +14,16 @@ const PRIMARY_STREAMING_PROVIDERS = [
   "aniliberty-streaming",
 ];
 const EMBED_STREAMING_PROVIDERS = [
+  "veoveo-embed",
+  "collaps-streaming",
+  "alloha-streaming",
+  "mirage-streaming",
   "kodik-streaming",
   "initem-streaming",
   "aderom-streaming",
   "rutube-streaming",
   "kinobd-streaming",
   "flixhq-streaming",
-  "ddbb-streaming",
 ];
 
 // EN: Root React component for the Media Engine example application shell.

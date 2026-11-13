@@ -1,4 +1,4 @@
-import {
+﻿import {
   DEFAULT_MEDIA_ENGINE_CACHE_STALE_TTL_MS,
   DEFAULT_MEDIA_ENGINE_CACHE_TTL_MS,
   DEFAULT_MEDIA_ENGINE_FLIXHQ_STREAMING_PROVIDER_TIMEOUT_MS,
@@ -46,7 +46,6 @@ describe('MediaEngine configuration', () => {
       'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
-      'ddbb-streaming',
       'aniliberty-streaming',
     ]);
   });
@@ -74,7 +73,6 @@ describe('MediaEngine configuration', () => {
       'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
-      'ddbb-streaming',
       'aniliberty-streaming',
     ]);
     expect(providers.every((provider) => provider.kind === 'streaming')).toBe(
@@ -92,7 +90,6 @@ describe('MediaEngine configuration', () => {
       'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
-      'ddbb-streaming',
       'aniliberty-streaming',
     ]);
     expect(JSON.stringify(providers)).not.toContain('owned-secret');
@@ -116,7 +113,6 @@ describe('MediaEngine configuration', () => {
       'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
-      'ddbb-streaming',
       'aniliberty-streaming',
     ]);
     expect(() =>
@@ -139,7 +135,7 @@ describe('MediaEngine configuration', () => {
           'https://filmix-api.test/api/v2',
         MEDIA_ENGINE_FILMIX_STREAMING_TOKEN: 'owned-token',
       }),
-    ).resolves.toHaveLength(6);
+    ).resolves.toHaveLength(5);
 
     await expect(
       createConfiguredStreamingProviders({
@@ -148,7 +144,7 @@ describe('MediaEngine configuration', () => {
         MEDIA_ENGINE_FILMIX_STREAMING_TOKEN: 'owned-token',
         MEDIA_ENGINE_FILMIX_STREAMING_ALLOW_INSECURE_HTTP_AUTH: 'true',
       }),
-    ).resolves.toHaveLength(6);
+    ).resolves.toHaveLength(5);
     await expect(
       createConfiguredStreamingProviders({
         MEDIA_ENGINE_FILMIX_STREAMING_ENABLED: 'true',
@@ -176,7 +172,6 @@ describe('MediaEngine configuration', () => {
       'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
-      'ddbb-streaming',
       'aniliberty-streaming',
     ]);
     expect(() =>
@@ -184,6 +179,31 @@ describe('MediaEngine configuration', () => {
         MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: 'yes',
       }),
     ).toThrow(/either true or false/);
+  });
+
+  it('enables the separate VeoVeo iframe alongside HLS with explicit public-token consent', async () => {
+    const providers = await createConfiguredStreamingProviders({
+      MEDIA_ENGINE_VEOVEO_STREAMING_ENABLED: 'true',
+      MEDIA_ENGINE_VEOVEO_EMBED_ENABLED: 'true',
+      MEDIA_ENGINE_VEOVEO_EMBED_ALLOW_API_KEY_IN_EMBED_URL: 'true',
+      VEOVEO_API_KEY: 'public-fixture',
+    });
+    expect(providers.slice(0, 2).map((p) => p.name)).toEqual([
+      'veoveo-embed',
+      'veoveo-streaming',
+    ]);
+    expect(providers[0].capabilities.features).toContain('embed');
+    await expect(
+      createConfiguredStreamingProviders({
+        MEDIA_ENGINE_VEOVEO_EMBED_ENABLED: 'yes',
+      }),
+    ).rejects.toThrow(/either true or false/);
+    await expect(
+      createConfiguredStreamingProviders({
+        MEDIA_ENGINE_VEOVEO_EMBED_ENABLED: 'true',
+        MEDIA_ENGINE_VEOVEO_EMBED_ALLOW_API_KEY_IN_EMBED_URL: 'yes',
+      }),
+    ).rejects.toThrow(/either true or false/);
   });
 
   it('adds direct VideoHUB MP4 only when explicitly enabled', async () => {
@@ -204,7 +224,6 @@ describe('MediaEngine configuration', () => {
       'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
-      'ddbb-streaming',
       'aniliberty-streaming',
     ]);
     expect(() =>
@@ -232,7 +251,6 @@ describe('MediaEngine configuration', () => {
       'initem-streaming',
       'kinobd-streaming',
       'flixhq-streaming',
-      'ddbb-streaming',
       'aniliberty-streaming',
     ]);
     expect(() =>

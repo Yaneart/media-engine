@@ -4,21 +4,21 @@ import { createConfiguredStreamingProviders } from './media-engine.config';
 describe('Direct keyed embed configuration', () => {
   it('enables each provider only with its own server credential', async () => {
     expect(await createConfiguredKeyedEmbedProviders({})).toEqual([]);
+    const retired = {
+      VIBIX_API_KEY: 'unused',
+      VIDEOSEED_API_KEY: 'unused',
+      HDVB_API_KEY: 'unused',
+    };
     const providers = await createConfiguredKeyedEmbedProviders({
-      VIBIX_API_KEY: 'private-vibix',
+      ...retired,
       COLLAPS_API_KEY: 'private-collaps',
       ALOHA_API_KEY: 'private-alloha',
-      VIDEOSEED_API_KEY: 'private-videoseed',
       MIRAGE_API_KEY: 'private-mirage',
-      HDVB_API_KEY: 'private-hdvb',
     });
     expect(providers.map((p) => p.name)).toEqual([
-      'vibix-streaming',
       'collaps-streaming',
       'alloha-streaming',
-      'videoseed-streaming',
       'mirage-streaming',
-      'hdvb-streaming',
     ]);
     expect(JSON.stringify(providers)).not.toContain('private-');
   });
@@ -37,10 +37,10 @@ describe('Direct keyed embed configuration', () => {
     expect(providers).toHaveLength(1);
     expect(JSON.stringify(providers)).not.toContain('public-player');
   });
-  it('can remove DDBB independently of direct providers while preserving defaults', async () => {
+  it('never registers retired providers, including with stale environment flags', async () => {
     const providers = await createConfiguredStreamingProviders({
       COLLAPS_API_KEY: 'private-collaps',
-      MEDIA_ENGINE_DDBB_STREAMING_ENABLED: 'false',
+      ...{ MEDIA_ENGINE_DDBB_STREAMING_ENABLED: 'true' },
     });
     expect(providers.some((p) => p.name === 'collaps-streaming')).toBe(true);
     expect(providers.some((p) => p.name === 'ddbb-streaming')).toBe(false);
@@ -48,6 +48,6 @@ describe('Direct keyed embed configuration', () => {
       (await createConfiguredStreamingProviders({})).some(
         (p) => p.name === 'ddbb-streaming',
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

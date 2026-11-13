@@ -30,7 +30,7 @@ export async function lookupVeoVeoContentId(
   config: VeoVeoStreamingConfig,
   lookup: VeoVeoLookup,
   context: ProviderContext,
-): Promise<{ contentId: string; sourceUrl: string } | null> {
+): Promise<{ contentId: string; sourceUrl: string; details: Record<string, unknown> } | null> {
   rethrowIfProviderAborted(context, new Error("VeoVeo lookup cancelled."));
   if (!config.apiKey) {
     throw new ProviderError({
@@ -88,7 +88,7 @@ export async function lookupVeoVeoContentId(
       String(details[field]) !== lookup.id
     )
       return null;
-    return { contentId, sourceUrl: sourceUrl.href };
+    return { contentId, sourceUrl: sourceUrl.href, details };
   } catch (error) {
     rethrowIfProviderAborted(context, error);
     const code =

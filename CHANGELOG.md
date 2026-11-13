@@ -7,6 +7,25 @@ documented breaking changes.
 
 ## Unreleased
 
+## 2.0.0 - 2026-11-13
+
+### Breaking changes
+
+- Removed the exported DDBB, Vibix, VideoSeed and HDVB provider factories and their
+  adapters. Remove their imports and registrations when upgrading. The reference
+  API no longer registers them, and their environment settings were removed.
+- Core, Providers and SDK move together to 2.0.0; the REST contract remains 0.20.0.
+
+### Added
+
+- Added `veoVeoEmbedProvider()`, a separate optional iframe player using the same
+  operator-issued VeoVeo token as direct HLS. Public iframe token exposure requires
+  `allowApiKeyInEmbedUrl: true`. Identity is checked against the native catalog;
+  translations and series episodes stay inside the player. Exact episode requests
+  remain the responsibility of the direct HLS provider.
+- Reference API flags: `MEDIA_ENGINE_VEOVEO_EMBED_ENABLED` and
+  `MEDIA_ENGINE_VEOVEO_EMBED_ALLOW_API_KEY_IN_EMBED_URL`, both false by default.
+
 ## 1.14.0 - 2026-11-13
 
 ### Added
