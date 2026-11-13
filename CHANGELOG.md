@@ -7,6 +7,27 @@ documented breaking changes.
 
 ## Unreleased
 
+## 1.14.0 - 2026-11-13
+
+### Added
+
+- Independent authenticated Vibix, Collaps, Alloha, VideoSeed, Mirage and HDVB
+  streaming providers, without DDBB requests. Providers verify returned external
+  IDs and content type before exposing HTTPS embeds and translation/quality labels.
+- Alloha, Mirage and VideoSeed accept native TMDB/IMDb/Kinopoisk lookups.
+  Vibix/Collaps use Kinopoisk/IMDb; HDVB uses Kinopoisk. Other IDs use Core's
+  existing verified identity resolution rather than unsupported upstream filters.
+- Collaps, Alloha, Mirage and VideoSeed expose episode catalogs and exact episode
+  selection with existing anime coordinate proofs. Vibix and HDVB keep episode
+  selection inside their player. Vibix supports the official SDK's `embed_code`
+  format and a configurable public player origin when `iframe_url` is empty.
+- API keys remain server-side by default. Upstreams returning a shared credential
+  in iframe URLs require a separate `playerToken` or explicit
+  `allowApiKeyInEmbedUrl` opt-in. Public diagnostics never retain credential-bearing
+  request URLs or upstream errors.
+- Reference API/Compose support the six providers' keys and settings, plus
+  `MEDIA_ENGINE_DDBB_STREAMING_ENABLED=false` for direct-only configurations.
+
 ## 1.13.6 - 2026-11-08
 
 ### Fixed

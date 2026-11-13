@@ -119,6 +119,20 @@ for await (const snapshot of media.getAvailabilityProgressively({
 }
 ```
 
+Direct authenticated embeds are available through `vibixStreamingProvider()`,
+`collapsStreamingProvider()`, `allohaStreamingProvider()`, `videoSeedStreamingProvider()`,
+`mirageStreamingProvider()` and `hdvbStreamingProvider()`. Each accepts its own server
+`apiKey` and works independently of DDBB. Alloha/Mirage/VideoSeed support native TMDB
+lookup; Vibix/Collaps use Kinopoisk/IMDb, and HDVB uses Kinopoisk. Core's configured
+identity sources handle other ID conversions. Alloha/Mirage/VideoSeed iframe links
+may require a separate public `playerToken`. Shared API credentials in embeds are
+rejected unless explicitly enabled with `allowApiKeyInEmbedUrl: true`.
+Alloha can use one verified public token for both API and iframe with that opt-in;
+the reference environment names it `ALOHA_API_KEY`.
+Collaps/Alloha/Mirage/VideoSeed provide verified exact episodes; Vibix/HDVB keep
+episode selection inside their player. See the repository's
+[API contracts and credential setup](https://github.com/Yaneart/media-engine/blob/main/docs/keyed-embed-providers.md).
+
 The package also exports `ddbbStreamingProvider()`, `aniLibertyStreamingProvider()`,
 `kodikStreamingProvider()`, `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
 `rutubeStreamingProvider()`, and

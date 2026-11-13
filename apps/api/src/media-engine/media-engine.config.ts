@@ -4,8 +4,13 @@ import type {
   StreamingProvider,
   TorrentProvider,
 } from '@media-engine/core';
+import {
+  createConfiguredKeyedEmbedProviders,
+  type KeyedEmbedEnv,
+} from './keyed-embed.config';
 
-export interface MediaEngineEnv {
+export interface MediaEngineEnv extends KeyedEmbedEnv {
+  MEDIA_ENGINE_DDBB_STREAMING_ENABLED?: string;
   TMDB_API_KEY?: string;
   KODIK_API_KEY?: string;
   VEOVEO_API_KEY?: string;
@@ -100,7 +105,13 @@ export async function createConfiguredStreamingProviders(
     initemStreamingProvider(),
     kinobdStreamingProvider(),
     flixHqStreamingProvider(),
-    ddbbStreamingProvider(),
+    ...(env.MEDIA_ENGINE_DDBB_STREAMING_ENABLED === undefined ||
+    readBooleanEnv(
+      env.MEDIA_ENGINE_DDBB_STREAMING_ENABLED,
+      'MEDIA_ENGINE_DDBB_STREAMING_ENABLED',
+    )
+      ? [ddbbStreamingProvider()]
+      : []),
     aniLibertyStreamingProvider(),
   ];
 
@@ -108,6 +119,7 @@ export async function createConfiguredStreamingProviders(
   if (kodikApiKey) {
     providers.unshift(kodikStreamingProvider({ apiKey: kodikApiKey }));
   }
+  providers.unshift(...(await createConfiguredKeyedEmbedProviders(env)));
 
   if (readFilmixStreamingEnabled(env)) {
     const baseUrl = readOptionalEnv(env.MEDIA_ENGINE_FILMIX_STREAMING_BASE_URL);
@@ -251,6 +263,12 @@ export async function createMediaEngine(
       'rutube-streaming': streamingTimeoutMs,
       'aderom-streaming': streamingTimeoutMs,
       'initem-streaming': streamingTimeoutMs,
+      'vibix-streaming': streamingTimeoutMs,
+      'collaps-streaming': streamingTimeoutMs,
+      'alloha-streaming': streamingTimeoutMs,
+      'videoseed-streaming': streamingTimeoutMs,
+      'mirage-streaming': streamingTimeoutMs,
+      'hdvb-streaming': streamingTimeoutMs,
       'yts-torrent': torrentTimeoutMs,
       'jacred-torrent': torrentTimeoutMs,
       'bitsearch-torrent': torrentTimeoutMs,

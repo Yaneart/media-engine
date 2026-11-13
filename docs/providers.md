@@ -2,6 +2,10 @@
 
 Providers are adapters between an external data source and the normalized core contracts. Core selects them by declared capabilities and does not know their HTTP implementation.
 
+Direct authenticated Vibix, Collaps, Alloha, VideoSeed, Mirage and HDVB adapters
+are described in [keyed embed providers](./keyed-embed-providers.md), including
+native ID support, episode catalogs, public player credentials and DDBB removal.
+
 ## Metadata providers
 
 | Provider     | Main role                                                  | Credentials         |

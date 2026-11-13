@@ -1,6 +1,6 @@
 {
   "name": "@media-engine/providers",
-  "version": "1.13.6",
+  "version": "1.14.0",
   "description": "Provider implementations for Media Engine.",
   "license": "MIT",
   "homepage": "https://github.com/Yaneart/media-engine#readme",
@@ -39,7 +39,13 @@
     "mp4",
     "rutube",
     "torrent",
-    "yts"
+    "yts",
+    "vibix",
+    "collaps",
+    "alloha",
+    "videoseed",
+    "mirage",
+    "hdvb"
   ],
   "type": "module",
   "engines": {

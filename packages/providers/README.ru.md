@@ -112,6 +112,21 @@ for await (const snapshot of media.getAvailabilityProgressively({
 `kodikStreamingProvider()`, `filmixStreamingProvider()`, `veoVeoStreamingProvider()`, `videoHubStreamingProvider()`,
 `rutubeStreamingProvider()` и
 `experimentalStreamingProvider()`.
+
+Прямые авторизованные iframe доступны через `vibixStreamingProvider()`,
+`collapsStreamingProvider()`, `allohaStreamingProvider()`, `videoSeedStreamingProvider()`,
+`mirageStreamingProvider()` и `hdvbStreamingProvider()`. Каждый использует собственный
+серверный `apiKey` и работает независимо от DDBB. Alloha/Mirage/VideoSeed ищут по TMDB,
+IMDb и Кинопоиску; Vibix/Collaps — по IMDb и Кинопоиску, HDVB — по Кинопоиску.
+Остальные ID сопоставляются настроенными identity sources движка.
+Для Alloha/Mirage/VideoSeed может понадобиться отдельный публичный `playerToken`.
+API-ключ в iframe по умолчанию отклоняется; `allowApiKeyInEmbedUrl: true` явно
+разрешает его раскрытие зрителю. Collaps/Alloha/Mirage/VideoSeed поддерживают точную
+серию по каталогу, Vibix/HDVB оставляют её выбор внутри плеера.
+Для Alloha проверена работа одного публичного токена в API и iframe с этим явным
+разрешением; в окружении он называется `ALOHA_API_KEY`.
+[Контракты API и настройка ключей](https://github.com/Yaneart/media-engine/blob/main/docs/keyed-embed-providers.md).
+
 Kodik требует выданный провайдером `apiKey`, использует его только в серверных запросах и выполняет
 ограниченный точный поиск по ID Кинопоиска, IMDb или Shikimori. Адаптер возвращает прямые iframe
 Kodik, переводы и качество. Общий запрос сериала или эпизодного аниме возвращает embed с выбором серий
