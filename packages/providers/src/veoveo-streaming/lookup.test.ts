@@ -91,7 +91,11 @@ test("VeoVeo handles a missing title and redacts HTTP, transport, and oversized 
   }
 });
 
-test("VeoVeo bounds stalled lookup bodies and preserves cancellation during identity verification", async () => {
+test("VeoVeo bounds stalled lookup bodies and preserves cancellation during identity verification", async (t) => {
+  // Unlike a real HTTP socket, this mock stream has no referenced I/O handle.
+  // AbortSignal.timeout() alone does not keep Node 20's event loop alive.
+  const keepAlive = setTimeout(() => {}, 1_000);
+  t.after(() => clearTimeout(keepAlive));
   const stalled = createVeoVeoConfig({
     apiKey: "owned-secret",
     fetch: async () =>
